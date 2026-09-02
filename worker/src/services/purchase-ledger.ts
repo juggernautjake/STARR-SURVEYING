@@ -236,6 +236,55 @@ export async function recordFailedPurchase(
   });
 }
 
+/**
+ * Record the documents a run did NOT buy, and why — B3.
+ *
+ * These rows are the only evidence that a skip happened. Without them the product cannot distinguish
+ * "this county holds no such record" from "we were told not to look", and it was not distinguishing
+ * them: `research_document_purchases` held 0 rows of any kind, the analyze route counts rows with a
+ * skip status to size its notice, and `paidDocumentsNotice()` returns null at a count of zero. So
+ * the explanation existed at both ends and nothing joined them.
+ *
+ * No usage event, deliberately — `recordPurchase` writes one because money moved. Nothing moved
+ * here, and a $0.00 usage event would put a row in the cost stream for a purchase that never
+ * happened.
+ *
+ * Never throws. A run that skipped documents correctly must not fail because it could not write the
+ * note saying so; the count comes back so the caller can say how much of it landed.
+ */
+export async function recordSkippedPurchases(
+  rows: Array<Omit<PurchaseRecord, 'costUsd'> & { costUsd?: number }>,
+  status: string,
+  reason: string,
+): Promise<{ recorded: number; error: string | null }> {
+  if (rows.length === 0) return { recorded: 0, error: null };
+
+  const supabase = await getSupabase();
+  if (!supabase) return { recorded: 0, error: 'no database connection' };
+
+  const payload = rows.map((rec) => ({
+    research_project_id: rec.projectId,
+    run_id: rec.runId ?? null,
+    county_fips: countyKey(rec.countyFips),
+    instrument_key: instrumentKey(rec.instrument),
+    instrument_raw: rec.instrument,
+    document_type: rec.documentType ?? null,
+    platform_id: rec.platformId,
+    pages: rec.pages,
+    cost_usd: 0,
+    status,
+    failure_reason: reason.slice(0, 500),
+  }));
+
+  try {
+    const { error } = await loose(supabase, 'research_document_purchases').insert(payload);
+    if (error) return { recorded: 0, error: error.message };
+    return { recorded: payload.length, error: null };
+  } catch (err) {
+    return { recorded: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export interface LibrarySavings {
   reused: number;
   savedUsd: number;

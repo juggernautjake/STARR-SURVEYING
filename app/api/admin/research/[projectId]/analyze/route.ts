@@ -121,7 +121,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .from('research_document_purchases')
     .select('*', { count: 'exact', head: true })
     .eq('research_project_id', projectId)
-    .in('status', ['paid_disabled', 'no_vendor_credentials']);
+    // `permission_unreadable` added 2026-09-02, when the worker started writing these rows at all.
+    // It is a THIRD state, not a variant of the other two: "you told us not to spend" is finished,
+    // "we could not find out whether you had" is worth re-running once the setting reads. Counting
+    // it here is what stops a run that refused out of caution from looking like a run that had
+    // nothing to skip.
+    .in('status', ['paid_disabled', 'no_vendor_credentials', 'permission_unreadable']);
 
   const decision = mayBuyDocuments({
     allowPaidDocuments: (project as { allow_paid_documents?: boolean } | null)?.allow_paid_documents !== false,

@@ -27,6 +27,7 @@ import { runROWIntegration, type ROWReport } from './services/row-integration-en
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
+import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -3783,6 +3784,42 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
         'Purchase',
         `Paid documents NOT purchased (${permission.source}): ${permission.reason}`,
       );
+
+      // ── B3: the skip is now EVIDENCE, not just a sentence in a log ──────────────────────────
+      //
+      // The explanation path existed at both ends and nothing joined them in the middle. The app's
+      // analyze route counts `research_document_purchases` rows carrying a skip status to size its
+      // notice, and `paidDocumentsNotice()` returns null at a count of zero — and nothing in the
+      // product had ever written such a row. The table held 0 rows of any kind. So "N documents
+      // behind a paywall were not retrieved" was unreachable by construction, and the screen said
+      // nothing at all about the most expensive decision a run makes.
+      //
+      // Written here, at the moment of refusal, because this is the only place that knows both WHICH
+      // documents were skipped and WHY. Failure to write is reported and not thrown: a run that
+      // correctly declined to spend must not fail because it could not file the note saying so.
+      if (permission.skipStatus && recommendations.length > 0) {
+        const { recorded, error: skipErr } = await recordSkippedPurchases(
+          // Annotated because `confReport` is parsed as `any`; without it the row shape below is
+          // unchecked, which is how a column name drifts silently.
+          recommendations.map((rec: { instrument: string; documentType: string; source: string }) => ({
+            projectId,
+            runId: activePipelines.get(projectId)?.runId ?? null,
+            countyFips: countyFIPS,
+            instrument: rec.instrument,
+            documentType: rec.documentType,
+            platformId: rec.source,
+            pages: 0,
+          })),
+          permission.skipStatus,
+          permission.reason,
+        );
+        if (skipErr) {
+          purchaseLog.warn('Purchase', `Could not record the skipped documents: ${skipErr}`);
+        } else {
+          purchaseLog.info('Purchase', `Recorded ${recorded} skipped document(s) as ${permission.skipStatus}`);
+        }
+      }
+
       const blockedReport: PurchaseReport = {
         status: 'no_purchases_needed',
         projectId,

@@ -273,10 +273,41 @@ Ship in order within a phase. Each is independently useful and independently rev
 
       18 tests, with three controls and a mutation control — adding a raw `documents.push()` back
       makes the suite fail, which is the regression this is actually guarding against.
-- [ ] **B3** TexasFile and every other source. `purchase-gate.ts` now decides *whether* a run may
+- [x] **B3** TexasFile and every other source. `purchase-gate.ts` now decides *whether* a run may
       buy; what is not yet proven is that the paid path RUNS when allowed —
       `research_document_purchases` is still **0 rows**, and a free Bell run cannot prove the
       purchase path. Needs one deliberate paid run against a real property.
+
+      **The recordable half is DONE. The paid run itself is DEFERRED to the owner — see below.**
+
+      Investigating why `research_document_purchases` had 0 rows turned up something bigger than
+      "no paid run has happened yet". The explanation path existed at both ends and nothing joined
+      them in the middle:
+
+      | piece | state |
+      | --- | --- |
+      | `lib/research/paid-documents.ts: skipStatusFor()` | produces the statuses — **zero callers** |
+      | `purchase-ledger.ts: recordFailedPurchase()` | writes a row — **zero callers**, and its hardcoded `status: 'failed'` is not one the route counts |
+      | the analyze route | counts rows with a skip status |
+      | `paidDocumentsNotice()` | returns **null** when that count is zero |
+
+      So the sentence "N documents behind a paywall were not retrieved" was unreachable BY
+      CONSTRUCTION. Not "no run has produced one yet" — no run ever could. That also means the
+      notice restored to the run view earlier today was inert: correct, wired, and fed by a number
+      that could only ever be 0.
+
+      Now: `PurchaseDecision` carries a machine-readable `skipStatus`, the refusal site writes one
+      `research_document_purchases` row per recommended document, and the analyze route also counts
+      `permission_unreadable` — a THIRD state kept separate on purpose, because "you told us not to
+      spend" is finished and "we could not find out whether you had" is worth re-running.
+
+      12 tests, with a control that a run which MAY buy has no skip status — without it,
+      "always return paid_disabled" would pass everything and record skips for runs that bought fine.
+
+      **DEFERRED, owner-gated:** proving the PAID path end to end still needs one deliberate paid
+      run against a real property. It spends real money at a live vendor and picks a real address —
+      both are the owner's call, not something to do unasked. Everything up to the point of spending
+      is now covered. When you want it, say the word and name a property.
 
 ### Phase C — concurrency, guaranteed rather than observed
 

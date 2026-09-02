@@ -109,11 +109,28 @@ function coerceRunSettings(raw: Record<string, unknown>): RunSettings {
   return out;
 }
 
+/**
+ * The status written to `research_document_purchases` for a document that was NOT bought.
+ *
+ * A machine-readable companion to `reason`, and the reason it exists is B3: the app's analyze route
+ * counts these rows to build the "why did this run buy nothing?" notice, and nothing in the product
+ * had ever written one. `research_document_purchases` held 0 rows, so the count was always 0, so
+ * `paidDocumentsNotice()` — which returns null at a count of zero — could never return a sentence.
+ * A whole explanation path, present at both ends and joined in the middle by nothing.
+ *
+ * `permission_unreadable` is deliberately its own value rather than being folded into
+ * `paid_disabled`. "You told us not to spend" and "we could not find out whether you had" lead to
+ * different actions: the first is finished, the second is worth re-running once the setting reads.
+ */
+export type PurchaseSkipStatus = 'paid_disabled' | 'permission_unreadable';
+
 export interface PurchaseDecision {
   allowed: boolean;
   /** A sentence for the log, the run record and the report. Never a bare boolean's worth of
    *  information: "skipped by choice" and "the county has no such record" must never read alike. */
   reason: string;
+  /** What to record against each document this decision skips. Null when the run may buy. */
+  skipStatus: PurchaseSkipStatus | null;
   source: SettingsSource;
   settings: RunSettings;
 }
@@ -133,6 +150,7 @@ export function decidePurchase(effective: EffectiveSettings): PurchaseDecision {
         'This run could not be confirmed as allowed to spend: neither its own settings nor the ' +
         "project's paid-documents switch could be read. Nothing was purchased. This is a deliberate " +
         'refusal, not a finding about the county — re-run once the setting can be read.',
+      skipStatus: 'permission_unreadable',
       source: effective.source,
       settings: effective.settings,
     };
@@ -142,6 +160,10 @@ export function decidePurchase(effective: EffectiveSettings): PurchaseDecision {
   return {
     allowed: verdict.allowed,
     reason: verdict.reason,
+    // Every remaining refusal is a deliberate instruction — the switch off, a $0.00 ceiling, or free
+    // mode. All three are the operator saying no, and they are one status because the operator's
+    // next action is the same for all three: change the setting and re-run.
+    skipStatus: verdict.allowed ? null : 'paid_disabled',
     source: effective.source,
     settings: effective.settings,
   };
