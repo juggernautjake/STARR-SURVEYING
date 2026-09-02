@@ -1721,6 +1721,31 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 boundary: r.boundary ? {
                   type: r.boundary.type,
                   callCount: r.boundary.calls.length,
+                  // ── C2: the CALLS, not just how many there were ──────────────────────────
+                  //
+                  // The run computes the boundary calls at Stage 2 and reconciles them at Stage
+                  // 3.5, and persisted only the count. The boundary viewer asks the worker for
+                  // `/research/reconcile/:projectId`, which reads a Phase-7 file written ONLY by
+                  // the Testing Lab — so for every normal run the viewer had nothing to draw and
+                  // reported `hasWorkerData: false`, which reads as "the worker is down" rather
+                  // than "nobody computed this".
+                  //
+                  // Capped: a boundary is a few dozen calls, and a runaway extraction must not
+                  // push a megabyte of JSON into a metadata column. Truncation is stated rather
+                  // than silent, because a boundary missing its last calls does not close, and a
+                  // reader would blame the survey.
+                  calls: r.boundary.calls.slice(0, 400).map((c) => ({
+                    sequence: c.sequence,
+                    callId: c.callId ?? null,
+                    bearing: c.bearing?.raw ?? null,
+                    bearingDegrees: c.bearing?.decimalDegrees ?? null,
+                    distance: c.distance?.value ?? null,
+                    distanceUnit: c.distance?.unit ?? null,
+                    along: c.along ?? null,
+                    toPoint: c.toPoint ?? null,
+                    confidence: c.confidence,
+                  })),
+                  callsTruncated: r.boundary.calls.length > 400,
                   referenceCount: r.boundary.references.length,
                   confidence: r.boundary.confidence,
                   lotBlock: r.boundary.lotBlock,

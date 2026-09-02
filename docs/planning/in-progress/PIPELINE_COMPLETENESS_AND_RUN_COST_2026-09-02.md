@@ -155,8 +155,68 @@ reachability number until it exists.**
 
 ### Phase C — the pipeline uses what the codebase has
 
-- [ ] **C1** Do §1.4's measurement properly: trace from the `/research/property-lookup` handler.
+- [x] **C1** Do §1.4's measurement properly: trace from the `/research/property-lookup` handler.
       Produce the real list of research/analysis capabilities a normal run never reaches.
+
+      **DONE. The real number is 84 of 122**, traced from the `/research/property-lookup` handler
+      body and the index.ts functions it calls, then closed transitively. Two controls before
+      believing it, both of which held:
+
+      · `DocumentHarvester` is constructed inside `app.post('/research/harvest')` — the Lab route —
+        so it really is outside the run, which is why the earlier grep of pipeline.ts and router.ts
+        found nothing.
+      · `address-normalizer` is imported by CAD *adapters*, not by the run path, which is why the
+        AI-variant fix earlier today mattered in `bis-cad.ts` and not in the copy there.
+
+      **Six phases can only be computed from the Testing Lab:**
+
+      | phase | product can trigger? |
+      | --- | --- |
+      | 4 subdivision | **no** — Lab only |
+      | 5 adjacent | **no** — Lab only |
+      | 6 row | **no** — Lab only |
+      | 7 reconcile | the product GETs the report; the POST that COMPUTES it is Lab only |
+      | 8 confidence | same — GET only |
+      | 9 purchase | **no** — Lab only |
+
+      chain-of-title and flood-zone ARE product-callable, so this is not a blanket gap.
+
+      **The consequence worth acting on:** `app/api/admin/research/[projectId]/boundary/route.ts`
+      fetches `/research/reconcile/:projectId` and `/research/confidence/:projectId` — two reports a
+      normal run never writes. The boundary page is reading output that only exists if somebody ran
+      the Testing Lab.
+
+      **And the finding that stops this becoming a bad decision:** "not reached" splits two ways,
+      and wiring everything on the list would be wrong.
+
+      | Lab-only module | what the RUN uses instead |
+      | --- | --- |
+      | `DocumentHarvester` (490 ln) | `bell-clerk.ts` / pipeline Stage 2 |
+      | `GeometricReconciliationEngine` (669 ln) | `runGeoReconcile` at Stage 3.5 |
+      | `address-normalizer` AI variants | the copy in `bis-cad.ts` |
+
+      Those are PARALLEL IMPLEMENTATIONS, not missing capabilities. The run already does the work;
+      a second module does it again for the Lab. Wiring them would duplicate the phase, not add it.
+      Genuinely absent capabilities are a different set — subdivision intelligence, adjacent
+      research, ROW integration, the confidence engine and the purchase orchestrator — and those
+      are C2.
+- [x] **C2a** The boundary viewer draws the calls a normal run produced.
+
+      **The first consequence of C1, and the worst one.** The viewer fetched two Phase-7 files that
+      only the Testing Lab writes, so for every run an operator actually started it had nothing to
+      draw and reported `hasWorkerData: false` — which reads as "the worker is down", not "nobody
+      computed this". A surveyor looking at an empty boundary concludes something about the
+      PROPERTY.
+
+      The run had the calls the whole time: it reconciles at Stage 3.5 through `runGeoReconcile` and
+      persisted only `callCount`. It now persists the calls, capped at 400 with the truncation
+      STATED — a boundary missing its last calls does not close, and a reader blames the survey.
+
+      The viewer prefers the Phase-7 report when it exists (it carries cross-source aggregation the
+      run's own pass does not) and falls back otherwise, and the response now says WHICH answer it
+      gave: `callSource: none | run | phase7`. Rendering the poorer answer silently would be the
+      same defect in better clothes.
+
 - [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.
