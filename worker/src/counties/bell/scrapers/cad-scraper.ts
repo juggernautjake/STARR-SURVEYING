@@ -38,6 +38,7 @@ import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
 import { ESEARCH_FORMATS } from '../config/field-maps.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
+import { resolveAddressParts, hasUsableParts, type AddressParts } from '../../../research/address-parts.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -77,6 +78,11 @@ export interface CadDeedEntry {
 
 export interface CadSearchInput {
   address?: string;
+  /** The address in the separate fields the operator filled in (seed 624). When present these are
+   *  used verbatim instead of `parseAddressComponents`, whose city stripper is a hardcoded list of
+   *  fifteen Bell-area towns — so a property in any other routed county kept its city inside the
+   *  street name and searched the CAD for something no index contains. */
+  addressParts?: import('../../../research/address-parts.js').AddressParts;
   propertyId?: string;
   ownerName?: string;
   instrumentNumber?: string;
@@ -127,7 +133,7 @@ export async function scrapeBellCad(
   // ── Layer 2: HTTP API keyword search with session cookie ────────────
   if (input.address) {
     progress('CAD-L2', `HTTP keyword search: "${input.address}"`);
-    const result = await searchByAddress(input.address, screenshots, urlsVisited, progress);
+    const result = await searchByAddress(input.address, screenshots, urlsVisited, progress, input.addressParts);
     if (result) {
       progress('CAD-L2', `✓ Address search matched: ID=${result.propertyId} owner="${result.ownerName}"`);
       // Check if this is a personal property (BP/P) result and pivot if so
@@ -232,6 +238,7 @@ async function searchByAddress(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (phase: string, message: string) => void,
+  addressParts?: AddressParts,
 ): Promise<CadSearchResult | null> {
   const session = await acquireSession(screenshots, urlsVisited, progress);
   if (!session) {
@@ -239,7 +246,29 @@ async function searchByAddress(
     return null;
   }
 
-  const parsed = parseAddressComponents(address);
+  // ── THE OPERATOR'S FIELDS, WHEN THERE ARE ANY (seed 624) ────────────────────────────────────
+  //
+  // `parseAddressComponents` below strips the city using a hardcoded list of fifteen Bell-area
+  // towns. That list is why this works acceptably in Belton and not at all in Waco: an unstripped
+  // city stays in `streetName`, and `generateSearchVariants` then asks Bell CAD for a street called
+  // "MAIN ST WACO".
+  //
+  // It stays as the fallback for projects created before the address columns existed — a guess is
+  // better than refusing to search — but it is no longer the only option.
+  const entered = hasUsableParts(addressParts) ? resolveAddressParts(addressParts, address) : null;
+  if (entered) {
+    progress('CAD-L2', entered.statement);
+  }
+
+  const parsed = entered
+    ? {
+        streetNumber: entered.streetNumber || null,
+        direction: null,
+        streetName: entered.streetName.toUpperCase(),
+        streetSuffix: null,
+        city: entered.city ? entered.city.toUpperCase() : null,
+      }
+    : parseAddressComponents(address);
   if (!parsed) {
     progress('CAD-L2', `Could not parse address components: "${address}"`);
     return null;

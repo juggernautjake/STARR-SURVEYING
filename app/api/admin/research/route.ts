@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { composeAddress, splitStreetLine, type StructuredAddress } from '@/lib/research/property-address';
 
 /* GET — List all research projects (with optional filters) */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -82,16 +83,52 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { name, description, property_address, city, county, state, zip, owner_name, parcel_id, job_id, allow_paid_documents } = body;
+  const {
+    name, description, property_address, city, county, state, zip, owner_name, parcel_id,
+    job_id, allow_paid_documents,
+    // Seed 624 — the address arrives in parts and STAYS in parts. See below.
+    street_number, street_name, unit, intake_notes,
+  } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
   }
 
-  // Build full address string from components if individual fields provided
-  const fullAddress = property_address?.trim()
-    ? [property_address.trim(), city?.trim(), state?.trim(), zip?.trim()].filter(Boolean).join(', ')
-    : null;
+  // ── THE ADDRESS IS NO LONGER FLATTENED INTO ONE STRING (seed 624) ────────────────────────────
+  //
+  // This route used to do:
+  //
+  //     [property_address, city, state, zip].filter(Boolean).join(', ')
+  //
+  // and store only the result, with `city` and `zip` copied into `analysis_metadata` — which the
+  // pipeline route does not select, so the worker never received them. The worker then tried to
+  // guess the parts back out of the string, and on 2026-09-02 it was measured doing so wrongly:
+  // `address-normalizer.parseAddress` expects `TEMPLE, TX 76501` and this route emitted
+  // `TEMPLE, TX, 76501`, so the pattern missed and `streetName` came out as the whole remainder —
+  // "MAIN ST, TEMPLE, TX, 76501" — which is what went into the county CAD's street-name box. It
+  // matched nothing, and the run reported no appraisal record for a property that exists.
+  //
+  // The parts are stored as columns now. `property_address` is still written, because every
+  // existing reader displays it and a null would blank the project cards, but it is now COMPOSED
+  // (state and ZIP joined with a space, like an envelope) rather than being the only truth.
+  //
+  // A caller that sends only `property_address` — the public request form, the API, an older
+  // client — gets its street line split here so the columns are populated for it too. That split is
+  // a guess and is confined to the street line alone; it never invents a city.
+  const streetLine = (property_address ?? '').trim();
+  const split = splitStreetLine(streetLine);
+  const structured: StructuredAddress = {
+    // An explicit field always wins over the guess.
+    streetNumber: (street_number ?? '').trim() || split.streetNumber || null,
+    streetName: (street_name ?? '').trim() || split.streetName || null,
+    unit: (unit ?? '').trim() || split.unit || null,
+    city: city?.trim() || null,
+    county: county?.trim() || null,
+    state: state?.trim() || 'TX',
+    zip: zip?.trim() || null,
+    parcelId: parcel_id?.trim() || null,
+  };
+  const fullAddress = composeAddress(structured) || null;
 
   const { data, error } = await supabaseAdmin
     .from('research_projects')
@@ -100,6 +137,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       name: name.trim(),
       description: description?.trim() || null,
       property_address: fullAddress,
+      street_number: structured.streetNumber,
+      street_name: structured.streetName,
+      unit: structured.unit,
+      city: structured.city,
+      zip: structured.zip,
+      // What the operator knows that no record will say. `analysis_metadata.user_notes` was written
+      // here and read by NOTHING (grepped across app/, lib/ and worker/src) — so the context an
+      // operator took the trouble to type has been going into the database and stopping there. This
+      // column is read by the briefing that goes to the AI.
+      intake_notes: (intake_notes ?? description ?? '').trim() || null,
       county: county?.trim() || null,
       state: state?.trim() || 'TX',
       parcel_id: parcel_id?.trim() || null,
@@ -110,10 +157,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // existing client silently produce cheaper, thinner runs with no explanation — worse than the
       // cost it saves, because the operator would not know why the report shrank.
       allow_paid_documents: allow_paid_documents === false ? false : true,
-      // Store owner_name and notes in analysis_metadata for AI context
+      // `owner_name` genuinely belongs here — it is not a column and it IS read, by the clerk
+      // grantor/grantee search. `city`, `zip` and `user_notes` are kept as a mirror only so that
+      // anything still reading the blob keeps working; the columns above are what the pipeline
+      // route selects and what the worker is given.
       analysis_metadata: {
         owner_name: owner_name?.trim() || null,
-        user_notes: description?.trim() || null,
+        user_notes: (intake_notes ?? description ?? '').trim() || null,
         city: city?.trim() || null,
         zip: zip?.trim() || null,
       },
@@ -145,6 +195,45 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (updates.property_address !== undefined) allowed.property_address = updates.property_address?.trim() || null;
   if (updates.county !== undefined) allowed.county = updates.county?.trim() || null;
   if (updates.state !== undefined) allowed.state = updates.state?.trim() || 'TX';
+
+  // ── The address parts are editable too, or the columns rot (seed 624) ───────────────────────
+  //
+  // Accepting them on POST and not on PATCH is exactly the shape of the `job_id` defect recorded
+  // twenty lines below: a column that could only ever be set at creation, from one screen, and was
+  // wrong forever afterwards. An operator who corrects a misspelled street on an existing project
+  // must correct the value the run actually uses, not just the display string.
+  for (const [field, col] of [
+    ['street_number', 'street_number'],
+    ['street_name', 'street_name'],
+    ['unit', 'unit'],
+    ['city', 'city'],
+    ['zip', 'zip'],
+    ['intake_notes', 'intake_notes'],
+  ] as const) {
+    if (updates[field] !== undefined) allowed[col] = updates[field]?.trim() || null;
+  }
+
+  // Keep the human-readable line in step with the parts. Recomposing it from whatever the PATCH
+  // touched — rather than leaving whatever string was there — is what stops the card and the search
+  // from disagreeing about which property this is.
+  const touchesAddress = ['street_number', 'street_name', 'unit', 'city', 'zip', 'state']
+    .some((f) => updates[f] !== undefined);
+  if (touchesAddress && updates.property_address === undefined) {
+    const { data: current } = await supabaseAdmin
+      .from('research_projects')
+      .select('street_number, street_name, unit, city, state, zip')
+      .eq('id', id)
+      .single();
+    const merged = { ...(current ?? {}), ...allowed } as Record<string, string | null>;
+    allowed.property_address = composeAddress({
+      streetNumber: merged.street_number,
+      streetName: merged.street_name,
+      unit: merged.unit,
+      city: merged.city,
+      state: merged.state,
+      zip: merged.zip,
+    }) || null;
+  }
   if (updates.status !== undefined) {
     const validStatuses = ['upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'];
     if (!validStatuses.includes(updates.status)) {

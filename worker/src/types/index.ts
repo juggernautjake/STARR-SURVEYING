@@ -5,6 +5,9 @@
 export interface PipelineInput {
   projectId: string;
   address: string;
+  /** The address in separate fields, as the operator entered it (seed 624). See
+   *  `research/address-parts.ts` for why the flattened `address` above is not enough. */
+  addressParts?: import('../research/address-parts.js').AddressParts;
   county: string;
   state: string;
   /** If the user already knows the CAD property ID, skip address search */

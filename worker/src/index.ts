@@ -1024,7 +1024,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     trigger?: RunTrigger;
   };
 
-  const { projectId, address, county, state, propertyId, ownerName, userFiles } = body;
+  const { projectId, address, addressParts, county, state, propertyId, ownerName, userFiles } = body;
 
   // Validate input: address and county are both required
   if (!projectId) {
@@ -1099,6 +1099,8 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     county,
     state: state ?? 'TX',
     address: address ?? undefined,
+    // The parts the operator typed, carried through rather than re-derived downstream (seed 624).
+    addressParts,
     propertyId: propertyId ?? undefined,
     ownerName: ownerName ?? undefined,
     uploadedFiles: parsedUserFiles?.map(f => ({

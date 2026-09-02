@@ -9,6 +9,15 @@ export interface BellResearchInput {
   // ── Identifying fields (at least one required) ─────────────────────
   /** Property street address (e.g., "3779 W FM 436, Belton, TX 76513") */
   address?: string;
+  /**
+   * The same address in the SEPARATE FIELDS the operator filled in (seed 624).
+   *
+   * `address` above is a display line. Deriving the street name back out of it is what
+   * `research/address-parts.ts` exists to stop: the Bell CAD scraper's own parser strips the city
+   * with a hardcoded list of fifteen Bell-area towns, so any other county's city stays inside the
+   * street name and the CAD is asked for a street that does not exist.
+   */
+  addressParts?: import('../../../research/address-parts.js').AddressParts;
   /** Bell CAD property ID / account number */
   propertyId?: string;
   /** Current or historical owner name */

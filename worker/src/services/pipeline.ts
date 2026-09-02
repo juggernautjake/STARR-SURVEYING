@@ -551,7 +551,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // ═══════════════════════════════════════════════════════════════════
 
     const stage0Start = Date.now();
-    const normalized = await normalizeAddress(input.address, logger);
+    const normalized = await normalizeAddress(input.address, logger, input.addressParts);
 
     // Warn once if geocoder disagrees with the supplied county
     if (normalized.detectedCounty && normalized.detectedCounty.toLowerCase() !== input.county.toLowerCase()) {

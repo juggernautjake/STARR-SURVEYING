@@ -7,6 +7,7 @@
 
 import { ParsedAddress, AddressVariant, NormalizedAddress } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { resolveAddressParts, hasUsableParts, type AddressParts } from '../research/address-parts.js';
 
 // ━━ TEXAS ROAD PREFIX REGISTRY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -415,12 +416,34 @@ function generateStandardVariants(parsed: ParsedAddress, rawAddress?: string): A
 
 // ━━ FULL NORMALIZATION (with geocoding) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/**
+ * @param parts The address in the SEPARATE FIELDS the operator filled in (seed 624). When present,
+ *   these WIN over anything parsed or geocoded — see the block inside.
+ */
 export async function normalizeAddress(
   rawAddress: string,
   logger: PipelineLogger,
+  parts?: AddressParts | null,
 ): Promise<NormalizedAddress> {
   const tag = '[ADDRESS]';
   console.log(tag + ' Normalizing: "' + rawAddress + '"');
+
+  // ── GEOCODE THE WELL-FORMED ADDRESS, NOT THE ONE WITH THE EXTRA COMMA ────────────────────────
+  //
+  // When the parts are known, the query is rebuilt from them — `TEMPLE, TX 76501`, the way an
+  // envelope is addressed. The app used to emit `TEMPLE, TX, 76501` and that string went to
+  // Nominatim and Census as-is.
+  const usableParts = hasUsableParts(parts);
+  if (usableParts) {
+    const resolved = resolveAddressParts(parts, rawAddress);
+    const street = [resolved.streetNumber, resolved.streetName].filter(Boolean).join(' ');
+    const stateZip = [resolved.state, resolved.zip].filter(Boolean).join(' ');
+    const rebuilt = [street, resolved.city, stateZip].filter(Boolean).join(', ');
+    if (rebuilt && rebuilt !== rawAddress) {
+      console.log(tag + ' Using operator-entered parts: "' + rebuilt + '"');
+      rawAddress = rebuilt;
+    }
+  }
 
   const result: NormalizedAddress = {
     raw: rawAddress,
@@ -489,6 +512,42 @@ export async function normalizeAddress(
 
   if (!result.geocoded) {
     console.log(tag + ' Geocoding failed -- using manual parse');
+  }
+
+  // ── WHAT THE OPERATOR TYPED BEATS WHAT WE DERIVED (seed 624) ────────────────────────────────
+  //
+  // The geocoders run first because they contribute lat/lon and a county FIPS that nothing else
+  // can. But for the STREET, an operator reading a deed is a better source than a geocoder guessing
+  // at a rural parcel and far better than `manualParse` — which, measured on 2026-09-02, returned
+  //
+  //     streetName = "MAIN ST, TEMPLE, TX, 76501"
+  //
+  // for the exact string this app produced, because its two patterns both require `TX 76501` and
+  // the app emitted `TX, 76501`. That street name went into the county CAD search box.
+  //
+  // Only fields the operator actually filled in are overridden; a blank box does not erase a
+  // geocoder's better answer.
+  if (usableParts) {
+    const resolved = resolveAddressParts(parts, rawAddress);
+    const before = result.parsed.streetName;
+    if (resolved.streetNumber) result.parsed.streetNumber = resolved.streetNumber;
+    if (resolved.streetName) {
+      // The street TYPE is folded into the name the operator typed ("MAIN ST"), and leaving a
+      // separately-parsed type behind would produce "MAIN ST ST" in the variant builder.
+      result.parsed.streetName = resolved.streetName;
+      result.parsed.streetType = '';
+    }
+    if (resolved.city) result.parsed.city = resolved.city;
+    if (resolved.zip) result.parsed.zip = resolved.zip;
+    if (resolved.unit) result.parsed.unit = resolved.unit;
+    if (before !== result.parsed.streetName) {
+      console.log(tag + ' Street name from operator fields: "' + result.parsed.streetName + '" (was "' + before + '")');
+      logger.info('Stage0', resolved.statement);
+    }
+  } else if (rawAddress) {
+    // Said out loud, because a guess presented as a fact is what made this class of failure
+    // invisible. If the county comes back empty, this line is where to look first.
+    logger.info('Stage0', resolveAddressParts(null, rawAddress).statement);
   }
 
   const p = result.parsed;

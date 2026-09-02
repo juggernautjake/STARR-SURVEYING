@@ -33,6 +33,18 @@ export interface CountyResearchInput {
   projectId: string;
   /** Property address — REQUIRED */
   address?: string;
+  /**
+   * The address in the SEPARATE FIELDS the operator filled in (seed 624).
+   *
+   * `address` above is the flattened display line, and re-deriving the street name from it is what
+   * `research/address-parts.ts` exists to stop: measured on 2026-09-02, the app's own format made
+   * `parseAddress` return "MAIN ST, TEMPLE, TX, 76501" as a street name, which was then typed into
+   * a county CAD search box that could never match it.
+   *
+   * Optional because projects created before the columns existed have nothing to send. Absence
+   * means "fall back to parsing, and say in the log that you did".
+   */
+  addressParts?: import('../research/address-parts.js').AddressParts;
   /** CAD property ID */
   propertyId?: string;
   /** Owner name */
@@ -482,6 +494,9 @@ export async function runCountyResearch(
           {
             projectId: input.projectId,
             address: input.address,
+            // Seed 624. Without this line the parts reach the router and stop there — the shape of
+            // defect this codebase keeps finding: a value carried to the door and left on the step.
+            addressParts: input.addressParts,
             propertyId: input.propertyId,
             ownerName: input.ownerName,
             instrumentNumber: input.instrumentNumber,
@@ -559,6 +574,8 @@ export async function runCountyResearch(
       const pipelineInput: PipelineInput = {
         projectId: input.projectId,
         address: input.address ?? '',
+        // Seed 624 — the generic pipeline's Stage 0 prefers these over parsing `address`.
+        addressParts: input.addressParts,
         county: input.county,
         state: input.state ?? 'TX',
         propertyId: input.propertyId,

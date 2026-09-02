@@ -172,9 +172,13 @@ describe('starting research from a job', () => {
   it('and is reset after a successful create', () => {
     // Otherwise the next project inherits the last one's job, which is worse than no link: it is a
     // wrong one, silently.
-    const at = TAB.indexOf('setNewProject({ name:');
-    expect(at).toBeGreaterThan(-1);
-    expect(TAB.slice(at, at + 300)).toContain('job_id: null');
+    // Anchored on the post-create reset rather than on the literal text "setNewProject({ name:",
+    // which seed 624 broke by wrapping that call across lines when it added four more fields.
+    // indexOf returned -1, slice(-1) handed the assertion a newline, and it reported a missing
+    // job_id that was present.
+    const at = TAB.indexOf('setNewProject({', TAB.indexOf('const data = await res.json()'));
+    expect(at, 'no post-create reset found').toBeGreaterThan(-1);
+    expect(TAB.slice(at, at + 600)).toContain('job_id: null');
   });
 
   it('an empty field on the job does not blank a default', () => {
@@ -236,8 +240,9 @@ describe('when the job has no county', () => {
 
   it('the flag resets with the rest of the form', () => {
     // Otherwise the next project created in the same session inherits the warning from the last.
-    const at = TAB.indexOf('setNewProject({ name:');
-    expect(TAB.slice(at, at + 420)).toContain('setJobHadNoCounty(false)');
+    const at = TAB.indexOf('setNewProject({', TAB.indexOf('const data = await res.json()'));
+    expect(at, 'no post-create reset found').toBeGreaterThan(-1);
+    expect(TAB.slice(at, at + 700)).toContain('setJobHadNoCounty(false)');
   });
 
   it('and the county is NOT guessed from the city', () => {

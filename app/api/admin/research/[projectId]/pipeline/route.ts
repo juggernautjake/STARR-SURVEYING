@@ -77,7 +77,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state, parcel_id, allow_paid_documents')
+    // The address PARTS, not just the flattened line (seed 624). Selecting only
+    // `property_address` is why the city and ZIP the operator typed never reached the worker: they
+    // were written to `analysis_metadata`, and this list is what the run actually reads.
+    .select('id, property_address, street_number, street_name, unit, city, county, state, zip, parcel_id, intake_notes, allow_paid_documents')
     .eq('id', projectId)
     .single();
 
@@ -194,9 +197,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  // ── THE PARTS TRAVEL WITH THE RUN (seed 624) ────────────────────────────────────────────────
+  //
+  // `address` alone is what the worker used to get, and it re-derived the street number, street
+  // name and city from it with two different parsers, neither of which could handle the string this
+  // app produced. `addressParts` carries what the operator actually typed, so the worker can search
+  // on facts and fall back to guessing only for older projects that have nothing else.
+  //
+  // Sent even when empty. A worker that receives `addressParts: {}` knows the project predates the
+  // columns and can say so; one that receives nothing at all cannot tell that from an old worker
+  // build talking to a new app.
+  const addressParts = {
+    streetNumber: (project.street_number as string | null) || null,
+    streetName: (project.street_name as string | null) || null,
+    unit: (project.unit as string | null) || null,
+    city: (project.city as string | null) || null,
+    state: project.state || 'TX',
+    zip: (project.zip as string | null) || null,
+  };
+
   const payload = {
     projectId,
     address: rawAddress,
+    addressParts,
     county: rawCounty || autoCounty,
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
@@ -204,7 +227,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // Anything the attachment step could not do travels WITH the run rather than staying in a
     // server log nobody reads. "Six of your twenty documents were attached" is exactly the kind of
     // fact that, left unsaid, makes an operator believe the run read everything they gave it.
-    operatorNotes: [body.operatorNotes?.trim(), ...attachmentNotes]
+    // ── intake_notes JOINS THE RUN HERE (seed 624) ──────────────────────────────────────────
+    //
+    // What the operator wrote when the project was created — "the fence is not the line", "seller
+    // says 2.3 acres" — used to be stored as `analysis_metadata.user_notes` and read by NOTHING.
+    // `operatorNotes` is the channel that already reaches the AI briefing, so the intake context
+    // travels down it rather than getting a second, parallel pipe that would need its own wiring
+    // at every stage.
+    //
+    // Intake first, then this run's notes: the per-run note is usually a correction or an addition
+    // to the standing context, and a reader (human or model) resolves a contradiction in favour of
+    // what came last.
+    operatorNotes: [
+      (project.intake_notes as string | null)?.trim(),
+      body.operatorNotes?.trim(),
+      ...attachmentNotes,
+    ]
       .filter((s): s is string => !!s && s.length > 0)
       .join('\n') || undefined,
     userFiles: attachedFiles.length > 0 ? attachedFiles : undefined,

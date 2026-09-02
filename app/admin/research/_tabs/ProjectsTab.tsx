@@ -23,6 +23,13 @@ import { checkScope } from '@/lib/research/scope';
 import ScopeNotice from '../components/ScopeNotice';
 import JobLinkPicker, { type JobSummary } from '../components/JobLinkPicker';
 import { Accordion, ErrorState } from '../components/ui';
+import { composeAddress, splitStreetLine } from '@/lib/research/property-address';
+// The SAME upload path the project page uses — signed URL straight to storage, a 50 MB cap, and
+// per-file errors that do not stop the other files. Writing a second uploader here would have meant
+// two size limits, two validation lists and two ways to fail.
+import {
+  uploadDocuments, validateFiles, formatFileSize, ACCEPT_ATTRIBUTE,
+} from '../components/upload-documents';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -55,16 +62,40 @@ export default function ProjectsTab() {
      jobs in this database have an empty or null county, so this is the common arrival, not an
      edge case worth skipping. */
   const [jobHadNoCounty, setJobHadNoCounty] = useState(false);
+  /** Documents the operator already has, attached before the first run rather than after it. */
+  const [intakeFiles, setIntakeFiles] = useState<File[]>([]);
+  const [intakeFileErrors, setIntakeFileErrors] = useState<string[]>([]);
+  /** Set when the project was created but its documents were not. Holds the navigation open — see
+   *  `handleCreate`. */
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
     property_address: '',
+    // ── THE STREET, IN THE PARTS THE COUNTY ASKS FOR (seed 624) ────────────────────────────────
+    //
+    // `property_address` was the only street field, and the server flattened it together with the
+    // city, state and ZIP into one string. The worker then tried to take it back apart — measured
+    // on 2026-09-02, all THREE of its parsers failed on the format this app produced, because it
+    // joined the state and ZIP with a comma (`TX, 76501`) and every one of them expects a space.
+    // The street name they came away with was "MAIN ST, TEMPLE, TX, 76501", and that is what went
+    // into the county appraisal district's street-name search box.
+    //
+    // Bell CAD's form wants `StreetNumber:123` and `MAIN` as two indexed fields. So does everyone
+    // else's. These now travel that way from here to the search.
+    street_number: '',
+    street_name: '',
+    unit: '',
     city: '',
     county: '',
     state: 'TX',
     zip: '',
     owner_name: '',
     parcel_id: '',
+    /** Operator context, given to the AI. Distinct from `description`, which is the project's own
+     *  blurb — though the server falls back to `description` for projects that only send that. */
+    intake_notes: '',
   // Spend gate (seed 620). ON by default so behaviour matches every existing project;
     // the toggle below makes the choice explicit rather than inherited from a column default.
     allow_paid_documents: true,
@@ -78,8 +109,20 @@ export default function ProjectsTab() {
    *  neither is not. Declared here so the submit handler and the button agree on one rule
    *  rather than each testing its own condition and drifting apart. */
   const hasIdentifier = Boolean(
-    newProject.parcel_id.trim() || newProject.property_address.trim(),
+    newProject.parcel_id.trim() || newProject.street_name.trim() || newProject.property_address.trim(),
   );
+
+  /** The one-line address, composed from the parts for display and for the project name.
+   *  Composed by the SAME function the server uses, so the card and the run can never disagree
+   *  about which property this is. */
+  const composedAddress = composeAddress({
+    streetNumber: newProject.street_number,
+    streetName: newProject.street_name,
+    unit: newProject.unit,
+    city: newProject.city,
+    state: newProject.state,
+    zip: newProject.zip,
+  });
 
   /** County is the ROUTING KEY — it chooses the clerk portal, and Bell (Kofile, free) and a
    *  TexasFile county are different amounts of money. Checked against the 254-county list we
@@ -192,9 +235,13 @@ export default function ProjectsTab() {
     // website before they could start a run they already had the address for — and the server
     // never required it (`parcel_id?.trim() || null`).
     if (!hasIdentifier || creating) return;
-    // Auto-generate project name from address or parcel ID if not provided
+    // Auto-generate project name from address or parcel ID if not provided. Composed from the
+    // parts, so a project created by typing the fields is named the same as one created from a
+    // Places suggestion.
     const projectName = newProject.name.trim()
-      || (newProject.property_address.trim() || `Property ${newProject.parcel_id.trim()}`);
+      || composedAddress
+      || newProject.property_address.trim()
+      || `Property ${newProject.parcel_id.trim()}`;
     setCreating(true);
     try {
       // Store the canonical spelling when we recognise the county. Routing matches on the name,
@@ -210,8 +257,60 @@ export default function ProjectsTab() {
       });
       if (res.ok) {
         const data = await res.json();
+
+        // ── ATTACH THE OPERATOR'S OWN DOCUMENTS ────────────────────────────────────────────
+        //
+        // After the insert, because a document row needs a project to belong to. Deliberately NOT
+        // fatal: the project exists and is usable, and destroying it because one PDF would not
+        // upload would be a worse outcome than a project whose attachments need re-adding. What is
+        // not acceptable is silence — an operator who attached four files and was shown nothing
+        // would reasonably believe the run received them.
+        let uploadFailed = false;
+        setCreatedProjectId(data.project.id);
+        if (intakeFiles.length > 0) {
+          try {
+            const outcome = await uploadDocuments(data.project.id, intakeFiles);
+            if (outcome.errors.length > 0) {
+              uploadFailed = true;
+              // Named files, not a count. "2 files failed" sends somebody to compare two lists.
+              setUploadWarning(
+                `The project was created. ${outcome.errors.length} of your ${intakeFiles.length} ` +
+                `document(s) did not upload and are NOT part of this project — ` +
+                `${outcome.errors.join('; ')}. Add them from the project page before starting a run.`,
+              );
+            }
+          } catch (err) {
+            uploadFailed = true;
+            setUploadWarning(
+              `The project was created, but none of your ${intakeFiles.length} document(s) uploaded ` +
+              `(${err instanceof Error ? err.message : String(err)}). Add them from the project page ` +
+              `before starting a run.`,
+            );
+          }
+        }
+
+        // ── A FAILED UPLOAD HOLDS THE NAVIGATION ────────────────────────────────────────────
+        //
+        // Routing straight to the project page would render the warning for the length of one
+        // frame and then unmount it. The operator would arrive at a project missing the documents
+        // they attached, with nothing on screen having said so — and would start a run believing
+        // the AI had them.
+        //
+        // On success it navigates as before. Nothing to read means nothing to stop for.
+        if (uploadFailed) {
+          setCreating(false);
+          return;
+        }
+
         setShowCreate(false);
-        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '', allow_paid_documents: true, job_id: null });
+        setNewProject({
+          name: '', description: '', property_address: '',
+          street_number: '', street_name: '', unit: '',
+          city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '',
+          intake_notes: '', allow_paid_documents: true, job_id: null,
+        });
+        setIntakeFiles([]);
+        setIntakeFileErrors([]);
       setJobHadNoCounty(false);
         router.push(`/admin/research/${data.project.id}`);
       } else {
@@ -489,12 +588,24 @@ export default function ProjectsTab() {
                 />
               </div>
 
-              {/* ── Property Address ── */}
+              {/* ── QUICK FILL ──────────────────────────────────────────────────────────────
+                  Demoted from "the address field" to a convenience that FILLS the real fields
+                  below. Two reasons, and the second is the one that matters:
+
+                  1. Google Places is refusing this key right now — the Places API is not enabled
+                     on the Cloud project, so `REQUEST_DENIED` comes back on every keystroke and
+                     the component says so. If suggestions were the only way in, the form would be
+                     unusable until somebody clicks a button in a console.
+
+                  2. Even when it works, a selected suggestion was flattened into one string and
+                     the parts thrown away. Filling the separate fields means the operator can SEE
+                     what was understood, and correct it — a Places result for a rural parcel is
+                     frequently the road, not the property. */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
-                    Property Address
-                    <Tooltip text="Start typing to see address suggestions. Selecting an address will auto-fill city, county, state, and ZIP. Used alongside the Property ID for cross-referencing records." position="right">
+                    Quick fill from an address search
+                    <Tooltip text="Optional shortcut. Pick a suggestion and it fills the street, city, county, state and ZIP fields below, which you can then correct. Everything here can be typed by hand instead — the fields below are what the run actually uses." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -502,19 +613,94 @@ export default function ProjectsTab() {
                 <AddressAutocomplete
                   value={newProject.property_address}
                   onChange={val => setNewProject(p => ({ ...p, property_address: val }))}
-                  onSelect={details => setNewProject(p => ({
-                    ...p,
-                    property_address: details.address || p.property_address,
-                    city: details.city || p.city,
-                    county: details.county || p.county,
-                    state: details.state || p.state,
-                    zip: details.zip || p.zip,
-                  }))}
+                  onSelect={details => setNewProject(p => {
+                    // Split the chosen line into the parts the county search needs. Same helper the
+                    // server uses, so a suggestion and a hand-typed address end up identical.
+                    const street = splitStreetLine(details.address || '');
+                    return {
+                      ...p,
+                      property_address: details.address || p.property_address,
+                      street_number: street.streetNumber || p.street_number,
+                      street_name: street.streetName || p.street_name,
+                      unit: street.unit || p.unit,
+                      city: details.city || p.city,
+                      county: details.county || p.county,
+                      state: details.state || p.state,
+                      zip: details.zip || p.zip,
+                    };
+                  })}
                   className="research-modal__input"
-                  placeholder="Property address"
+                  placeholder="Start typing an address to fill the fields below"
                   biasTexas={true}
                 />
               </div>
+
+              {/* ── Street number + street name ─────────────────────────────────────────────
+                  Separate because that is how every county appraisal district indexes them, and
+                  because keeping them separate is the whole fix: nothing downstream has to guess
+                  where the number ends and the name begins. */}
+              <div className="research-modal__row">
+                <div className="research-modal__field" style={{ flex: '0 0 30%' }}>
+                  <label className="research-modal__label" htmlFor="np-street-number">
+                    <span className="job-form__label-row">
+                      Street number
+                      <Tooltip text="The house or site number on its own — 3779. Leave blank for a rural parcel that has none; the street name alone is a valid search." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
+                  <input
+                    id="np-street-number"
+                    className="research-modal__input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="3779"
+                    value={newProject.street_number}
+                    onChange={e => setNewProject(p => ({ ...p, street_number: e.target.value }))}
+                  />
+                </div>
+                <div className="research-modal__field">
+                  <label className="research-modal__label" htmlFor="np-street-name">
+                    <span className="job-form__label-row">
+                      Street name
+                      <Tooltip text="The road only — 'W FM 436', 'MAIN ST'. No city, state or ZIP: those have their own fields, and including them here is what made past searches fail." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
+                  <input
+                    id="np-street-name"
+                    className="research-modal__input"
+                    type="text"
+                    placeholder="W FM 436"
+                    value={newProject.street_name}
+                    onChange={e => setNewProject(p => ({ ...p, street_name: e.target.value }))}
+                    // A typed-in city here is the exact failure this redesign removes, so it is
+                    // worth catching at the keyboard rather than twenty minutes into a run.
+                    onBlur={e => {
+                      const v = e.target.value;
+                      if (v.includes(',')) {
+                        const street = splitStreetLine(v);
+                        setNewProject(p => ({
+                          ...p,
+                          street_number: p.street_number || street.streetNumber,
+                          street_name: street.streetName,
+                          unit: p.unit || street.unit,
+                        }));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* What the run will actually search for, spelled out. An operator who can see the
+                  composed line before starting can catch a wrong field in a second, instead of
+                  reading "no appraisal record found" half an hour later. */}
+              {composedAddress && (
+                <div className="research-modal__hint" role="status">
+                  Searching for: <strong>{composedAddress}</strong>
+                </div>
+              )}
 
 
               {/* ── County + State ── */}
@@ -646,11 +832,34 @@ export default function ProjectsTab() {
                   <input
                     className="research-modal__input"
                     type="text"
+                    inputMode="numeric"
                     placeholder="ZIP"
                     value={newProject.zip}
                     onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
                   />
                 </div>
+              </div>
+              {/* ── Unit ────────────────────────────────────────────────────────────────────
+                  Down here rather than beside the street because it is the one address part
+                  deliberately EXCLUDED from the county search: appraisal records are keyed to the
+                  parcel, not the apartment, and a suite number in the search box turns a match
+                  into a miss. It is kept for the report and the file, not for the lookup. */}
+              <div className="research-modal__field">
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Unit / Suite / Lot
+                    <Tooltip text="Recorded on the project and shown in the report, but left out of appraisal-district searches on purpose — those are indexed by parcel, and a suite number makes an otherwise good search return nothing." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input
+                  className="research-modal__input"
+                  type="text"
+                  placeholder="Suite 200"
+                  value={newProject.unit}
+                  onChange={e => setNewProject(p => ({ ...p, unit: e.target.value }))}
+                />
               </div>
               {/* ── Owner Name ── */}
               <div className="research-modal__field">
@@ -707,6 +916,59 @@ export default function ProjectsTab() {
                   onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
                   rows={3}
                 />
+                {/* ── THIS TOOLTIP WAS TELLING THE TRUTH ABOUT SOMETHING THAT DID NOT HAPPEN ──
+                    "These notes are included in the AI analysis context" has been on this field
+                    since it was built. The server stored them as `analysis_metadata.user_notes`,
+                    and a grep across app/, lib/ and worker/src on 2026-09-02 found NOTHING that
+                    read that key. The notes went into the database and stopped.
+
+                    Seed 624 gives them a column, and the pipeline route now prepends them to
+                    `operatorNotes` — the channel that already reaches the AI briefing. The
+                    sentence below is here so the claim is visible and therefore falsifiable. */}
+                <p className="research-modal__hint" style={{ marginTop: 6 }}>
+                  Sent to the AI with the run, alongside anything you attach below.
+                </p>
+              </div>
+
+              {/* ── DOCUMENTS AT INTAKE ─────────────────────────────────────────────────────
+                  An operator holding the old survey, the deed or the seller's plat had nowhere to
+                  put it until after the project existed and the first run had already gone out
+                  without it. The same component the re-run dialog uses, so the size caps, the
+                  rejection messages and the read path are one implementation rather than two. */}
+              <div className="research-modal__field">
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Documents you already have
+                    <Tooltip text="Deeds, plats, prior surveys, title commitments. They are attached to the project and given to the run, so the AI reads them alongside anything it finds itself." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input
+                  className="research-modal__input"
+                  type="file"
+                  multiple
+                  accept={ACCEPT_ATTRIBUTE}
+                  onChange={e => {
+                    const picked = Array.from(e.target.files ?? []);
+                    // Validated at the KEYBOARD, not after the project exists. A 60 MB TIFF
+                    // rejected here costs a re-pick; rejected after create, it costs a project
+                    // that silently has fewer documents than the operator believes.
+                    const { valid, errors } = validateFiles(picked);
+                    setIntakeFiles(valid);
+                    setIntakeFileErrors(errors);
+                  }}
+                />
+                {intakeFiles.length > 0 && (
+                  <ul className="research-modal__hint" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    {intakeFiles.map(f => (
+                      <li key={f.name}>{f.name} <span style={{ opacity: 0.7 }}>({formatFileSize(f.size)})</span></li>
+                    ))}
+                  </ul>
+                )}
+                {intakeFileErrors.map(err => (
+                  <p key={err} className="research-modal__hint" role="alert" style={{ marginTop: 6 }}>{err}</p>
+                ))}
               </div>
               </Accordion>
 
@@ -714,7 +976,27 @@ export default function ProjectsTab() {
                   rather than as unmet. Say what is missing, and only while it is missing. */}
               {!hasIdentifier && (
                 <div className="research-modal__hint" role="status">
-                  Enter a property address or a Property ID — either one identifies the parcel.
+                  Enter a street name or a Property ID — either one identifies the parcel.
+                </div>
+              )}
+
+              {/* The project exists and its documents do not. `role="alert"` because this is the
+                  one outcome an operator must not walk past. */}
+              {uploadWarning && (
+                <div className="research-modal__hint" role="alert" style={{ fontWeight: 500 }}>
+                  {uploadWarning}
+                  {createdProjectId && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="research-modal__link-btn"
+                        onClick={() => { setShowCreate(false); router.push(`/admin/research/${createdProjectId}`); }}
+                      >
+                        Open the project
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 

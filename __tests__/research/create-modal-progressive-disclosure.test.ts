@@ -80,12 +80,32 @@ describe('a hidden field is still a saved field', () => {
     }
   });
 
-  it('the reset after a create still names them, so the next project starts clean', () => {
+  it('the reset after a create names EVERY field, so the next project starts clean', () => {
     // A field omitted from the reset object keeps the previous project's value — which is worse
     // than losing it, because it looks deliberate.
-    const reset = src.slice(src.indexOf('setNewProject({ name:'));
-    for (const field of ['city', 'zip', 'owner_name', 'description']) {
-      expect(reset.slice(0, 400), `${field} missing from the post-create reset`).toContain(field);
+    //
+    // Re-pointed 2026-09-02. It anchored on the literal `setNewProject({ name:` and checked four
+    // hardcoded field names, so wrapping the reset across lines — which seed 624 did, by adding
+    // four more fields to it — broke the anchor and `slice(-1)` handed the assertion a newline.
+    // It reported a missing `city` that was present.
+    //
+    // The replacement derives the field list from the state initializer instead of naming four of
+    // them, so it now covers every field there is and cannot go stale the next time one is added.
+    const initializer = src.slice(
+      src.indexOf('const [newProject, setNewProject] = useState({'),
+      src.indexOf('  });', src.indexOf('const [newProject, setNewProject] = useState({')),
+    );
+    const fields = [...initializer.matchAll(/^\s{4}([a-z_]+):/gm)].map((m) => m[1]);
+
+    // CONTROL: an empty field list would make the loop below vacuously true.
+    expect(fields.length, 'could not read the state initializer').toBeGreaterThan(8);
+
+    const resetAt = src.indexOf('setNewProject({', src.indexOf('const data = await res.json()'));
+    expect(resetAt, 'no post-create reset found').toBeGreaterThan(-1);
+    const reset = src.slice(resetAt, resetAt + 600);
+
+    for (const field of fields) {
+      expect(reset, `${field} is missing from the post-create reset`).toContain(`${field}:`);
     }
   });
 });

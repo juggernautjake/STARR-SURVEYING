@@ -268,6 +268,9 @@ export async function orchestrateBellResearch(
     scrapeBellCad(
       {
         address: input.address,
+        // Seed 624 — the operator's separate fields, so the CAD search does not depend on the
+        // fifteen-town city stripper in `parseAddressComponents`.
+        addressParts: input.addressParts,
         propertyId: input.propertyId,
         ownerName: input.ownerName,
         instrumentNumber: input.instrumentNumber,
