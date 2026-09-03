@@ -5,12 +5,12 @@
 //
 // ── WHY THIS DID NOT EXIST ──────────────────────────────────────────────────────────────────────
 //
-// The generic pipeline writes a master validation report (Stage 6). The Bell path — the county
-// the owner actually runs — set `masterReportText: null` and `finalSummary: autoSummary`, where
-// autoSummary is five lines of field values ("Owner: …", "Property ID: …", "16 deed record(s)
-// retrieved"). So the Summary tab of every Bell project showed a form, not a reading. Plan E2's
-// premise ("the run produces no master report at all") was half right: the generic path has one,
-// Bell has none. Found by the 2026-09-03 platform audit.
+// The generic pipeline writes a master validation report (Stage 6) — a surveyor's report with no
+// document references. The Bell path — the county the owner actually runs — set
+// `masterReportText: null` and `finalSummary: autoSummary`, where autoSummary is five lines of
+// field values ("Owner: …", "Property ID: …", "16 deed record(s) retrieved"). So the Summary tab
+// of every Bell project showed a form, not a reading. Plan E2's premise ("the run produces no
+// master report at all") was half right. Found by the 2026-09-03 platform audit.
 //
 // ── WHAT THIS IS ────────────────────────────────────────────────────────────────────────────────
 //
@@ -22,6 +22,9 @@
 // unrelated to the parcel (plan E3's ask) — both are judgements a reviewer can check against the
 // list.
 //
+// Both paths feed it: `summaryInputFromBell` for the Bell orchestrator's result and
+// `summaryInputFromPipeline` for the generic pipeline's, so every county gets the same reading.
+//
 // Bounded: one call, one model, a hard token ceiling, and the run's own budget gate at the call
 // site. Never throws — a summary that could not be written must not fail a run that found the
 // documents it would have summarised.
@@ -30,17 +33,28 @@ import Anthropic from '@anthropic-ai/sdk';
 import { modelFor } from '../infra/model-router.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
 import type { BellResearchResult } from '../counties/bell/types/research-result.js';
+import type { DocumentResult } from '../types/index.js';
+import type { ValidationReport } from '../services/property-validation-pipeline.js';
 
 export interface SummarySource {
-  /** [D3], [P1], [E2], [A4] */
+  /** [D3], [P1], [E2], [A4], [F1] */
   ref: string;
-  kind: 'deed' | 'plat' | 'easement' | 'adjoiner' | 'gis' | 'fema' | 'txdot';
+  kind: 'deed' | 'plat' | 'easement' | 'adjoiner' | 'gis' | 'fema' | 'txdot' | 'document';
   label: string;
   /** Instrument number, plat name, parcel id — whatever identifies it at its source. */
   identity: string | null;
   url: string | null;
   /** What the run extracted from it, compacted for the prompt. */
   content: string;
+}
+
+/** Everything the writer needs, in one shape for both paths. */
+export interface SummaryInput {
+  /** "Owner of record: …" lines from the appraisal district / CAD. */
+  facts: string[];
+  /** One line per discrepancy the run flagged, already formatted. */
+  discrepancies: string[];
+  sources: SummarySource[];
 }
 
 const MAX_CONTENT_CHARS = 2_500;
@@ -51,7 +65,7 @@ const clip = (s: string | null | undefined, n = MAX_CONTENT_CHARS): string => {
   return t.length > n ? `${t.slice(0, n)} …[clipped]` : t;
 };
 
-/** Number every document the run holds, in the order a surveyor would want to cite them. */
+/** Number every document a Bell run holds, in the order a surveyor would want to cite them. */
 export function collectSummarySources(r: BellResearchResult): SummarySource[] {
   const out: SummarySource[] = [];
 
@@ -120,6 +134,91 @@ export function collectSummarySources(r: BellResearchResult): SummarySource[] {
   return out.slice(0, MAX_SOURCES);
 }
 
+/** The Bell orchestrator's result, as the writer's input. */
+export function summaryInputFromBell(r: BellResearchResult): SummaryInput {
+  const p = r.property;
+  return {
+    facts: [
+      `Owner of record: ${p.ownerName || 'unknown'}`,
+      `Appraisal district property ID: ${p.propertyId || 'unknown'}`,
+      `Situs: ${p.situsAddress || 'unknown'}`,
+      `Legal description (appraisal district): ${p.legalDescription || 'unknown'}`,
+      `Acreage (appraisal district): ${p.acreage ?? 'unknown'}`,
+      ...(p.abstractNumber ? [`Abstract: ${p.abstractNumber}`] : []),
+      ...(p.surveyName ? [`Original survey: ${p.surveyName}`] : []),
+      ...(p.subdivisionName ? [`Subdivision: ${p.subdivisionName}${p.lotNumber ? `, Lot ${p.lotNumber}` : ''}${p.blockNumber ? `, Block ${p.blockNumber}` : ''}`] : []),
+    ],
+    discrepancies: r.discrepancies.map((d) =>
+      `[${d.severity}] ${d.category}: ${d.description} (${d.source1}: "${d.source1Value}" vs ${d.source2}: "${d.source2Value}") — ${d.aiRecommendation}`),
+    sources: collectSummarySources(r),
+  };
+}
+
+/** What the generic pipeline knows about the property when Stage 6 runs. */
+export interface PipelineSummaryFacts {
+  ownerName?: string | null;
+  propertyId?: string | null;
+  situsAddress?: string | null;
+  legalDescription?: string | null;
+  acreage?: number | null;
+  county: string;
+}
+
+/** The generic pipeline's documents and validation report, as the writer's input. */
+export function summaryInputFromPipeline(
+  facts: PipelineSummaryFacts,
+  documents: DocumentResult[],
+  report: ValidationReport | null | undefined,
+): SummaryInput {
+  const sources: SummarySource[] = [];
+  let plat = 0, deed = 0;
+  for (const d of documents) {
+    const isPlat = /plat/i.test(d.ref.documentType);
+    const ref = isPlat ? `[P${++plat}]` : `[D${++deed}]`;
+    const content = d.ocrText
+      ?? (d.extractedData ? JSON.stringify(d.extractedData) : null)
+      ?? d.textContent;
+    sources.push({
+      ref, kind: isPlat ? 'plat' : 'deed',
+      label: `${d.ref.documentType}${d.ref.recordingDate ? ` recorded ${d.ref.recordingDate}` : ''}${d.ref.grantors.length && d.ref.grantees.length ? ` — ${d.ref.grantors[0]} to ${d.ref.grantees[0]}` : ''} (${d.ref.source})`,
+      identity: d.ref.instrumentNumber ?? (d.ref.volume && d.ref.page ? `Vol. ${d.ref.volume}, Pg. ${d.ref.page}` : null),
+      url: d.ref.url, content: clip(content || '(document retrieved; no readable text)'),
+    });
+  }
+  (report?.adjacentProperties ?? []).forEach((a, i) => {
+    sources.push({
+      ref: `[A${i + 1}]`, kind: 'adjoiner',
+      label: `Adjoiner${a.direction ? ` to the ${a.direction}` : ''}: ${a.ownerName}`,
+      identity: a.recordingReference, url: null,
+      content: clip([a.calledAcreage ? `Called ${a.calledAcreage}` : '', a.sharedBoundaryCallSeqs.length ? `Shares calls ${a.sharedBoundaryCallSeqs.join(', ')}` : ''].filter(Boolean).join('; ')),
+    });
+  });
+  (report?.easements ?? []).forEach((e, i) => {
+    const ee = e as { type?: string; description?: string; width?: string | null; recordingReference?: string | null };
+    sources.push({
+      ref: `[E${i + 1}]`, kind: 'easement',
+      label: `${ee.type ?? 'Easement'}${ee.width ? `, ${ee.width}` : ''}`,
+      identity: ee.recordingReference ?? null, url: null, content: clip(ee.description ?? ''),
+    });
+  });
+
+  return {
+    facts: [
+      `County: ${facts.county}`,
+      `Owner of record: ${facts.ownerName || 'unknown'}`,
+      `Appraisal district property ID: ${facts.propertyId || 'unknown'}`,
+      `Situs: ${facts.situsAddress || 'unknown'}`,
+      `Legal description (appraisal district): ${facts.legalDescription || 'unknown'}`,
+      `Acreage (appraisal district): ${facts.acreage ?? 'unknown'}`,
+    ],
+    discrepancies: [
+      ...(report?.discrepancyLog ?? []).map((d) => `[${d.severity}] ${d.item}: "${d.sourceA}" vs "${d.sourceB}" — ${d.actionNeeded}`),
+      ...(report?.discrepancies ?? []).map((d) => `[${d.severity}] ${d.description} (${d.allReadings.join(' / ')}) — ${d.recommendation}`),
+    ],
+    sources: sources.slice(0, MAX_SOURCES),
+  };
+}
+
 /** The list a reader sees under the summary. Written by code so every [ref] resolves. */
 export function renderSourceList(sources: SummarySource[]): string {
   if (sources.length === 0) return '';
@@ -131,28 +230,16 @@ export function renderSourceList(sources: SummarySource[]): string {
   return `\n\nSOURCES\n${lines.join('\n')}`;
 }
 
-function buildPrompt(r: BellResearchResult, sources: SummarySource[]): string {
-  const p = r.property;
-  const facts = [
-    `Owner of record: ${p.ownerName || 'unknown'}`,
-    `Appraisal district property ID: ${p.propertyId || 'unknown'}`,
-    `Situs: ${p.situsAddress || 'unknown'}`,
-    `Legal description (appraisal district): ${p.legalDescription || 'unknown'}`,
-    `Acreage (appraisal district): ${p.acreage ?? 'unknown'}`,
-  ].join('\n');
-
-  const discrepancies = r.discrepancies.length
-    ? r.discrepancies.map((d) =>
-        `- [${d.severity}] ${d.category}: ${d.description} (${d.source1}: "${d.source1Value}" vs ${d.source2}: "${d.source2Value}") — ${d.aiRecommendation}`,
-      ).join('\n')
+function buildPrompt(input: SummaryInput): string {
+  const discrepancies = input.discrepancies.length
+    ? input.discrepancies.map((d) => `- ${d}`).join('\n')
     : '(none flagged by the run)';
+  const src = input.sources.map((s) => `${s.ref} ${s.label}${s.identity ? ` — ${s.identity}` : ''}\n    ${s.content}`).join('\n');
 
-  const src = sources.map((s) => `${s.ref} ${s.label}${s.identity ? ` — ${s.identity}` : ''}\n    ${s.content}`).join('\n');
-
-  return `You are a Texas Registered Professional Land Surveyor writing the research summary a field crew will read before staking this tract. Everything below was retrieved by an automated run from Bell County sources; you are reviewing it, not adding to it.
+  return `You are a Texas Registered Professional Land Surveyor writing the research summary a field crew will read before staking this tract. Everything below was retrieved by an automated run from county sources; you are reviewing it, not adding to it.
 
 PROPERTY (from the appraisal district)
-${facts}
+${input.facts.join('\n')}
 
 DISCREPANCIES THE RUN FLAGGED
 ${discrepancies}
@@ -193,11 +280,11 @@ export interface PropertySummaryOutcome {
  * `apiKey` empty → no call, statement says so. Any failure → `text: null` with the reason.
  */
 export async function writePropertySummary(
-  r: BellResearchResult,
+  input: SummaryInput,
   apiKey: string,
   opts: { maxTokens?: number; client?: Anthropic } = {},
 ): Promise<PropertySummaryOutcome> {
-  const sources = collectSummarySources(r);
+  const { sources } = input;
   if (sources.length === 0) {
     return { text: null, statement: 'Property summary skipped — the run holds no documents to summarise.', model: null };
   }
@@ -212,7 +299,7 @@ export async function writePropertySummary(
     const response = await client.messages.create({
       model,
       max_tokens: opts.maxTokens ?? 6000,
-      messages: [{ role: 'user', content: buildPrompt(r, sources) }],
+      messages: [{ role: 'user', content: buildPrompt(input) }],
     });
 
     void recordAmbientAiCall('research/property-summary', model, {

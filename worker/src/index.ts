@@ -502,6 +502,11 @@ async function persistCountyResults(
       lotNumber: property.lotNumber || null,
       blockNumber: property.blockNumber || null,
       subdivisionName: property.subdivisionName || null,
+      // E5 — the tract's abstract and original survey were resolved in Phase 1 and never
+      // persisted, so the review page could show Lot/Block/Subdivision and nothing for an
+      // acreage tract, which is what most of this county is.
+      abstractNumber: property.abstractNumber || null,
+      surveyName: property.surveyName || null,
       documentCount: deedCount + platCount,
       duration_ms: r.durationMs,
       deedSummary: r.deedsAndRecords.summary || null,

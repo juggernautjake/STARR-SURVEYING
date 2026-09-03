@@ -67,6 +67,10 @@ export function propertyReviewFields(
     { label: 'Lot', value: str(result?.lotNumber) },
     { label: 'Block', value: str(result?.blockNumber) },
     { label: 'Subdivision', value: str(result?.subdivisionName) },
+    // E5 — an acreage tract has no lot or block; it has an abstract and an original survey,
+    // which the worker resolves in Phase 1 and now persists.
+    { label: 'Abstract', value: str(result?.abstractNumber) },
+    { label: 'Original Survey', value: str(result?.surveyName) },
     {
       // The run's legal description wins: it is the researched one, and the project column is
       // whatever was typed at intake.

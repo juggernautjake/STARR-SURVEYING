@@ -6,7 +6,7 @@
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
-import { adaptiveVisionOcr } from './adaptive-vision.js';
+import { adaptiveVisionOcr, type SegmentResult } from './adaptive-vision.js';
 import { checkAndFlagCreditDepletion, isCreditDepleted, AnthropicCreditDepletedError as SharedCreditError } from '../lib/credit-guard.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import { samplingFor } from '../infra/model-sampling.js';
@@ -683,7 +683,7 @@ async function extractFromImageInternal(
   anthropicApiKey: string,
   logger: PipelineLogger,
   docLabel: string,
-): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
+): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null; segments?: SegmentResult[] | null }> {
   // ── Route: PDF document source type ──────────────────────────────────────
   // Bell County free plat PDFs are sent as 'application/pdf' with Claude's
   // native document source. This is the correct approach — it processes all
@@ -814,12 +814,13 @@ async function extractFromImageInternal(
     });
 
     if (!ocrText || ocrText.length < 50) {
-      return { ocrText, extracted: null };
+      return { ocrText, extracted: null, segments: avResult.segments };
     }
 
     // Pass 2: structured extraction from merged OCR text
     const extracted = await extractFromTextInternal(ocrText, anthropicApiKey, logger, `${docLabel}-adaptive-ocr`);
-    return { ocrText, extracted };
+    // D2 — the segments ride along; the merged text alone cannot say which quadrant was thin.
+    return { ocrText, extracted, segments: avResult.segments };
   }
 
   // ── Single-pass Vision path (small images) ─────────────────────────────
@@ -1306,11 +1307,14 @@ export async function extractDocuments(
           : 'image/png' as const;
         logger.info('Stage3', `${label} Route D (imageBase64): ${mediaType}, ${doc.imageBase64.length} chars`);
 
-        const { ocrText, extracted } = await extractFromImageInternal(
+        const { ocrText, extracted, segments } = await extractFromImageInternal(
           doc.imageBase64, mediaType, anthropicApiKey, logger, label,
         );
 
         doc.ocrText = ocrText;
+        // D2 — the quadrant reads travel with the document so the row can carry `ocr_segments`
+        // like a Bell row does, instead of being merged into one string and forgotten.
+        if (segments && segments.length > 0) doc.ocrSegments = segments;
 
         if (extracted && ocrText) {
           // OCR-sourced data gets extra verification (inherently less reliable)

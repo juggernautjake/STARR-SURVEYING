@@ -3,6 +3,8 @@ import {
   collectSummarySources,
   renderSourceList,
   writePropertySummary,
+  summaryInputFromBell,
+  summaryInputFromPipeline,
 } from '../research/property-summary.js';
 import type { BellResearchResult } from '../counties/bell/types/research-result.js';
 
@@ -82,7 +84,7 @@ describe('writePropertySummary', () => {
       prompt = req.messages[0].content;
       return { content: [{ type: 'text', text: '## Property\nThe tract is 22.495 acres [D1][P1].' }], usage: { input_tokens: 10, output_tokens: 5 } };
     }) } };
-    const out = await writePropertySummary(fixture(), 'key', { client: client as never });
+    const out = await writePropertySummary(summaryInputFromBell(fixture()), 'key', { client: client as never });
     expect(prompt).toContain('MUST end with one or more citations');
     expect(prompt).toContain('[D1] Warranty Deed recorded 2004-05-01');
     expect(prompt).toContain('DISCREPANCIES THE RUN FLAGGED');
@@ -93,18 +95,18 @@ describe('writePropertySummary', () => {
 
   it('says so when the model cited nothing — the narrative is kept but marked unreviewed', async () => {
     const client = { messages: { create: vi.fn(async () => ({ content: [{ type: 'text', text: 'A fine tract.' }], usage: { input_tokens: 1, output_tokens: 1 } })) } };
-    const out = await writePropertySummary(fixture(), 'key', { client: client as never });
+    const out = await writePropertySummary(summaryInputFromBell(fixture()), 'key', { client: client as never });
     expect(out.text).toContain('A fine tract.');
     expect(out.statement).toMatch(/NO citations/);
   });
 
   it('never throws: no key is a skip, a model failure is a null with the reason', async () => {
-    const noKey = await writePropertySummary(fixture(), '');
+    const noKey = await writePropertySummary(summaryInputFromBell(fixture()), '');
     expect(noKey.text).toBeNull();
     expect(noKey.statement).toContain('ANTHROPIC_API_KEY');
 
     const client = { messages: { create: vi.fn(async () => { throw new Error('overloaded'); }) } };
-    const failed = await writePropertySummary(fixture(), 'key', { client: client as never });
+    const failed = await writePropertySummary(summaryInputFromBell(fixture()), 'key', { client: client as never });
     expect(failed.text).toBeNull();
     expect(failed.statement).toContain('overloaded');
   });
@@ -113,8 +115,31 @@ describe('writePropertySummary', () => {
     const empty = fixture();
     empty.plats.plats = []; empty.deedsAndRecords.records = []; empty.easementsAndEncumbrances.easements = []; empty.adjacentProperties = [];
     const client = { messages: { create: vi.fn() } };
-    const out = await writePropertySummary(empty, 'key', { client: client as never });
+    const out = await writePropertySummary(summaryInputFromBell(empty), 'key', { client: client as never });
     expect(client.messages.create).not.toHaveBeenCalled();
     expect(out.statement).toContain('no documents');
+  });
+});
+
+describe('the generic pipeline feeds the same writer (every county, not only Bell)', () => {
+  it('numbers plats and deeds from the document list and adjoiners from the validation report', () => {
+    const input = summaryInputFromPipeline(
+      { county: 'Milam', ownerName: 'ASH FAMILY TRUST', propertyId: '77', situsAddress: '1 CR 100', legalDescription: 'A-12 J SMITH', acreage: 12.358 },
+      [
+        { ref: { instrumentNumber: '2023032044', volume: null, page: null, documentType: 'Final Plat', recordingDate: '2023-01-01', grantors: [], grantees: [], source: 'Milam County Clerk', url: 'https://milam.tx.publicsearch.us/doc/9' }, textContent: null, ocrText: 'PLAT OF ASH FAMILY TRUST 12.358 ACRE ADDITION', extractedData: null },
+        { ref: { instrumentNumber: '2010043440', volume: null, page: null, documentType: 'Warranty Deed', recordingDate: '2010-05-05', grantors: ['ASH'], grantees: ['TRUST'], source: 'Milam County Clerk', url: null }, textContent: null, ocrText: 'BEGINNING at an iron rod', extractedData: null },
+      ] as never,
+      {
+        adjacentProperties: [{ ownerName: 'JONES', calledAcreage: '50 ac', recordingReference: 'Vol 100 Pg 2', direction: 'east', sharedBoundaryCallSeqs: [3, 4] }],
+        easements: [], discrepancyLog: [{ item: 'Acreage', sourceA: 'CAD 12.358', sourceB: 'Deed 12.4', severity: 'MINOR', actionNeeded: 'Check the closing call' }],
+        discrepancies: [],
+      } as never,
+    );
+    expect(input.sources.map((s) => s.ref)).toEqual(['[P1]', '[D1]', '[A1]']);
+    expect(input.sources[0]).toMatchObject({ kind: 'plat', identity: '2023032044', url: 'https://milam.tx.publicsearch.us/doc/9' });
+    expect(input.sources[1].label).toContain('ASH to TRUST');
+    expect(input.sources[2]).toMatchObject({ kind: 'adjoiner', identity: 'Vol 100 Pg 2' });
+    expect(input.facts[0]).toBe('County: Milam');
+    expect(input.discrepancies[0]).toContain('[MINOR] Acreage');
   });
 });

@@ -30,6 +30,8 @@ import { runPropertyValidationPipeline } from './property-validation-pipeline.js
 import { generateAndWriteReport } from './report-generator.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
+import { preFilterIrrelevantDocuments, extractAbstractAndSurvey } from '../counties/bell/analyzers/document-relevance-validator.js';
+import { writePropertySummary, summaryInputFromPipeline } from '../research/property-summary.js';
 import {
   createSearchState,
   ingestCADResult,
@@ -1692,6 +1694,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
             // Never written by the worker before this line — 0 hits across worker/src.
             extracted_text_method: 'ai-vision',
             processing_status: d.extractedData ? 'analyzed' : 'extracted',
+            // D2 — the per-quadrant reads, as Bell rows have carried since D4.
+            ocr_segments: d.ocrSegments ?? undefined,
           });
           if (r.patched) patched++; else failed++;
         }
@@ -1700,6 +1704,65 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
             (failed ? `; ${failed} could not be patched` : ''));
         }
       })();
+
+      // ── DOCUMENTS THAT DO NOT BELONG (plan E3, the generic half) ────────────────────────
+      //
+      // > "It should try and see if any of the documents are incorrect or not actually related
+      // >  to the property in question."
+      //
+      // Bell has run an 817-line relevance validator since Phase 3 existed; the generic path
+      // — every other county — had no relevance step at all, so a deed for a different abstract
+      // filed under the same owner went straight into the boundary analysis. Same pre-filter,
+      // same rule: a document is removed only when BOTH its abstract and its survey name disagree
+      // with the parcel's, which is as close to certain as text can be. Removed rows are marked
+      // `relevance = 'unrelated'` (seed 373, a column nothing had ever written) with the reason,
+      // and left in the library so a reviewer can disagree.
+      {
+        const ids = extractAbstractAndSurvey(legalDesc ?? '');
+        const propertyIds = {
+          abstractNumber: ids.abstractNumber,
+          surveyName: ids.surveyName,
+          subdivisionName: legalDesc ? extractSubdivisionName(legalDesc) ?? null : null,
+          ownerName: propertyResult?.ownerName ?? input.ownerName ?? null,
+          legalDescription: legalDesc || null,
+          acreage: (propertyResult as { acreage?: number | null } | null)?.acreage ?? null,
+          lotNumber: null,
+          blockNumber: null,
+          situsAddress: input.address ?? null,
+        };
+        const candidates = processedDocs.map((doc) => ({
+          doc,
+          instrumentNumber: doc.ref.instrumentNumber,
+          documentType: doc.ref.documentType,
+          legalDescription: doc.ocrText ? doc.ocrText.slice(0, 4_000) : null,
+          grantor: doc.ref.grantors[0] ?? null,
+          grantee: doc.ref.grantees[0] ?? null,
+        }));
+        const verdict = preFilterIrrelevantDocuments(candidates, propertyIds, (m) => logger.info('Stage3', `Relevance: ${m}`));
+        if (verdict.removed.length > 0) {
+          for (const w of verdict.warnings) logger.warn('Stage3', `Relevance: ${w}`);
+          const removedIds = new Set(verdict.removed.map((c) => c.doc));
+          for (let i = processedDocs.length - 1; i >= 0; i--) {
+            if (removedIds.has(processedDocs[i])) processedDocs.splice(i, 1);
+          }
+          void (async () => {
+            const db = await getSupabase().catch(() => null);
+            if (!db) return;
+            for (const c of verdict.removed) {
+              if (!c.doc.documentRowId) continue;
+              await patchDocument(db as never, c.doc.documentRowId, {
+                relevance: 'unrelated',
+                relevance_classification: {
+                  by: 'prefilter', at: new Date().toISOString(),
+                  reason: `Abstract and survey in the document disagree with the parcel's (abstract ${propertyIds.abstractNumber ?? '?'}, survey ${propertyIds.surveyName ?? '?'}).`,
+                },
+              });
+            }
+          })();
+          logger.info('Stage3', `Relevance: ${verdict.removed.length} document(s) set aside as unrelated to this tract; ${processedDocs.length} carried forward`);
+        }
+      }
+
       if (extractedCount === 0 && processedDocs.length > 0) {
         logger.warn('Stage3', `⚠ AI extraction returned no structured data on initial pass — documents may lack sufficient image/text content`);
       }
@@ -2449,6 +2512,37 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // ═══════════════════════════════════════════════════════════════════
     // Final Result
     // ═══════════════════════════════════════════════════════════════════
+
+    // ── THE SUMMARY, WITH CITATIONS — for every county (plan E1/E2) ───────────────────────
+    //
+    // The Stage 6 report above is a surveyor's report with no document references. The same
+    // writer the Bell path uses now reads this run's documents and validation report and puts a
+    // cited summary — with the five most useful sources ranked and any that do not belong named
+    // — ABOVE the report. Same gate as every paid step; never throws.
+    if (mayStart(input.projectId, 'property summary')) {
+      await updateStatus(input.projectId, 'running', 'Stage 6: Writing the property summary with document references…');
+      const summary = await writePropertySummary(
+        summaryInputFromPipeline(
+          {
+            county: input.county,
+            ownerName: propertyResult?.ownerName ?? input.ownerName ?? null,
+            propertyId: propertyResult?.propertyId ?? input.propertyId ?? null,
+            situsAddress: input.address ?? null,
+            legalDescription: legalDesc || null,
+            acreage: (propertyResult as { acreage?: number | null } | null)?.acreage ?? null,
+          },
+          documents,
+          validationReport,
+        ),
+        anthropicApiKey,
+      );
+      logger.info('Stage6', summary.statement);
+      if (summary.text) {
+        masterReportText = masterReportText
+          ? `${summary.text}\n\n---\n\n${masterReportText}`
+          : summary.text;
+      }
+    }
 
     let status: PipelineResult['status'] = 'failed';
     if (boundary && boundary.calls.length > 0 && validation.overallQuality !== 'failed') {

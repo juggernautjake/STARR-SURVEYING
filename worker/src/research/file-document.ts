@@ -277,6 +277,10 @@ export interface DocumentPatch {
   page_count?: number | null;
   ocr_segments?: unknown;
   analysis_metadata?: Record<string, unknown>;
+  /** Seed 373's relevance columns — written for the first time by the generic path's
+   *  pre-filter (plan E3). `unrelated` is a verdict a reviewer can overturn; the row stays. */
+  relevance?: 'subject' | 'adjoiner' | 'unrelated' | 'unknown' | null;
+  relevance_classification?: Record<string, unknown> | null;
 }
 
 /**

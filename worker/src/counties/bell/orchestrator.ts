@@ -41,7 +41,7 @@ import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
 import { visualReadiness } from '../../research/run-order.js';
 import { geocodeWithGoogle } from '../../research/google-geocode.js';
-import { writePropertySummary } from '../../research/property-summary.js';
+import { writePropertySummary, summaryInputFromBell } from '../../research/property-summary.js';
 import { hostGate } from '../../infra/dead-host.js';
 import type { RunSourceOutcome } from '../../infra/health-persistence.js';
 import { BELL_ENDPOINTS } from './config/endpoints.js';
@@ -2021,7 +2021,7 @@ export async function orchestrateBellResearch(
   // off-budget. `writePropertySummary` never throws.
   if (mayStep('property summary')) {
     progress('Phase 4', 'Writing the property summary with document references...');
-    const summary = await writePropertySummary(result, anthropicApiKey);
+    const summary = await writePropertySummary(summaryInputFromBell(result), anthropicApiKey);
     progress('Phase 4', `  ${summary.statement}`);
     result.propertySummary = summary.text;
   }

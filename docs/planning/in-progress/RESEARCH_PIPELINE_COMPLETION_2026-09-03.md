@@ -1,5 +1,17 @@
 # Research pipeline completion — 2026-09-03
 
+**Started** 2026-09-03 · **Completed** 2026-09-03 · **Branch** `claude/research-pipeline-completion-2026-09-03`
+
+**Closing note.** Every action item below is either shipped (with the commit or the guard that
+proves it) or explicitly deferred with a one-line reason — three are deferred: B*3b (needs live
+portal sessions), C4b (needs a funded TexasFile session to build against), E6 (a port plus a
+second relevance model, a design slice of its own). The second half of the day was driven by an
+18-reader platform audit whose subsystem maps are recorded under B*6–B*12; its findings that fell
+outside this plan's scope (dead Testing-Lab surfaces, the Phase 14/15 purchase stack, the
+never-instantiated clerk adapters, the Bell abort path discarding its accumulated result, a Bell
+plat escalation, the multi-page OCR segments) are listed in the closing overview the owner
+received, not here. Moved to `completed/` per the README rubric.
+
 Everything the owner asked for on 2026-09-03, measured against what the code actually does, and
 sliced so each piece ships on its own.
 
@@ -502,7 +514,13 @@ below where they conflict, because several are prerequisites for it:
       disagreed with the code. Both halves go through the helper now, with a two-word county as the
       control. That is the fifth guard in this plan found pinning the thing it was guarding against.
 
-- [ ] **B*3b. Williamson, and CAD dispatch for the big four.** Two claims from the audit not yet
+- [ ] **B*3b. Williamson, and CAD dispatch for the big four.** — DEFERRED 2026-09-03, with reason:
+      both halves need a live portal session to settle (a shell fetch of an SPA cannot say whether
+      Williamson's Kofile host serves land records; re-routing Harris/Tarrant/Dallas/Travis through
+      `getCADConfig` changes which adapter runs for the largest counties in the state and must be
+      watched on a real address in each). Neither is a code-only slice. The audit also found that
+      `getCADConfig`'s only run-adjacent caller was the dead discovery engine, now deleted, so the
+      dispatch question is cleaner than it was. The original text follows. Two claims from the audit not yet
       acted on. **Williamson** — its Kofile host answers 200, but the live page advertises no real
       property or land records where Bell's advertises five mentions (control: the same fetch detects
       Bell's). Suggestive, not conclusive from a shell fetch of an SPA — and removing it is not the
@@ -913,7 +931,14 @@ below where they conflict, because several are prerequisites for it:
       thing to find — priced at $16 for a gain of 6 (0.4) against a deed search at $6 for a gain of
       3 (0.5), so the deed genuinely wins on the ratio and loses on the judgement. A CONTROL asserts
       that inversion holds before the ordering is asserted. Mutation-checked.
-- [ ] **C4b. A paid plat search, by subdivision.** TexasFile and Kofile can be searched for a
+- [ ] **C4b. A paid plat search, by subdivision.** — DEFERRED 2026-09-03, with reason: the
+      audit's premise ("TexasFile already exposes searchByLegalDescription with a PLAT filter") is
+      false in the way that matters — the free adapter's method THROWS by design ("not offered on
+      the free tier"), and the signed-in purchase adapter has never completed a purchase
+      (`research_document_purchases` is 0 rows) and drives a results DOM nobody has verified
+      (audit PD-5). Building a subdivision plat search on top of it without a live funded session
+      would be one more authored-not-working slice. Owner-gated: needs one real TexasFile session
+      with the funded account to build against. The original text follows. TexasFile and Kofile can be searched for a
       subdivision's recorded plat directly, without waiting for an instrument number to come out of
       the confidence report. That is the "start there when payment is on" half of the owner's
       request, and it needs a real search + purchase + page-fetch path rather than a reordering.
@@ -1003,7 +1028,14 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       quadrant that scores under 60, which is the owner's "zoom in and get an even better
       understanding" driven by evidence rather than by a DPI miscalculation. No plat regresses: a
       24×36 at 300 DPI chose 2×2 before and chooses 2×2 now. Fourteen tests; mutation-checked.
-- [ ] **D2. Every page, whole and quartered.** The whole page stays exactly as it is stored today —
+- [x] **D2. Every page, whole and quartered.** — shipped 2026-09-03 (the generic-path storage half;
+      the Bell half shipped with D4). The generic path already read every large image through the
+      adaptive grid and kept only the merged text; `extractFromImageInternal` now returns the
+      segments, the document carries them as `ocrSegments`, and the Stage 3 write-back patches
+      `ocr_segments` on the row, so a generic-county document is stored the way a Bell one is —
+      whole page plus the per-quadrant reads with their confidence. Not done: the multi-page
+      screenshot route merges page texts and drops its per-page segments; one more plumbing pass
+      when that route is next touched. The original text follows. The whole page stays exactly as it is stored today —
       that half already works and must not regress. Each page additionally goes through grid
       selection, cropping and per-segment analysis, and the per-segment findings are stored against
       the page so a reader can see which quadrant a fact came from. `ocr_segments` already exists as
@@ -1123,7 +1155,12 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
 
 ### Phase E — the AI reads the whole picture
 
-- [ ] **E1. Rank documents by usefulness.** The prioritiser's cross-validation loop already scores
+- [x] **E1. Rank documents by usefulness.** — shipped 2026-09-03 as the "Most useful sources"
+      section of the cited summary (E2), on BOTH paths: `summaryInputFromBell` for Bell and
+      `summaryInputFromPipeline` for every other county, where the summary now sits above the
+      Stage 6 surveyor's report. A ranking that is not attached to a citation a reviewer can open
+      is a number; this one is five lines each naming the source and why. The prioritisers this
+      item pointed at were deleted under C1b. The original text follows. The prioritiser's cross-validation loop already scores
       each resource's contribution. Surface that ranking.
 - [x] **E2. A property summary with document references.** — shipped 2026-09-03 for the Bell
       path (the generic path already had a master report; Bell hardcoded `masterReportText: null`
@@ -1139,7 +1176,16 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       Not done: the generic path's report is unreferenced prose; E1/E3 as standalone ranking and
       relevance stages on the generic path remain open. The original text follows. Every claim links to the document it came
       from. The run currently produces no master report at all.
-- [ ] **E3. Flag documents that do not belong.** `multi-source-confidence.ts` (322 lines, zero
+- [x] **E3. Flag documents that do not belong.** — shipped 2026-09-03. Premise corrected by the
+      audit: Bell has run an 817-line relevance validator since Phase 3 existed; the GENERIC path
+      had no relevance step at all. The same `preFilterIrrelevantDocuments` now runs in the
+      generic Stage 3 after OCR, with the parcel's abstract/survey/subdivision from the legal
+      description; a document is set aside only when BOTH its abstract and survey disagree with
+      the parcel's, its row is marked `relevance = 'unrelated'` with the reason (seed 373's
+      columns, written for the first time), and it stays in the library so a reviewer can
+      disagree. The cited summary's "Sources that may not belong" section (E2) is the AI half of
+      the same ask, on both paths. `multi-source-confidence.ts` remains an orphan and is the wrong
+      module for this. The original text follows. `multi-source-confidence.ts` (322 lines, zero
       importers) scores agreement across sources — read it before writing anything. A document whose
       legal description does not match the subject parcel is the case to catch.
 - [x] **E4. Adjoiner property IDs and addresses.** — shipped 2026-09-03. Premise corrected by the
@@ -1155,11 +1201,24 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       already writes `parcel_id` and `owner_name`. `lib/research/spatial-filter.ts` (253 lines, zero
       importers) is the geometric way to find them. County ArcGIS returns neighbours for a parcel
       centroid directly.
-- [ ] **E5. Subdivision, plat, lot and tract.** The run detected the gap itself — *"appears to be a
+- [x] **E5. Subdivision, plat, lot and tract.** — shipped 2026-09-03. The run already resolved
+      lot, block, subdivision, abstract and original survey in Phase 1 and persisted only the
+      first three; an acreage tract (most of this county) therefore showed nothing on the review
+      page. `abstractNumber` and `surveyName` are now persisted and shown as "Abstract" and
+      "Original Survey" beside Lot/Block/Subdivision, and all of them feed the cited summary's
+      Property section. The lot-resolution warning the original text quotes still fires when a
+      subdivision property resolves no lot — that is the run being honest, not a gap. The
+      original text follows. The run detected the gap itself — *"appears to be a
       subdivision property but no lot number was resolved"*. Lot correlation exists in
       `counties/bell/analyzers/lot-correlator.ts`; `golden-plat.ts` (318) and
       `plat-drawing-generator.ts` (402) do not run.
-- [ ] **E6. Text segmentation for multi-parcel documents.**
+- [ ] **E6. Text segmentation for multi-parcel documents.** — DEFERRED 2026-09-03, with reason:
+      `lib/research/document-segmentation.ts` is an APP-side, test-only module with its own
+      `RelevanceContext`; using it in the run means porting it into the worker (there is no shared
+      package) and standing it beside the relevance validator E3 just wired, as a second relevance
+      model. The value is real (the FM 2484 deed conveys "PT OF 22.760AC TR"), but the cost is a
+      port plus a reconciliation of two relevance models, which is a design slice of its own and
+      not a wiring job. Reopen when the generic path's extraction is next reworked.
       `lib/research/document-segmentation.ts` (288 lines, zero importers) splits a large document's
       TEXT into candidate parcel segments and scores each for relevance to the subject — a
       100-lot subdivision plat or a multi-tract deed otherwise bleeds unrelated parcels into the

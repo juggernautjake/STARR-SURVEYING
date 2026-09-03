@@ -274,6 +274,9 @@ export interface DocumentResult {
   /** Downloaded page images from Kofile image interception */
   pages?: DocumentPage[];
   ocrText: string | null;
+  /** The per-segment OCR the adaptive grid produced (plan D2). Bell rows carried these in
+   *  `ocr_segments` since D4; the generic path computed them and kept only the merged text. */
+  ocrSegments?: import('../services/adaptive-vision.js').SegmentResult[] | null;
   extractedData: ExtractedBoundaryData | null;
   /** Public URL of the PDF bundled from page images, stored in Supabase Storage */
   pagesPdfUrl?: string | null;
