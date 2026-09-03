@@ -10,6 +10,22 @@ import type {
   PurchaseRecommendation,
 } from '../types/confidence.js';
 
+/**
+ * Which tier of the owner's requested order a document type belongs to — lower buys first.
+ *
+ * The same order `research/run-order.ts` states for the free work, applied to the money: drawings
+ * and plats, then anything else. Kept as a function rather than a lookup so an unrecognised type
+ * lands in the general tier instead of vanishing.
+ */
+export function purchaseTier(documentType: string): number {
+  const t = (documentType ?? '').toLowerCase();
+  // A plat, a recorded survey or a map of survey is the visual the rest of the research is read
+  // against. `map of survey` is in here because the clerk classifier files it as `other` and it is
+  // the single most useful document a surveyor can find — see `research/drawing-hunt.ts`.
+  if (/\b(plat|survey|drawing|map)\b/.test(t)) return 0;
+  return 1;
+}
+
 // ── Purchase Recommender ────────────────────────────────────────────────────
 
 export class PurchaseRecommender {
@@ -126,10 +142,33 @@ export class PurchaseRecommender {
       });
     }
 
-    // Sort by ROI (highest first)
-    recs.sort((a, b) => b.roi - a.roi);
+    // ── THE ORDER MONEY IS SPENT IN, WHEN THERE IS NOT ENOUGH OF IT (plan C4) ─────────────────
+    //
+    // > "Whenever we have the payment option turned on for kofile and texasfile or anything else,
+    // >  I want the pipeline to start there and look for documents about the property, espeically
+    // >  the drawings/cad maps/plats etc. Something visual to go off of"
+    //
+    // This sorted by ROI alone and then OVERWROTE `priority` with the ROI rank — so Rule 1's
+    // `priority: 1` on the unwatermarked plat, written deliberately because "an unwatermarked plat
+    // is almost always the highest-ROI purchase", was discarded two lines later by a number that
+    // did not know what a plat was.
+    //
+    // That ordering is not academic. `DocumentPurchaseOrchestrator` spends in `priority` order and
+    // stops at the ceiling, recording everything past it as `budget_exceeded`. So on a run whose
+    // $25 could buy two documents, a deed with a marginally better computed ROI took the money and
+    // the plat was skipped — the exact inverse of what the owner asked for, decided by a ratio
+    // rather than by a judgement anyone made.
+    //
+    // Tiered now: the visual documents lead, and ROI orders WITHIN a tier. ROI still decides
+    // between two plats and between two deeds; it no longer decides between a plat and a deed.
+    recs.sort((a, b) => {
+      const tierDiff = purchaseTier(a.documentType) - purchaseTier(b.documentType);
+      if (tierDiff !== 0) return tierDiff;
+      return b.roi - a.roi;
+    });
 
-    // Re-assign priorities based on ROI
+    // Re-assign priorities to the order they will actually be bought in, so the number an operator
+    // reads is the number the orchestrator obeys.
     for (let i = 0; i < recs.length; i++) {
       recs[i].priority = i + 1;
     }

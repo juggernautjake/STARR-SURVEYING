@@ -720,12 +720,44 @@ below where they conflict, because several are prerequisites for it:
       operator nowhere to go. Neither is ever reported as the property having no plat or no imagery.
       Sixteen tests, all asserting the CALLERS, including that the fire point precedes the clerk
       search and Stage 2 in the source. Mutation-checked: turning the `await` into `void` fails two.
-- [ ] **C4. Paid sources lead for plats when purchasing is on.** When `allow_paid_documents` is
-      true, the plat/drawing stage tries TexasFile and Kofile FIRST, because a bought plat is the
-      visual the run is built around. Newest available first.
-- [ ] **C5. Free adapters lead for everything else.** Deeds, affidavits and easements try the county
-      portal and free adapters first; paid vendors are the fallback when those return nothing. This
-      is the inverse of C4 and deliberately so.
+- [x] **C4. The plat gets the money first.** — shipped 2026-09-03, and not in the form the item
+      described. Premise checked before building, as usual, and half of it was wrong.
+      **What is not there:** "the plat/drawing stage tries TexasFile and Kofile FIRST" presupposes a
+      paid plat SEARCH. There is none. TexasFile appears nowhere in either path's plat stage; the
+      only paid step in the whole worker is the end-of-run `DocumentPurchaseOrchestrator`, and it is
+      instrument-driven — it buys against `documentPurchaseRecommendations`, not against a
+      subdivision name. Building a TexasFile plat-by-subdivision search is real work and real value,
+      and it is C4b, not a note appended to a sort order.
+      **What was there, and was wrong:** the recommender sorted by ROI and then **overwrote
+      `priority` with the ROI rank** — discarding Rule 1's deliberate `priority: 1` on the
+      unwatermarked plat two lines after it was written, under a comment saying an unwatermarked
+      plat "is almost always the highest-ROI purchase".
+      That is not academic. `DocumentPurchaseOrchestrator` spends in `priority` order and stops at
+      the ceiling, recording everything past it as `budget_exceeded`. So on a run whose money could
+      buy two documents, **a deed with a marginally better ratio took it and the plat was skipped** —
+      the exact inverse of what the owner asked for, decided by an arithmetic ratio rather than by a
+      judgement anyone made. Tiered now: visual documents lead, ROI orders within a tier. ROI still
+      decides between two plats; it no longer decides between a plat and a deed.
+      **The first version of the test proved nothing.** It used a 2-page plat, whose ROI (2.5)
+      already beat the deed's (0.8), so it passed identically with the tiering removed. Found with a
+      probe rather than assumed. The fixture is now an eight-sheet subdivision plat — an ordinary
+      thing to find — priced at $16 for a gain of 6 (0.4) against a deed search at $6 for a gain of
+      3 (0.5), so the deed genuinely wins on the ratio and loses on the judgement. A CONTROL asserts
+      that inversion holds before the ordering is asserted. Mutation-checked.
+- [ ] **C4b. A paid plat search, by subdivision.** TexasFile and Kofile can be searched for a
+      subdivision's recorded plat directly, without waiting for an instrument number to come out of
+      the confidence report. That is the "start there when payment is on" half of the owner's
+      request, and it needs a real search + purchase + page-fetch path rather than a reordering.
+- [x] **C5. Free adapters lead for everything else — now asserted rather than merely true.**
+      — shipped 2026-09-03. Measured first: this was **already the behaviour**. County CAD, the free
+      plat repository and the clerk's free index and watermarked previews all run in Stages 1–2, and
+      the only paid step runs at the very end, after the confidence report says which documents are
+      worth money. `pipeline.ts` does not contain the string `DocumentPurchaseOrchestrator` at all.
+      Nothing asserted any of that, which is how it would silently invert — and C4 makes that more
+      likely, not less, by giving the paid path a promotion. Three guards now: the free visual pass
+      precedes the purchase in `index.ts`, the generic pipeline consults the free plat repository and
+      never buys anything, and every spend still passes `resolvePurchasePermission` first — because
+      making the paid tier lead must not make it easier to reach.
 
 ### Phase D — every page analysed whole AND in quadrants
 
