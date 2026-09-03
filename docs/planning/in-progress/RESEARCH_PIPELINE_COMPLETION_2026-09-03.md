@@ -215,8 +215,22 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       though it were the limit, which is where "its 149-minute time limit" came from. `BudgetStatus`
       now carries `limitMs` / `limitUsd` / `limitPaidPages` and every message names the ceiling AND
       the figure that crossed it. That closes the fabricated-number half of A5.
-- [ ] **A2. Check wall-clock, not just cost.** `maxWallClockMs` is 25 minutes and the run took 163.
-      The check exists inside `checkBudget`; it is the calling that is missing. Same sites as A1.
+- [x] **A2. Bound a STEP, not just the gaps between steps.** — shipped 2026-09-03.
+      **The premise as written was false and checking it saved building the wrong thing:**
+      `checkBudget` already tests wall-clock first (`run-budget.ts:169`), and A1's gate therefore
+      already enforces the clock between steps. The real gap is that a step is unbounded — one clerk
+      owner search took 697,641 ms (11.6 minutes). Its inner operations are all bounded (page loads
+      60s, image fetches 30s, visibility probes 1s); the loop over owner-name variants exits only on
+      a document count. Two such steps exhaust a 25-minute run on their own, and the gate before the
+      third one is then correct and far too late.
+      `withStepDeadline` bounds a step by the run's OWN remaining time rather than a fixed number —
+      four minutes left means no step gets more than four, which makes the wall-clock limit mean what
+      it says without picking a per-step figure that would be wrong for some other county. Wrapped
+      around the Bell clerk and plat searches. It does NOT claim to cancel the underlying work: a
+      Playwright navigation in flight keeps going until its own timeout: the run stops WAITING, which
+      is what bounds the run, and the comment says so rather than implying a cancellation that never
+      happens. The compiler caught the consequence twice — the fallback makes `clerk`/`plats` genuinely
+      null, and both paths are now reported rather than assumed away.
 - [ ] **A3. A dead primary source ends the run early.** When `dead-host.ts` has marked the county
       CAD unreachable AND no coordinates could be resolved, stop with a status that says so rather
       than falling through to hours of owner-name grinding. "Bell CAD is down, try again later" at
@@ -285,6 +299,19 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       `counties/bell/analyzers/deed-analyzer.ts` and `services/adaptive-vision.ts` together before
       changing either — the goal is that Bell gains quadrant analysis, not that anything already
       working loses its behaviour.
+
+      **Scoped 2026-09-03 — this is smaller than it sounds, and the architecture is already right.**
+      The owner asked to "make sure that all of the adapters such as Bell and the other counties are
+      configured to integrate all of the tools, such as the OCR analyzer". Measured: all **35**
+      adapters — Kofile, TexasFile, Tyler, Fidlar, eDocTec, USLandRecords, Aumentum, iDocket and the
+      rest — import ZERO analysis modules. That is correct and should stay that way: an adapter
+      fetches pages, an analyser analyses them, and putting OCR inside 35 adapters would give 35
+      copies of it to keep in step.
+
+      The real divergence is narrower. `src/counties/` contains exactly **one** directory — `bell/`.
+      Every other county runs the generic pipeline, which DOES reach `ai-extraction` →
+      `adaptive-vision`. So there is one orchestrator that grew its own analysis layer, not a fleet
+      of adapters to retrofit. Unify that one and every county is served by the same tools.
 - [ ] **D2. Every page, whole and quartered.** The whole page stays exactly as it is stored today —
       that half already works and must not regress. Each page additionally goes through grid
       selection, cropping and per-segment analysis, and the per-segment findings are stored against

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { startRun, checkBudget, reasonText, endRun, DEFAULT_LIMITS } from '../infra/run-budget.js';
+import { withStepDeadline } from '../research/budget-gate.js';
 
 // ── $29.19 AGAINST A $2.00 CAP ──────────────────────────────────────────────────────────────────
 //
@@ -115,5 +116,73 @@ describe('the gate is actually asked — assert the CALLERS', () => {
     const gateUsers = ['src/counties/bell/orchestrator.ts', 'src/services/pipeline.ts']
       .filter((f) => code(f).includes('budget-gate.js'));
     expect(gateUsers.length, 'the gate has no callers, which is where this started').toBe(2);
+  });
+});
+
+// ── A2: A GATE BETWEEN STEPS CANNOT HOLD A TOTAL WHEN A STEP IS UNBOUNDED ────────────────────────
+//
+// `checkBudget` already tested wall-clock first — A2's premise as written ("the check is missing")
+// was false, and checking it saved building the wrong thing. A1's gate enforces the clock BETWEEN
+// steps. What is missing is a bound on a step ITSELF: one clerk owner search took 697,641 ms on
+// 2026-09-03 (11.6 minutes). Its inner operations are all bounded — page loads 60s, image fetches
+// 30s, visibility probes 1s — but the loop over owner-name variants exits only on a document count.
+// Two such steps exhaust a 25-minute run, and the gate before the third is correct and far too late.
+
+describe('a step cannot outlive the run', () => {
+  it('returns the fallback when the step overruns the time the run has left', async () => {
+    const p = 'proj-deadline';
+    startRun(p, { ...DEFAULT_LIMITS, maxWallClockMs: 40 }, Date.now());
+    const skips: string[] = [];
+    const out = await withStepDeadline(
+      p, 'slow step',
+      () => new Promise((r) => setTimeout(() => r('finished'), 5000)),
+      'gave up',
+      (m) => skips.push(m),
+    );
+    expect(out).toBe('gave up');
+    expect(skips.join(' ')).toMatch(/still running when the run's time ran out/);
+    endRun(p);
+  });
+
+  it('CONTROL: a step that finishes in time returns its real result', async () => {
+    // Without this, "always return the fallback" would satisfy the assertion above.
+    const p = 'proj-fast';
+    startRun(p, { ...DEFAULT_LIMITS, maxWallClockMs: 60_000 }, Date.now());
+    const out = await withStepDeadline(p, 'fast step', async () => 'real result', 'gave up');
+    expect(out).toBe('real result');
+    endRun(p);
+  });
+
+  it('an unbudgeted run is not deadlined', async () => {
+    const out = await withStepDeadline('never-registered', 'x', async () => 'ran', 'skipped');
+    expect(out).toBe('ran');
+  });
+
+  it('the deadline is the run REMAINING, not a fixed number', async () => {
+    // A fixed per-step figure would be wrong for some county. Deriving it from what the run has
+    // left is what makes the wall-clock limit mean what it says.
+    const gate = read('src/research/budget-gate.ts');
+    expect(gate).toContain('const deadlineMs = status.remainingMs');
+  });
+
+  it('and it does NOT claim to cancel the underlying work', async () => {
+    // Losing a race returns control; it does not reach into Playwright and stop a navigation. A
+    // comment claiming otherwise would be believed.
+    const gate = read('src/research/budget-gate.ts');
+    expect(gate).toMatch(/does NOT cancel the underlying work/);
+  });
+
+  it('both long Bell steps are wrapped', () => {
+    const src = code('src/counties/bell/orchestrator.ts');
+    expect(src).toContain("withStepDeadline(input.projectId, 'clerk deed search'");
+    expect(src).toContain("withStepDeadline(input.projectId, 'plat search'");
+  });
+
+  it('and the null result they can now return is HANDLED, not assumed away', () => {
+    // The compiler caught this twice: everything below each call reads `clerk.*` / `plats.*`, and
+    // the fallback makes null a real state.
+    const src = code('src/counties/bell/orchestrator.ts');
+    expect(src).toContain('if (!clerk) {');
+    expect(src).toContain('if (!plats) {');
   });
 });

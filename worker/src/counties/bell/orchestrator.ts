@@ -35,7 +35,7 @@ import { scrapeBellCad } from './scrapers/cad-scraper.js';
 import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
-import { mayStart } from '../../research/budget-gate.js';
+import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -538,7 +538,9 @@ export async function orchestrateBellResearch(
   const mayClerk = mayStep('clerk deed search');
   let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
   if (mayClerk) try {
-    clerk = await scrapeBellClerk(
+    // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
+    // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
+    clerk = await withStepDeadline(input.projectId, 'clerk deed search', () => scrapeBellClerk(
       {
         instrumentNumbers: uniqueInstruments,
         ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
@@ -556,7 +558,13 @@ export async function orchestrateBellResearch(
         },
       },
       (p) => progress('Phase 2', `Clerk: ${p.message}`, 30),
-    );
+    ), null, (m) => progress('Budget', m));
+
+    // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
+    // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.
+    if (!clerk) {
+      progress('Phase 2', '2A produced no result — the clerk search did not finish in the time the run had left.', 32);
+    } else {
 
     // Absorb any new instrument numbers discovered by clerk
     for (const doc of clerk.documents) {
@@ -611,6 +619,7 @@ export async function orchestrateBellResearch(
         progress('Phase 2', `  ✓ ${clerk.documents.length} document(s) uploaded for live preview`);
       }
     }
+    }
   } catch (err) {
     recordError('Phase 2', 'Clerk', err);
   }
@@ -625,7 +634,7 @@ export async function orchestrateBellResearch(
     // Include any plat instrument numbers discovered by clerk in Phase 2A
     const allInstruments = [...knownIds.instrumentNumbers];
 
-    plats = await scrapeBellPlats(
+    plats = await withStepDeadline(input.projectId, 'plat search', () => scrapeBellPlats(
       {
         subdivisionName: uniqueSubdivisions[0] ?? undefined,
         subdivisionVariants: uniqueSubdivisions.slice(1),
@@ -635,7 +644,11 @@ export async function orchestrateBellResearch(
         projectId: input.projectId,
       },
       (p) => progress('Phase 2', `Plats: ${p.message}`, 40),
-    );
+    ), null, (m) => progress('Budget', m));
+
+    if (!plats) {
+      progress('Phase 2', '2B produced no result — the plat search did not finish in the time the run had left.', 42);
+    } else {
 
     progress('Phase 2',
       `2B complete: ${plats.plats.length} plat(s) | ` +
@@ -670,6 +683,7 @@ export async function orchestrateBellResearch(
         }
         progress('Phase 2', `  ✓ ${plats.plats.length} plat(s) uploaded for live preview`);
       }
+    }
     }
   } catch (err) {
     recordError('Phase 2', 'Plats', err);

@@ -31,7 +31,7 @@
 // One import, one call, no plumbing. The friction was small but it was the whole difference between
 // a guard that exists and a guard that runs.
 
-import { mayRun, budgetFor, checkBudget } from '../infra/run-budget.js';
+import { mayRun, budgetFor, checkBudget, recordSkipped } from '../infra/run-budget.js';
 import { spendForRun } from '../infra/usage.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
@@ -80,4 +80,81 @@ export function mayStartLogged(projectId: string, step: string, logger?: Pipelin
  *  two states that both look like `ok: true` and mean very different things. */
 export function hasBudget(projectId: string): boolean {
   return budgetFor(projectId) !== undefined;
+}
+
+/**
+ * Run a step, but never for longer than the run itself has left.
+ *
+ * ── WHY GATING BETWEEN STEPS IS NOT ENOUGH ──────────────────────────────────────────────────────
+ *
+ * `mayStart` asks the ceiling BEFORE expensive work, which is the right shape — stopping between
+ * steps leaves a coherent partial result, stopping inside one leaves half a chain of title. But a
+ * check between steps can only hold a 25-minute total if the steps themselves are finite, and they
+ * are not.
+ *
+ * Measured 2026-09-03: a single clerk owner search took **697,641 ms — 11.6 minutes**. Individual
+ * operations inside it are bounded (page loads at 60s, image fetches at 30s, visibility probes at
+ * 1s), but the step loops over owner-name variants and its only exit is a document count. Nothing
+ * bounds the loop. Two such steps exhaust a 25-minute run on their own, and the gate before the
+ * third one is then correct and far too late.
+ *
+ * The deadline is the run's OWN remaining time, not a fixed number. If four minutes are left, no
+ * step gets more than four. That makes the wall-clock limit mean what it says without anyone
+ * choosing a per-step figure that would be wrong for some other county.
+ *
+ * ── WHAT THIS DOES NOT DO, STATED PLAINLY ───────────────────────────────────────────────────────
+ *
+ * Losing the race does NOT cancel the underlying work. A Playwright navigation in flight keeps
+ * going until its own timeout fires; this returns control to the run, it does not reach into the
+ * browser and stop it. The run stops WAITING, which is what bounds the run — but the process may be
+ * briefly doing work whose result nobody will read. Saying so because the alternative is a comment
+ * claiming a cancellation that never happens, and a future reader trusting it.
+ *
+ * `fallback` is what the caller gets when the deadline passes: whatever "we did not do this step"
+ * looks like for them, usually an empty result. The skip is recorded either way.
+ */
+export async function withStepDeadline<T>(
+  projectId: string,
+  step: string,
+  fn: () => Promise<T>,
+  fallback: T,
+  onTimeout?: (msg: string) => void,
+): Promise<T> {
+  const status = checkBudget(projectId, spendForRun(projectId));
+
+  // No budget, or an unbounded one: run it. An unbudgeted run is not an over-budget one.
+  if (!Number.isFinite(status.remainingMs) || status.remainingMs <= 0) {
+    if (status.remainingMs === 0 && Number.isFinite(status.limitMs)) {
+      recordSkipped(projectId, step, `no time remained in the run's ${Math.round(status.limitMs / 60_000)}-minute budget`);
+      onTimeout?.(`Skipping ${step} — no time left in the run's budget.`);
+      return fallback;
+    }
+    return fn();
+  }
+
+  const deadlineMs = status.remainingMs;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const TIMED_OUT = Symbol('step-deadline');
+
+  try {
+    const raced = await Promise.race([
+      fn(),
+      new Promise<typeof TIMED_OUT>((resolve) => {
+        timer = setTimeout(() => resolve(TIMED_OUT), deadlineMs);
+      }),
+    ]);
+
+    if (raced === TIMED_OUT) {
+      const mins = Math.max(1, Math.round(deadlineMs / 60_000));
+      recordSkipped(projectId, step, `it did not finish within the ${mins} minute(s) the run had left`);
+      onTimeout?.(
+        `⚠ ${step} was still running when the run's time ran out (${mins} minute(s) were left when ` +
+        `it started). The run stopped waiting for it; the report will say this step did not finish.`,
+      );
+      return fallback;
+    }
+    return raced as T;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
