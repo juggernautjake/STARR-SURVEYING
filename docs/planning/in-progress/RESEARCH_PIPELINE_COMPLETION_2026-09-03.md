@@ -202,21 +202,19 @@ Ship in this order. Each is independently mergeable and each ends with typecheck
 
 Nothing else is safe to build until a run cannot spend fifteen times its cap.
 
-- [x] **A1. Give `mayRun()` its callers.** — shipped 2026-09-03.  gives
-      county code one import and one call (), because 
-      needed two imports and knowledge of which spend source was right, and that friction was the
-      whole difference between a guard that exists and one that runs. Wired at the clerk deed search
-      and plat search in the Bell orchestrator (the steps that consumed 163 minutes) and at all three
-      clerk owner searches in the generic pipeline. Guarding the BLOCK, not the assignment — the
-      compiler pointed out that everything after the clerk call reads . Mutation-tested:
-      removing the guard fails the caller test. Also fixed here because it is the same file and the
-      same defect:  reported ELAPSED time as though it were the limit, which is where
-      "its 149-minute time limit" came from.  now carries //
-       and each message names the ceiling AND what crossed it. It exists, is documented as the thing callers must ask,
-      and has zero call sites. Wire it before each expensive step in the Bell orchestrator and in
-      the generic pipeline: before the clerk owner search, before each document fetch, before each
-      AI analysis batch, before imagery capture. `recordSkipped` already writes the reason, and
-      `skipped_work` on `research_runs` already has a column for it.
+- [x] **A1. Give `mayRun()` its callers.** — shipped 2026-09-03, commit `c662512fe`.
+      `research/budget-gate.ts` gives county code one import and one call (`mayStart`), because
+      `mayRun(projectId, step, spendSoFar)` needed two imports and knowledge that `spendForRun` was
+      the right source — friction that was the whole difference between a guard that exists and one
+      that runs. Wired at the clerk deed search and the plat search in the Bell orchestrator (the
+      steps that consumed 163 minutes) and at all three clerk owner searches in the generic pipeline.
+      A skipped step reports itself through `progress`. Guarding the BLOCK rather than the
+      assignment — the compiler pointed out that everything after the clerk call reads `clerk.*`.
+      Mutation-tested: removing the guard fails the caller test, restoring it passes.
+      **Also fixed here**, same file and same defect class: `reasonText` reported ELAPSED time as
+      though it were the limit, which is where "its 149-minute time limit" came from. `BudgetStatus`
+      now carries `limitMs` / `limitUsd` / `limitPaidPages` and every message names the ceiling AND
+      the figure that crossed it. That closes the fabricated-number half of A5.
 - [ ] **A2. Check wall-clock, not just cost.** `maxWallClockMs` is 25 minutes and the run took 163.
       The check exists inside `checkBudget`; it is the calling that is missing. Same sites as A1.
 - [ ] **A3. A dead primary source ends the run early.** When `dead-host.ts` has marked the county
