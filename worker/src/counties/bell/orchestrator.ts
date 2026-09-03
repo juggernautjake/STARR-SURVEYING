@@ -40,6 +40,7 @@ import { assessDegradation } from '../../research/run-degradation.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
 import { visualReadiness } from '../../research/run-order.js';
+import { geocodeWithGoogle } from '../../research/google-geocode.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -276,7 +277,10 @@ export async function orchestrateBellResearch(
       if (geocodeResult) {
         lat = geocodeResult.lat;
         lon = geocodeResult.lon;
-        progress('Phase 1', `✓ Geocoded: ${lat.toFixed(5)}, ${lon.toFixed(5)}`, 7);
+        // Which provider answered belongs in the run log: a Google hit after two free misses is
+        // the signature of a rural address, and it is also a billed call the operator should see.
+        progress('Phase 1', `✓ Geocoded via ${geocodeResult.source}: ${lat.toFixed(5)}, ${lon.toFixed(5)}`, 7);
+        if (geocodeResult.statement) progress('Phase 1', `  ${geocodeResult.statement}`);
       } else {
         progress('Phase 1', '✗ Geocoder returned no result — FEMA/TxDOT spatial queries will be skipped', 7);
       }
@@ -1975,7 +1979,9 @@ function normalizeAddressForGeocoding(address: string): string {
   return normalized;
 }
 
-async function geocodeAddress(address: string): Promise<{ lat: number; lon: number } | null> {
+async function geocodeAddress(
+  address: string,
+): Promise<{ lat: number; lon: number; source: 'census' | 'nominatim' | 'google'; statement?: string } | null> {
   // Normalize address for better geocoding results
   const normalizedAddress = normalizeAddressForGeocoding(address);
   if (normalizedAddress !== address) {
@@ -2008,7 +2014,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lon: numb
         const match = data.result?.addressMatches?.[0];
         if (match) {
           console.log(`[orchestrator] Census geocoded "${addrVariant}" → ${match.coordinates.y.toFixed(5)}, ${match.coordinates.x.toFixed(5)} (matched: "${match.matchedAddress ?? '?'}")`);
-          return { lat: match.coordinates.y, lon: match.coordinates.x };
+          return { lat: match.coordinates.y, lon: match.coordinates.x, source: 'census' };
         }
       }
     } catch (err) {
@@ -2034,12 +2040,29 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lon: numb
         const data = await resp.json() as Array<{ lat: string; lon: string; display_name?: string }>;
         if (data.length > 0) {
           console.log(`[orchestrator] Nominatim geocoded "${addrVariant}" → ${data[0].lat}, ${data[0].lon} (display: "${data[0].display_name ?? '?'}")`);
-          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), source: 'nominatim' };
         }
       }
     } catch (err) {
       console.warn(`[orchestrator] Nominatim geocoder failed for "${addrVariant}": ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  // ── Google, last (plan B1 — and this is the path B1 had NOT reached) ──────────────────────
+  //
+  // B1 wired Google as Layer 0C of the GENERIC pipeline's `normalizeAddress` and was marked shipped
+  // against the 2026-09-03 run. That run was a Bell run, and Bell geocodes HERE, through its own
+  // Census + Nominatim function — so the exact outage the slice was written for would have played
+  // out identically. Both free providers returned nothing for "11780 FM 2484, Belton, TX 76513";
+  // Google returns it at 30.997170, -97.626234 (rooftop).
+  //
+  // Last and not first for the same reason as on the generic path: the two above are free and
+  // Google bills per call. `geocodeWithGoogle` never throws and says in its statement whether it
+  // was asked at all, so "no key configured" cannot masquerade as "Google has never heard of it".
+  const g = await geocodeWithGoogle(address);
+  console.log(`[orchestrator] ${g.statement}`);
+  if (g.result) {
+    return { lat: g.result.lat, lon: g.result.lon, source: 'google', statement: g.statement };
   }
 
   return null;

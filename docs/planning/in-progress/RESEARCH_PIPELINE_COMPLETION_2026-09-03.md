@@ -327,6 +327,16 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       It does NOT overwrite the parsed street parts — the operator's own fields (seed 624) beat any
       geocoder's guess, which is the whole reason they are stored separately. Google supplies the
       coordinates, and coordinates are what was missing.
+
+      **Correction, 2026-09-03 (platform audit):** the above shipped on the GENERIC path only.
+      `normalizeAddress` is `services/address-utils.ts`; the 2026-09-03 run was a **Bell** run, and
+      Bell geocodes in `counties/bell/orchestrator.ts` through its own private `geocodeAddress`
+      (Census, then Nominatim) which had never imported the Google module. The outage this slice
+      was written for would have replayed unchanged. Fixed the same day: Google is now the last
+      layer of the Bell geocoder too, the run log says which provider answered (*"Geocoded via
+      google"*) and carries Google's own statement, so a billed call and a rural address are both
+      visible. Guard: `worker/src/__tests__/bell-geocodes-with-google-too.test.ts` (source-text,
+      with a control; asserts the order free → billed).
 - [x] **B2. Coordinates from the parcel, not only the address.** — shipped 2026-09-03.
       **The coordinates were in memory the whole time.** `lat`/`lon` are resolved by GEOCODING,
       before the GIS runs; when both geocoders failed on 2026-09-03 they stayed null and every
@@ -706,6 +716,21 @@ below where they conflict, because several are prerequisites for it:
       the seed applied rather than the probe.)*
 
 
+
+- [x] **B*9. The purchase ledger could not record a skipped document.** — found by the
+      2026-09-03 platform audit (paid-documents + data-model readers, independently), fixed the
+      same day. Seed 531's `CHECK (status IN ('completed','failed','refunded'))` was the three ways
+      a purchase can END; on 2026-09-02 the worker began writing `paid_disabled` /
+      `permission_unreadable` rows so the report could say how many paywalled documents were not
+      retrieved, and every insert violated the CHECK. `recordSkippedPurchases` never throws, so it
+      was one warning line per run and a table at **0 rows** — confirmed against the live
+      constraint (`pg_constraint`, unchanged since 531) before touching it. The fourth "table at
+      zero rows is a write that cannot execute" in this schema. Seed **629** widens the CHECK to
+      every status the code writes or counts (the two above, the app's `no_vendor_credentials`,
+      the orchestrator's `budget_exceeded`), leaves 531's completed-only unique index alone, and is
+      **applied live**. Guard: `__tests__/research/purchase-status-check-matches-code.test.ts`
+      parses the seed's value list and every writer's literals — the schema guards that existed
+      compared names and indexes and could not see a CHECK's values, which is how this shipped.
 
 ### Phase C — the order the owner asked for
 
