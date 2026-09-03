@@ -12,7 +12,7 @@
 import { convertLength } from '../../../services/survey-units.js';
 // One segmentation rule for every county — see the note in adaptive-vision.ts.
 import {
-  analyzeImageDimensions, selectOptimalGrid, computeCropBoxes,
+  analyzeImageDimensions, selectOptimalGrid, computeCropBoxes, scoreConfidence,
 } from '../../../services/adaptive-vision.js';
 import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
@@ -257,6 +257,15 @@ interface ImageRegion {
   label: string;       // e.g. "top-left quadrant", "top half"
   regionIndex: number;
   totalRegions: number;
+  /**
+   * Where this region sits in the original page, when it is a crop.
+   *
+   * Carried so escalation can re-cut a sub-piece from the FULL-RESOLUTION page rather than from an
+   * already-resized crop. Enlarging a downscaled image cannot recover detail; cutting a smaller
+   * piece out of the original can, and that difference is the entire mechanism escalation relies
+   * on. Absent on the whole-page overview region, which has nothing finer to go to.
+   */
+  box?: { left: number; top: number; width: number; height: number };
 }
 
 /**
@@ -266,22 +275,27 @@ interface ImageRegion {
  *  - 2 horizontal halves (top/bottom) with 15% overlap
  * Total: up to 3 regions per image — balances coverage with API call count.
  */
-async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> {
+/** 15% overlap between regions, so a bearing that lands on a seam is whole in one of them. */
+const OVERLAP = 0.15;
+/** Escalation re-cuts at 8% — tighter, because the sub-pieces are already small. */
+const ZOOM_OVERLAP = 0.08;
+
+/**
+ * Cut one region out of a page, resize it to fit the Vision limits, and encode it.
+ *
+ * Lifted to module scope from inside `splitImageIntoRegions` so the ESCALATION path can use it:
+ * a region that reads badly is re-cut from this same original page at higher resolution, and
+ * doing that by re-cropping the already-resized region would enlarge a downscale, which recovers
+ * nothing. The caller passes the source page's own dimensions so clamping stays exact.
+ */
+async function cropRegionFromPage(
+  buf: Buffer,
+  width: number,
+  height: number,
+  left: number, top: number, w: number, h: number, label: string,
+): Promise<ImageRegion | null> {
   try {
     const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
-    const buf = Buffer.from(base64Img, 'base64');
-    const meta = await sharp(buf).metadata();
-    const { width, height } = meta;
-    if (!width || !height) return [];
-
-    const OVERLAP = 0.15; // 15% overlap between regions
-    const regions: ImageRegion[] = [];
-
-    // Helper to crop, resize to fit API limits, and encode
-    async function cropRegion(
-      left: number, top: number, w: number, h: number, label: string,
-    ): Promise<ImageRegion | null> {
-      try {
         // Clamp to image bounds
         const cl = Math.max(0, Math.round(left));
         const ct = Math.max(0, Math.round(top));
@@ -310,9 +324,28 @@ async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> 
         }
         if (cropped.length > MAX_DEED_IMAGE_BYTES) return null; // still too big
 
-        return { data: cropped.toString('base64'), mediaType, label, regionIndex: 0, totalRegions: 0 };
-      } catch { return null; }
-    }
+    return {
+      data: cropped.toString('base64'), mediaType, label,
+      regionIndex: 0, totalRegions: 0,
+      box: { left: cl, top: ct, width: cw, height: ch },
+    };
+  } catch { return null; }
+}
+
+/**
+ * Split a page into the whole-page overview plus the grid of regions the planner chooses.
+ */
+async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> {
+  try {
+    const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+    const buf = Buffer.from(base64Img, 'base64');
+    const meta = await sharp(buf).metadata();
+    const { width, height } = meta;
+    if (!width || !height) return [];
+
+    const regions: ImageRegion[] = [];
+    const cropRegion = (l: number, t: number, w: number, h: number, label: string) =>
+      cropRegionFromPage(buf, width, height, l, t, w, h, label);
 
     // ── QUADRANTS, NOT TWO HORIZONTAL STRIPS (plan D1) ──────────────────────────────────────
     //
@@ -584,6 +617,9 @@ async function analyzeDeedException(
 
       console.log(`[deed-analyzer] Splitting ${pageLabel} into regions for deep analysis...`);
       const regions = await splitImageIntoRegions(pageImg);
+      // Kept so escalation can re-cut from the full-resolution page rather than from a resized crop.
+      const pageBuf = Buffer.from(pageImg, 'base64');
+      const pageMeta = await (await import('sharp')).default(pageBuf).metadata();
 
       if (regions.length === 0) {
         // Fallback: analyze full image without splitting
@@ -607,6 +643,46 @@ async function analyzeDeedException(
         accumulateUsage(totalUsage, usage);
         if (text.length > 0) {
           allRegionResults.push({ label: `${pageLabel} — ${region.label}`, text });
+        }
+
+        // ── ESCALATION — "zoom in and get an even better understanding" (plan D3) ────────────
+        //
+        // The previous slice gave Bell the same GRID as the generic pipeline. It did not give it
+        // the sixth phase, which is the one that matters when a page is hard to read: a region
+        // whose extraction scores badly gets cut into four and read again at higher resolution.
+        //
+        // Driven by evidence, not by page size. `scoreConfidence` counts what came out — bearings,
+        // distances, lot references — against what the model said it could not read, and only a
+        // region that found SOME data and still reads badly is worth re-cutting. A region that
+        // found nothing at all is a blank margin, and four more calls on a blank margin is four
+        // more calls.
+        //
+        // Cut from the ORIGINAL page, not from this region's already-resized crop: enlarging a
+        // downscaled image cannot recover detail, and recovering detail is the whole point.
+        const score = scoreConfidence(text);
+        if (score.needsZoom && region.box && region.box.width > 400 && region.box.height > 400) {
+          console.log(
+            `[deed-analyzer]   ⤷ escalating ${region.label}: confidence ${score.confidence} < 60 ` +
+            `(${score.dataPoints} data points, ${score.uncertainMarkers} [?] markers) — re-reading as 4 sub-pieces`,
+          );
+          for (const sub of computeCropBoxes(region.box.width, region.box.height, 2, 2, ZOOM_OVERLAP)) {
+            const subRegion = pageMeta.width && pageMeta.height
+              ? await cropRegionFromPage(
+                  pageBuf, pageMeta.width, pageMeta.height,
+                  region.box.left + sub.left,
+                  region.box.top + sub.top,
+                  sub.width,
+                  sub.height,
+                  `${region.label} → zoom ${sub.segmentId}`,
+                )
+              : null;
+            if (!subRegion) continue;
+            const zoomed = await analyzeRegion(client, subRegion, pageLabel);
+            accumulateUsage(totalUsage, zoomed.usage);
+            if (zoomed.text.length > 0) {
+              allRegionResults.push({ label: `${pageLabel} — ${subRegion.label}`, text: zoomed.text });
+            }
+          }
         }
       }
     }

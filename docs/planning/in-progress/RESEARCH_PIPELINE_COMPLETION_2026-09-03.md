@@ -838,9 +838,25 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       selection, cropping and per-segment analysis, and the per-segment findings are stored against
       the page so a reader can see which quadrant a fact came from. `ocr_segments` already exists as
       a column on `research_documents`.
-- [ ] **D3. Escalation is the point, so verify it fires.** A segment scoring under 60 is re-split
-      2×2 at 8% overlap. That is the "zoom in and get an even better understanding" the owner
-      described. Assert it on a real low-confidence scan, not only in principle.
+- [x] **D3. Escalation fires — and Bell did not have it at all.** — shipped 2026-09-03.
+      D1 gave Bell the same *grid* as the generic pipeline. It did not give Bell the **sixth
+      phase**, which is the one that matters when a page is hard to read: a segment scoring under 60
+      is cut into four and read again at higher resolution. So a watermarked quadrant on a deed was
+      read once and accepted. That is the "zoom in and get an even better understanding" half of the
+      owner's request, and it was missing from the county with the dedicated orchestrator.
+      Bell escalates now, through the same `scoreConfidence` the generic path uses.
+      **Driven by evidence, not by page size.** `needsZoom` requires `dataPoints > 0`: a region that
+      found bearings and then hedged about them has more to find; a blank margin does not, and four
+      more calls on a blank margin is four more calls. A text-only region — dedications,
+      certifications — scores 50 by design and is correctly left alone.
+      **Re-cut from the ORIGINAL page, not from the region's already-resized crop.** Enlarging a
+      downscaled image cannot recover detail, and recovering detail is the entire mechanism.
+      `cropRegionFromPage` was lifted out of `splitImageIntoRegions` so both the primary split and
+      the escalation can reach it, and each region carries the box it came from.
+      Asserted on text shaped like what a watermarked county scan actually produces — `[?]` markers,
+      "possibly", "partially obscured" — with a CONTROL that a clean read of the same quadrant scores
+      ≥60 and does not zoom, so "the bad one zooms" is not true merely because everything zooms.
+      Nine tests; mutation-checked.
 - [x] **D4. `extracted_text` stopped meaning "the AI summary".** — shipped 2026-09-03.
       A summary is a **conclusion**, not an extraction. `extracted_text` was
       `deed.aiSummary ?? deed.legalDescription ?? null`, so when the AI stage was skipped or failed
