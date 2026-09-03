@@ -133,8 +133,22 @@ export async function persistAdjoiners(
     };
   };
 
+  // ── THE CONFLICT TARGET THAT DID NOT EXIST ─────────────────────────────────────────────────
+  //
+  // This named `parcel_id` and `owner_name`, and seed 539's unique index is on
+  // `COALESCE(parcel_id, '')` and `COALESCE(owner_name, '')`. Postgres matches an inference target
+  // against an index's EXPRESSIONS, so no index matched and every call raised 42P10 — "there is no
+  // unique or exclusion constraint matching the ON CONFLICT specification".
+  //
+  // Not a duplicate-key warning. The whole statement failed, every time, so `research_adjoiners`
+  // has never held a row — while `describePersist` below reported "0 neighbour(s) recorded" as
+  // though the research had found none. A fact about our SQL, rendered as a finding about the
+  // property, which is precisely what this register's own header warns against.
+  //
+  // Seed 628 adds `parcel_key` and `owner_key` — the same COALESCE, stored — so the deduplication
+  // rule survives and the target is nameable.
   const { error } = await db.from('research_adjoiners').upsert(records, {
-    onConflict: 'research_project_id,parcel_id,owner_name,identified_by',
+    onConflict: 'research_project_id,parcel_key,owner_key,identified_by',
   });
 
   if (error) return { written: 0, errors: [error.message] };

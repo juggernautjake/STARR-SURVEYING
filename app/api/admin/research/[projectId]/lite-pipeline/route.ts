@@ -120,7 +120,39 @@ async function importSearchResults(
 
   if (toImport.length === 0) return 0;
 
-  const rows = toImport.map(r => ({
+  // ── THE INDEX THIS RELIED ON DOES NOT EXIST ────────────────────────────────────────────────
+  //
+  // This upserted with `onConflict: 'research_project_id,source_url'` under a comment reading
+  // "The composite UNIQUE constraint on (research_project_id, source_url) is required for this
+  // upsert. It is created by the seeds that set up the research_documents table (seeds/001... or
+  // equivalent)." No seed creates it. "or equivalent" was the tell: nobody had looked.
+  //
+  // With no matching unique index Postgres raises 42P10 and the ENTIRE statement fails, so every
+  // link this pipeline discovered was dropped — and the failure landed in a `console.warn` and a
+  // `return 0`, which is indistinguishable on screen from "the search found nothing".
+  //
+  // Fixed by asking the question instead of asserting a schema: read what this project already has
+  // and insert the rest. Slower by one query, correct without a migration, and it cannot rot the
+  // way an assumption about an index can. A unique index would additionally close the race between
+  // two concurrent runs of the same project; that is worth doing, and is not worth doing blind on
+  // a 697-row table that may already hold pairs it would reject.
+  const { data: already, error: existingErr } = await supabaseAdmin
+    .from('research_documents')
+    .select('source_url')
+    .eq('research_project_id', projectId)
+    .not('source_url', 'is', null);
+
+  // A failed read is not "nothing is imported yet". Re-importing a handful of links is a far
+  // smaller harm than skipping the import entirely, so this proceeds — and says so.
+  if (existingErr) {
+    console.warn('[LitePipeline] Could not read existing documents; importing without the '
+      + `duplicate filter: ${existingErr.message}`);
+  }
+  const seen = new Set(
+    ((already ?? []) as Array<{ source_url: string | null }>).map((d) => d.source_url),
+  );
+
+  const rows = toImport.filter(r => !seen.has(r.url)).map(r => ({
     research_project_id: projectId,
     source_type: 'property_search' as const,
     source_url: r.url,
@@ -135,12 +167,11 @@ async function importSearchResults(
     updated_at: new Date().toISOString(),
   }));
 
-  // Upsert — skip any URLs already imported for this project
-  // The composite UNIQUE constraint on (research_project_id, source_url) is required for this upsert.
-  // It is created by the seeds that set up the research_documents table (seeds/001... or equivalent).
+  if (rows.length === 0) return 0;
+
   const { data, error } = await supabaseAdmin
     .from('research_documents')
-    .upsert(rows, { onConflict: 'research_project_id,source_url', ignoreDuplicates: true })
+    .insert(rows)
     .select('id');
 
   if (error) {

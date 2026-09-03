@@ -93,14 +93,39 @@ describe('the rows', () => {
 });
 
 describe('persisting', () => {
-  it('upserts so a re-run updates rather than duplicates', async () => {
+  // ── THIS TEST AGREED WITH THE CODE ABOUT A STRING THEY WERE BOTH WRONG ABOUT ─────────────────
+  //
+  // It pinned `onConflict: 'research_project_id,parcel_id,owner_name,identified_by'` against a mock.
+  // Seed 539's unique index is on `COALESCE(parcel_id, '')` and `COALESCE(owner_name, '')`, and
+  // Postgres matches an inference target against an index's EXPRESSIONS — so every real call raised
+  // 42P10 and `research_adjoiners` has never held a row. A mock cannot raise 42P10, so the test was
+  // green for the whole life of the defect.
+  //
+  // The string is still pinned, because changing it silently is how this would come back. What
+  // makes the pin worth anything now is `__tests__/research/upsert-has-a-matching-unique-index.ts`,
+  // which checks every research `onConflict` against the UNIQUE INDEXES IN THE SEEDS — the only
+  // place that knows whether a conflict target exists.
+  it('upserts against a target the seeds actually define', async () => {
     const upsert = vi.fn(async (_rows: unknown[], _opts: { onConflict: string }) => ({ error: null }));
     const db = { from: () => ({ upsert }) };
     const res = await persistAdjoiners(db, 'p1', [input()]);
     expect(res.written).toBe(1);
     expect(upsert.mock.calls[0]![1]).toEqual({
-      onConflict: 'research_project_id,parcel_id,owner_name,identified_by',
+      onConflict: 'research_project_id,parcel_key,owner_key,identified_by',
     });
+  });
+
+  it('does not write the generated key columns — the database computes them', async () => {
+    // `parcel_key` and `owner_key` are GENERATED ALWAYS. Writing one is an error, not a no-op, so
+    // the temptation to "help" by setting them alongside the source columns has to stay closed.
+    const upsert = vi.fn(async (_rows: unknown[], _opts: { onConflict: string }) => ({ error: null }));
+    await persistAdjoiners({ from: () => ({ upsert }) }, 'p1', [input()]);
+    const row = upsert.mock.calls[0]![0][0] as Record<string, unknown>;
+    expect(row).not.toHaveProperty('parcel_key');
+    expect(row).not.toHaveProperty('owner_key');
+    // CONTROL: the source columns ARE written, so the absence above means something.
+    expect(row).toHaveProperty('parcel_id');
+    expect(row).toHaveProperty('owner_name');
   });
 
   it('does not overwrite a reviewer’s decision to research a neighbour', () => {

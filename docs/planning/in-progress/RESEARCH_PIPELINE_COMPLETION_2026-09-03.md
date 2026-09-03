@@ -584,9 +584,51 @@ below where they conflict, because several are prerequisites for it:
       reports none, which reads exactly like a clean file. The opener is anchored to a line start
       now, and three controls prove it: a filter inside a comment is not flagged, the same filter
       outside one still is, and a `*/` inside a string literal does not blank what follows.
-      The rest of B*6 — the orphan guard's `hasCaller`, the seven unscanned worker directories, the
-      concatenated-corpus "review reads what the worker writes" test, and `adjoiner-persistence`
-      mocking the `upsert` it should be exercising — is still open below.
+      The rest of B*6 — the orphan guard's `hasCaller`, the seven unscanned worker directories, and
+      the concatenated-corpus "review reads what the worker writes" test — is still open below.
+
+- [x] **B*6 (part 2). `research_adjoiners` has never held a row, and the test said it was fine.**
+      — shipped 2026-09-03. The mocked-upsert finding turned out to be a live data-loss bug.
+
+      ```
+      adjoiner-persistence.ts   onConflict: 'research_project_id,parcel_id,owner_name,identified_by'
+      seed 539                  UNIQUE INDEX ON (research_project_id, COALESCE(parcel_id, ''),
+                                                 COALESCE(owner_name, ''), identified_by)
+      ```
+
+      The index is on **expressions**. Postgres matches an `ON CONFLICT (a, b, c)` inference target
+      against an index's expressions, and `parcel_id` is not `COALESCE(parcel_id, '')`, so nothing
+      matched and every call raised **42P10 — "there is no unique or exclusion constraint matching
+      the ON CONFLICT specification"**. Not a duplicate-key warning; the whole statement failed. So
+      every neighbour every run has identified was discarded at the database boundary while
+      `describePersist` reported "0 neighbour(s) recorded" — a fact about our SQL, rendered as a
+      finding about the property, which is the exact failure the adjoiner register's own header
+      warns against.
+      The COALESCE was right and is kept: NULLs are distinct in a plain unique index, so dropping it
+      would fix the write by breaking the deduplication it exists for. Seed 628 adds `parcel_key`
+      and `owner_key` — the same COALESCE, `GENERATED ALWAYS … STORED` — so the rule survives and the
+      target is nameable, and drops the now-redundant expression index.
+      **And a second one the audit did not find.** The new guard checks every research `onConflict`
+      against the unique indexes in the seeds, and immediately turned up
+      `lite-pipeline/route.ts` upserting `research_documents` on
+      `(research_project_id, source_url)` — under a comment reading *"It is created by the seeds
+      that set up the research_documents table (seeds/001... or equivalent)"*. No seed creates it.
+      "or equivalent" was the tell: nobody had looked. Every link that pipeline discovered failed the
+      same 42P10 into a `console.warn` and a `return 0`, which on screen is indistinguishable from
+      "the search found nothing". Fixed by asking instead of asserting — read what the project
+      already has, insert the rest — rather than migrating a 697-row table onto an index it may
+      already violate.
+      The old test mocked `upsert` and asserted the option string, so it agreed with the code about a
+      string they were both wrong about; a mock cannot raise 42P10. The string is still pinned, and
+      what makes the pin worth anything is the new seed-reading guard beside it.
+      Seeds 626, 627 and 628 applied to production and **verified live**: `harvest_metadata` and
+      `content_sha256` present, `pipeline_capture` in the source-type CHECK, zero `ocr_confidence`
+      rows above 1, `parcel_key`/`owner_key` `GENERATED ALWAYS`, `idx_adjoiners_conflict_target`
+      present and `idx_adjoiners_unique` gone.
+      *(The verification probe itself was wrong once — it asked `research_projects` for
+      `address_street`/`address_city`/`address_zip`, and seed 624 names them `street_number`,
+      `street_name`, `city`, `zip`. `intake_notes` from the same ALTER answered, which is what proved
+      the seed applied rather than the probe.)*
 
 
 
