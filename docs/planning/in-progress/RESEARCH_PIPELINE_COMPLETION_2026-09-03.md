@@ -264,11 +264,31 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       mid-audit would race that verdict. Evidence gathered here: it duplicates spacing/concurrency
       (politeness) and backoff (`withRetry`, 4 users), and its unique exports — `isCaptchaError`,
       `isSessionExpiredError`, `SessionHeartbeat` — have zero users each.
-- [ ] **A5. One true completion message.** Four surfaces gave four different reasons and none
-      matched `stop_reason`. One function derives the sentence from `stop_reason` + `limits` +
-      actual duration, and every surface uses it. Fix alongside: `status "complete"` with
-      `phase "Failed"`, the `8:14:36 / 25:00` elapsed, "Duration 0.0s", "none retrieved" beside 19
-      documents, and 19-vs-16 counts.
+- [x] **A5a. An abort says who aborted it.** — shipped 2026-09-03. The owner's dispute — *"it is
+      saying it stopped because it reached its time limit, and it is also saying it stopped because
+      I cancelled it. I did not cancel it"* — was correct. `index.ts:1341` aborts the run when the
+      BUDGET is exhausted, and `orchestrator.ts:108` threw
+      `DOMException('Pipeline cancelled by user')` for any abort, because `signal.aborted` is a
+      boolean and a boolean cannot say who set it.
+      **The instructive part: this had already been fixed once, for half the surfaces.** Both abort
+      sites already set `stopReason` on the `activePipelines` entry, with comments describing this
+      exact defect — which fixed the STATUS endpoint. It did not fix the thrown exception, because
+      the orchestrator cannot see that map, and the exception's message is what reaches
+      `research_runs.message` and the Activity log the owner was actually reading. The fix reached
+      the surface that was checked, not the one displayed.
+      `research/abort-reason.ts` carries the cause ON THE SIGNAL (`abort(new BudgetAbort(...))`),
+      readable anywhere the signal is. Three abort sites now name themselves; a bare `abort()` is
+      guarded against. An unattributed abort says it does not know rather than blaming anyone —
+      "we do not know why this stopped" looks worse and does not send anyone to argue with the
+      operator. The router also stops calling an expected stop a crash: `phase: 'Stopped'` rather
+      than `'Failed'`, which was appearing beside `status: "complete"` on the same row.
+      One existing guard re-pointed: it pinned the literal bare `abort()`, which is now the defect.
+      It asserts the reason is carried.
+
+- [ ] **A5b. The remaining display contradictions.** Still open: the `8:14:36 / 25:00` elapsed for a
+      163-minute run, "Duration 0.0s", "Documents: none retrieved" beside "Documents & Sources 19",
+      and 19-vs-16 counts on one screen. These are app-side reads of run fields rather than worker
+      writes, so they are a separate slice from A5a.
 
 ### Phase B — the run can find the property
 

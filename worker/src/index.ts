@@ -88,6 +88,7 @@ import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
 import { persistRunLogs } from './research/persist-run-logs.js';
+import { BudgetAbort, OperatorAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
@@ -1358,7 +1359,12 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             message: summary ?? 'Finished early because this run reached its configured ceiling.',
           };
         }
-        pipelineAbortController.abort();
+        // The reason travels ON THE SIGNAL, not only in `activePipelines`. `stopReason` above
+        // fixed the STATUS endpoint; the orchestrator throws its own exception and cannot see
+        // that map, so it went on hardcoding "cancelled by user" — and that string, not the
+        // status, is what lands in `research_runs.message` and in the Activity log. Half the fix
+        // reached half the surfaces. `signal.reason` is readable anywhere the signal is.
+        pipelineAbortController.abort(new BudgetAbort(summary ?? 'This run reached its configured ceiling.'));
       }
 
       // Update active pipeline stage from progress events
@@ -2634,8 +2640,8 @@ app.post('/research/cancel/:projectId', requireAuth, (req: Request, res: Respons
     // endpoint had to guess — so it called every abort a user cancellation, including the ones
     // caused by the budget ceiling. Now only this path is a user cancellation.
     pipeline.stopReason = { kind: 'cancelled', message: 'Cancelled by the operator.' };
-    pipeline.abortController.abort();
-    console.log(`[Worker] ${projectId}: cancel requested — AbortController.abort() called`);
+    pipeline.abortController.abort(new OperatorAbort('Cancelled by the operator.'));
+    console.log(`[Worker] ${projectId}: cancel requested by the operator — stop signal sent`);
     res.json({ message: `Cancel signal sent for project ${projectId}`, status: 'cancelling' });
   } else {
     // Legacy pipeline without AbortController — force-remove from active
@@ -2672,7 +2678,7 @@ app.post('/research/reset/:projectId', requireAuth, async (req: Request, res: Re
         kind: 'cancelled',
         message: 'Stopped because the operator restarted this project from the beginning.',
       };
-      active.abortController.abort();
+      active.abortController.abort(new OperatorAbort('Stopped because the operator restarted this project from the beginning.'));
       cleared.push('aborted the run that was still in flight');
     }
     activePipelines.delete(projectId);

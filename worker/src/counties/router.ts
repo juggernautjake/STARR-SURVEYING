@@ -21,6 +21,7 @@
 import type { PipelineInput, PipelineResult } from '../types/index.js';
 import type { BellResearchResult } from './bell/types/research-result.js';
 import { resolveCounty, TEXAS_COUNTIES, type CountyRecord } from '../lib/county-fips.js';
+import { describeAbort } from '../research/abort-reason.js';
 
 // ── Unified Input ───────────────────────────────────────────────────
 
@@ -515,10 +516,25 @@ export async function runCountyResearch(
         const errMsg = err instanceof Error
           ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
           : String(err ?? 'Unknown error');
-        console.error(`[CountyRouter] ${input.projectId}: Bell County CRASHED — ${errMsg.slice(0, 200)}`);
+        // ── AN EXPECTED STOP IS NOT A CRASH ────────────────────────────────────────────────
+        //
+        // This reported `phase: 'Failed'` and "Bell County pipeline error: ..." for ANY throw,
+        // including the AbortError the BUDGET raises when a run reaches the ceiling the operator
+        // set. On 2026-09-03 that produced a run row carrying `status: "complete"` beside
+        // `phase: "Failed"` and a message beginning "pipeline error" — three fields describing
+        // one ordinary early finish, disagreeing with each other.
+        //
+        // `signal.reason` now says which kind of stop this was, so the phase can match it.
+        const abort = signal?.aborted ? describeAbort((signal as AbortSignal & { reason?: unknown }).reason) : null;
+        const expected = abort?.isExpected === true;
+        if (expected) {
+          console.log(`[CountyRouter] ${input.projectId}: Bell County stopped early — ${abort!.message}`);
+        } else {
+          console.error(`[CountyRouter] ${input.projectId}: Bell County CRASHED — ${errMsg.slice(0, 200)}`);
+        }
         onProgress({
-          phase: 'Failed',
-          message: `Bell County pipeline error: ${errMsg}`,
+          phase: expected ? 'Stopped' : 'Failed',
+          message: expected ? abort!.message : `Bell County pipeline error: ${errMsg}`,
           timestamp: new Date().toISOString(),
         });
         // Return a structured failed result rather than re-throwing, so the

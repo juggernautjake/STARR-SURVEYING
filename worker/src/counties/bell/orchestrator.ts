@@ -37,6 +37,7 @@ import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
 import { assessDegradation } from '../../research/run-degradation.js';
+import { describeAbort } from '../../research/abort-reason.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -102,10 +103,17 @@ export async function orchestrateBellResearch(
   const allLinks: ResearchedLink[] = [];
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
-  /** Throws if the pipeline has been cancelled via AbortController */
+  /** Throws if the run has been stopped — reporting WHO stopped it.
+   *
+   *  This threw 'Pipeline cancelled by user' for any abort, because `signal.aborted` is a boolean
+   *  and a boolean cannot say who set it. The budget wind-down aborts too, so a run that finished
+   *  at the operator's own ceiling recorded itself as the operator pressing cancel — which is
+   *  exactly what the owner saw on 2026-09-03 and correctly disputed. The reason now travels on
+   *  the signal. */
   function checkAborted(): void {
     if (signal?.aborted) {
-      throw new DOMException('Pipeline cancelled by user', 'AbortError');
+      const { message } = describeAbort((signal as AbortSignal & { reason?: unknown }).reason);
+      throw new DOMException(message, 'AbortError');
     }
   }
 

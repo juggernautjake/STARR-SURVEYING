@@ -190,8 +190,16 @@ describe('the wiring', () => {
   it('checks at the phase boundary, not inside a phase', () => {
     // Stopping between phases leaves a coherent partial result; stopping inside one leaves half a
     // chain of title.
+    //
+    // Re-pointed 2026-09-03. This pinned the literal `pipelineAbortController.abort()` — a BARE
+    // abort — and a bare abort is now the defect: `signal.aborted` is a boolean, so the orchestrator
+    // could only report "Pipeline cancelled by user" for every stop, including the budget's own.
+    // The owner disputed exactly that on a run they had not cancelled.
+    //
+    // The assertion is stronger than before: the abort must be here AND must carry its cause.
     expect(index).toContain('Budget check at the phase boundary');
-    expect(index).toContain('pipelineAbortController.abort()');
+    expect(index).toMatch(/pipelineAbortController\.abort\(new BudgetAbort\(/);
+    expect(index, 'a bare abort() cannot say who stopped the run').not.toContain('pipelineAbortController.abort()');
   });
 
   it('puts the summary and the skipped list on the finished result', () => {
