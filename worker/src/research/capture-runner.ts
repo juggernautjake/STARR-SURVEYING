@@ -230,6 +230,12 @@ export function buildCaptureRow(
     // `storage_url`, not `public_url`. This row builder has never executed — 0 of 697 rows carry
     // source_type pipeline_capture — and this was one of four reasons in a single statement.
     storage_url: stored.publicUrl,
+    // `file_type` and `original_filename` — without them the artifacts route derives
+    // isImage=false, the ArtifactGallery filters the row out, and the Documents page can show the
+    // capture only because it regex-matches ".png" on the URL. B*1 made these rows insert; this
+    // makes them VISIBLE. Found by the 2026-09-03 platform audit (CS-3).
+    file_type: fileTypeOf(stored.storagePath),
+    original_filename: `${item.key}.${fileTypeOf(stored.storagePath)}`,
     content_sha256: contentHash(bytes),
     page_count: 1,
     processing_status: ocrText ? 'analyzed' : 'stored',
@@ -249,6 +255,12 @@ export function buildCaptureRow(
       county: ctx.county,
     },
   };
+}
+
+/** The stored object's extension, which is what every image check in the app reads. */
+function fileTypeOf(storagePath: string): string {
+  const m = /\.([a-z0-9]{2,5})$/i.exec(storagePath);
+  return (m?.[1] ?? 'png').toLowerCase();
 }
 
 /** The document type a capture files under, so the library and the packet can group them. */

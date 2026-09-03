@@ -182,15 +182,24 @@ export function assessRunReadiness(input: RunReadinessInput): RunReadiness {
     };
   }
 
+  // ── Documents alone are NOT enough, and the button must say so ─────────────────────────────
+  //
+  // This returned canRun=true, 'workable', "Ready to run from your uploaded documents." The
+  // worker's front door refuses a request with no address, no Property ID and no instrument
+  // number, and nothing in the product reads a legal description out of an upload BEFORE the run
+  // starts — so the button was offering a run the server always refused. Found by the
+  // 2026-09-03 platform audit (api-routes C1). The documents still count for everything after
+  // the parcel is found; they just cannot find it.
   if (docs) {
     return {
-      canRun: true, confidence: 'workable', have,
-      headline: 'Ready to run from your uploaded documents.',
-      whatWouldWork: [],
-      caution:
-        'Nothing here identifies the parcel on its own — the run depends on reading a legal ' +
-        'description out of what you attached. If those documents do not contain one, it will come ' +
-        'back empty. An address or a Property ID would give it a second way in.',
+      canRun: false, confidence: null, have,
+      headline: 'Not enough to run: uploaded documents cannot identify the parcel on their own.',
+      whatWouldWork: [
+        'Add the street address, or the Property ID from the appraisal district, or the instrument ' +
+        'number of the deed. Any one of them lets the run find the parcel; the documents you ' +
+        'attached are then read alongside everything it retrieves.',
+      ],
+      caution: null,
     };
   }
 

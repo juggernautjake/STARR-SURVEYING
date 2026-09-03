@@ -314,7 +314,12 @@ function hasCaller(modulePath: string, sources: Array<{ abs: string; text: strin
     ? path.basename(modulePath, '.tsx')
     : path.basename(modulePath, '.ts');
   const selfAbs = path.join(REPO, modulePath);
-  const pattern = new RegExp(`['"\`][^'"\`]*\\b${base.replace(/\./g, '\\.')}(\\.js)?['"\`]`);
+  // The basename must be the LAST PATH SEGMENT of the quoted string — preceded by `/` or by the
+  // opening quote. `\b` accepted a hyphen, so the Testing Lab's help text
+  // 'feat/harris-county-adapter' counted as a caller of types/county-adapter.ts (359 lines, no
+  // importer), and a display-map key 'discovery-engine' vouched for services/discovery-engine.ts
+  // (531 lines, no importer). Both deleted 2026-09-03 once the platform audit named them.
+  const pattern = new RegExp(`['"\`](?:[^'"\`]*/)?${base.replace(/\./g, '\\.')}(\\.js)?['"\`]`);
   // `includes` first, regex only on the survivors. This is a NECESSARY condition, not a heuristic:
   // the pattern contains `base` as a literal, so a file whose text does not contain that substring
   // cannot possibly match it. Same answers, and it skips the regex on the ~95% of files that never

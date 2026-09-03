@@ -39,7 +39,8 @@ import { hasStoredFile, storedFileUrl } from '@/lib/research/stored-file';
 import { useRunState, type RunDocument, type StartRunInput } from './useRunState';
 import RunDiffPanel from './RunDiffPanel';
 import ReportCardPanel from './ReportCardPanel';
-import type { PipelineLogEntry } from './PipelineProgressPanel';
+import { mergeLogEntries, type PipelineLogEntry } from './PipelineProgressPanel';
+import { frontendLogEntries } from '@/lib/research/frontend-log';
 
 export interface ResearchRunViewProps {
   projectId: string;
@@ -201,7 +202,9 @@ export default function ResearchRunView({
             active={state.lifecycle === 'active'}
           />
         )}
-        {tab === 'activity' && <ActivityLog logs={run.logs} active={state.lifecycle === 'active'} />}
+        {tab === 'activity' && (
+          <ActivityLog logs={run.logs} active={state.lifecycle === 'active'} startedAt={state.startedAt ?? null} />
+        )}
         {tab === 'changes' && <RunDiffPanel projectId={projectId} />}
         {tab === 'report' && <ReportCardPanel projectId={projectId} />}
       </div>
@@ -508,13 +511,25 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
 
 // ── Activity ────────────────────────────────────────────────────────────────────────────────────
 
-function ActivityLog({ logs, active }: { logs: PipelineLogEntry[]; active: boolean }) {
-  if (logs.length === 0) {
+// ── BOTH LOGS, ON THE SCREEN THE OPERATOR ACTUALLY WATCHES (plan F4) ─────────────────────────
+//
+// > "Really, both logs should be displayed in the pipeline log viewer."
+//
+// F4 merged the browser half into PipelineProgressPanel and was marked shipped. That panel's only
+// mounts that pass `runStartedAt` sit inside PropertySearchPanel branches the product never
+// renders; the review-page mount passes no bound. The screen an operator watches DURING a run is
+// this one, and its Activity tab was a raw list of worker entries — no browser half at all. Found
+// by the 2026-09-03 platform audit (logging-progress C1, app-ui C2). Same merge, same bound.
+function ActivityLog({ logs, active, startedAt }: { logs: PipelineLogEntry[]; active: boolean; startedAt: string | null }) {
+  // Recomputed each render on purpose: the browser buffers are mutable module state.
+  const browserLog = (typeof window === 'undefined' ? [] : frontendLogEntries(startedAt)) as PipelineLogEntry[];
+  const merged = mergeLogEntries(logs, browserLog) ?? [];
+  if (merged.length === 0) {
     return <p className="rrv__empty">{active ? 'Waiting for the first activity…' : 'No activity was recorded.'}</p>;
   }
   return (
     <ul className="rrv__log">
-      {logs.map((e, i) => (
+      {merged.map((e, i) => (
         <li key={i} className={`rrv__log-row rrv__log-row--${e.status}`}>
           <span className="rrv__log-status" aria-hidden>
             {e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'warn' ? '⚠' : e.status === 'partial' ? '~' : '−'}

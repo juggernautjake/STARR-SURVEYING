@@ -335,7 +335,17 @@ export class ProjectLibrary {
     }
 
     // 3. A near miss worth flagging. We still write it: a document is never dropped on a maybe.
-    for (const held of this.entries) {
+    //
+    // ONLY for a candidate that carries something to compare. `compareDocuments` answers
+    // `uncertain` whenever ONE side cannot be keyed — a rule written for the purchase path, where
+    // "uncertain" correctly means "buy it". In THIS path "uncertain" became `possible-duplicate`,
+    // so every aerial, GIS screenshot and capture (none of which has an instrument number) was
+    // flagged as a possible duplicate of the project's first identified deed, written with
+    // `duplicate_of` set, hidden from the run view, excluded from the next run's library, and
+    // filed and flagged again on every run after. Found by the 2026-09-03 platform audit (CS-1).
+    // A candidate with no identifier at all is what branch 4 below is for.
+    const comparable = Boolean(ref.instrumentNumber || (ref.book && ref.page));
+    for (const held of comparable ? this.entries : []) {
       if (!held.identityKey && !held.ref.instrumentNumber) continue;
       const verdict = compareDocuments(ref, held.ref);
       if (verdict.kind === 'uncertain') {

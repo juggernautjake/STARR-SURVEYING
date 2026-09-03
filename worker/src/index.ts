@@ -1062,10 +1062,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     return;
   }
 
-  if (!address) {
+  // ── THE DOOR AND THE READINESS CHECK MUST AGREE ─────────────────────────────────────────
+  //
+  // `lib/research/run-readiness.ts` — shared by the create form, the Start button and the pipeline
+  // route so that "a run refused by the server can never be one the button offered" — says a
+  // Property ID alone is 'exact' and an instrument number alone is 'strong'. This door required an
+  // address regardless, so those projects showed an enabled Start button and a "Ready to run"
+  // headline, then failed with this 400. The 2026-09-03 run log proves the ID is enough: the GIS
+  // layer found parcel 42156 by ID at [1s] while the appraisal site was dark, and the generic
+  // path's Stage 1 has a direct-ID lookup and Stage 2 a by-instrument fetch. Found by the
+  // 2026-09-03 platform audit (api-routes C1).
+  if (!address && !propertyId && !instrumentNumber) {
     res.status(400).json({
       error: 'Missing required field: address',
-      hint: 'A property address is required to start research.',
+      hint: 'A property address, a Property ID or an instrument number is required to start research.',
     });
     return;
   }
@@ -2322,7 +2332,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
       const isAborted = err instanceof DOMException && err.name === 'AbortError';
       const isCreditError = err instanceof AnthropicCreditDepletedError || isCreditDepleted();
-      if (isAborted) {
+      // ── WHO STOPPED IT decides everything below ─────────────────────────────────────────────
+      //
+      // A5a fixed the signal and the router's phase, and this handler — the one that builds the
+      // result the status endpoint serves for the next four hours — was not touched. So a budget
+      // wind-down on the generic path still logged "CANCELLED by user", emitted a "User requested
+      // cancellation" handshake, and cached `status: 'failed', failureReason: 'Pipeline cancelled
+      // by user'` — the exact screen the owner disputed. Found by the 2026-09-03 audit (RL-1).
+      const stop = activePipelines.get(projectId)?.stopReason;
+      const budgetStop = isAborted && stop?.kind === 'budget';
+      if (budgetStop) {
+        console.log(`[Worker] ${projectId}: pipeline STOPPED at the budget ceiling — ${stop!.message}`);
+        handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Stopped', stop!.message.slice(0, 160))
+          .warn(`[Worker→Frontend] Stopped at the ceiling you set: ${stop!.message.slice(0, 120)}`);
+      } else if (isAborted) {
         console.log(`[Worker] ${projectId}: pipeline CANCELLED by user`);
         handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Cancelled', 'User requested cancellation')
           .warn(`[Worker→Frontend] Pipeline cancelled by user`);
@@ -2354,7 +2377,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       } else {
         console.error(`[Worker] ${projectId} CRASH:`, err);
       }
-      const errMessage = isAborted
+      const errMessage = budgetStop
+        ? stop!.message
+        : isAborted
         ? 'Pipeline cancelled by user'
         : isCreditError
           ? 'AI credit balance depleted. Please add funds to your Anthropic account and re-run research.'
@@ -2369,7 +2394,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       }
       const fallback: PipelineResult = {
         projectId,
-        status: 'failed',
+        // A budget stop is a PARTIAL result, not a failed one: the documents it filed are real and
+        // the project moves to review on it, exactly as it does for a run that finished on its own.
+        status: budgetStop ? 'partial' : 'failed',
+        stopReason: budgetStop ? 'budget_reached' : isAborted ? 'cancelled_by_user' : 'error',
         propertyId: null,
         geoId: null,
         ownerName: null,
@@ -2378,7 +2406,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         documents: [],
         boundary: null,
         validation: null,
-        log: [{ layer: 'Pipeline', source: isAborted ? 'cancelled' : 'crash', method: isAborted ? 'user-cancel' : 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
+        log: [{
+          layer: 'Pipeline',
+          source: budgetStop ? 'budget' : isAborted ? 'cancelled' : 'crash',
+          method: budgetStop ? 'budget-ceiling' : isAborted ? 'user-cancel' : 'unhandled',
+          input: '',
+          status: budgetStop ? 'skip' : 'fail',
+          duration_ms: 0,
+          dataPointsFound: 0,
+          error: errMessage,
+          timestamp: new Date().toISOString(),
+        }],
         // ── ZERO IS NOT WHAT HAPPENED ──────────────────────────────────────────────────────
         //
         // `duration_ms: 0` and `documents: []` were hardcoded on this path, so an aborted run
@@ -2389,7 +2427,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // `endFiling` was ALREADY being called on the next line and its return value discarded.
         // It returns the tally that knows how many documents were filed.
         duration_ms: Math.max(0, Date.now() - (Date.parse(activePipelines.get(projectId)?.startedAt ?? '') || Date.now())),
-        failureReason: errMessage,
+        // `failureReason` exists for genuine errors; filling it on a wind-down is what made the
+        // ceiling render as a crash.
+        failureReason: budgetStop ? null : errMessage,
       };
       const finalTally = endFiling(projectId);
       if (finalTally) {
@@ -2399,9 +2439,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       }
       // An abort caused by the BUDGET is a completion, not a cancellation and not a failure. The
       // run did the work it could afford and stopped at a phase boundary, which is what the ceiling
-      // is for. Only the operator's cancel is a cancellation.
-      const stop = activePipelines.get(projectId)?.stopReason;
-      const budgetStop = stop?.kind === 'budget';
+      // is for. Only the operator's cancel is a cancellation. (`stop`/`budgetStop` are decided
+      // at the top of this handler, so the log, the handshake, the cached result and this row
+      // all describe the same ending.)
       void recordRunFinish({
         projectId,
         runId: activePipelines.get(projectId)?.runId ?? null,
@@ -2641,6 +2681,9 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
           : result.log,
         timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
         failureReason: result.failureReason,
+        // The live branch above already says `budget_reached`; the cached branch said nothing,
+        // so the screen changed its story the moment the run left `activePipelines`.
+        stopReason: result.stopReason ?? null,
         masterReportText: result.masterReportText,
       });
     } else {

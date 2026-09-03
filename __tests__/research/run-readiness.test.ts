@@ -66,10 +66,16 @@ describe('what IS enough', () => {
     expect(assessRunReadiness({ ...BELL, streetName: 'CEDAR CREEK', ownerName: 'LEIGH FAMILY FARMS LLC' }).canRun).toBe(true);
   });
 
-  it('uploaded documents alone can start a run, and say what they are relied on for', () => {
+  it('uploaded documents alone do NOT start a run — the worker refuses one, so the button must not offer it', () => {
+    // Until 2026-09-03 this asserted canRun=true. The worker's front door requires an address, a
+    // Property ID or an instrument number, and nothing reads a legal description out of an upload
+    // before the run starts, so "Ready to run from your uploaded documents" was a run the server
+    // always refused with a 400. Found by the 2026-09-03 platform audit (api-routes C1).
     const r = assessRunReadiness({ ...BELL, documentCount: 3 });
-    expect(r.canRun).toBe(true);
-    expect(r.caution).toMatch(/legal description/i);
+    expect(r.canRun).toBe(false);
+    expect(r.headline).toMatch(/cannot identify the parcel/i);
+    expect(r.whatWouldWork.join(' ')).toMatch(/Property ID/);
+    expect(r.whatWouldWork.join(' ')).toMatch(/instrument number/);
   });
 });
 

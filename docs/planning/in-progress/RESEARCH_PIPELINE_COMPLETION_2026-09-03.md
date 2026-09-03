@@ -757,6 +757,61 @@ below where they conflict, because several are prerequisites for it:
       the second also parses seed 626's CHECK so `parcel_data` cannot come back). Worker + app
       `tsc`, eslint, and the 96 surrounding worker tests green.
 
+- [x] **B*11. Ten more from the platform audit, one commit.** — fixed 2026-09-03. The audit's
+      18 subsystem readers finished (its verification and architecture phases were cut off by
+      the account's spend limit, twice); everything below was re-read in the code before it was
+      touched.
+      · **A5a correction (RL-1).** The reject handler in `index.ts` — the one that builds the
+        result the status endpoint serves for four hours — still logged "CANCELLED by user",
+        emitted a "User requested cancellation" handshake and cached `status:'failed',
+        failureReason:'Pipeline cancelled by user'` for a BUDGET stop on the generic path; the
+        Bell router stub did the same and sent the project to "Research Found Nothing". Both now
+        yield `status:'partial'`, `stopReason:'budget_reached'`, `failureReason:null` and a
+        `budget-ceiling` log line; `PipelineResult` carries `stopReason` and the cached status
+        branch returns it. Still open: the Bell orchestrator throws on abort, so its accumulated
+        result (chain, discrepancies, screenshots) is discarded — the documents it uploaded
+        incrementally survive.
+      · **C2 correction.** Plats ran AFTER the clerk deed search on both paths; only the overhead
+        views had moved. 2B now precedes 2A in the Bell orchestrator and Path B (plat repository)
+        precedes Path A (instrument deeds) in the generic pipeline. Cost: plats reachable only
+        through an instrument the deed search would have discovered; clerk plats 2A finds are
+        still uploaded as 'plat'. The `property_search` DELETE at the top of 2A's upload — which
+        would now have erased the plats 2B just filed, and which contradicted supersede-not-delete
+        (audit DM-2) — is gone; the library dedupe is what tells a re-found document from a new one.
+      · **D1, the plat half.** `plat-analyzer.ts` still cut every plat into "full + top half +
+        bottom half"; it now uses the adaptive-vision grid like the deed analyzer. Escalation for
+        plat regions is NOT done (regions do not carry their crop boxes yet).
+      · **A2 on the generic path.** The three `searchClerkRecords` owner searches in
+        `pipeline.ts` were gated by `mayStart` and then unbounded — the 697,641 ms shape. Wrapped
+        in `withStepDeadline`.
+      · **CS-1.** `ProjectLibrary.classify` asked `compareDocuments` about candidates with no
+        identifier; that returns `uncertain` (a purchase-path rule meaning "buy it"), which filing
+        turned into `possible-duplicate` of the project's first deed. Every aerial, GIS screenshot
+        and capture was flagged, hidden from the run view, excluded from the next library load and
+        re-filed on every run. A candidate with nothing to compare is now `new`.
+      · **CS-3.** `buildCaptureRow` wrote no `file_type`/`original_filename`, so `isImage` was
+        false and the ArtifactGallery filtered every capture out; `categorizeDocument` put the
+        planner's own types in "other". Both fixed.
+      · **F4 correction.** The merged viewer's only bounded mounts sit in PropertySearchPanel
+        branches the product never renders; the screen an operator watches during a run is
+        `ResearchRunView`'s Activity tab, which showed worker entries only. It now merges the
+        browser half, bounded by the run's `startedAt`. The guard gained the caller-side check.
+      · **api-routes C1.** The readiness rule said a Property ID or instrument alone is enough and
+        the worker's door required an address, so those projects showed "Ready to run" and got a
+        400. The door now accepts address OR Property ID OR instrument number (the 2026-09-03 log
+        shows the GIS finding the parcel by ID at [1s]). Documents-only was also "Ready to run" and
+        always refused; readiness now says so and names what would work.
+      · **app-ui C1.** Stage 1's note said "does not purchase paid documents … nothing here can
+        cost money" and pointed at a batch job; the Start button on that screen launches the
+        worker with the project's paid flag and a $2 default ceiling, and the batch queue never
+        runs. The note now says which run starts and whether it can spend, driven by the flag.
+      · **Dead modules.** `services/discovery-engine.ts` (531) and `types/county-adapter.ts` (359)
+        had no importer; each passed the guard because a display-map key and a help-text string
+        named them. Deleted; the guard now requires the basename to be the string's last path
+        segment. `persist-run-logs.ts` carried a literal NUL byte that made git treat it as
+        binary — now the ` ` escape.
+      Verified: worker + app `tsc`, eslint, 13 worker + 13 app test files (448 tests) green.
+
 ### Phase C — the order the owner asked for
 
 - [x] **C1. The prioritisers cannot be the run's sequencer, and the premise said otherwise.**
@@ -861,7 +916,8 @@ That system exists — `services/adaptive-vision.ts`, six phases, `sharp.extract
 overlap, a Vision call per segment, and re-splitting of any segment scoring under 60. Bell does not
 use it (§1.5b). The work is to make one analysis path serve every county, not to build a second one.
 
-- [ ] **D1. One analysis path, not two.** Route the Bell deed and plat analyzers through
+- [x] **D1. One analysis path, not two.** (Deeds shipped 2026-09-03 as written below; the PLAT
+      half shipped later the same day under B*11 — the grid, not yet the escalation.) Route the Bell deed and plat analyzers through
       `adaptive-vision` instead of their own whole-page Vision call. The Bell analyzer already
       collects `pageImages`; it hands them to a whole-page prompt. Read
       `counties/bell/analyzers/deed-analyzer.ts` and `services/adaptive-vision.ts` together before

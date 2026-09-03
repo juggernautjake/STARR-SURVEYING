@@ -57,6 +57,20 @@ export function categorizeDocument(
   if (docType === 'road_map' || docType === 'utility_map') return 'txdot';
   if (docType === 'gis_map' || docType === 'map_screenshot') return 'screenshots';
   if (docType === 'county_record' || docType === 'legal_description') return 'other';
+  // The capture planner's own types (seed 626). None was listed here, so every planned aerial,
+  // oblique, street view and GIS capture landed in "other". Found by the 2026-09-03 audit (CS-3).
+  switch (docType) {
+    case 'aerial': case 'aerial_wide': case 'aerial_close': case 'aerial_historical':
+    case 'aerial_neighbours': case 'adjoiner_aerial': case 'historical_aerial':
+    case 'oblique': case 'oblique_aerial':
+      return 'aerial';
+    case 'street_view': case 'streetview': case 'cad_gis':
+      return 'screenshots';
+    case 'drawing':
+      return 'surveys';
+    default:
+      break;
+  }
 
   // Last resort: the human-written label.
   if (label?.toLowerCase().includes('misc screenshot')) return 'screenshots-misc';

@@ -16,6 +16,7 @@ import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call reads a scanned plat sheet.
 import { modelFor } from '../../../infra/model-router.js';
+import { analyzeImageDimensions, selectOptimalGrid, computeCropBoxes } from '../../../services/adaptive-vision.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
   accumulateUsage,
@@ -238,22 +239,27 @@ async function splitPlatImageIntoRegions(base64Img: string): Promise<PlatImageRe
       } catch { return null; }
     }
 
-    const halfH = height / 2;
-    const overlapH = height * OVERLAP;
-
-    // Full image (resized)
+    // Full image (resized) — the overview stays first, exactly as before.
     const fullResized = await resizePlatImage(base64Img);
     if (fullResized) {
       regions.push({ ...fullResized, label: 'full image (overview)', regionIndex: 0, totalRegions: 0 });
     }
 
-    // Top half (with overlap into bottom)
-    const topHalf = await cropRegion(0, 0, width, halfH + overlapH, 'top half');
-    if (topHalf) regions.push(topHalf);
-
-    // Bottom half (with overlap into top)
-    const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
-    if (bottomHalf) regions.push(bottomHalf);
+    // ── A GRID, NOT TWO HORIZONTAL STRIPS (plan D1, the half that had not shipped) ──────────
+    //
+    // D1 re-routed the DEED analyzer through the adaptive-vision grid and its body said "Bell uses
+    // them". Plats — the document class the owner ranked first — still got "full image + 2 halves
+    // at 15% overlap": a half of a 24×36 sheet is eighteen inches of drawing in one Vision call,
+    // which is the resolution failure adaptive-vision exists to solve. Found by the 2026-09-03
+    // platform audit (plan-doc C1, ai-analysis-worker C1). Same rule as the deed analyzer now:
+    // 2×2 up to 4×8, chosen so fine surveying text stays legible. The plat prompt is unchanged —
+    // knowing what a plat region MEANS is the half that was already working.
+    const info = analyzeImageDimensions(width, height);
+    const grid = selectOptimalGrid(info);
+    for (const box of computeCropBoxes(width, height, grid.rows, grid.cols, OVERLAP)) {
+      const seg = await cropRegion(box.left, box.top, box.width, box.height, box.segmentId);
+      if (seg) regions.push(seg);
+    }
 
     for (let i = 0; i < regions.length; i++) {
       regions[i].regionIndex = i + 1;

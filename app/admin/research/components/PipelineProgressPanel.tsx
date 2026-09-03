@@ -118,7 +118,7 @@ export interface PipelineProgressProps {
  * Mirrors `mergeRunLogs` in `worker/src/research/persist-run-logs.ts`. Two implementations because
  * the app and the worker are separate builds; the rule they share is that a log never gets smaller.
  */
-function mergeLogEntries(
+export function mergeLogEntries(
   live: PipelineLogEntry[] | undefined,
   saved: PipelineLogEntry[] | null,
 ): PipelineLogEntry[] | undefined {

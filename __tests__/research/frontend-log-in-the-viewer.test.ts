@@ -130,6 +130,28 @@ describe('the viewer shows it — assert the CALLER', () => {
     expect(s).toContain('startedAt?: string;');
   });
 
+  // ── THE SCREEN THE OPERATOR WATCHES (2026-09-03) ──────────────────────────────────────────
+  //
+  // Every assertion above is about PipelineProgressPanel, and the 2026-09-03 platform audit found
+  // that the panel's only mounts that pass `runStartedAt` sit in PropertySearchPanel branches the
+  // product never renders. The live run screen is ResearchRunView's Activity tab, mounted by
+  // ResearchStagePanel from the project page. This is the caller-side check the guard lacked.
+  it('the LIVE run view merges the browser half too, bounded by the run start', () => {
+    const view = readCode('app/admin/research/components/ResearchRunView.tsx');
+    expect(view).toContain("import { frontendLogEntries } from '@/lib/research/frontend-log'");
+    expect(view).toContain('frontendLogEntries(startedAt)');
+    expect(view).toContain('mergeLogEntries(logs, browserLog)');
+    expect(view).toContain('startedAt={state.startedAt ?? null}');
+    expect(view).toContain("typeof window === 'undefined' ? []");
+  });
+
+  it('and that view is what the product mounts during a run', () => {
+    const stage = readCode('app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx');
+    expect(stage).toMatch(/<ResearchRunView\s/);
+    const page = readCode('app/admin/research/[projectId]/page.tsx');
+    expect(page).toMatch(/<ResearchStagePanel\s/);
+  });
+
   it('and the reason it is recomputed each render is written down', () => {
     // Module-level mutable buffers: a memo keyed on anything stable shows a stale browser half
     // beside a live worker one.

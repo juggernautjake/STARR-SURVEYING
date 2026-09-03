@@ -581,9 +581,19 @@ export async function runCountyResearch(
         // Return a structured failed result rather than re-throwing, so the
         // caller always receives a typed UnifiedResearchResult and the error is
         // surfaced cleanly in the UI (failureReason banner + log entry).
+        // ── A BUDGET STOP IS A PARTIAL RESULT, NOT A FAILED ONE ────────────────────────────
+        //
+        // This stub carried `status: 'failed'` and "Bell County research failed: …" for an
+        // expected stop too, so a Bell run that finished at the operator's own ceiling reached
+        // index.ts as a failure: describeRunOutcome said "Research Found Nothing", the project
+        // never moved to review, and the deeds it had filed sat behind a red banner. The
+        // orchestrator's accumulated result is still discarded on this path (it throws rather
+        // than returning) — that is the remaining half, recorded in the plan.
+        const budgetStop = expected && abort?.kind === 'budget';
         const failedResult: PipelineResult = {
           projectId: input.projectId,
-          status: 'failed',
+          status: budgetStop ? 'partial' : 'failed',
+          stopReason: budgetStop ? 'budget_reached' : expected ? 'cancelled_by_user' : 'error',
           propertyId: null,
           geoId: null,
           ownerName: null,
@@ -594,17 +604,17 @@ export async function runCountyResearch(
           validation: null,
           log: [{
             layer: 'Pipeline',
-            source: 'crash',
-            method: 'bell-county-crash',
+            source: budgetStop ? 'budget' : expected ? 'cancelled' : 'crash',
+            method: budgetStop ? 'budget-ceiling' : expected ? 'user-cancel' : 'bell-county-crash',
             input: input.address ?? '',
-            status: 'fail',
+            status: budgetStop ? 'skip' : 'fail',
             duration_ms: 0,
             dataPointsFound: 0,
             error: errMsg,
             timestamp: new Date().toISOString(),
           }],
           duration_ms: 0,
-          failureReason: `Bell County research failed: ${errMsg}`,
+          failureReason: budgetStop ? null : expected ? errMsg : `Bell County research failed: ${errMsg}`,
         };
         return { resultType: 'generic-pipeline', county: 'Bell', data: failedResult };
       }

@@ -70,22 +70,35 @@ describe('the project page says which engine its button starts', () => {
     expect(page).toContain('role="note"');
   });
 
-  it('says plainly that it does not purchase and the limit does not apply', () => {
-    // The two specific expectations the owner had. Both must be denied in words, not implied by
-    // the absence of a control — an absent control reads as a missing feature, not as a boundary.
-    expect(page).toMatch(/does <strong>not<\/strong> purchase paid documents/);
-    expect(page).toContain('spend limit does not apply');
+  // ── THE NOTE USED TO SAY THE OPPOSITE OF WHAT THE BUTTON DID ───────────────────────────────
+  //
+  // Until 2026-09-03 these two tests pinned "does not purchase paid documents" and "spend limit
+  // does not apply", and a third pinned a "Use a batch job" link. The Start button on the same
+  // screen hands off to the research WORKER with the project's paid-documents flag and a $2
+  // default ceiling, and the batch queue the link pointed to is created and never started. The
+  // guard kept a false sentence green for as long as the sentence stayed. Found by the 2026-09-03
+  // platform audit (app-ui C1). The note now tells the truth in both states, and the test checks
+  // that it is wired to the fact it reports.
+  it('says which run the button starts, and whether that run can spend', () => {
+    expect(page).toContain('Start research runs the research worker');
+    expect(page).toMatch(/Paid documents are <strong>on<\/strong>/);
+    expect(page).toMatch(/Paid documents are <strong>off<\/strong>/);
+    expect(page).toContain('default');
+    expect(page).toContain('$2');
+    // No more pointing at the batch job — it never runs.
+    expect(page).not.toContain('Use a batch job');
+    expect(page).not.toContain('does <strong>not</strong> purchase');
   });
 
-  it('points at the path that CAN do those things', () => {
-    // Saying "not here" without saying "there" leaves somebody stuck.
-    //
-    // The extraction split this in two on purpose: the section renders the button, the page owns
-    // where it goes. So both halves are asserted — a button with no destination and a destination
-    // with no button each leave the operator exactly as stuck as before.
-    expect(page, 'the section should offer the way out').toContain('onClick={onUseBatchJob}');
-    expect(page).toContain('Use a batch job');
-    expect(read(MOUNTER), 'and the page should say where it goes').toContain('/admin/research/pipeline');
+  it('the paid-documents sentence is driven by the project flag the run inherits', () => {
+    expect(page).toContain('{allowPaidDocuments ? (');
+    expect(page).toMatch(/allowPaidDocuments: boolean/);
+    // And the page passes the real column, with the same `!== false` default the pipeline route
+    // applies when it builds the run's settings.
+    const mounter = read(MOUNTER);
+    const at = mounter.indexOf('<UploadStagePanel');
+    const mount = mounter.slice(at, mounter.indexOf('/>', at));
+    expect(mount).toMatch(/allowPaidDocuments=\{[\s\S]*allow_paid_documents !== false/);
   });
 
   it('is styled — an unstyled note is a paragraph nobody reads', () => {

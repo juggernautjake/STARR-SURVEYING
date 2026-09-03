@@ -1906,7 +1906,9 @@ export default function ResearchProjectPage() {
             setShouldAutoStartPipeline(true);
             handleStatusUpdate('configure');
           }}
-          onUseBatchJob={() => router.push('/admin/research/pipeline')}
+          allowPaidDocuments={
+            (project as unknown as { allow_paid_documents?: boolean }).allow_paid_documents !== false
+          }
         />
       )}
 

@@ -49,7 +49,6 @@ export interface TimelineEntry {
 const SOURCE_FILE_MAP: Record<string, { file: string; function?: string }> = {
   // Phase 1 — Discovery
   'property-discovery':   { file: 'worker/src/services/property-discovery.ts', function: 'discoverProperty' },
-  'discovery-engine':     { file: 'worker/src/services/discovery-engine.ts', function: 'runDiscovery' },
   'bis-adapter':          { file: 'worker/src/adapters/bis-adapter.ts', function: 'search' },
   'trueautomation-adapter': { file: 'worker/src/adapters/trueautomation-adapter.ts', function: 'search' },
   'tyler-adapter':        { file: 'worker/src/adapters/tyler-adapter.ts', function: 'search' },

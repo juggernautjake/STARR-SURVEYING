@@ -15,7 +15,7 @@ import { lookupByCounty } from '../research/county-key.js';
 import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
-import { mayStart } from '../research/budget-gate.js';
+import { mayStart, withStepDeadline } from '../research/budget-gate.js';
 import { describeAbort } from '../research/abort-reason.js';
 import { visualReadiness } from '../research/run-order.js';
 import { patchDocument } from '../research/file-document.js';
@@ -962,65 +962,6 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     const discoveryLoopStart = Date.now();
     logger.info('Discovery', `Initialized discovery state: ${stateSummary(discoveryState)}`);
 
-    // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
-    if (allInstrumentNumbers.length > 0 && kofile) {
-      const MAX_INSTRUMENTS = 10;
-      const instrToFetch = allInstrumentNumbers.slice(0, MAX_INSTRUMENTS);
-      if (allInstrumentNumbers.length > MAX_INSTRUMENTS) {
-        logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
-      }
-
-      const docsAdded: string[] = [];
-      const instrErrors: string[] = [];
-
-      for (let instrIdx = 0; instrIdx < instrToFetch.length; instrIdx++) {
-        const instrNum = instrToFetch[instrIdx];
-        await updateStatus(input.projectId, 'running',
-          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrToFetch.length} — instrument ${instrNum}…`);
-        // Use more expected pages for plats — large multi-lot plats can have 10+ pages
-        const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
-        try {
-          const pages = await fetchDocumentImages(instrNum, expectedPages, logger, input.county);
-          if (pages.length > 0) {
-            const docResult: DocumentResult = {
-              ref: {
-                instrumentNumber: instrNum,
-                volume: null, page: null,
-                documentType: 'Deed (instrument search)',
-                recordingDate: null, grantors: [], grantees: [],
-                source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
-                url: `${kofileBase}/doc/${instrNum}/details`,
-              },
-              textContent: null, pages, ocrText: null, extractedData: null,
-            };
-            fileNow(documents, onDocument, docResult);
-            instrumentSearchSucceeded = true;
-            docsAdded.push(`${instrNum}(${pages.length}pp)`);
-            // Bundle pages → PDF non-fatally but LOG failures
-            bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
-              .then(url => {
-                if (url) {
-                  docResult.pagesPdfUrl = url;
-                  logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${instrNum} → ${url.substring(0, 80)}`);
-                }
-              })
-              .catch((pdfErr) => {
-                logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
-              });
-          } else {
-            logger.info('Stage2', `Instrument ${instrNum}: no pages captured`);
-          }
-        } catch (instrErr) {
-          const errMsg = instrErr instanceof Error ? instrErr.message : String(instrErr);
-          instrErrors.push(`${instrNum}: ${errMsg}`);
-          logger.warn('Stage2', `Instrument ${instrNum} fetch failed: ${errMsg}`);
-        }
-      }
-
-      if (docsAdded.length > 0) logger.info('Stage2', `Instruments: ${docsAdded.join(', ')}`);
-      if (instrErrors.length > 0) logger.warn('Stage2', `Instrument errors: ${instrErrors.join(' | ')}`);
-    }
-
     // ── Path B: County plat repository (free direct-download PDFs) ───────
     // Primary: extract subdivision name from legal description.
     // Enriched: when Bell County cascade found subdivision names, try all of them.
@@ -1078,6 +1019,65 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           }
         }
       }
+    }
+
+    // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
+    if (allInstrumentNumbers.length > 0 && kofile) {
+      const MAX_INSTRUMENTS = 10;
+      const instrToFetch = allInstrumentNumbers.slice(0, MAX_INSTRUMENTS);
+      if (allInstrumentNumbers.length > MAX_INSTRUMENTS) {
+        logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
+      }
+
+      const docsAdded: string[] = [];
+      const instrErrors: string[] = [];
+
+      for (let instrIdx = 0; instrIdx < instrToFetch.length; instrIdx++) {
+        const instrNum = instrToFetch[instrIdx];
+        await updateStatus(input.projectId, 'running',
+          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrToFetch.length} — instrument ${instrNum}…`);
+        // Use more expected pages for plats — large multi-lot plats can have 10+ pages
+        const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
+        try {
+          const pages = await fetchDocumentImages(instrNum, expectedPages, logger, input.county);
+          if (pages.length > 0) {
+            const docResult: DocumentResult = {
+              ref: {
+                instrumentNumber: instrNum,
+                volume: null, page: null,
+                documentType: 'Deed (instrument search)',
+                recordingDate: null, grantors: [], grantees: [],
+                source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                url: `${kofileBase}/doc/${instrNum}/details`,
+              },
+              textContent: null, pages, ocrText: null, extractedData: null,
+            };
+            fileNow(documents, onDocument, docResult);
+            instrumentSearchSucceeded = true;
+            docsAdded.push(`${instrNum}(${pages.length}pp)`);
+            // Bundle pages → PDF non-fatally but LOG failures
+            bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
+              .then(url => {
+                if (url) {
+                  docResult.pagesPdfUrl = url;
+                  logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${instrNum} → ${url.substring(0, 80)}`);
+                }
+              })
+              .catch((pdfErr) => {
+                logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+              });
+          } else {
+            logger.info('Stage2', `Instrument ${instrNum}: no pages captured`);
+          }
+        } catch (instrErr) {
+          const errMsg = instrErr instanceof Error ? instrErr.message : String(instrErr);
+          instrErrors.push(`${instrNum}: ${errMsg}`);
+          logger.warn('Stage2', `Instrument ${instrNum} fetch failed: ${errMsg}`);
+        }
+      }
+
+      if (docsAdded.length > 0) logger.info('Stage2', `Instruments: ${docsAdded.join(', ')}`);
+      if (instrErrors.length > 0) logger.warn('Stage2', `Instrument errors: ${instrErrors.join(' | ')}`);
     }
 
     // ── Path B2: Bell County Clerk direct plat+deed search ───────────────
@@ -1266,7 +1266,14 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     if (!instrumentSearchSucceeded && ownerForClerk) {
       let ownerDocs: DocumentResult[] = [];
       try {
-        ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerForClerk, logger);
+        // A2 on the generic path. `mayStart` gated this and then let it run until it finished —
+        // the exact shape of the 697,641 ms owner search A2 was written to stop, applied only to
+        // Bell. Bounded by whatever time the RUN has left. Found by the 2026-09-03 audit.
+        ownerDocs = !mayStart(input.projectId, 'clerk owner search')
+          ? []
+          : await withStepDeadline(input.projectId, 'clerk owner search',
+              () => searchClerkRecords(input.county, ownerForClerk, logger), [],
+              (m) => logger.warn('Budget', m));
       } catch (clerkErr) {
         logger.warn('Stage2', `Owner-name search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`);
         retrievalFailures.push(
@@ -1542,7 +1549,11 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           for (const ownerName of newOwners.slice(0, 2)) {
             searchedOwners.add(ownerName);
             try {
-              const ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerName, logger);
+              const ownerDocs = !mayStart(input.projectId, 'clerk owner search')
+                ? []
+                : await withStepDeadline(input.projectId, 'clerk owner search',
+                    () => searchClerkRecords(input.county, ownerName, logger), [],
+                    (m) => logger.warn('Budget', m));
               if (ownerDocs.length > 0) {
                 logger.info('Stage2-Enrich',
                   `  → Owner "${ownerName}": ${ownerDocs.length} document(s) found`);
@@ -1783,7 +1794,11 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         for (const ownerName of pendingOwners) {
           const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'searchClerkRecords', ownerName);
           try {
-            const ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerName, logger);
+            const ownerDocs = !mayStart(input.projectId, 'clerk owner search')
+              ? []
+              : await withStepDeadline(input.projectId, 'clerk owner search',
+                  () => searchClerkRecords(input.county, ownerName, logger), [],
+                  (m) => logger.warn('Budget', m));
             if (ownerDocs.length > 0) {
               // Only keep docs we don't already have (by instrument number)
               const existingInstrs = new Set(

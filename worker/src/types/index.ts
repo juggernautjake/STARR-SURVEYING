@@ -84,6 +84,10 @@ export interface PipelineResult {
    */
   filedDocumentCount?: number;
   status: 'complete' | 'partial' | 'failed';
+  /** Why the run ended, when it ended early. `budget_reached` is a completion, not a failure:
+   *  the run did the work it could afford and stopped at a boundary. Travels with the cached
+   *  result so the status endpoint can say so after the run has left `activePipelines`. */
+  stopReason?: 'budget_reached' | 'cancelled_by_user' | 'error' | 'finished' | null;
   propertyId: string | null;
   geoId: string | null;
   ownerName: string | null;

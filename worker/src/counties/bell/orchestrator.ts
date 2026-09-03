@@ -649,106 +649,23 @@ export async function orchestrateBellResearch(
     21,
   );
 
-  // ── 2A: Bell County Clerk (deeds, easements, restrictions) ────────
-  progress('Phase 2', '2A — Bell County Clerk search...', 25);
-  // A1 — the step that spent 163 minutes and $29.19 on 2026-09-03 with no ceiling consulted.
-  const mayClerk = mayStep('clerk deed search');
-  let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
-  if (mayClerk) try {
-    // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
-    // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
-    clerk = await withStepDeadline(input.projectId, 'clerk deed search', () => scrapeBellClerk(
-      {
-        instrumentNumbers: uniqueInstruments,
-        ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
-        subdivisionName: uniqueSubdivisions[0] ?? undefined,
-        volumePages: uniqueVolPages,
-        projectId: input.projectId,
-        propertyIdentifiers: {
-          abstractNumber: earlyAbstractNumber,
-          surveyName: earlySurveyName,
-          acreage: property.acreage ?? null,
-          subdivisionName: uniqueSubdivisions[0] ?? null,
-          lotNumber: property.lotNumber ?? knownIds.lotNumber ?? null,
-          legalDescription: property.legalDescription ?? null,
-          situsAddress: property.situsAddress ?? null,
-        },
-      },
-      (p) => progress('Phase 2', `Clerk: ${p.message}`, 30),
-    ), null, (m) => progress('Budget', m));
-
-    // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
-    // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.
-    if (!clerk) {
-      progress('Phase 2', '2A produced no result — the clerk search did not finish in the time the run had left.', 32);
-    } else {
-
-    // Absorb any new instrument numbers discovered by clerk
-    for (const doc of clerk.documents) {
-      if (doc.instrumentNumber && !knownIds.instrumentNumbers.has(doc.instrumentNumber)) {
-        knownIds.instrumentNumbers.add(doc.instrumentNumber);
-        progress('Phase 2', `  ← New instrument from clerk: ${doc.instrumentNumber} (${doc.documentType})`);
-      }
-    }
-
-    progress('Phase 2',
-      `2A complete: ${clerk.stats.instrumentsFound} doc(s) | ` +
-      `deeds=${clerk.stats.deedsFound} | plats=${clerk.stats.platsFound} | ` +
-      `images=${clerk.stats.imagesCaptured}`,
-      32,
-    );
-
-    // ── Incremental upload: deed + plat page images from clerk ──────
-    // Upload captured document pages NOW so they appear in the frontend
-    // gallery immediately, even if the user cancels later.
-    if (clerk.documents.length > 0 && input.projectId) {
-      const supabase = await getSupabase();
-      if (supabase) {
-        // First: delete any stale artifacts from previous runs
-        try {
-          await (supabase as any)
-            .from('research_documents')
-            .delete()
-            .eq('research_project_id', input.projectId)
-            .eq('source_type', 'property_search');
-        } catch { /* ignore cleanup errors */ }
-
-        for (const doc of clerk.documents) {
-          if (doc.pageImages.length === 0) continue;
-          const category = (doc.documentType || '').toLowerCase().includes('plat') ? 'plat' : 'deed';
-          const instr = doc.instrumentNumber;
-          const volPage = doc.volume && doc.page ? `Vol. ${doc.volume}, Pg. ${doc.page}` : null;
-          const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
-          const partyStr = doc.grantor && doc.grantee ? ` — ${doc.grantor} to ${doc.grantee}` : (doc.grantor ? ` — ${doc.grantor}` : '');
-          const instrStr = instr ? ` (Instr. ${instr})` : '';
-          const docLabel = `${doc.documentType || 'Document'}${partyStr}${instrStr}`;
-
-          const pages: ArtifactPageImage[] = doc.pageImages.map((img, pi) => ({
-            category,
-            label: instr ?? doc.documentType ?? 'unknown',
-            pageNumber: pi + 1,
-            imageBase64: img,
-            sourceUrl: doc.sourceUrl,
-            ...(pi === 0 ? { documentLabel: docLabel, recordingInfo, recordedDate: doc.recordingDate ?? null, documentType: category } : {}),
-          }));
-          await uploadDocumentIncremental(supabase as any, input.projectId, pages);
-        }
-        progress('Phase 2', `  ✓ ${clerk.documents.length} document(s) uploaded for live preview`);
-      }
-    }
-    }
-  } catch (err) {
-    recordError('Phase 2', 'Clerk', err);
-  }
-
-  checkAborted();
-
-  // ── 2B: Bell County Plat Repository + Clerk Plats ─────────────────
-  progress('Phase 2', '2B — Plat repository + clerk plat search...', 35);
+  // ── 2B: Bell County Plat Repository + Clerk Plats — FIRST (plan C2) ─────────────────────
+  //
+  // > "the order should be, drawings/plats, then the overhead views, then the rest of the documents"
+  //
+  // C2+C3 was marked shipped when only the overhead views moved ahead of the documents; the plat
+  // search still ran AFTER the clerk deed search — the step that spent 163 minutes on 2026-09-03 —
+  // on both paths. Found by the 2026-09-03 platform audit (county-routing C1). The plat search
+  // now runs before the deed search. What it gives up: plat records reachable ONLY through an
+  // instrument number that the deed search would have discovered. What it gains: the drawing the
+  // owner ranked first arrives before the open-ended part of the run, and survives a budget stop
+  // that lands in the middle of it. Clerk plats the deed search turns up are still uploaded by
+  // 2A as category 'plat'.
+  progress('Phase 2', '2B — Plat repository + clerk plat search...', 25);
   const mayPlats = mayStep('plat search');
   let plats: Awaited<ReturnType<typeof scrapeBellPlats>> | null = null;
   if (mayPlats) try {
-    // Include any plat instrument numbers discovered by clerk in Phase 2A
+    // The instrument numbers known at this point come from Phase 1 (CAD deed history, GIS).
     const allInstruments = [...knownIds.instrumentNumbers];
 
     plats = await withStepDeadline(input.projectId, 'plat search', () => scrapeBellPlats(
@@ -760,17 +677,17 @@ export async function orchestrateBellResearch(
         legalDescription: property.legalDescription ?? undefined,
         projectId: input.projectId,
       },
-      (p) => progress('Phase 2', `Plats: ${p.message}`, 40),
+      (p) => progress('Phase 2', `Plats: ${p.message}`, 28),
     ), null, (m) => progress('Budget', m));
 
     if (!plats) {
-      progress('Phase 2', '2B produced no result — the plat search did not finish in the time the run had left.', 42);
+      progress('Phase 2', '2B produced no result — the plat search did not finish in the time the run had left.', 30);
     } else {
 
     progress('Phase 2',
       `2B complete: ${plats.plats.length} plat(s) | ` +
       `repository=${plats.stats.repositoryFound} | clerk=${plats.stats.clerkFound}`,
-      42,
+      30,
     );
 
     // ── Incremental upload: plat images ──────────────────────────────
@@ -804,6 +721,98 @@ export async function orchestrateBellResearch(
     }
   } catch (err) {
     recordError('Phase 2', 'Plats', err);
+  }
+
+  checkAborted();
+
+  // ── 2A: Bell County Clerk (deeds, easements, restrictions) — after the plats (plan C2) ───
+  progress('Phase 2', '2A — Bell County Clerk search...', 33);
+  // A1 — the step that spent 163 minutes and $29.19 on 2026-09-03 with no ceiling consulted.
+  const mayClerk = mayStep('clerk deed search');
+  let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
+  if (mayClerk) try {
+    // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
+    // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
+    clerk = await withStepDeadline(input.projectId, 'clerk deed search', () => scrapeBellClerk(
+      {
+        instrumentNumbers: uniqueInstruments,
+        ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
+        subdivisionName: uniqueSubdivisions[0] ?? undefined,
+        volumePages: uniqueVolPages,
+        projectId: input.projectId,
+        propertyIdentifiers: {
+          abstractNumber: earlyAbstractNumber,
+          surveyName: earlySurveyName,
+          acreage: property.acreage ?? null,
+          subdivisionName: uniqueSubdivisions[0] ?? null,
+          lotNumber: property.lotNumber ?? knownIds.lotNumber ?? null,
+          legalDescription: property.legalDescription ?? null,
+          situsAddress: property.situsAddress ?? null,
+        },
+      },
+      (p) => progress('Phase 2', `Clerk: ${p.message}`, 38),
+    ), null, (m) => progress('Budget', m));
+
+    // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
+    // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.
+    if (!clerk) {
+      progress('Phase 2', '2A produced no result — the clerk search did not finish in the time the run had left.', 42);
+    } else {
+
+    // Absorb any new instrument numbers discovered by clerk
+    for (const doc of clerk.documents) {
+      if (doc.instrumentNumber && !knownIds.instrumentNumbers.has(doc.instrumentNumber)) {
+        knownIds.instrumentNumbers.add(doc.instrumentNumber);
+        progress('Phase 2', `  ← New instrument from clerk: ${doc.instrumentNumber} (${doc.documentType})`);
+      }
+    }
+
+    progress('Phase 2',
+      `2A complete: ${clerk.stats.instrumentsFound} doc(s) | ` +
+      `deeds=${clerk.stats.deedsFound} | plats=${clerk.stats.platsFound} | ` +
+      `images=${clerk.stats.imagesCaptured}`,
+      42,
+    );
+
+    // ── Incremental upload: deed + plat page images from clerk ──────
+    // Upload captured document pages NOW so they appear in the frontend
+    // gallery immediately, even if the user cancels later.
+    //
+    // This used to begin by DELETING every `property_search` row the project held — "stale
+    // artifacts from previous runs". That contradicted the app's supersede-not-delete contract
+    // and seed 623's run-lineage columns (audit DM-2), and once the plat search moved ahead of
+    // this step it would have erased the plats 2B had just uploaded. The library dedupe inside
+    // `uploadDocumentIncremental` → `fileResearchDocument` is what tells a re-found document from
+    // a new one now; nothing here needs to delete.
+    if (clerk.documents.length > 0 && input.projectId) {
+      const supabase = await getSupabase();
+      if (supabase) {
+        for (const doc of clerk.documents) {
+          if (doc.pageImages.length === 0) continue;
+          const category = (doc.documentType || '').toLowerCase().includes('plat') ? 'plat' : 'deed';
+          const instr = doc.instrumentNumber;
+          const volPage = doc.volume && doc.page ? `Vol. ${doc.volume}, Pg. ${doc.page}` : null;
+          const recordingInfo = [instr ? `Instrument No. ${instr}` : null, volPage].filter(Boolean).join(' — ') || null;
+          const partyStr = doc.grantor && doc.grantee ? ` — ${doc.grantor} to ${doc.grantee}` : (doc.grantor ? ` — ${doc.grantor}` : '');
+          const instrStr = instr ? ` (Instr. ${instr})` : '';
+          const docLabel = `${doc.documentType || 'Document'}${partyStr}${instrStr}`;
+
+          const pages: ArtifactPageImage[] = doc.pageImages.map((img, pi) => ({
+            category,
+            label: instr ?? doc.documentType ?? 'unknown',
+            pageNumber: pi + 1,
+            imageBase64: img,
+            sourceUrl: doc.sourceUrl,
+            ...(pi === 0 ? { documentLabel: docLabel, recordingInfo, recordedDate: doc.recordingDate ?? null, documentType: category } : {}),
+          }));
+          await uploadDocumentIncremental(supabase as any, input.projectId, pages);
+        }
+        progress('Phase 2', `  ✓ ${clerk.documents.length} document(s) uploaded for live preview`);
+      }
+    }
+    }
+  } catch (err) {
+    recordError('Phase 2', 'Clerk', err);
   }
 
   checkAborted();
