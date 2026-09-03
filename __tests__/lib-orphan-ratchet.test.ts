@@ -104,8 +104,8 @@ const KNOWN_ORPHANS: readonly string[] = [
   'research/document-segmentation.ts',
   'research/multi-source-confidence.ts',
   'research/place-county.ts',
-  'research/prioritized-pipeline.service.ts',
-  'research/prioritized-pipeline.ts',
+  // `research/prioritized-pipeline{,.service}.ts` were listed here until 2026-09-03 (plan C1b:
+  // deleted — no route re-implemented their loop, and the order they specified is now built in).
   'research/self-heal-planner.ts',
   'research/spatial-filter.ts',
   'research/useResearchProgress.ts',

@@ -455,6 +455,15 @@ export interface AdjacentProperty {
   research: BellResearchResult | null;
   /** Shared boundary description */
   sharedBoundary: string | null;
+  // ── What the owner asked for (plan E4): the neighbour's ADDRESS and facts, not only a name ──
+  //
+  // The GIS parcel that identified this neighbour carried situs, acreage and legal description;
+  // the analyzer read them and dropped them, so the register could only ever hold owner names.
+  situsAddress?: string | null;
+  acreage?: number | null;
+  legalDescription?: string | null;
+  /** The page a reviewer can open to see this parcel at the appraisal district. */
+  sourceUrl?: string | null;
 }
 
 // ── Screenshots & Site Intelligence ──────────────────────────────────

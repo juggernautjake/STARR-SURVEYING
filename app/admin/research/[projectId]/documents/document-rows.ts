@@ -57,6 +57,8 @@ export interface DocumentRow {
   processing_error?: string | null;
   readability?: string | null;
   created_at?: string | null;
+  /** jsonb; the worker files its per-document AI summary under `aiSummary`. */
+  analysis_metadata?: unknown;
 }
 
 /** What the library renders. Derived from a row; nothing here is read off the API directly. */
@@ -82,9 +84,23 @@ export interface DocumentCard {
   pageImages: string[];
   status: string;
   statusError: string | null;
+  /** What the worker's reader concluded the document says. Null when it has not been read. */
+  aiSummary: string | null;
 }
 
 export type DocumentKind = 'plat' | 'deed' | 'easement' | 'survey' | 'other';
+
+/** `analysis_metadata.aiSummary`, tolerating the JSON-string form PostgREST returns for jsonb. */
+export function aiSummaryOf(meta: unknown): string | null {
+  if (!meta) return null;
+  try {
+    const parsed = typeof meta === 'string' ? JSON.parse(meta) : meta;
+    const s = (parsed as { aiSummary?: unknown })?.aiSummary;
+    return typeof s === 'string' && s.trim() ? s.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 const KINDS: DocumentKind[] = ['plat', 'deed', 'easement', 'survey'];
 
@@ -166,6 +182,7 @@ export function toCard(row: DocumentRow): DocumentCard {
     pageImages: pageImagesOf(row),
     status: row.processing_status ?? 'unknown',
     statusError: row.processing_error ?? null,
+    aiSummary: aiSummaryOf(row.analysis_metadata),
   };
 }
 
@@ -201,6 +218,8 @@ export const DOCUMENT_ROW_COLUMNS = [
   // lib/research/stored-file.ts. Omitting it makes the check a silent no-op on this screen.
   'storage_path',
   'pages_pdf_url', 'processing_status', 'processing_error', 'ocr_regions',
+  // The worker's per-document AI summary lives here (seed 621); it was written and never shown.
+  'analysis_metadata',
 ] as const;
 
 /**

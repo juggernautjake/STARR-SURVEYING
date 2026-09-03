@@ -133,12 +133,11 @@ orphans.sort((a, b) => b.lines - a.lines);
 //
 // Each entry carries what is KNOWN about it, because "unreferenced" and "dead" are not the same
 // claim and the difference is what the next reader needs.
-const KNOWN = new Map([
-  ['lib/research/prioritized-pipeline.ts',
-    'Plan §F5. 378 lines, zero callers. Near-duplicate of prioritized-pipeline.service.ts and nobody knows which was real. Owner-gated: wire, delete, or merge.'],
-  ['lib/research/prioritized-pipeline.service.ts',
-    'Plan §F5. 386 lines, zero callers. The other half of the same pair.'],
-]);
+//
+// The two `prioritized-pipeline` entries that used to sit here were DELETED on 2026-09-03 (plan
+// C1b): no route re-implemented their loop, and the run order they specified now lives in the
+// orchestrator and the generic pipeline directly. The map stays, empty, for the next one.
+const KNOWN = new Map([]);
 
 // The ceiling. 62 when this was written, 61 after AddWidgetModal was deleted, and it may only go DOWN.
 //
@@ -172,7 +171,8 @@ const KNOWN = new Map([
 // Not an enumerated allowlist, because I investigated three of these (one of which is now deleted) and would be inventing notes
 // for the other 58. A count is the honest instrument: it stops the next one being added by accident
 // without pretending to know what the existing ones are.
-const MAX_ORPHANS = 60;
+// 60 → 58 on 2026-09-03: the prioritised-pipeline pair went (plan C1b).
+const MAX_ORPHANS = 58;
 
 const listOnly = process.argv.includes('--list');
 

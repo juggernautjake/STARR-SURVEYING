@@ -61,10 +61,25 @@ export interface ReviewDocCardProps {
     /** Whether the extraction is usable, and why (plan R18). */
     readability?: 'good' | 'partial' | 'unreadable' | null;
     readability_reason?: string | null;
+    /** The worker files its per-document AI summary under `analysis_metadata.aiSummary`. */
+    analysis_metadata?: unknown;
   };
   excerpt: string | null;
   hasViewable: boolean;
   onView: () => void;
+}
+
+/** The per-document AI summary, when the worker filed one. Tolerates the JSON-string form PostgREST
+ *  sometimes returns for a jsonb column, the same way `getCardPageUrls` does for `ocr_regions`. */
+export function aiSummaryOf(analysisMetadata: unknown): string | null {
+  if (!analysisMetadata) return null;
+  try {
+    const parsed = typeof analysisMetadata === 'string' ? JSON.parse(analysisMetadata) : analysisMetadata;
+    const s = (parsed as { aiSummary?: unknown })?.aiSummary;
+    return typeof s === 'string' && s.trim() ? s.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Parse page image URLs from ocr_regions JSON (stored by artifact uploader) */
@@ -145,6 +160,16 @@ export function ReviewDocCard({ typeIcon: TypeIcon, title, typeName, doc, excerp
               </div>
             )}
             <div className="review-doc-card__details">
+              {/* ── THE SUMMARY THE WORKER WROTE AND NOTHING READ ─────────────────────────────
+                  Every Bell deed carries an AI summary in `analysis_metadata.aiSummary` since D4
+                  separated it from the extracted text. No screen showed it; the owner asked for
+                  "summaries and details for all of the files". Found by the 2026-09-03 audit. */}
+              {aiSummaryOf(doc.analysis_metadata) && (
+                <div className="review-doc-card__summary">
+                  <span className="review-doc-card__summary-label">AI summary</span>
+                  {aiSummaryOf(doc.analysis_metadata)}
+                </div>
+              )}
               {excerpt && (
                 <div className="review-doc-card__excerpt">{excerpt}</div>
               )}

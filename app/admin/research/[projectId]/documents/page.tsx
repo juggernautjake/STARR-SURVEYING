@@ -356,6 +356,14 @@ export default function ProjectDocumentsPage() {
                         {/* The title. It is never blank — `titleOf` falls back through the filename
                             to the id, because a blank row is indistinguishable from a broken one. */}
                         <p className="text-sm text-gray-100 font-medium break-words">{doc.title}</p>
+                        {/* The worker's reading of the document — written for every Bell deed
+                            since D4, shown nowhere until 2026-09-03. The owner asked for
+                            "summaries and details for all of the files". */}
+                        {doc.aiSummary && (
+                          <p className="text-xs text-gray-300 mt-1 leading-relaxed break-words line-clamp-3" title={doc.aiSummary}>
+                            {doc.aiSummary}
+                          </p>
+                        )}
                         <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                           <span>{doc.sourceLabel}</span>
                           {doc.recordedDate && <span>{doc.recordedDate}</span>}
@@ -456,6 +464,9 @@ export default function ProjectDocumentsPage() {
                 )}
                 <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Source</dt><dd>{selected.sourceLabel}</dd></div>
                 <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Status</dt><dd>{statusLabel(selected.status).label}</dd></div>
+                {selected.aiSummary && (
+                  <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">AI summary</dt><dd className="whitespace-pre-wrap">{selected.aiSummary}</dd></div>
+                )}
                 {selected.pageCount != null && (
                   <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Pages</dt><dd>{selected.pageCount}</dd></div>
                 )}

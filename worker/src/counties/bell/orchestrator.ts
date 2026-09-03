@@ -1812,9 +1812,17 @@ export async function orchestrateBellResearch(
     ...easementRecords.map(e => ({ key: 'easement', value: e.type, source: e.source, dataType: 'instrument_ref' as const })),
   ];
 
-  // Optional: find adjacent properties (only if user requested it)
+  // ── ADJOINERS, BY DEFAULT (plan E4) ─────────────────────────────────────────────────────
+  //
+  // > "What are the property id numbers and addresses for the adjoiner properties?"
+  //
+  // This was gated on `input.includeAdjacentProperties`, a flag nothing in index.ts, the app or
+  // lib ever set — so the GIS neighbour finder had never run in production, and the register the
+  // review page reads stayed empty. Found by the 2026-09-03 platform audit (adjoiners C2). It is
+  // one envelope query against a layer the run has already used; it runs unless explicitly turned
+  // off, and only when there is a parcel polygon to run it against.
   let adjacentProperties: BellResearchResult['adjacentProperties'] = [];
-  if (input.includeAdjacentProperties && property.parcelBoundary && property.parcelBoundary.length > 0) {
+  if (input.includeAdjacentProperties !== false && property.parcelBoundary && property.parcelBoundary.length > 0) {
     progress('Phase 4', 'Finding adjacent properties from GIS...', 92);
     try {
       const { analyzeAdjacentProperties } = await import('./analyzers/adjacent-analyzer');

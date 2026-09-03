@@ -190,10 +190,12 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'PARKED: operator-managed per-county portal overrides. The adapter registry in research_site_adapters (resolveAdapter) already serves this purpose from the database; one of the two should be retired rather than both wired.',
 
   // Built ahead of the surface that will use them. Each is a real decision, not an oversight.
-  'lib/research/prioritized-pipeline.ts':
-    'PARKED: the prioritised run order is specified but the pipeline still runs its fixed stages. Wiring it changes run behaviour and belongs with a plan slice, not a drive-by.',
-  'lib/research/prioritized-pipeline.service.ts':
-    'PARKED with prioritized-pipeline.ts, same reason.',
+  //
+  // `prioritized-pipeline.ts` and `.service.ts` (764 lines between them) were listed here as
+  // PARKED from 2026-08-27 to 2026-09-03 — the pair "where nobody can now tell which was real".
+  // Plan C1b settled it from the routes' side: neither full-extract nor deep-lot-analysis
+  // re-implements their loop, and the run order they specified has since been built directly into
+  // the orchestrator and the generic pipeline (plan C2/C3). Both deleted.
   'lib/research/self-heal-planner.ts':
     'PARKED: the self-healing adapter plan (RESEARCH_SOFTWARE_OPTIMIZATION Part II) has not been activated; the cron route drives the existing self-heal path.',
   'lib/research/multi-source-confidence.ts':

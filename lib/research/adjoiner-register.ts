@@ -39,6 +39,9 @@ export interface AdjoinerRow {
   last_survey_date: string | null;
   last_survey_source: string | null;
   notes: string | null;
+  /** The neighbour's page at its source — the appraisal district for a GIS-identified parcel.
+   *  Null for rows written before seed 630 and for deed-call neighbours with no parcel. */
+  source_url?: string | null;
   depth: AdjoinerDepth;
   deep_request_id: string | null;
   deep_project_id: string | null;

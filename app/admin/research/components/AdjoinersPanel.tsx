@@ -102,6 +102,19 @@ export default function AdjoinersPanel({ projectId }: { projectId: string }) {
                 {row.identified_by.replace(/_/g, ' ')} — {IDENTIFIED_BY_MEANING[row.identified_by]}
               </p>
 
+              {/* The facts the owner asked for, and the page they came from (plan E4, seed 630):
+                  a reviewer can open the neighbour at the appraisal district and check them. */}
+              {(row.situs_address || row.source_url) && (
+                <p className="adjoiner__facts">
+                  {row.situs_address && <span>{row.situs_address}</span>}
+                  {row.source_url && (
+                    <a href={row.source_url} target="_blank" rel="noopener noreferrer" className="adjoiner__source">
+                      Open at the appraisal district
+                    </a>
+                  )}
+                </p>
+              )}
+
               <p className="adjoiner__worth">{worthDeepening}</p>
 
               {row.depth === 'shallow' && (

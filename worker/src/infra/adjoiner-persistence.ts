@@ -37,6 +37,8 @@ export interface AdjoinerInput {
   matchConfidence?: number | null;
   documents: AdjoinerDocumentLite[];
   researchStatus?: string;
+  /** The page a reviewer can open to see this neighbour at its source (seed 630). */
+  sourceUrl?: string | null;
 }
 
 export interface AdjoinerRecord {
@@ -53,6 +55,7 @@ export interface AdjoinerRecord {
   last_survey_date: string | null;
   last_survey_source: string | null;
   notes: string | null;
+  source_url: string | null;
 }
 
 /** Document types that count as a survey of the tract.
@@ -98,6 +101,7 @@ export function toRecords(projectId: string, inputs: AdjoinerInput[]): AdjoinerR
       documents_found: a.documents.length,
       last_survey_date: survey.date,
       last_survey_source: survey.source,
+      source_url: a.sourceUrl?.trim() || null,
       notes: a.researchStatus && a.researchStatus !== 'complete'
         // Recorded, because "we could not find anything for this neighbour" is a fact about the
         // shallow pass rather than about the neighbour, and a reviewer deciding where to spend a run

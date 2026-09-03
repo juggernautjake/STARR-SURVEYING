@@ -10771,6 +10771,37 @@
   padding-left: 0.5rem;
   border-radius: 0 4px 4px 0;
 }
+/* The worker's AI reading of the document — a conclusion, set apart from the raw excerpt. */
+.review-doc-card__summary {
+  font-size: 0.84rem;
+  color: var(--theme-fg, #111827);
+  line-height: 1.55;
+  background: var(--theme-bg-elevated, #f8fafc);
+  border-left: 3px solid var(--theme-accent, #2563eb);
+  padding: 0.35rem 0.5rem;
+  border-radius: 0 4px 4px 0;
+  white-space: pre-wrap;
+}
+.review-doc-card__summary-label {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #4b5563);
+  margin-bottom: 0.2rem;
+}
+.adjoiner__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  color: var(--theme-fg-secondary, #4b5563);
+  margin: 0.15rem 0 0;
+}
+.adjoiner__source {
+  color: var(--theme-accent, #2563eb);
+  text-decoration: underline;
+}
 .review-doc-card__meta {
   display: flex;
   flex-wrap: wrap;

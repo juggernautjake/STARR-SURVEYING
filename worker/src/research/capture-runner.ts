@@ -236,6 +236,9 @@ export function buildCaptureRow(
     // makes them VISIBLE. Found by the 2026-09-03 platform audit (CS-3).
     file_type: fileTypeOf(stored.storagePath),
     original_filename: `${item.key}.${fileTypeOf(stored.storagePath)}`,
+    // The page this capture came from, so the reviewer can open the source (the owner's ask).
+    // It was in `provenance` inside harvest_metadata and nowhere the card reads.
+    source_url: provenance.sourceUrl ?? null,
     content_sha256: contentHash(bytes),
     page_count: 1,
     processing_status: ocrText ? 'analyzed' : 'stored',

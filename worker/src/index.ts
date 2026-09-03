@@ -345,6 +345,34 @@ async function persistCountyResults(
     return;
   }
 
+  // ── 0. The neighbour register (plan E4) ────────────────────────────
+  //
+  // The only writer of `research_adjoiners` sat behind POST /research/adjacent — a Testing-Lab
+  // route — and passed owner names only. A normal Bell run now finds its neighbours from the GIS
+  // (orchestrator Phase 4) and files them here with parcel id, situs address, acreage, legal
+  // description and the direction they adjoin. Wrapped: bookkeeping on data already gathered
+  // must not fail the run that gathered it.
+  if (r.adjacentProperties.length > 0) {
+    try {
+      const inputs: AdjoinerInput[] = r.adjacentProperties.map((p) => ({
+        owner: p.ownerName,
+        parcelId: p.propertyId && !p.propertyId.startsWith('unknown-') ? p.propertyId : null,
+        situsAddress: p.situsAddress ?? null,
+        legalDescription: p.legalDescription ?? null,
+        acreage: p.acreage ?? null,
+        identifiedBy: 'gis_adjacency',
+        adjoinsWhere: [p.direction, p.sharedBoundary].filter(Boolean).join(' — ') || null,
+        documents: [],
+        researchStatus: 'complete',
+        sourceUrl: p.sourceUrl ?? null,
+      }));
+      const result = await persistAdjoiners(supabase, projectId, inputs);
+      console.log(describePersist(result, inputs));
+    } catch (e) {
+      console.warn(`[Adjoiners] ${projectId}: register not written from the Bell run —`, e);
+    }
+  }
+
   // ── 1. Save analysis_metadata ──────────────────────────────────────
   const now = new Date().toISOString();
   const property = r.property;

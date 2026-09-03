@@ -812,6 +812,14 @@ below where they conflict, because several are prerequisites for it:
         binary — now the ` ` escape.
       Verified: worker + app `tsc`, eslint, 13 worker + 13 app test files (448 tests) green.
 
+- [x] **B*12. Two more things the screens never showed.** — 2026-09-03. (1) The worker has filed a
+      per-document AI summary under `research_documents.analysis_metadata.aiSummary` for every
+      Bell deed since D4, and no screen read it (audit ai-analysis-app C6). The Review card and the
+      Documents page now show it, with a JSON-string-tolerant parser like `ocr_regions`' and
+      `analysis_metadata` added to the documents contract list. (2) Planned captures carried their
+      source page only inside `harvest_metadata.provenance`; `buildCaptureRow` now writes
+      `source_url`, so the card's "Open Source" works for aerials and GIS captures too.
+
 ### Phase C — the order the owner asked for
 
 - [x] **C1. The prioritisers cannot be the run's sequencer, and the premise said otherwise.**
@@ -835,10 +843,13 @@ below where they conflict, because several are prerequisites for it:
       with nothing to do with the run order the owner asked for — so it moves to C1b rather than
       being answered here on a guess. Deleting them on the strength of "zero callers" would have
       been wrong: the strongest evidence says they are unfinished, not dead.
-- [ ] **C1b. Adopt or delete the two prioritisers, from the routes' side.** Read
-      `full-extract/route.ts` and `deep-lot-analysis/route.ts` and decide whether either
-      re-implements its prioritiser's loop inline. If one does, adopt it there and delete the other;
-      if neither does, both are speculative and go. Not urgent, and explicitly not blocking Phase C.
+- [x] **C1b. Adopt or delete the two prioritisers, from the routes' side.** — DELETED 2026-09-03.
+      The plan-doc audit confirmed with a control that both were referenced only in comments
+      (`full-extract` imports resource-analyzer/research-synthesizer, `deep-lot-analysis` imports
+      criteria-triggers; neither re-implements the loop), and the run order they specified now
+      lives in the orchestrator and the generic pipeline directly (C2/C3). Both files gone, their
+      entries removed from `KNOWN_UNREACHABLE`, the orphan script's known map and the lib ratchet;
+      `MAX_ORPHANS` 60 → 58. Prose mentions in four other files' comments are history and stay.
 - [x] **C2 + C3. Drawings and overhead views run BEFORE the documents.** — shipped 2026-09-03.
       C2 as written was moot: the app-side table it describes cannot reach the run (see C1). What
       the owner asked for is a **run order**, not a scoring table, so it is one —
@@ -1107,7 +1118,16 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
 - [ ] **E3. Flag documents that do not belong.** `multi-source-confidence.ts` (322 lines, zero
       importers) scores agreement across sources — read it before writing anything. A document whose
       legal description does not match the subject parcel is the case to catch.
-- [ ] **E4. Adjoiner property IDs and addresses.** `infra/adjoiner-persistence.ts` is live and
+- [x] **E4. Adjoiner property IDs and addresses.** — shipped 2026-09-03. Premise corrected by the
+      audit: the writer accepted parcel/situs but its only caller passed owner names, and only
+      from the Testing-Lab route; the Bell GIS neighbour finder was gated on a flag nothing set,
+      so it had never run in production. Now: the Bell orchestrator finds neighbours from the GIS
+      by default when it has the parcel polygon (`includeAdjacentProperties !== false`); the
+      analyzer carries the GIS parcel's situs address, acreage, legal description and the
+      appraisal-district page for it (previously read and dropped); `persistCountyResults` files
+      them into `research_adjoiners` as `gis_adjacency` with direction + shared boundary; seed
+      **630** adds `source_url` (applied live) and the Adjoiners panel shows the situs and an
+      "Open at the appraisal district" link. The original text follows. `infra/adjoiner-persistence.ts` is live and
       already writes `parcel_id` and `owner_name`. `lib/research/spatial-filter.ts` (253 lines, zero
       importers) is the geometric way to find them. County ArcGIS returns neighbours for a parcel
       centroid directly.

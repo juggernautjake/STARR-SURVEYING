@@ -8,6 +8,7 @@
 
 import type { AdjacentProperty, BellResearchResult } from '../types/research-result.js';
 import { findAdjacentParcels, type GisSearchResult } from '../scrapers/gis-scraper.js';
+import { BELL_ENDPOINTS } from '../config/endpoints.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -66,6 +67,11 @@ export async function analyzeAdjacentProperties(
       ownerName: owner,
       research: null,
       sharedBoundary,
+      // E4 — the facts the GIS already returned, carried instead of dropped.
+      situsAddress: parcel.situsAddress ?? null,
+      acreage: parcel.acreage ?? null,
+      legalDescription: parcel.legalDescription ?? null,
+      sourceUrl: parcel.propertyId ? `${BELL_ENDPOINTS.cad.home}/Property/View/${parcel.propertyId}` : null,
     };
   });
 
