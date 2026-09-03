@@ -186,3 +186,49 @@ describe('a step cannot outlive the run', () => {
     expect(src).toContain('if (!plats) {');
   });
 });
+
+// ── A4: THE RATE WAS NEVER THE PROBLEM ──────────────────────────────────────────────────────────
+//
+// A4 was written as "rate-limit the clerk portal — 224 requests to one host in one run, and
+// `lib/rate-limiter.ts` (291 lines) exists with zero importers". Checked before building:
+//
+//   · 224 requests over 163 minutes is one every 43.7 SECONDS. That is extremely polite.
+//   · `infra/politeness.ts` already serialises per host and spaces with jitter, and the Bell clerk
+//     path reaches it transitively: `fetchInstrumentDocument` (clerk-scraper.ts:341) delegates to
+//     `searchByInstrument` (bell-clerk.ts:3219) and `fetchDocumentImages` (:2747), and both wrap
+//     their navigation in `withPoliteness`.
+//   · So wiring `rate-limiter.ts` would add a THIRD mechanism over a path already covered.
+//
+// What the check DID find: four of Bell's six rate constants had zero uses. `clerkImageDownload:
+// 6000` reads as "we wait six seconds between clerk image downloads" and nothing waited.
+
+describe('Bell rate constants state only rules the code follows', () => {
+  const endpoints = read('src/counties/bell/config/endpoints.ts');
+
+  it('the four constants nothing enforced are gone', () => {
+    for (const dead of ['clerkImageDownload', 'clerkMaxConcurrent', 'henschenRpm', 'aiCallDelay']) {
+      expect(endpoints, `${dead} is back — is it applied this time?`).not.toMatch(
+        new RegExp(`^\s*${dead}:`, 'm'),
+      );
+    }
+  });
+
+  it('CONTROL: the two that ARE applied survived', () => {
+    // Deleting all six would satisfy the assertion above for the wrong reason.
+    expect(endpoints).toMatch(/^\s*cadSearch: 2000,/m);
+    expect(endpoints).toMatch(/^\s*defaultDelay: 1000,/m);
+  });
+
+  it('and each surviving constant says where it is applied', () => {
+    expect(endpoints).toMatch(/Applied at 3 sites/);
+    expect(endpoints).toMatch(/Applied at clerk-scraper\.ts:238/);
+  });
+
+  it('the Bell clerk path really is polite, transitively', () => {
+    // The claim the deletion rests on. If these stop wrapping their navigation, the constants were
+    // load-bearing after all and this test says so.
+    const clerk = read('src/services/bell-clerk.ts');
+    expect(clerk).toMatch(/politeGoto|withPoliteness/);
+    expect(read('src/counties/bell/scrapers/clerk-scraper.ts')).toContain('fetchDocumentImages');
+  });
+});

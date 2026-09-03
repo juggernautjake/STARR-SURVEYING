@@ -113,13 +113,34 @@ export const BELL_ENDPOINTS = {
   },
 } as const;
 
-/** Rate limits (milliseconds between requests) */
+/**
+ * Rate limits (milliseconds between requests).
+ *
+ * ── FOUR OF THESE WERE POLICY THAT NOTHING ENFORCED ─────────────────────────────────────────────
+ *
+ * Measured 2026-09-03. `clerkImageDownload: 6000`, `clerkMaxConcurrent: 3`, `henschenRpm: 15` and
+ * `aiCallDelay: 200` had ZERO uses anywhere in the worker. They read as settled policy — "we wait
+ * six seconds between clerk image downloads" — and nobody waited six seconds. A constant that
+ * states a rule the code does not follow is worse than no constant: it answers the question
+ * "are we being polite to this host?" with a confident yes.
+ *
+ * They were not wired, because they should not be. `infra/politeness.ts` already serialises every
+ * request PER HOST and spaces them by a configurable interval with jitter, and the Bell clerk path
+ * goes through it transitively — `fetchInstrumentDocument` delegates to `searchByInstrument` and
+ * `fetchDocumentImages` in `services/bell-clerk.ts`, and both wrap their navigation in
+ * `withPoliteness`. Adding a second delay on top would double-space every request for no reason.
+ *
+ * The empirical check agrees: the 2026-09-03 run made 224 requests to `bell.tx.publicsearch.us`
+ * over 163 minutes — one every 43.7 seconds. Politeness was working. The run's problem was volume,
+ * not rate, and that is bounded by `research/budget-gate.ts` now.
+ *
+ * What remains are the two that are actually applied. Anything added here should be applied at the
+ * same time, or it becomes another rule the code does not follow.
+ */
 export const RATE_LIMITS = {
+  /** Between Bell CAD searches. Applied at 3 sites. */
   cadSearch: 2000,
-  clerkImageDownload: 6000,
-  clerkMaxConcurrent: 3,
-  henschenRpm: 15,
-  aiCallDelay: 200,
+  /** Generic pause between clerk steps. Applied at clerk-scraper.ts:238. */
   defaultDelay: 1000,
 } as const;
 

@@ -245,9 +245,25 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       be reached" distinct from "the district returned no record" — a finding about us versus a
       finding about the property, which is the conflation this codebase keeps unpicking. Assessed
       once Phase 1 resolves, reported through `progress` either way.
-- [ ] **A4. Rate-limit the clerk portal.** 224 requests to one host in one run, one search taking
-      11.6 minutes. `worker/src/lib/rate-limiter.ts` (291 lines) exists with zero importers — read
-      it first and wire it if it fits; write nothing new if it does.
+- [x] **A4. The rate was never the problem — and four constants said otherwise.** — shipped
+      2026-09-03. **Third premise in a row that did not survive checking.** 224 requests over 163
+      minutes is one every **43.7 seconds**, which is extremely polite. `infra/politeness.ts`
+      already serialises per host and spaces with jitter, and the Bell clerk path reaches it
+      transitively: `fetchInstrumentDocument` (clerk-scraper.ts:341) delegates to
+      `searchByInstrument` (bell-clerk.ts:3219) and `fetchDocumentImages` (:2747), and both wrap
+      their navigation in `withPoliteness`. Wiring `rate-limiter.ts` would have added a THIRD
+      mechanism over a path already covered. The run's problem was VOLUME, not rate, and A2 bounds
+      that.
+      What the check did find: **four of Bell's six rate constants had zero uses** —
+      `clerkImageDownload: 6000`, `clerkMaxConcurrent: 3`, `henschenRpm: 15`, `aiCallDelay: 200`.
+      They read as settled policy ("we wait six seconds between clerk image downloads") and nothing
+      waited. A constant stating a rule the code does not follow answers "are we being polite to
+      this host?" with a confident yes. Removed, with the two that ARE applied documenting where.
+      **`rate-limiter.ts` itself is left to the C1 dead-code pass** — the ultracode audit launched
+      2026-09-03 is judging it against `politeness.ts` and `withRetry` right now, and deleting it
+      mid-audit would race that verdict. Evidence gathered here: it duplicates spacing/concurrency
+      (politeness) and backoff (`withRetry`, 4 users), and its unique exports — `isCaptchaError`,
+      `isSessionExpiredError`, `SessionHeartbeat` — have zero users each.
 - [ ] **A5. One true completion message.** Four surfaces gave four different reasons and none
       matched `stop_reason`. One function derives the sentence from `stop_reason` + `limits` +
       actual duration, and every surface uses it. Fix alongside: `status "complete"` with
