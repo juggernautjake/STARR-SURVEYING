@@ -14,6 +14,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
+import { mayStart } from '../research/budget-gate.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
@@ -1188,7 +1189,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     if (!instrumentSearchSucceeded && ownerForClerk) {
       let ownerDocs: DocumentResult[] = [];
       try {
-        ownerDocs = await searchClerkRecords(input.county, ownerForClerk, logger);
+        ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerForClerk, logger);
       } catch (clerkErr) {
         logger.warn('Stage2', `Owner-name search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`);
         retrievalFailures.push(
@@ -1464,7 +1465,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           for (const ownerName of newOwners.slice(0, 2)) {
             searchedOwners.add(ownerName);
             try {
-              const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
+              const ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerName, logger);
               if (ownerDocs.length > 0) {
                 logger.info('Stage2-Enrich',
                   `  → Owner "${ownerName}": ${ownerDocs.length} document(s) found`);
@@ -1673,7 +1674,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         for (const ownerName of pendingOwners) {
           const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'searchClerkRecords', ownerName);
           try {
-            const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
+            const ownerDocs = !mayStart(input.projectId, 'clerk owner search') ? [] : await searchClerkRecords(input.county, ownerName, logger);
             if (ownerDocs.length > 0) {
               // Only keep docs we don't already have (by instrument number)
               const existingInstrs = new Set(

@@ -35,6 +35,7 @@ import { scrapeBellCad } from './scrapers/cad-scraper.js';
 import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
+import { mayStart } from '../../research/budget-gate.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -402,6 +403,16 @@ export async function orchestrateBellResearch(
     startAttempt: () => { const fn = (() => {}) as unknown as import('../../lib/logger.js').StepTracker; return fn; },
   } as unknown as import('../../lib/logger.js').PipelineLogger;
 
+  // ── A1: THE CEILING, ASKED BEFORE EXPENSIVE WORK ──────────────────────────────────────────
+  //
+  // Reports through `progress`, which is this orchestrator's own channel into the run log — a
+  // phase skipped silently is indistinguishable from a phase that ran and found nothing, which is
+  // the distinction this codebase keeps having to relearn.
+  const mayStep = (step: string): boolean => {
+    if (mayStart(input.projectId, step)) return true;
+    progress('Budget', `⚠ Skipping ${step} — the run reached a limit you set. The report will say it was not attempted.`);
+    return false;
+  };
   const lotResolution = resolveAddressToLot(
     input.address ?? undefined,
     gisFeatsForMatching,
@@ -523,8 +534,10 @@ export async function orchestrateBellResearch(
 
   // ── 2A: Bell County Clerk (deeds, easements, restrictions) ────────
   progress('Phase 2', '2A — Bell County Clerk search...', 25);
+  // A1 — the step that spent 163 minutes and $29.19 on 2026-09-03 with no ceiling consulted.
+  const mayClerk = mayStep('clerk deed search');
   let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
-  try {
+  if (mayClerk) try {
     clerk = await scrapeBellClerk(
       {
         instrumentNumbers: uniqueInstruments,
@@ -606,8 +619,9 @@ export async function orchestrateBellResearch(
 
   // ── 2B: Bell County Plat Repository + Clerk Plats ─────────────────
   progress('Phase 2', '2B — Plat repository + clerk plat search...', 35);
+  const mayPlats = mayStep('plat search');
   let plats: Awaited<ReturnType<typeof scrapeBellPlats>> | null = null;
-  try {
+  if (mayPlats) try {
     // Include any plat instrument numbers discovered by clerk in Phase 2A
     const allInstruments = [...knownIds.instrumentNumbers];
 

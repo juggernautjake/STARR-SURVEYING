@@ -202,7 +202,17 @@ Ship in this order. Each is independently mergeable and each ends with typecheck
 
 Nothing else is safe to build until a run cannot spend fifteen times its cap.
 
-- [ ] **A1. Give `mayRun()` its callers.** It exists, is documented as the thing callers must ask,
+- [x] **A1. Give `mayRun()` its callers.** — shipped 2026-09-03.  gives
+      county code one import and one call (), because 
+      needed two imports and knowledge of which spend source was right, and that friction was the
+      whole difference between a guard that exists and one that runs. Wired at the clerk deed search
+      and plat search in the Bell orchestrator (the steps that consumed 163 minutes) and at all three
+      clerk owner searches in the generic pipeline. Guarding the BLOCK, not the assignment — the
+      compiler pointed out that everything after the clerk call reads . Mutation-tested:
+      removing the guard fails the caller test. Also fixed here because it is the same file and the
+      same defect:  reported ELAPSED time as though it were the limit, which is where
+      "its 149-minute time limit" came from.  now carries //
+       and each message names the ceiling AND what crossed it. It exists, is documented as the thing callers must ask,
       and has zero call sites. Wire it before each expensive step in the Bell orchestrator and in
       the generic pipeline: before the clerk owner search, before each document fetch, before each
       AI analysis batch, before imagery capture. `recordSkipped` already writes the reason, and

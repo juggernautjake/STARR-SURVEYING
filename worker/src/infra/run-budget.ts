@@ -80,6 +80,12 @@ export interface BudgetStatus {
   exceeded: ExceededReason | null;
   elapsedMs: number;
   remainingMs: number;
+  /** The limits themselves. Present because `reasonText` used to report ELAPSED time as though it
+   *  were the limit — a 149-minute run announced "its 149-minute time limit" when the limit was 25.
+   *  A message cannot name a number it was never given. */
+  limitMs: number;
+  limitUsd: number;
+  limitPaidPages: number;
   spentUsd: number;
   remainingUsd: number;
   paidPages: number;
@@ -151,7 +157,11 @@ export function checkBudget(projectId: string, spendSoFar: number, now = Date.no
     // No budget registered — an ad-hoc call, or a run started before this shipped. Reporting `ok`
     // is right: an unbudgeted run is not an over-budget one, and refusing work because nobody set
     // a limit would break every path that does not go through the pipeline.
-    return { ok: true, exceeded: null, elapsedMs: 0, remainingMs: Infinity, spentUsd: spendSoFar, remainingUsd: Infinity, paidPages: 0, skipped: [] };
+    return {
+      ok: true, exceeded: null, elapsedMs: 0, remainingMs: Infinity,
+      limitMs: Infinity, limitUsd: Infinity, limitPaidPages: Infinity,
+      spentUsd: spendSoFar, remainingUsd: Infinity, paidPages: 0, skipped: [],
+    };
   }
 
   const elapsedMs = now - state.startedAt;
@@ -171,6 +181,9 @@ export function checkBudget(projectId: string, spendSoFar: number, now = Date.no
     exceeded: state.exceeded,
     elapsedMs,
     remainingMs: Math.max(0, state.limits.maxWallClockMs - elapsedMs),
+    limitMs: state.limits.maxWallClockMs,
+    limitUsd: state.limits.maxCostUsd,
+    limitPaidPages: state.limits.maxPaidPages,
     spentUsd: spendSoFar,
     remainingUsd: Math.max(0, state.limits.maxCostUsd - spendSoFar),
     paidPages: state.paidPages,
@@ -205,14 +218,33 @@ export function mayRun(projectId: string, step: string, spendSoFar: number, now 
   return false;
 }
 
+/** Why the run wound down, naming the LIMIT and what was actually reached.
+ *
+ *  ── THE 149-MINUTE LIMIT THAT DID NOT EXIST ────────────────────────────────────────────────────
+ *
+ *  This read `${Math.round(status.elapsedMs / 60_000)}-minute time limit` — the ELAPSED time,
+ *  presented as the limit. On 2026-09-03 the owner's screen said "Finished early because the run
+ *  reached its 149-minute time limit" beside another line saying "its 25-minute time limit", for a
+ *  run whose limit was 25 minutes and whose duration was 163. Two different numbers, neither of
+ *  them the limit, on one screen.
+ *
+ *  The message could not name the limit because `BudgetStatus` was never given it. It carries
+ *  `limitMs`, `limitUsd` and `limitPaidPages` now, and each sentence states the ceiling AND the
+ *  figure that crossed it — a wind-down message whose only number is the one you already knew is
+ *  no use for deciding whether to raise the ceiling or fix the run. */
 export function reasonText(reason: ExceededReason, status: BudgetStatus): string {
   switch (reason) {
-    case 'wall_clock':
-      return `the run reached its ${Math.round(status.elapsedMs / 60_000)}-minute time limit`;
+    case 'wall_clock': {
+      const limit = Math.round(status.limitMs / 60_000);
+      const took = Math.round(status.elapsedMs / 60_000);
+      return `the run hit its ${limit}-minute time limit (${took} minutes elapsed)`;
+    }
     case 'cost':
-      return `the run reached its spending limit ($${status.spentUsd.toFixed(2)})`;
+      return `the run hit its $${status.limitUsd.toFixed(2)} spending limit ` +
+             `($${status.spentUsd.toFixed(2)} spent)`;
     case 'paid_pages':
-      return `the run reached its paid-document limit (${status.paidPages} pages)`;
+      return `the run hit its ${status.limitPaidPages}-page paid-document limit ` +
+             `(${status.paidPages} pages bought)`;
   }
 }
 
