@@ -560,13 +560,32 @@ below where they conflict, because several are prerequisites for it:
       recorded deeds, and a system that confuses the two will mark working counties broken. Needs a
       rule that separates them (a control search whose result is known non-empty is the obvious
       candidate) before anything writes a health row from a run.
-- [ ] **B*6. Repair the guards before sweeping dead code.** The orphan guard's `hasCaller` matches a
+- [x] **B*6. Repair the guards before sweeping dead code.** The orphan guard's `hasCaller` matches a
       basename inside ANY quoted string, comments included, and scans 7 of the worker's directories
       — `sources/`, `adapters/`, `counties/`, `exports/`, `ai/` and `billing/` are unscanned. The
       "Review reads what the worker writes" test concatenates every producer into one corpus, so
       `fema` — written only by Bell — "passes" for all 254 counties. `adjoiner-persistence.test.ts`
       mocks the `upsert` and asserts the option string, so it passes while the real statement fails
       42P10 and `research_adjoiners` holds **0 rows**. Do not sweep before the guard is honest.
+
+      **Guard half shipped 2026-09-03** (the ratchet and adjoiner halves shipped earlier, below).
+      `research-modules-are-reachable.test.ts` now strips comments with a quote-aware walker before
+      matching — a backtick in prose is no longer an import — and scans all 24 worker source
+      directories (was 5) plus `worker/package.json`, so a CLI reached only by an npm script counts
+      as wired. Premise correction: the prose blind spot was real but had hidden NOTHING in the
+      five directories already scanned. Widening the scan surfaced **14 orphans**, every one
+      confirmed by an import-statement grep with a control: `bexar-clerk-adapter` (335 lines for
+      a publicsearch.us host the kofile adapter already speaks; the registry calls Bexar a stub),
+      `ai/prompt-registry`, `billing/stripe-billing` + `subscription-tiers` (a SaaS that does not
+      exist), `cli/starr-research` (not in package.json scripts), Bell's own `export-service`,
+      `plat-drawing-generator`, `html-parser`, `session-manager` (all superseded by the live
+      `reports/` and scraper code), the three `exports/` writers (CSV, Trimble JobXML, Carlson
+      RW5 — real value, no home), `sources/bell-cad-data-portal` (B4's raw material, premise
+      confirmed at 390 lines) and `sources/txdot-roadways-client` (the live ROW path uses
+      `txdot-row` + `txdot-rpam-client`). Each is recorded in `KNOWN_UNREACHABLE` with that
+      verdict; wire-or-delete belongs to the platform audit, which is what this inventory is for.
+      The test has a control (`some-orphan` named only in a comment is NOT wired; in an import it
+      IS; a `//` inside a URL literal survives) and a 30 s timeout because the scan quadrupled.
 - [x] **B*7. Two confidence scales in one column, and two viewers each assuming a different one.**
       — shipped 2026-09-03.
 

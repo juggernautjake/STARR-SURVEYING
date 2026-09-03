@@ -55,6 +55,34 @@ const LIBRARY_DIRS = [
   // This file already warned about exactly this: "a guard is only as good as its coverage, and the
   // directories it skips are exactly where the next orphan will be."
   'app/admin/research/components',
+  // Added 2026-09-03 (plan B*6). The list above covered FIVE of the worker's twenty source
+  // directories. Unscanned were exactly the ones the county adapters, the public-source clients,
+  // the paid-purchase adapters, the Bell module and every exporter live in — which is to say, the
+  // directories a research-platform audit most wants an honest orphan count for.
+  'worker/src/adapters',
+  'worker/src/ai',
+  'worker/src/analytics',
+  'worker/src/batch',
+  'worker/src/billing',
+  'worker/src/cli',
+  'worker/src/counties',
+  'worker/src/counties/bell',
+  'worker/src/counties/bell/analyzers',
+  'worker/src/counties/bell/config',
+  'worker/src/counties/bell/reports',
+  'worker/src/counties/bell/scrapers',
+  'worker/src/counties/bell/screenshots',
+  'worker/src/counties/bell/types',
+  'worker/src/counties/bell/utils',
+  'worker/src/exports',
+  'worker/src/models',
+  'worker/src/orchestrator',
+  'worker/src/reports',
+  'worker/src/routes',
+  'worker/src/services/purchase-adapters',
+  'worker/src/shared',
+  'worker/src/sources',
+  'worker/src/types',
 ];
 
 /** Directories searched for callers. */
@@ -178,6 +206,43 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'PARKED: place-name to county resolution, pending the ambiguity decision (a place name can span counties).',
   'worker/src/services/usps-address-client.ts':
     'PARKED: USPS address standardisation needs a USPS API account, which is an owner decision.',
+
+  // ── Surfaced 2026-09-03 by plan B*6, when the scan reached the other fifteen worker dirs ──
+  //
+  // Stripping comments found NOTHING new in the five directories already scanned — the prose
+  // blind spot was real but had not been hiding an orphan there. Widening the scan found these
+  // fourteen, every one confirmed with an import-statement grep plus a control (`dead-host` has a
+  // real importer, and the same grep finds it). Each carries what the header, the git dates and
+  // the registry say. Wire-or-delete is the platform audit's call, not this slice's: the guard
+  // has to be honest BEFORE anything is swept, and this is the honest inventory.
+  'worker/src/adapters/bexar-clerk-adapter.ts':
+    'DEAD SINCE 2026-04. 335 lines for bexar.tx.publicsearch.us — the same Kofile/GovOS PublicSearch host family as Bell\'s clerk, which the kofile adapter already speaks. clerk-registry.ts:34 lists Bexar as "bexar_custom — stub" and never dispatches here. AUDIT: almost certainly delete; the kofile adapter should cover Bexar.',
+  'worker/src/ai/prompt-registry.ts':
+    'DEAD. Phase 11 Module L: prompt versioning, accuracy tracking, A/B testing. No analyzer consults it — every live prompt is inline in its analyzer. Either the analyzers adopt it or it goes.',
+  'worker/src/billing/stripe-billing.ts':
+    'SPECULATIVE. Phase 11 Module G: subscriptions and per-report Stripe billing for a SaaS that does not exist. Last touched 2026-03-07. Stripe is OFF BY DESIGN in this repo. AUDIT: delete with subscription-tiers.',
+  'worker/src/billing/subscription-tiers.ts':
+    'SPECULATIVE. The tier table for stripe-billing.ts above; same verdict.',
+  'worker/src/cli/starr-research.ts':
+    'DEAD. A commander CLI (run/report/status/list/clean) that is not in worker/package.json scripts, unlike the five receipt/voice/video CLIs which are. Nothing can run it without knowing its dist path. Last touched 2026-03-06.',
+  'worker/src/counties/bell/reports/export-service.ts':
+    'SUPERSEDED. Bell-only PDF/JSON export from 2026-03; worker/src/reports/pdf-generator.ts and routes/report-routes.ts are the live report path and do not import it.',
+  'worker/src/counties/bell/reports/plat-drawing-generator.ts':
+    'SUPERSEDED. Bell-only AI plat drawing from 2026-03; worker/src/reports/svg-renderer.ts and services/survey-drawing.ts are the live drawing path. 401 lines nothing renders.',
+  'worker/src/counties/bell/utils/html-parser.ts':
+    'DEAD. Header says "shared helpers used by multiple scrapers"; no scraper imports it. The scrapers carry their own parsing.',
+  'worker/src/counties/bell/utils/session-manager.ts':
+    'DEAD. Bell session/cookie acquisition from 2026-03; the live Bell path acquires its session inside the scrapers and services/bell-clerk.ts, none of which import this.',
+  'worker/src/exports/csv-exporter.ts':
+    'PARKED, no caller. Phase 11 Module P batch CSV export. No route, no button. Owner call: field/GIS export is real value, but it needs a home before it is anything.',
+  'worker/src/exports/jobxml-exporter.ts':
+    'PARKED, no caller. Trimble JobXML export of survey points (Phase 11 Module N). Same verdict as csv-exporter; the CAD export-to-cad route is the live export path and does not use it.',
+  'worker/src/exports/rw5-exporter.ts':
+    'PARKED, no caller. Carlson RW5 export (Phase 11 Module N). Same verdict as jobxml-exporter.',
+  'worker/src/sources/bell-cad-data-portal.ts':
+    'PARKED — plan B4\'s raw material. 390-line bulk-download client for bellcad.org/data-portal (no login, no CAPTCHA), written 2026-03-12 and never called. The 2026-09-03 run lost its whole primary source when esearch.bellcad.org went dark; this is the second door. Wire it under B4.',
+  'worker/src/sources/txdot-roadways-client.ts':
+    'DEAD. ArcGIS client for TxDOT roadway centerlines (2026-03-12). The live right-of-way path is services/txdot-row.ts + txdot-rpam-client.ts, which do not import it. 311 lines.',
 };
 
 function listModules(dir: string): string[] {
@@ -222,6 +287,9 @@ function allSourceFiles(): string[] {
     }
   };
   for (const d of CALLER_DIRS) walk(path.join(REPO, d));
+  // The worker's package.json is a caller too: `"extract-receipts": "node dist/cli/extract-receipts.js"`
+  // is how a CLI module is reached, and without this line every one of them reads as an orphan.
+  out.push(path.join(REPO, 'worker/package.json'));
   return out;
 }
 
@@ -258,11 +326,71 @@ function hasCaller(modulePath: string, sources: Array<{ abs: string; text: strin
   // pairs left-to-right mis-pairs them after any apostrophe in prose, so a single "don't" in a
   // comment hides every literal after it. It reported twelve modules as orphans that are wired.
   // Recorded because the reasoning was persuasive and wrong, and only running it caught that.
-  return sources.some((f) => f.abs !== selfAbs && f.text.includes(base) && pattern.test(f.text));
+  return sources.some((f) => f.abs !== selfAbs && f.code.includes(base) && pattern.test(f.code));
+}
+
+/** The file with its comments removed and its string literals kept.
+ *
+ *  ── WHY (plan B*6) ──────────────────────────────────────────────────────────────────────────
+ *
+ *  `hasCaller` looks for the module's name inside quotes, and a backtick is a quote. This
+ *  repository writes long comments that name modules in backticks — "and `ResearchRunPanel`,
+ *  polling the same endpoint, had a denylist" — so for as long as this guard has existed, a file
+ *  that merely DISCUSSED a module was indistinguishable from one that imported it. That is how
+ *  ResearchRunPanel stayed "wired" for weeks after page.tsx dropped the only import, and it
+ *  weakens the guard for every module this codebase talks about in prose, which is most of them.
+ *
+ *  Comments are removed by walking the text with a small state machine rather than with a regex,
+ *  because the obvious regexes are wrong in both directions: `\/\/.*$` truncates every
+ *  `'https://…'` literal, and `\/\*[\s\S]*?\*\/` eats a `/*` that sits inside a string. The
+ *  walker knows which of the three quote characters it is inside and leaves those alone.
+ *
+ *  Regex literals are NOT tracked. A `//` inside one — `/[/]{2}/` — would drop the rest of that
+ *  line, and the only thing that can hide is a specifier on the SAME line as such a regex, which
+ *  no import statement is. Accepted rather than solved with a full tokenizer. */
+function stripComments(text: string): string {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (c === '/' && next === '/') {
+      // Line comment: drop to end of line, keep the newline so line-anchored patterns still work.
+      while (i < n && text[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? n : end + 2;
+      continue;
+    }
+    if (c === '\'' || c === '"' || c === '`') {
+      // String literal: copy through the matching close quote, honouring backslash escapes.
+      // Template literals with `${…}` are copied verbatim — an import specifier is never built
+      // from one, so nested quotes inside the expression cost nothing.
+      const q = c;
+      let j = i + 1;
+      while (j < n && text[j] !== q) {
+        if (text[j] === '\\') j++;
+        if (q !== '`' && text[j] === '\n') break; // an unterminated ' or " ends at the line
+        j++;
+      }
+      out += text.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
 describe('every research module is reachable, or says why not', () => {
-  const sources = allSourceFiles().map((abs) => ({ abs, text: fs.readFileSync(abs, 'utf8') }));
+  const sources = allSourceFiles().map((abs) => {
+    const text = fs.readFileSync(abs, 'utf8');
+    return { abs, text, code: stripComments(text) };
+  });
   const modules = LIBRARY_DIRS.flatMap(listModules);
 
   // ── A CONTROL ON THIS CHECK'S OWN COVERAGE ────────────────────────────────────────────────
@@ -301,7 +429,9 @@ describe('every research module is reachable, or says why not', () => {
       ? `These modules have no non-test caller. Either wire them, or add them to KNOWN_UNREACHABLE ` +
         `with the reason:\n  ${orphans.join('\n  ')}`
       : '').toEqual([]);
-  });
+    // 2.5 s alone after B*6 quadrupled the module count; the full-suite run is slower and vitest's
+    // default is 5 s. A structural guard that fails on a timer teaches people to re-run past it.
+  }, 30_000);
 
   it('has no stale entry — a module on the list that DID get wired', () => {
     // The list is an inventory, and an inventory nobody prunes stops being read. When something is
@@ -344,6 +474,25 @@ describe('this check has been watched failing', () => {
     expect(LIBRARY_DIRS).toContain('lib/research');
     expect(LIBRARY_DIRS).toContain('worker/src/lib');
     expect(LIBRARY_DIRS).toContain('worker/src/infra');
+    // B*6: the directories the adapters, sources and the Bell module live in.
+    for (const d of ['adapters', 'sources', 'counties/bell', 'exports', 'ai', 'billing', 'services/purchase-adapters']) {
+      expect(LIBRARY_DIRS).toContain(`worker/src/${d}`);
+    }
+  });
+
+  it('a module named only in a comment is NOT wired — and one named in an import IS', () => {
+    // The blind spot this guard carried from its first version: a backtick in prose is a quote.
+    // Both cases below are the SAME text minus the comment markers, so if stripComments stops
+    // running, the first assertion is what fails.
+    const prose = 'export const x = 1;\n// see `./services/some-orphan.js` for why\n/* and \'./services/some-orphan\' too */\n';
+    const real = 'import { y } from \'./services/some-orphan.js\';\n';
+    const url = 'const u = \'https://example.com/some-orphan\'; // not a comment start';
+    const fake = (text: string) => [{ abs: '/elsewhere.ts', text, code: stripComments(text) }];
+    expect(hasCaller('worker/src/services/some-orphan.ts', fake(prose))).toBe(false);
+    expect(hasCaller('worker/src/services/some-orphan.ts', fake(real))).toBe(true);
+    // A `//` inside a string literal is not a comment; the literal survives intact.
+    expect(stripComments(url)).toContain('https://example.com/some-orphan');
+    expect(stripComments(url)).not.toContain('not a comment start');
   });
 
   it('treats a test file as NOT a caller, which is the whole point', () => {
