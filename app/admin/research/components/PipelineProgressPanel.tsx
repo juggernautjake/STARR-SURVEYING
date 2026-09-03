@@ -12,6 +12,7 @@ import {
   isDoneStatus, statusIcon, formatTimestamp, formatLogAsText, formatDetailedLogAsText,
 } from './pipeline-log';
 import { toConfidenceFraction, confidencePercentLabel } from '@/lib/research/confidence-scale';
+import { frontendLogEntries } from '@/lib/research/frontend-log';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,15 @@ export interface PipelineProgressProps {
    * it must say so rather than pick the cheerful option.
    */
   status:       string | null;
+  /**
+   * When this run started, ISO. Bounds the browser half of the log.
+   *
+   * The breadcrumb and console buffers are session-wide and hold the last 30 actions and 20 console
+   * lines, so without a bound a five-minute run would be shown alongside whatever the operator did
+   * before starting it. Optional: absent means "show everything this browser knows", which is the
+   * right answer for a viewer opened on a finished project.
+   */
+  runStartedAt?: string | null;
   message?:     string;                // Latest "Stage N: …" message from updateStatus
   /** Short stage label from the worker (e.g. "Phase 3", "Routing") — used when message is absent. */
   currentStage?: string;
@@ -385,6 +395,7 @@ type LogFilter = 'all' | 'errors' | 'warnings' | 'info';
 
 export function PipelineProgressPanel({
   status,
+  runStartedAt,
   message,
   currentStage: currentStageProp,
   result,
@@ -432,13 +443,37 @@ export function PipelineProgressPanel({
   // Merged and de-duplicated now, so the view can never shrink. Both sources are partial: the live
   // stream has entries that were never persisted, and the persisted log survives a page refresh
   // that the live stream does not.
-  const log = mergeLogEntries(logProp, loadedLog);
+  // ── AND THE BROWSER'S HALF (plan F4) ──────────────────────────────────────────────────────
+  //
+  // "We need to be able to immediately retreive the worker and frontend logs. Really, both logs
+  // should be displayed in the pipeline log viewer."
+  //
+  // This viewer has only ever shown worker entries. Everything the browser knew about the same run
+  // — the POST that started it and what it answered, every poll and its status, a failed fetch, a
+  // console error thrown while rendering the result — lived in a buffer that surfaced only if
+  // somebody filed an error report.
+  //
+  // That gap is not cosmetic. Several contradictions the owner reported were disagreements BETWEEN
+  // the two halves: a panel latching "Research Failed" while the worker went on retrieving
+  // documents; a poll landing on a previous run's cached result. Neither is visible in a worker
+  // log, because neither happened in the worker.
+  //
+  // Recomputed on every render on purpose: the buffers are mutable module state, so a memo keyed on
+  // anything else would show a stale browser half beside a live worker one. Reading thirty
+  // breadcrumbs is not work worth caching.
+  const browserLog = useMemo(
+    () => (typeof window === 'undefined' ? [] : frontendLogEntries(runStartedAt ?? null)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [runStartedAt, logProp, loadedLog, status],
+  ) as PipelineLogEntry[];
+
+  const log = mergeLogEntries(mergeLogEntries(logProp, loadedLog), browserLog);
 
   // Apply filter to get the visible log entries
   const filteredLog = useMemo(() => {
     if (!log) return undefined;
     switch (logFilter) {
-      case 'errors':   return log.filter(e => e.status === 'fail' || e.source === 'error');
+      case 'errors':   return log.filter(e => e.status === 'fail' || e.source === 'error' || e.source === 'console.error');
       case 'warnings': return log.filter(e => e.status === 'fail' || e.status === 'warn' || e.source === 'warn' || e.source === 'error');
       case 'info':     return log.filter(e => e.source === 'info' || e.source === 'handshake' || e.status === 'success' || e.status === 'partial' || e.status === 'skip');
       default:         return log;

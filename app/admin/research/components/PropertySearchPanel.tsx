@@ -39,6 +39,9 @@ interface PipelineLogEntry {
 interface PipelineStatusResponse {
   projectId: string;
   status: string;
+  /** When this run started, ISO. The worker has always sent it; nothing read it. Bounds the
+   *  browser half of the log to this run rather than to whatever the session has been doing. */
+  startedAt?: string;
   currentStage?: string;
   /** Latest updateStatus message, e.g. "Stage 2: Retrieving documents…" */
   message?: string;
@@ -867,6 +870,7 @@ export default function PropertySearchPanel({
                     result={pipelineResult?.result}
                     documents={pipelineResult?.documents}
                     log={pipelineResult?.log}
+                    runStartedAt={pipelineResult?.startedAt ?? null}
                     failureReason={pipelineResult?.failureReason}
                     masterReportText={pipelineResult?.masterReportText}
                     onLoadLogs={async () => {
@@ -940,6 +944,7 @@ export default function PropertySearchPanel({
                 result={pipelineResult?.result}
                 documents={pipelineResult?.documents}
                 log={pipelineResult?.log}
+                runStartedAt={pipelineResult?.startedAt ?? null}
                 failureReason={pipelineResult?.failureReason}
                 masterReportText={pipelineResult?.masterReportText}
                 hideCompletionDetails={isStage2Mode}

@@ -1005,8 +1005,35 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       is empty. The clock resets at both ends of a run, so a re-run does not spend its first thirty
       seconds — the window a crash is most likely to fall in — waiting on the previous run's clock.
       Ten tests; mutation-checked.
-- [ ] **F4. Frontend logs in the same viewer.** The owner asked for both. `usePageError` already
-      collects client-side errors; the viewer shows worker entries only.
+- [x] **F4. Both logs, in the one viewer.** — shipped 2026-09-03.
+      Everything the browser knew about a run — the POST that started it and what it answered, every
+      poll and its status, a failed fetch, a console error thrown while rendering the result — lived
+      in a buffer that surfaced only if somebody filed an error report.
+      **Not cosmetic.** Several of the contradictions reported on 2026-09-03 were disagreements
+      *between* the two halves: a panel latching "Research Failed" while the worker went on
+      retrieving seventeen documents; a poll landing on a previous run's cached result. Neither is
+      visible in a worker log, because neither happened in the worker — and there was nowhere to
+      look at the other one.
+      Adapted into `PipelineLogEntry` rather than given its own panel, so it inherits the filter,
+      the ordering, the de-duplication and the Copy All Logs export the owner actually uses. A
+      parallel viewer would need its own four and they would drift. Every entry is stamped
+      `layer: 'Browser'` — the one thing this must never do is let a browser entry pass for a worker
+      one.
+      Bounded by the run's `startedAt`, **which the worker has always sent and nothing read**: the
+      buffers are session-wide and hold the last 30 actions and 20 console lines, so without the
+      bound a five-minute run is shown beside whatever the operator did before starting it.
+      Details that took thought: a 3xx is `partial`, not success, because a redirect on an API call
+      is usually an auth bounce and reading it as success is how a signed-out session looks like a
+      working one; a console *warning* stays a warning, because burying warnings under Errors makes
+      both filters lie; `console.error` had to be added to the Errors filter, which was written
+      against worker sources only; and the browser half is recomputed each render because the
+      buffers are module-level mutable state — a memo keyed on anything stable would show a stale
+      browser half beside a live worker one.
+      One guard re-pointed: it pinned the exact two-argument `mergeLogEntries(logProp, loadedLog)`.
+      The property it exists for is that the view MERGES rather than picks, so it asserts that shape
+      now and a fourth source will not fail it while removing the merge still will.
+      Fifteen tests, with a CONTROL that the bound is what excludes an entry rather than the
+      function returning nothing; mutation-checked.
 - [ ] **F5. Live streaming.** `worker/src/websocket/progress-server.ts` (379 lines, zero importers)
       exists for this. Read it, wire it or delete it — "immediately retrievable" is the requirement.
 

@@ -32,7 +32,12 @@ describe('the log view merges its two sources', () => {
   });
 
   it('uses a merge instead', () => {
-    expect(code).toMatch(/const log = mergeLogEntries\(logProp, loadedLog\)/);
+    // Pinned the exact two-argument call, which F4 then made three sources: the worker's live log,
+    // the persisted one, and the browser's own. The property this guard exists for is that the
+    // view MERGES rather than picks — asserted on the shape now, so adding a fourth source is not
+    // a test failure while removing the merge still is.
+    expect(code).toMatch(/const log = mergeLogEntries\(mergeLogEntries\(logProp, loadedLog\), browserLog\)/);
+    expect(code, 'the worker log is no longer part of the merge').toContain('mergeLogEntries(logProp, loadedLog)');
   });
 
   it('de-duplicates, so a merge does not show every entry twice', () => {
