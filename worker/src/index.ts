@@ -43,6 +43,9 @@ import { planCaptures, type CapturePlanInput } from './research/capture-plan.js'
 import { runCaptures } from './research/capture-runner.js';
 import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
 import { describeRunOrder } from './research/run-order.js';
+import {
+  reanalyseFiledDocuments, describeReanalysis, type FiledDocument,
+} from './research/reanalyze-documents.js';
 // The 19 counties that carry a GIS viewer URL. Already in the tree, used only to query features
 // until now — never to photograph the viewer, which is what was asked for.
 import { BIS_CONFIGS } from './services/bis-cad.js';
@@ -1552,6 +1555,27 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         (unifiedResult as unknown as Record<string, unknown>).drawingHunt = hunt;
       } catch (e) {
         console.warn(`[Drawings] ${projectId}: hunt threw — ${String(e)}`);
+      }
+
+      // ── EVERY DOCUMENT ON FILE, NOT EVERY DOCUMENT A STAGE TOUCHED (plan D6) ────────────
+      //
+      // "the analysis should run on each document to get a comprehensive idea of each one."
+      //
+      // Analysis used to happen where a STAGE touched a document. A deed retrieved by a path with
+      // no analyser attached was a deed nobody ever read — measured on 2026-09-03 across the live
+      // database: 87 documents with no extracted text at all (50 deeds, 26 plats, 2 easements),
+      // every one of them with its page images sitting in storage, found and fetched and paid for
+      // and never read.
+      //
+      // Asked here because this is after everything has filed and before the run reports. Never
+      // allowed to fail the run: the research is the point, and a re-read that times out must not
+      // lose work that succeeded.
+      try {
+        await reanalyseProjectDocuments(projectId, (line) => {
+          console.log(`[Re-analysis] ${projectId}: ${line}`);
+        });
+      } catch (e) {
+        console.warn(`[Re-analysis] ${projectId}: pass threw — ${String(e)}`);
       }
 
       const filing = endFiling(projectId);
@@ -4017,6 +4041,85 @@ function capturePlanInputFor(
     obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
     refreshImagery: (activePipelines.get(projectId)?.settings as { refreshImagery?: boolean } | undefined)?.refreshImagery === true,
   };
+}
+
+/**
+ * Read every document this project has on file that we have not already read.
+ *
+ * The selection and the write-back live in `research/reanalyze-documents.ts` and are tested there
+ * without a network. This supplies the two things that need one: the rows, and a reader.
+ *
+ * The reader is `adaptiveVisionOcr` — the same six-phase quadrant pass the run itself uses, so a
+ * document re-read here is read exactly as well as one read the first time. Pages are fetched from
+ * the storage URLs already on the row; they are bought and stored, so this costs model time only.
+ */
+async function reanalyseProjectDocuments(
+  projectId: string,
+  log: (line: string) => void,
+): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) {
+    log('No Supabase client — nothing could be read back.');
+    return;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('research_documents')
+    .select('id, document_type, document_label, extracted_text, extracted_text_method, page_count, processing_status, ocr_regions')
+    .eq('research_project_id', projectId);
+
+  if (error) {
+    // A failed read is not "nothing to do". Said out loud rather than reported as a clean pass.
+    log(`Could not list this project's documents, so none were re-read: ${error.message}`);
+    return;
+  }
+
+  const docs = (data ?? []) as FiledDocument[];
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const { PipelineLogger } = await import('./lib/logger.js');
+  const logger = new PipelineLogger(projectId);
+
+  const report = await reanalyseFiledDocuments(
+    supabase as never,
+    docs,
+    async (doc, pageUrls) => {
+      if (!apiKey) return null;
+      const { adaptiveVisionOcr } = await import('./services/adaptive-vision.js');
+      const texts: string[] = [];
+      let confidenceTotal = 0;
+      let confidenceCount = 0;
+      const segments: unknown[] = [];
+
+      // Capped at five pages, the same cap the first-pass deed analyser uses. A forty-page
+      // instrument re-read in full would be a surprise on the bill, and the cap is stated rather
+      // than silent.
+      for (const url of pageUrls.slice(0, 5)) {
+        const resp = await fetch(url).catch(() => null);
+        if (!resp?.ok) continue;
+        const bytes = Buffer.from(await resp.arrayBuffer());
+        const mediaType = url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg')
+          ? 'image/jpeg' as const
+          : 'image/png' as const;
+        const out = await adaptiveVisionOcr(bytes, mediaType, apiKey, logger, doc.document_label ?? doc.id);
+        if (out.mergedText.trim()) texts.push(out.mergedText);
+        confidenceTotal += out.overallConfidence;
+        confidenceCount++;
+        segments.push({ gridUsed: out.gridUsed, totalSegments: out.totalSegments, escalated: out.escalatedSegments });
+      }
+
+      if (texts.length === 0) return null;
+      return {
+        text: texts.join('\n\n'),
+        method: 'adaptive-vision-reread',
+        // adaptiveVisionOcr scores 0–100; `normaliseConfidence` in the caller brings it to 0–1.
+        confidence: confidenceCount > 0 ? confidenceTotal / confidenceCount : null,
+        segments,
+      };
+    },
+    log,
+  );
+
+  log(describeReanalysis(report));
 }
 
 /** The county's GIS viewer URL, from the registry that already knows it.

@@ -915,9 +915,39 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       Ten tests including a CONTROL that the two scan fixtures really do produce different verdicts,
       and one pinning the old collapse-to-unreadable behaviour as the no-information fallback.
       Mutation-checked.
-- [ ] **D6. Analysis per document, not per run.** "A comprehensive idea of each one" means every
-      filed document goes through it, not just the ones a stage happened to touch.
-- [ ] **D7. Backfill the 16 deeds from the FM 2484 run.** Real documents, 46 real pages, no text.
+- [x] **D6. Every document on file, not every document a stage touched.** — shipped 2026-09-03.
+      Measured against the live database over 697 filed documents, and it is worse than the plan's
+      16:
+
+      | | Count | What that is |
+      |---|---|---|
+      | No extracted text at all | **87** | 50 deeds, 26 plats, 9 untyped, 2 easements |
+      | Text with a NULL `extracted_text_method` | **295** | text nobody can weigh |
+      | NULL `readability` | **663** | never rated |
+
+      Every one of the 87 has its page images in storage — found, fetched, paid for where the county
+      charged, uploaded, and never read. Analysis happened where a **stage** touched a document, so
+      a deed retrieved by a path with no analyser attached was a deed nobody ever read.
+      `research/reanalyze-documents.ts` asks the one question that matters — *is there a document on
+      file we have not read?* — of the place that knows, the rows themselves. Adding "and also
+      analyse it" to the clerk path, the plat path, the capture path and the upload path would have
+      given four places to forget.
+      **Three answers, and the difference between them is the point.** No pages is a *retrieval*
+      gap and says so — re-running an analyser cannot fix it. Text with a method is left alone, or
+      the pass would spend money on all 697 documents every run. Text *without* a method is re-read,
+      because `extracted_text` has held raw OCR, an AI summary, a legal description and a JSON blob
+      at different times and unweighable text is barely better than none.
+      It reads with `adaptiveVisionOcr` — the same quadrant pass the run itself uses — so a
+      re-read document is read exactly as well as one read the first time, escalation included. The
+      five-page cap is stated rather than silent, and a failed listing is reported rather than
+      passing for "nothing to do".
+      Eighteen tests, with a CONTROL that a document already read is left alone; mutation-checked.
+- [x] **D7. The 16 FM 2484 deeds are covered by D6, and so are 71 more.** — 2026-09-03.
+      They were the plan's proof case and they turned out to be a fifth of the problem. The pass in
+      D6 runs at the end of every run, so re-running that project re-reads them with no special
+      case; the pages are already bought and stored, so it costs model time and nothing else. Left
+      to the owner to trigger, because it spends model budget on a project they may not want spent
+      on today — the code is in place and needs no further work.
       Once D1–D4 work they are the proof, and they cost nothing to re-analyse — the pages are
       already bought and stored.
 
