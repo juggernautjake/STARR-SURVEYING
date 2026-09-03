@@ -6235,7 +6235,12 @@ async function runQueuedRequest(req: QueuedRequest): Promise<{ projectId?: strin
     // A pipeline that returns `failed` is a failed REQUEST too. Reporting it as complete would
     // notify the requester that their property was researched when nothing was found — the exact
     // shape R28's notify-either-way rule exists to prevent.
-    const status = (result as { status?: string }).status;
+    // `UnifiedResearchResult` is { resultType, county, data } (router.ts) — the status lives on
+    // `data`, not on the envelope. This read `result.status`, which is always undefined, so
+    // `undefined === 'failed'` was false and a failed run was reported to the requester as a
+    // completed one: the exact outcome the sentence above says R28 prevents. Found by the
+    // 2026-09-03 platform audit (county-routing C4 / generic-pipeline).
+    const status = (result.data as { status?: string } | undefined)?.status;
     if (status === 'failed') {
       throw new Error(`The research pipeline reported failed for ${req.address}, ${req.county} County.`);
     }

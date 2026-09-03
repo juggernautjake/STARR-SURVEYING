@@ -352,12 +352,16 @@ async function runLitePipeline(
           ].filter(Boolean).join('\n');
 
           if (boundaryText.length > 50) {
-            const { data: doc } = await supabaseAdmin
+            // `appraisal_record`, not `parcel_data`: seed 626 enumerates every admitted
+            // document_type and `parcel_data` was never among them, so this insert failed 23514 on
+            // every lite run and the CAD record never existed. The error was also unread — the
+            // second half of why nobody noticed. Found by the 2026-09-03 platform audit (DM-3).
+            const { data: doc, error: docErr } = await supabaseAdmin
               .from('research_documents')
               .insert({
                 research_project_id: projectId,
                 source_type: 'property_search',
-                document_type: 'parcel_data',
+                document_type: 'appraisal_record',
                 document_label: `CAD Property Data — ${parcelId}`,
                 source_url: boundaryResult.cad_property_url || boundaryResult.source_url || null,
                 processing_status: 'extracted',
@@ -368,6 +372,7 @@ async function runLitePipeline(
               .select('id')
               .single();
             if (doc) summary.documents_imported++;
+            else if (docErr) console.error(`[LitePipeline] CAD property document not filed for ${projectId}: ${docErr.message}`);
           }
 
           // Extract key summary fields

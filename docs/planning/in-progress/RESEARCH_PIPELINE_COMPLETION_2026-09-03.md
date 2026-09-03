@@ -732,6 +732,31 @@ below where they conflict, because several are prerequisites for it:
       parses the seed's value list and every writer's literals — the schema guards that existed
       compared names and indexes and could not see a CHECK's values, which is how this shipped.
 
+- [x] **B*10. Four disconnected values from the platform audit.** — fixed 2026-09-03. Each was
+      computed, printed or promised and never joined to its consumer; each independently found
+      by a different audit reader.
+      · **`analysis_metadata` was erased on every in-app analysis.** The bag holds `owner_name`
+        (create route), `job_notes` (PATCH route, "so it survives analysis reruns") and, since
+        B*8, the worker's run verdict under `result`. The in-app engine's start, completion,
+        failure AND abort writes each assigned a fresh object — no spread — and the lite fallback
+        reaches that engine automatically whenever the worker is down. Only `persistLogs`
+        merged; it is now the only writer and takes the row patch. The guard found the fourth
+        (abort) write after I had fixed three.
+      · **The lite pipeline's CAD record could never be filed.** `document_type: 'parcel_data'`
+        is not in seed 626's CHECK, the insert failed 23514 on every lite run, and the error was
+        unread. Now `appraisal_record`, and the error is logged.
+      · **A queued request reported a failed run as complete.** `runQueuedRequest` read
+        `result.status` on `{ resultType, county, data }`; the status is on `data`, so
+        `undefined === 'failed'` never fired — the exact outcome the adjacent comment says R28
+        prevents. Only live with `RESEARCH_QUEUE_POLLER=1`.
+      · **`maxPaidPages` was a ceiling with no producer.** `notePaidPages` was the only mutator
+        of the count and had no caller, so the limit printed on every run card could never trip
+        and `research_runs.paid_pages` was always 0. `recordPurchase` now reports its pages.
+      Guards: `worker/src/__tests__/audit-2026-09-03-worker-fixes.test.ts` and
+      `__tests__/research/analysis-metadata-is-merged-not-replaced.test.ts` (both with controls;
+      the second also parses seed 626's CHECK so `parcel_data` cannot come back). Worker + app
+      `tsc`, eslint, and the 96 surrounding worker tests green.
+
 ### Phase C — the order the owner asked for
 
 - [x] **C1. The prioritisers cannot be the run's sequencer, and the premise said otherwise.**

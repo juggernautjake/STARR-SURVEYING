@@ -20,6 +20,7 @@
 
 import { getSupabase } from './pipeline.js';
 import { recordUsage } from '../infra/usage.js';
+import { notePaidPages } from '../infra/run-budget.js';
 
 /** Normalise an instrument number to a comparison key.
  *
@@ -164,6 +165,13 @@ export interface RecordResult {
  *  spent". R4 made model spend visible; a $1.00 page that never reached `research_usage_events` was
  *  money the cost view could not see, so a run's reported spend was quietly wrong. */
 export async function recordPurchase(rec: PurchaseRecord): Promise<RecordResult> {
+  // The run's paid-page ceiling counts what THIS function records, or it counts nothing.
+  // `notePaidPages` was the only thing that advanced `paidPages` and it had no caller, so
+  // `maxPaidPages` was printed on every run card as a limit and could never trip, and
+  // `research_runs.paid_pages` was always 0. Found by the 2026-09-03 platform audit (RL-4/PD-4).
+  // A no-op when the run is not registered (Testing Lab purchases have no run).
+  notePaidPages(rec.projectId, rec.pages);
+
   // Usage FIRST, for the same reason recordUsage accumulates before it inserts: the money left the
   // account whether or not our bookkeeping row saves.
   await recordUsage({

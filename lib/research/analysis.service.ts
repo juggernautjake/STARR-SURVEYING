@@ -543,7 +543,17 @@ export async function analyzeProject(
     console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](`[Analysis][${level.toUpperCase()}] ${message}${detail ? ` — ${detail}` : ''}`);
   }
 
-  async function persistLogs(extraMeta?: Record<string, unknown>) {
+  // ── THE ONE WRITER OF analysis_metadata ────────────────────────────────────────────────────
+  //
+  // `analysis_metadata` is a shared bag. The create route keeps `owner_name` in it, the PATCH route
+  // keeps `job_notes` there "so it survives analysis reruns", and since B*8 the worker files its
+  // run outcome under `result`. Until 2026-09-03 the start, completion and failure writes below each
+  // assigned a FRESH object to the column — no spread — so the first thing an in-app analysis did
+  // was erase the owner's name, the job notes and the worker's verdict, and the lite fallback
+  // reaches this path automatically whenever the worker is unavailable. Only this function merged.
+  // Now it is the only writer, and it takes the row-level patch (status) so callers cannot reach
+  // the column any other way. Found by the 2026-09-03 platform audit (ai-analysis-app C1).
+  async function persistLogs(extraMeta?: Record<string, unknown>, rowPatch?: Record<string, unknown>) {
     const { data: current } = await supabaseAdmin
       .from('research_projects')
       .select('analysis_metadata')
@@ -551,6 +561,7 @@ export async function analyzeProject(
       .single();
     const existing = (current?.analysis_metadata as Record<string, unknown>) || {};
     await supabaseAdmin.from('research_projects').update({
+      ...rowPatch,
       analysis_metadata: { ...existing, ...extraMeta, logs },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
@@ -585,17 +596,19 @@ export async function analyzeProject(
     addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
   }
 
-  await supabaseAdmin.from('research_projects').update({
-    status: 'analyzing',
-    analysis_metadata: {
-      started_at: analysisStartedAt,
-      extract_config: extractCategories,
-      abort_requested: false,
-      resumed: resumeMode,
-      logs,
-    },
-    updated_at: new Date().toISOString(),
-  }).eq('id', projectId);
+  // Merged, not replaced (see persistLogs). The previous run's ending is cleared explicitly so a
+  // stale `error` or `completed_at` cannot describe this run; everything else in the bag survives.
+  await persistLogs({
+    started_at: analysisStartedAt,
+    extract_config: extractCategories,
+    abort_requested: false,
+    resumed: resumeMode,
+    completed_at: null,
+    error: null,
+    error_category: null,
+    technical_error: null,
+    failed_at: null,
+  }, { status: 'analyzing' });
 
   // ── Heartbeat: touch updated_at every 12 s so freeze detection works ──────
   // The status poller flags the analysis as frozen when updated_at hasn't moved
@@ -1406,21 +1419,16 @@ export async function analyzeProject(
     addLog('success', `Analysis complete — ${allDataPoints.length} data points, ${allDiscrepancies.length} discrepancies`, `Duration: ${Math.round((new Date(completedAt).getTime() - new Date(analysisStartedAt).getTime()) / 1000)}s`);
 
     // 9. Update project status to review
-    await supabaseAdmin.from('research_projects').update({
-      status: 'review',
-      analysis_metadata: {
-        started_at: analysisStartedAt,
-        completed_at: completedAt,
-        extract_config: extractCategories,
-        data_point_count: allDataPoints.length,
-        discrepancy_count: allDiscrepancies.length,
-        documents_analyzed: allDocuments.length,
-        tokens_used: tokenUsage,
-        coherence_review: coherenceReview,
-        logs,
-      },
-      updated_at: new Date().toISOString(),
-    }).eq('id', projectId);
+    await persistLogs({
+      started_at: analysisStartedAt,
+      completed_at: completedAt,
+      extract_config: extractCategories,
+      data_point_count: allDataPoints.length,
+      discrepancy_count: allDiscrepancies.length,
+      documents_analyzed: allDocuments.length,
+      tokens_used: tokenUsage,
+      coherence_review: coherenceReview,
+    }, { status: 'review' });
 
     clearInterval(heartbeatTimer);
     clearTimeout(watchdogTimer);
@@ -1447,11 +1455,9 @@ export async function analyzeProject(
       if (currentState?.status === 'analyzing') {
         // Internal abort (e.g., between documents) — reset cleanly ourselves
         await Promise.all([
-          supabaseAdmin.from('research_projects').update({
-            status: 'configure',
-            analysis_metadata: { aborted_at: new Date().toISOString(), abort_requested: true },
-            updated_at: new Date().toISOString(),
-          }).eq('id', projectId),
+          // Merged like the other three endings — the guard found this fourth replacing write
+          // after the first three were fixed. An abort must not cost the owner's name either.
+          persistLogs({ aborted_at: new Date().toISOString(), abort_requested: true }, { status: 'configure' }),
           supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', projectId),
           supabaseAdmin.from('discrepancies').delete().eq('research_project_id', projectId),
           supabaseAdmin
@@ -1474,17 +1480,12 @@ export async function analyzeProject(
     addLog('error', `Analysis pipeline failed [${errorCategory}]`, technicalMsg);
     console.error(`[Analysis] Pipeline failed for project ${projectId} [${errorCategory}]:`, technicalMsg);
 
-    await supabaseAdmin.from('research_projects').update({
-      status: 'configure',
-      analysis_metadata: {
-        error: errorMsg,
-        error_category: errorCategory,
-        technical_error: technicalMsg,
-        failed_at: new Date().toISOString(),
-        logs,
-      },
-      updated_at: new Date().toISOString(),
-    }).eq('id', projectId);
+    await persistLogs({
+      error: errorMsg,
+      error_category: errorCategory,
+      technical_error: technicalMsg,
+      failed_at: new Date().toISOString(),
+    }, { status: 'configure' });
 
     throw err;
   }
