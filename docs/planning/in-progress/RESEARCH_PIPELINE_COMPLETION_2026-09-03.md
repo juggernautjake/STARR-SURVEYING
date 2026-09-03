@@ -841,14 +841,42 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
 - [ ] **D3. Escalation is the point, so verify it fires.** A segment scoring under 60 is re-split
       2×2 at 8% overlap. That is the "zoom in and get an even better understanding" the owner
       described. Assert it on a real low-confidence scan, not only in principle.
-- [ ] **D4. `extracted_text` stops meaning "the AI summary".** Today it is
-      `deed.aiSummary ?? deed.legalDescription ?? null` (`index.ts:654`), so a skipped analysis
-      reads as an unreadable document. Store the extracted TEXT, with `extracted_text_method` set,
-      and keep the summary in its own field.
-- [ ] **D5. Wire `ocr-legibility.ts`.** 404 lines, zero importers, and it exists to rate whether a
-      scan CAN be read — separately from what it says. After D4, "Unreadable" must mean the paper.
-      Follow `project_receipt_confidence_and_editing`: faded ink gives a confident WRONG answer, so
-      legibility is rated on its own.
+- [x] **D4. `extracted_text` stopped meaning "the AI summary".** — shipped 2026-09-03.
+      A summary is a **conclusion**, not an extraction. `extracted_text` was
+      `deed.aiSummary ?? deed.legalDescription ?? null`, so when the AI stage was skipped or failed
+      — and the 2026-09-03 log says plainly *"No master report text — Stage 5/6 may have been
+      skipped or failed"* — the column went in NULL, `assessArtifact` read that as *"No text was
+      extracted from this document at all"*, and the document was stamped **unreadable**. Verified
+      against the live database: all 16 deeds from that run, `extracted_text` NULL and
+      `extracted_text_method` NULL, with their page images stored correctly at 2550×3300. A fact
+      about our pipeline, rendered on screen as a fact about the paper.
+      `analyzeDeedException` now returns what it READ alongside what it concluded, and that text
+      exists whether or not the reconciliation pass runs — which is the entire point. `ocrText` goes
+      to `extracted_text`, the summary to `analysis_metadata.aiSummary`, and `legalDescription`
+      survives only as a last resort under its own honest method name, `cad-legal-description`.
+      **The method now travels with the text**, at both insert sites. A populated `extracted_text`
+      beside a NULL `extracted_text_method` is a row nobody can audit — is that OCR, a PDF text
+      layer, or a summary wearing the wrong hat? Every Bell deed ever filed was that row.
+      `patchDocument` already refused the combination; the inserts supply it rather than relying on
+      the refusal.
+      **D2's storage half came with it**: `ocr_segments` has existed as a column since seed 570 and
+      nothing wrote it here. Each region's label and character count is filed, so a fact can be
+      traced back to the quadrant it came from.
+- [x] **D5a. One set of numbers for how tall readable text is.** — shipped 2026-09-03. The premise
+      was wrong: `ocr-legibility.ts` is not unimported — `choose-tiles` and `finding-confidence` use
+      it, and `survey-reading` reasons over its verdict. What was true and worse: it declares
+      `FINE_TEXT_HEIGHT_IN = 0.07`, `MIN_FINE_TEXT_PX = 13` and `API_MAX_PIXELS = 8_000`, and
+      `adaptive-vision.ts` **declared the same three numbers for itself**. They happened to agree.
+      Nothing made them agree, and a grid selector and a legibility rater disagreeing about how tall
+      readable text is would be a very quiet way to be wrong — especially given D1b, where those
+      exact constants decided between 4 Vision calls and 32. Imported now, one direction only,
+      because `ocr-legibility.ts` imports nothing by design.
+- [ ] **D5b. "Unreadable" must mean the paper.** With D4 landed, `assessArtifact` no longer confuses
+      a skipped analysis with an illegible scan — but it still rates readability from the TEXT.
+      `assessLegibility` rates the SCAN, from its dimensions, which is the independent signal:
+      faded ink gives a confident wrong answer, so legibility has to be judged on its own
+      (`project_receipt_confidence_and_editing`). Wire it into the filing path and store its verdict
+      beside the text-based one.
 - [ ] **D6. Analysis per document, not per run.** "A comprehensive idea of each one" means every
       filed document goes through it, not just the ones a stage happened to touch.
 - [ ] **D7. Backfill the 16 deeds from the FM 2484 run.** Real documents, 46 real pages, no text.

@@ -134,6 +134,31 @@ export interface DeedRecord {
   legalDescription: string | null;
   /** AI-extracted summary of the deed contents */
   aiSummary: string | null;
+  /**
+   * The text actually READ off the page images, before anything concluded anything about it.
+   *
+   * ── "THE AI THINKS THE DOCUMENTS ARE UNREADABLE" ─────────────────────────────────────────
+   *
+   * `extracted_text` on a filed document used to be `aiSummary ?? legalDescription ?? null`.
+   * A summary is a conclusion, not an extraction — so when the AI stage was skipped or failed,
+   * the column was NULL, `assessArtifact` read that as "No text was extracted from this document
+   * at all", and sixteen perfectly legible deeds with forty-six stored page images were stamped
+   * UNREADABLE. All 16 from the 2026-09-03 run: `extracted_text` NULL, `extracted_text_method`
+   * NULL, page images present at 2550×3300.
+   *
+   * The two are different facts and they now live in different fields. "Unreadable" can then mean
+   * what it says: the paper could not be read.
+   *
+   * Optional, not nullable-required: a record straight off the clerk scraper has not been read
+   * yet, and "no analysis has happened" is a different state from "the analysis produced nothing".
+   */
+  ocrText?: string | null;
+  /** How `ocrText` was produced, so a NULL method can no longer sit beside populated text. */
+  ocrTextMethod?: string | null;
+  /** 0–1. See lib/research/confidence-scale.ts for why this scale and not 0–100. */
+  ocrConfidence?: number | null;
+  /** Per-segment findings, so a reader can see WHICH quadrant a fact came from (plan D2). */
+  ocrSegments?: Array<{ label: string; chars: number }> | null;
   /** Screenshot(s) of the deed pages */
   pageImages: string[];
   /** Link to source document online */

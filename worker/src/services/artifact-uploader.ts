@@ -213,8 +213,28 @@ export interface ArtifactPageImage {
   recordingInfo?: string | null;
   /** Recording date */
   recordedDate?: string | null;
-  /** AI analysis text / extracted text to persist */
+  /** The text READ off the page, to persist as `extracted_text`. */
   extractedText?: string | null;
+  /**
+   * How that text was produced — 'bell-deed-regions', 'adaptive-vision', 'pdf-parse'.
+   *
+   * Required alongside `extractedText` in spirit and enforced by `patchDocument`: a populated
+   * `extracted_text` with a NULL `extracted_text_method` is a row nobody can audit, and every
+   * Bell deed ever filed was exactly that.
+   */
+  extractedTextMethod?: string | null;
+  /**
+   * What the AI CONCLUDED, which is a different fact from what was read.
+   *
+   * These were the same field. `extracted_text` held `aiSummary ?? legalDescription ?? null`, so
+   * a skipped analysis produced NULL and `assessArtifact` reported the paper as unreadable —
+   * a fact about our pipeline, rendered as a fact about the document.
+   */
+  aiSummary?: string | null;
+  /** 0–1 — see lib/research/confidence-scale.ts. */
+  ocrConfidence?: number | null;
+  /** Per-segment findings, so a reader can see which quadrant a fact came from (plan D2). */
+  ocrSegments?: unknown;
   /** Document type override (e.g. 'deed', 'subdivision_plat') */
   documentType?: string | null;
 }
@@ -617,6 +637,16 @@ export async function uploadPipelineArtifacts(
         readability_reason: assessArtifact(firstPage.extractedText, pages.length, finalDocType).reason,
         ocr_regions: JSON.stringify({ pageUrls }),  // Store all page URLs for gallery
         extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
+        // ── THE METHOD TRAVELS WITH THE TEXT ────────────────────────────────────────────
+        // A populated `extracted_text` beside a NULL `extracted_text_method` is a row nobody
+        // can audit — is that OCR, a PDF text layer, or an AI summary wearing the wrong hat?
+        // Every Bell deed ever filed was that row. `patchDocument` already refuses the
+        // combination; the insert now supplies it rather than relying on the refusal.
+        extracted_text_method: firstPage.extractedTextMethod ?? null,
+        ocr_confidence: firstPage.ocrConfidence ?? null,
+        ocr_segments: firstPage.ocrSegments ?? null,
+        // What the AI concluded, kept where it cannot be mistaken for what was read.
+        analysis_metadata: firstPage.aiSummary ? { aiSummary: firstPage.aiSummary } : null,
         recording_info: firstPage.recordingInfo || null,
         recorded_date: firstPage.recordedDate || null,
         created_at: new Date().toISOString(),
@@ -845,6 +875,16 @@ export async function uploadDocumentIncremental(
       readability_reason: assessArtifact(firstPage.extractedText, sorted.length, docType).reason,
       ocr_regions: JSON.stringify({ pageUrls }),
       extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
+      // ── THE METHOD TRAVELS WITH THE TEXT ────────────────────────────────────────────
+      // A populated `extracted_text` beside a NULL `extracted_text_method` is a row nobody
+      // can audit — is that OCR, a PDF text layer, or an AI summary wearing the wrong hat?
+      // Every Bell deed ever filed was that row. `patchDocument` already refuses the
+      // combination; the insert now supplies it rather than relying on the refusal.
+      extracted_text_method: firstPage.extractedTextMethod ?? null,
+      ocr_confidence: firstPage.ocrConfidence ?? null,
+      ocr_segments: firstPage.ocrSegments ?? null,
+      // What the AI concluded, kept where it cannot be mistaken for what was read.
+      analysis_metadata: firstPage.aiSummary ? { aiSummary: firstPage.aiSummary } : null,
       recording_info: firstPage.recordingInfo || null,
       recorded_date: firstPage.recordedDate || null,
       created_at: new Date().toISOString(),

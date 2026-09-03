@@ -111,7 +111,8 @@ export async function analyzeBellDeeds(
   for (const record of input.deedRecords) {
     if (record.pageImages.length > 0) {
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
-      const { summary: aiSummary, usage: callUsage } = await analyzeDeedException(record, anthropicApiKey);
+      const { summary: aiSummary, ocrText, segments, usage: callUsage } =
+        await analyzeDeedException(record, anthropicApiKey);
       accumulateUsage(usage, callUsage);
 
       // Extract structured boundary calls from the AI narrative
@@ -141,6 +142,11 @@ export async function analyzeBellDeeds(
       analyzedRecords.push({
         ...record,
         aiSummary,
+        // What was read, kept apart from what was concluded — see DeedRecord.ocrText.
+        ocrText: ocrText || null,
+        ocrTextMethod: ocrText ? 'bell-deed-regions' : null,
+        ocrConfidence: null,
+        ocrSegments: segments.length > 0 ? segments : null,
         boundaryCalls: boundaryData.calls.length > 0 ? boundaryData.calls : undefined,
         pointOfBeginning: boundaryData.pob,
         statedAcreage: boundaryData.acreage,
@@ -546,11 +552,23 @@ Produce the final merged analysis following the 13-section format. Be exhaustive
   };
 }
 
+interface DeedReadResult {
+  /** What the AI concluded about the document. */
+  summary: string;
+  /** What was READ off the pages, region by region, before anything concluded anything. */
+  ocrText: string;
+  /** One entry per region analysed, so a reader can see which quadrant a fact came from. */
+  segments: Array<{ label: string; chars: number }>;
+  usage: Partial<AiUsageSummary>;
+}
+
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
-): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
-  if (!apiKey || record.pageImages.length === 0) return { summary: '', usage: {} };
+): Promise<DeedReadResult> {
+  if (!apiKey || record.pageImages.length === 0) {
+    return { summary: '', ocrText: '', segments: [], usage: {} };
+  }
 
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
@@ -593,8 +611,19 @@ async function analyzeDeedException(
       }
     }
 
+    // ── WHAT WAS READ, KEPT SEPARATELY FROM WHAT WAS CONCLUDED ────────────────────────────
+    //
+    // `extracted_text` on a filed deed used to be `aiSummary ?? legalDescription ?? null`. A
+    // summary is a conclusion, not an extraction — so a skipped or failed AI stage left the column
+    // NULL, `assessArtifact` read that as "No text was extracted from this document at all", and
+    // sixteen legible deeds with forty-six stored page images were stamped UNREADABLE.
+    //
+    // This text exists whether or not the reconciliation pass below ever runs. That is the point.
+    const ocrText = allRegionResults.map((r) => `--- ${r.label} ---\n${r.text}`).join('\n\n');
+    const segments = allRegionResults.map((r) => ({ label: r.label, chars: r.text.length }));
+
     if (allRegionResults.length === 0) {
-      return { summary: buildFallbackDeedSummary(record), usage: totalUsage };
+      return { summary: buildFallbackDeedSummary(record), ocrText: '', segments: [], usage: totalUsage };
     }
 
     // If only 1 region result, use it directly — no reconciliation needed
@@ -603,7 +632,7 @@ async function analyzeDeedException(
       console.log(`[deed-analyzer] AI usage for ${instrLabel} (single region): ` +
         `input_tokens=${totalUsage.totalInputTokens ?? 0}, output_tokens=${totalUsage.totalOutputTokens ?? 0}, ` +
         `summary_length=${allRegionResults[0].text.length} chars`);
-      return { summary: allRegionResults[0].text, usage: totalUsage };
+      return { summary: allRegionResults[0].text, ocrText, segments, usage: totalUsage };
     }
 
     // Deep reconciliation pass — merge all region analyses
@@ -623,6 +652,8 @@ async function analyzeDeedException(
 
     return {
       summary: reconciledSummary || allRegionResults.map(r => r.text).join('\n\n---\n\n'),
+      ocrText,
+      segments,
       usage: totalUsage,
     };
   } catch (err) {
@@ -631,7 +662,7 @@ async function analyzeDeedException(
       `${record.instrumentNumber ?? '(no inst#)'}: ` +
       `${err instanceof Error ? err.message : String(err)}`,
     );
-    return { summary: buildFallbackDeedSummary(record), usage: {} };
+    return { summary: buildFallbackDeedSummary(record), ocrText: '', segments: [], usage: {} };
   }
 }
 

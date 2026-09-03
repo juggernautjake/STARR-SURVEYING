@@ -75,11 +75,18 @@ export interface AdaptiveVisionResult {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CLAUDE_MAX_PIXELS = 8_000;
-/** Minimum readable pixel height for fine surveying text (0.07" × estimated DPI) */
-const MIN_FINE_TEXT_PX = 13;
-/** Typical bearing/distance label height in Texas plat documents */
-const FINE_TEXT_HEIGHT_IN = 0.07;
+// ── THE SAME PHYSICS WAS WRITTEN DOWN TWICE ──────────────────────────────────────────────────
+//
+// `services/ocr-legibility.ts` has carried `FINE_TEXT_HEIGHT_IN = 0.07`, `MIN_FINE_TEXT_PX = 13`
+// and `API_MAX_PIXELS = 8_000` since it was written — the same three numbers this module declared
+// for itself. They happened to agree. Nothing made them agree, and a grid selector and a legibility
+// rater disagreeing about how tall readable text is would be a very quiet way to be wrong.
+//
+// Imported from there because that is the module whose subject IS legibility; this one's subject is
+// segmentation. `ocr-legibility.ts` imports nothing, deliberately, so the arrow only points one way.
+import {
+  FINE_TEXT_HEIGHT_IN, MIN_FINE_TEXT_PX, API_MAX_PIXELS as CLAUDE_MAX_PIXELS,
+} from './ocr-legibility.js';
 /** Normal inter-segment overlap (5%) */
 export const OVERLAP_PCT = 0.05;
 /** Zoom escalation overlap (8%) */

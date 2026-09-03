@@ -654,7 +654,22 @@ async function persistCountyResults(
       const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
       const instrStr = instr ? ` (Instr. ${instr})` : '';
       const deedDocLabel = `${deed.documentType || 'Deed'}${partyStr}${instrStr}`;
-      const deedText = deed.aiSummary ?? deed.legalDescription ?? null;
+      // ── "THE AI THINKS THE DOCUMENTS ARE UNREADABLE" ────────────────────────────────────
+      //
+      // This was `deed.aiSummary ?? deed.legalDescription ?? null`. A summary is a CONCLUSION,
+      // not an extraction — so when the AI stage was skipped or failed, `extracted_text` went in
+      // NULL, `assessArtifact` read that as "No text was extracted from this document at all",
+      // and the document was stamped unreadable. All sixteen deeds from the 2026-09-03 run:
+      // `extracted_text` NULL, `extracted_text_method` NULL, page images present and legible at
+      // 2550×3300.
+      //
+      // The read now comes first and stands on its own. `legalDescription` remains as a last
+      // resort — it is at least text off the record — and the summary goes to its own field rather
+      // than impersonating an extraction.
+      const deedText = deed.ocrText ?? deed.legalDescription ?? null;
+      const deedTextMethod = deed.ocrText
+        ? (deed.ocrTextMethod ?? 'bell-deed-regions')
+        : (deed.legalDescription ? 'cad-legal-description' : null);
 
       for (let pi = 0; pi < deed.pageImages.length; pi++) {
         artifactPageImages.push({
@@ -666,6 +681,10 @@ async function persistCountyResults(
           // Rich metadata — only set on first page (artifact uploader uses firstPage)
           ...(pi === 0 ? {
             documentLabel: deedDocLabel,
+            extractedTextMethod: deedTextMethod,
+            aiSummary: deed.aiSummary ?? null,
+            ocrConfidence: deed.ocrConfidence ?? null,
+            ocrSegments: deed.ocrSegments ?? null,
             recordingInfo,
             recordedDate: deed.recordingDate ?? null,
             extractedText: deedText?.slice(0, MAX_EXTRACTED_TEXT_LENGTH) ?? null,
