@@ -109,8 +109,32 @@ fi
 # ── Deploy ─────────────────────────────────────────────────────────────────────────────────────
 PREV_SHA="$LOCAL_SHA"
 
-git pull --ff-only --quiet origin main \
-  || die "git pull is not a fast-forward — the box has local commits or a rewritten history; fix by hand"
+# ── A FAILED PULL IS NOT AUTOMATICALLY A HISTORY PROBLEM ───────────────────────────────────────
+#
+# This line used to be:
+#
+#     git pull --ff-only --quiet origin main \
+#       || die "git pull is not a fast-forward — the box has local commits or a rewritten history"
+#
+# which asserts a cause it never checked. On 2026-09-02 the box's GitHub credential expired, the
+# pull failed with `could not read Username for 'https://github.com'`, and the journal reported a
+# rewritten history — sending the reader to look for local commits that did not exist. The one
+# genuinely diagnostic line, git's own, was two lines above it in the journal and easy to miss
+# under a confident wrong conclusion.
+#
+# `git fetch` has already succeeded by the time we get here, so `origin/main` is a known ref and
+# the fast-forward question is answerable rather than guessable: is HEAD an ancestor of it? Ask,
+# then report what is actually true. A wrong diagnosis in an unattended log is worse than none,
+# because it is acted on.
+if ! git pull --ff-only --quiet origin main; then
+  if git merge-base --is-ancestor HEAD origin/main; then
+    die "git pull failed even though ${LOCAL_SHA:0:9} IS an ancestor of origin/main — so this is \
+NOT a history problem. Check the lines above from git itself; an expired GitHub credential looks \
+exactly like this (\`could not read Username for 'https://github.com'\`)."
+  fi
+  die "git pull is not a fast-forward: ${LOCAL_SHA:0:9} is not an ancestor of origin/main, so the \
+box has local commits or the history was rewritten. Fix by hand."
+fi
 
 NEW_SHA="$(git rev-parse HEAD)"
 log "building ${NEW_SHA:0:9}"

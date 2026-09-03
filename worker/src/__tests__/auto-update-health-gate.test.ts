@@ -94,3 +94,54 @@ describe('the rest of the deploy gate', () => {
     expect(SCRIPT).toContain('git pull --ff-only --quiet origin main');
   });
 });
+
+// ── A FAILED PULL IS NOT AUTOMATICALLY A HISTORY PROBLEM ────────────────────────────────────────
+//
+// Measured on the live box, 2026-09-02. The GitHub credential expired; `git pull` failed with
+// `could not read Username for 'https://github.com'`; and the journal said:
+//
+//     ERROR: git pull is not a fast-forward — the box has local commits or a rewritten history;
+//            fix by hand
+//
+// The box had no local commits. The script asserted a cause it had never checked, and the one
+// genuinely diagnostic line — git's own, two lines above — was easy to miss under a confident wrong
+// conclusion. In an unattended log a wrong diagnosis is worse than none, because it gets acted on.
+//
+// `git fetch` has already succeeded by the time the pull runs, so the fast-forward question is
+// ANSWERABLE rather than guessable.
+
+describe('the pull failure explains itself honestly', () => {
+  it('asks whether HEAD really is an ancestor before blaming history', () => {
+    expect(SCRIPT).toContain('git merge-base --is-ancestor HEAD origin/main');
+  });
+
+  it('names the credential case, which is what actually happened', () => {
+    // The error text git itself prints, so a reader can match the journal line to this branch.
+    expect(SCRIPT).toContain("could not read Username");
+    expect(SCRIPT).toMatch(/NOT a history problem/);
+  });
+
+  it('still reports a genuine non-fast-forward as one', () => {
+    // The original message was right for the case it was written for. Losing that would trade
+    // one wrong diagnosis for another.
+    expect(SCRIPT).toMatch(/is not an ancestor of origin\/main/);
+    expect(SCRIPT).toMatch(/local commits or the history was rewritten/);
+  });
+
+  it('CONTROL: the bare unconditional claim is gone', () => {
+    // Read with SHELL COMMENTS STRIPPED. The fix's own comment quotes the old line verbatim so a
+    // future reader can see what changed — and this probe matched that prose on its first run,
+    // reporting the old code as still present. Same failure as the JSX-comment and Accept-header
+    // cases elsewhere in this repo: a probe that cannot tell code from a description of code.
+    const CODE = SCRIPT.replace(/^[ \t]*#[^\n\r]*/gm, '');
+    // CONTROL for the control: if stripping ate the script the assertion below would pass for
+    // the wrong reason.
+    expect(CODE.includes('die '), 'comment stripping destroyed the script').toBe(true);
+
+    // The exact old line. If someone restores it this fails, rather than quietly passing because
+    // the new strings happen to exist elsewhere in the file.
+    expect(CODE).not.toMatch(
+      /\|\|\s*die "git pull is not a fast-forward — the box has local commits/,
+    );
+  });
+});
