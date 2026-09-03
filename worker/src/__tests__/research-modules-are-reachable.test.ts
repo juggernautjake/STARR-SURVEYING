@@ -299,7 +299,7 @@ function allSourceFiles(): string[] {
  *  `await import('./x.js')`, and a path string in a registry — all three are real ways this codebase
  *  reaches a module, and the earlier version of this sweep missed the last two and produced false
  *  accusations. */
-function hasCaller(modulePath: string, sources: Array<{ abs: string; text: string }>): boolean {
+function hasCaller(modulePath: string, sources: Array<{ abs: string; text: string; code: string }>): boolean {
   // `.tsx` before `.ts`: `path.basename(p, '.ts')` only strips an EXACT suffix, so it leaves
   // "CountyNote.tsx" whole and the pattern then hunts for `'…CountyNote.tsx'` — a string no import
   // ever contains, because imports omit the extension. Every component read as an orphan, including
