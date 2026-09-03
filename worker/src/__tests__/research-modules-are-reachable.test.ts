@@ -239,8 +239,13 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'PARKED, no caller. Trimble JobXML export of survey points (Phase 11 Module N). Same verdict as csv-exporter; the CAD export-to-cad route is the live export path and does not use it.',
   'worker/src/exports/rw5-exporter.ts':
     'PARKED, no caller. Carlson RW5 export (Phase 11 Module N). Same verdict as jobxml-exporter.',
-  'worker/src/sources/bell-cad-data-portal.ts':
-    'PARKED — plan B4\'s raw material. 390-line bulk-download client for bellcad.org/data-portal (no login, no CAPTCHA), written 2026-03-12 and never called. The 2026-09-03 run lost its whole primary source when esearch.bellcad.org went dark; this is the second door. Wire it under B4.',
+  // `sources/bell-cad-data-portal.ts` was listed here for one commit as "plan B4's raw material —
+  // the second door into Bell CAD". It was DELETED under B4 the same day, once the recovered log of
+  // the 2026-09-03 run showed the second door already exists and was used: the ArcGIS parcel layer
+  // on utility.arcgis.com found parcel 42156 in one second while esearch.bellcad.org was dark.
+  // The client's hardcoded download links had moved, its "scrapes on each request" comment was
+  // false (it did a HEAD and returned the list), and the export it wanted to buffer in memory
+  // is 239 MB. Everything it could have answered, the GIS layer answers in one request.
   'worker/src/sources/txdot-roadways-client.ts':
     'DEAD. ArcGIS client for TxDOT roadway centerlines (2026-03-12). The live right-of-way path is services/txdot-row.ts + txdot-rpam-client.ts, which do not import it. 311 lines.',
 };

@@ -361,9 +361,30 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       tell them apart and a system that guessed would eventually guess wrong on somebody's boundary
       survey. Silent when the operator entered no city or ZIP: they have not disagreed with anything,
       and warning them anyway trains people to ignore the real ones.
-- [ ] **B4. A second door into Bell CAD.** `worker/src/sources/bell-cad-data-portal.ts` (391 lines,
-      zero importers) is an alternative data source for the site that was down. Read it, verify it
-      still resolves, wire it as a fallback — or delete it and say why.
+- [x] **B4. A second door into Bell CAD.** — resolved 2026-09-03 by DELETING the module, because
+      the premise was false in the way that matters: **the second door already exists and was used.**
+      The recovered log (`/root/run-ce843899.log` on the worker host, lines 21–132) shows the run
+      started WITH `propertyId="42156"` as input; the ArcGIS parcel layer on `utility.arcgis.com`
+      (`BELL_ENDPOINTS.gis.parcelLayer`, a different host from `esearch.bellcad.org`) answered
+      *"Found 1 parcel(s) by property ID"* at **[1s]**, and Phase 1 finished at [78s] with owner,
+      22.495 acres, the legal description and 34 sibling lots — all while esearch was dark.
+      Re-proven today: the layer's `situs_num='11780' AND situs_street LIKE 'FM 2484%'` query
+      returns prop 42156 (owner GOODNIGHT, deed 10/14/1988), and `gis-scraper.ts` Approach 1B
+      already issues exactly that query when there is no ID. What the outage actually cost was
+      the CAD detail page's deed history — and the *"skipped — no property ID or coordinates"*
+      at [1377s] was the COORDINATES half (`orchestrator.ts` requires `propertyId && (lat ||
+      lon)`), which B2 fixed by taking the centroid of the parcel the GIS had already returned.
+
+      The data-portal client itself would have added nothing: its hardcoded links had moved
+      (the portal now serves `2026_..._Condensed_20260821.xlsx`), its header's *"scraped from
+      bellcad.org/data-portal on each request"* was false (it did a HEAD and returned the list),
+      and the export it meant to buffer in memory is **239 MB**, not *"typically < 20 MB"* — a
+      single-sheet XLSX of 193,243 parcels whose columns (prop_id, owner, situs, legal_desc,
+      subdiv, land_acres, deed_num) the GIS layer already serves per parcel in one request.
+      Deleted with its 14 test cases in `__tests__/recon/bell-county-sources.test.ts` (Module A;
+      B–D stay) and its `KNOWN_UNREACHABLE` entry, with the reason left in that file's comments.
+      If a bulk roll is ever wanted (e.g. for an offline county index), the portal page is the
+      manifest and the XLSX needs a streaming zip reader, not a Buffer.
 
 ### Phase B* — what the eight-lens audit found, which reorders everything after it
 
@@ -580,8 +601,9 @@ below where they conflict, because several are prerequisites for it:
       exist), `cli/starr-research` (not in package.json scripts), Bell's own `export-service`,
       `plat-drawing-generator`, `html-parser`, `session-manager` (all superseded by the live
       `reports/` and scraper code), the three `exports/` writers (CSV, Trimble JobXML, Carlson
-      RW5 — real value, no home), `sources/bell-cad-data-portal` (B4's raw material, premise
-      confirmed at 390 lines) and `sources/txdot-roadways-client` (the live ROW path uses
+      RW5 — real value, no home), `sources/bell-cad-data-portal` (390 lines; deleted under B4
+      the same day once the run log showed the GIS layer already is the second door) and
+      `sources/txdot-roadways-client` (the live ROW path uses
       `txdot-row` + `txdot-rpam-client`). Each is recorded in `KNOWN_UNREACHABLE` with that
       verdict; wire-or-delete belongs to the platform audit, which is what this inventory is for.
       The test has a control (`some-orphan` named only in a comment is NOT wired; in an import it
