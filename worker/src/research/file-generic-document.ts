@@ -146,33 +146,43 @@ export function alreadyFiledThisRun(projectId: string, doc: DocumentResult): boo
  * Never throws. A document that cannot be filed is counted and explained by the tally (B1); it must
  * not stop a run that is otherwise finding things.
  */
+/** Returns the row id it wrote or merged into, so a later stage can patch it. Returns null when
+ *  nothing was filed — a user upload, an already-filed key, no database, or a failure.
+ *
+ *  It returned `void` and threw the id away, which is why nothing downstream could record what it
+ *  later learned about the document. */
 export async function fileGenericDocumentNow(
   projectId: string,
   doc: DocumentResult,
-): Promise<void> {
+): Promise<string | null> {
   // A user upload already has a row from Stage 1. Filing it again would duplicate it.
-  if (doc.fromUserUpload) return;
+  if (doc.fromUserUpload) return null;
 
   const key = runScopedKey(doc);
   const seen = filedThisRun.get(projectId);
-  if (seen?.has(key)) return;
+  if (seen?.has(key)) return null;
 
   try {
     const supabase = await getSupabase();
-    if (!supabase) return;
+    if (!supabase) return null;
 
     const row = genericDocumentRow(projectId, doc, new Date().toISOString());
-    const { error } = await resilientInsertDocument(supabase as never, projectId, row);
+    const { error, id } = await resilientInsertDocument(supabase as never, projectId, row);
 
     if (error) {
       console.warn(`[GenericFiling] ${projectId}: could not file a document — ${error}`);
-      return;
+      return null;
     }
     seen?.add(key);
+    // The id travels back on the document object so Stage 3 can patch the row it wrote without
+    // threading a map through six call sites.
+    if (id) doc.documentRowId = id;
+    return id ?? null;
   } catch (err) {
     console.warn(
       `[GenericFiling] ${projectId}: filing threw —`,
       err instanceof Error ? err.message : String(err),
     );
+    return null;
   }
 }

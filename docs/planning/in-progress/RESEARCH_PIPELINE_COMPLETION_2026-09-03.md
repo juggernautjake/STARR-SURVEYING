@@ -396,11 +396,26 @@ It found something bigger than anything left in this plan, and it changes the or
 **The audit's remaining findings, in its recommended order** — these supersede the C/D/E ordering
 below where they conflict, because several are prerequisites for it:
 
-- [ ] **B*2. Patch the row after extraction.** Filing happens the moment a document is found (right,
-      and deliberate) but nothing patches the row afterwards, so text, readability, confidence,
-      method and purchase links have nowhere to go. `patchDocument(rowId, fields)` called after
-      Stage 3. The audit calls this "the single largest gap between what the machine does and what
-      the database knows".
+- [x] **B*2. Patch the row after extraction.** — shipped 2026-09-03.
+      **The row id was discarded at TWO layers**, which is the real reason nothing could patch:
+      `resilientInsertDocument` returned `{ error }` while holding a `FileOutcome` that carried the
+      id, and `fileGenericDocumentNow` returned `void`. Neither could have patched anything, because
+      neither knew what it had written. Both return it now, and it rides back on the document object
+      as `documentRowId` rather than threading a map through six call sites.
+      `patchDocument(db, rowId, fields)` added, and wired at Stage 3 — where the OCR text and its
+      method were being computed and thrown away for every county. Live evidence for the gap: 610
+      rows carry text and 315 carry a method, so **295 rows of text have no recorded origin**, and
+      `extracted_text_method` had **zero** worker writes before this line.
+      It **refuses** `extracted_text` without `extracted_text_method`. That pairing is the point:
+      the column has held raw OCR, an AI summary, a legal description and a JSON blob at different
+      times, all rendered identically as "Extracted Text", with no way to tell which. A control
+      asserts a patch with no text needs no method, so "always refuse" cannot satisfy the guard.
+      Fire-and-forget by the same rule as filing — a document whose analysis cannot be recorded must
+      not fail a run that is otherwise succeeding — but the count is logged, so a silent failure is
+      still a visible one.
+
+
+
 - [ ] **B*3. Four county-table bugs.** `KOFILE_CONFIGS.williamson` serves an index with no land
       records (a portal answering 200 with the wrong index is worse than one that fails); snake_case
       keys are not normalised through `resolveCounty` in `bis-cad.ts`/`bell-clerk.ts`, losing Fort

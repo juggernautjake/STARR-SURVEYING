@@ -246,3 +246,78 @@ export class FilingTally {
     );
   }
 }
+
+// ── PATCHING A ROW AFTER IT IS FILED ────────────────────────────────────────────────────────────
+//
+// Filing happens the moment a document is found. That is deliberate and correct — the owner asked
+// for it in as many words ("I don't want the research worker to compile the files/documents all
+// slowly over time and then upload them in a big group") — but it means a row is written BEFORE
+// anything has read the document.
+//
+// Nothing then patched it. So everything learned afterwards had nowhere to go: the OCR text, the
+// extraction method, the readability verdict, the confidence, the purchase receipt. The platform
+// audit of 2026-09-03 called this "the single largest gap between what the machine does and what
+// the database knows", and the live numbers agree — 610 rows carry text and 315 carry a method, so
+// 295 rows of text have no recorded origin at all.
+//
+// The one repair path that could have back-filled, `documents/[docId]/deep-analyze/route.ts`, is
+// gated on `source_type === 'user_upload'` and therefore excludes every pipeline document — whose
+// bytes are sitting in storage the whole time.
+
+/** Fields a later stage may write back onto a document it already filed. */
+export interface DocumentPatch {
+  extracted_text?: string | null;
+  /** REQUIRED whenever `extracted_text` is written. A row of text with no stated origin is a row
+   *  nobody can weigh — `extracted_text` has meant four different things in this codebase. */
+  extracted_text_method?: string | null;
+  readability?: 'good' | 'partial' | 'unreadable' | null;
+  readability_reason?: string | null;
+  ocr_confidence?: number | null;
+  processing_status?: string | null;
+  page_count?: number | null;
+  ocr_segments?: unknown;
+  analysis_metadata?: Record<string, unknown>;
+}
+
+/**
+ * Write back what a later stage learned about a document already on file.
+ *
+ * Never throws. A document whose analysis cannot be recorded is worse than one never analysed, but
+ * it is not worth failing a run that has otherwise succeeded — the caller gets the failure and can
+ * say so.
+ *
+ * Refuses to write `extracted_text` without `extracted_text_method`. That pairing is the whole
+ * point: `extracted_text` has held raw OCR, an AI summary, a legal description and a JSON blob at
+ * different times, rendered identically as "Extracted Text", with no way to tell which. A method is
+ * one string and it makes the column mean something.
+ */
+export async function patchDocument(
+  db: FileDocumentDb,
+  rowId: string,
+  patch: DocumentPatch,
+): Promise<{ patched: boolean; error?: string }> {
+  if (!rowId) return { patched: false, error: 'no row id' };
+
+  const fields = Object.entries(patch).filter(([, v]) => v !== undefined);
+  if (fields.length === 0) return { patched: false, error: 'nothing to patch' };
+
+  if (patch.extracted_text !== undefined && !patch.extracted_text_method) {
+    return {
+      patched: false,
+      error:
+        'extracted_text was supplied without extracted_text_method — refused. Text with no stated ' +
+        'origin cannot be weighed, and this column has meant four different things.',
+    };
+  }
+
+  try {
+    const { error } = await db.from('research_documents').update({
+      ...Object.fromEntries(fields),
+      updated_at: new Date().toISOString(),
+    }).eq('id', rowId);
+    if (error) return { patched: false, error: error.message };
+    return { patched: true };
+  } catch (err) {
+    return { patched: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

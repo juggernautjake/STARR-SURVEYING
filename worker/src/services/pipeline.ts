@@ -15,6 +15,7 @@ import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
 import { mayStart } from '../research/budget-gate.js';
+import { patchDocument } from '../research/file-document.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
@@ -1580,6 +1581,36 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       const ocrCount = processedDocs.filter(d => d.ocrText).length;
       const extractedCount = processedDocs.filter(d => d.extractedData).length;
       logger.info('Stage3', `Initial extraction complete: ${ocrCount}/${processedDocs.length} with OCR text, ${extractedCount}/${processedDocs.length} with extracted data`);
+
+      // ── B*2: WRITE BACK WHAT STAGE 3 JUST LEARNED ────────────────────────────────────────
+      //
+      // Filing happens the moment a document is found, which is right — but that is BEFORE
+      // anything has read it. Nothing patched the row afterwards, so the OCR text and its method
+      // were computed here and discarded for every county. Live evidence: 610 rows carry text and
+      // 315 carry a method, so 295 rows of text have no recorded origin at all.
+      //
+      // Fire-and-forget by the same rule as filing: a document whose analysis cannot be recorded
+      // must not fail a run that is otherwise succeeding. The count is logged so a silent failure
+      // is still a visible one.
+      void (async () => {
+        const db = await getSupabase().catch(() => null);
+        if (!db) return;
+        let patched = 0, failed = 0;
+        for (const d of processedDocs) {
+          if (!d.documentRowId || !d.ocrText) continue;
+          const r = await patchDocument(db as never, d.documentRowId, {
+            extracted_text: d.ocrText.slice(0, 50_000),
+            // Never written by the worker before this line — 0 hits across worker/src.
+            extracted_text_method: 'ai-vision',
+            processing_status: d.extractedData ? 'analyzed' : 'extracted',
+          });
+          if (r.patched) patched++; else failed++;
+        }
+        if (patched || failed) {
+          logger.info('Stage3', `Wrote extraction back to ${patched} document row(s)` +
+            (failed ? `; ${failed} could not be patched` : ''));
+        }
+      })();
       if (extractedCount === 0 && processedDocs.length > 0) {
         logger.warn('Stage3', `⚠ AI extraction returned no structured data on initial pass — documents may lack sufficient image/text content`);
       }

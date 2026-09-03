@@ -14,7 +14,7 @@ import type { DocumentPage } from '../types/index.js';
 
 import { assessOcr, isLandRecordType, type Readability } from '../infra/ocr-quality.js';
 import { ProjectLibrary, refFromRow } from '../research/project-library.js';
-import { fileResearchDocument, FilingTally, type FileDocumentDb } from '../research/file-document.js';
+import { fileResearchDocument, FilingTally, type FileDocumentDb, type FileOutcome } from '../research/file-document.js';
 
 // ── FILING CONTEXT ─────────────────────────────────────────────────────────────────────────────
 //
@@ -962,7 +962,7 @@ export async function resilientInsertDocument(
   supabase: SupabaseClient,
   projectId: string,
   row: Record<string, unknown>,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; id: string | null; outcome: FileOutcome['outcome'] | null }> {
   const ctx = filingContexts.get(projectId);
 
   if (ctx) {
@@ -990,32 +990,41 @@ export async function resilientInsertDocument(
     switch (outcome.outcome) {
       case 'merged':
         console.log(`[ArtifactUploader] ${projectId}: already held — ${outcome.reason}`);
-        return { error: null };
+        return { error: null, id: outcome.id ?? null, outcome: 'merged' };
       case 'flagged':
         console.log(`[ArtifactUploader] ${projectId}: filed and flagged — ${outcome.reason}`);
-        return { error: null };
+        return { error: null, id: outcome.id ?? null, outcome: 'flagged' };
       case 'error':
-        return { error: outcome.error };
+        return { error: outcome.error, id: null, outcome: 'error' };
       default:
-        return { error: null };
+        // ── THE ID WAS IN HAND AND THROWN AWAY ────────────────────────────────────────────
+        //
+        // This returned `{ error: null }` for every outcome, discarding the row id that
+        // `fileResearchDocument` had just handed it. Nothing downstream could then patch the row
+        // it had written — so the OCR, readability and confidence computed at Stage 3 had nowhere
+        // to go, for every county. The platform audit called that "the single largest gap between
+        // what the machine does and what the database knows".
+        return { error: null, id: outcome.id ?? null, outcome: 'new' };
     }
   }
 
   // ── No filing context: the original behaviour, unchanged ────────────────────────────────────
-  const { error: err1 } = await (supabase as any).from('research_documents').insert(row);
-  if (!err1) return { error: null };
+  // The id is selected back here too. Without a filing context this is a plain insert, and it was
+  // the path that most obviously discarded the row it had just created.
+  const { data: d1, error: err1 } = await (supabase as any).from('research_documents').insert(row).select('id').single();
+  if (!err1) return { error: null, id: (d1?.id as string) ?? null, outcome: 'new' };
 
   const msg1 = err1.message || String(err1);
   console.warn(`[ArtifactUploader] Insert failed (attempt 1): ${msg1}`);
 
   const fallbackRow = narrowRow(row);
-  const { error: err2 } = await (supabase as any).from('research_documents').insert(fallbackRow);
+  const { data: d2, error: err2 } = await (supabase as any).from('research_documents').insert(fallbackRow).select('id').single();
   if (!err2) {
     console.log(`[ArtifactUploader] Fallback insert succeeded (without pages_pdf_url, type=${fallbackRow.document_type})`);
-    return { error: null };
+    return { error: null, id: (d2?.id as string) ?? null, outcome: 'new' };
   }
 
-  return { error: `${msg1} → fallback also failed: ${err2.message || String(err2)}` };
+  return { error: `${msg1} → fallback also failed: ${err2.message || String(err2)}`, id: null, outcome: 'error' };
 }
 
 // ── Imagery captures (plan F5–F7) ───────────────────────────────────────────────────────────────

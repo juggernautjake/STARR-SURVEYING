@@ -232,6 +232,10 @@ export interface DocumentRef {
 
 export interface DocumentResult {
   ref: DocumentRef;
+  /** The `research_documents` row this document was filed as, set by `fileGenericDocumentNow`.
+   *  Present so a later stage can patch the row with what it learned — filing happens before
+   *  anything reads the document, and until this existed the id was discarded at two layers. */
+  documentRowId?: string;
   textContent: string | null;
   /** Downloaded page images from Kofile image interception */
   pages?: DocumentPage[];
