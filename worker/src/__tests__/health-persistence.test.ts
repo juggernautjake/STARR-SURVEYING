@@ -119,9 +119,56 @@ describe('when the adapter itself changes status', () => {
 });
 
 describe('matching a probe to a registered adapter', () => {
-  it('reads the monitor’s organically-grown ids in either order', () => {
-    expect(parseSiteId('kofile-bell', 'kofile')).toEqual({ county: 'Bell', siteType: 'clerk_deeds' });
-    expect(parseSiteId('bell-bis', 'bis')).toEqual({ county: 'Bell', siteType: 'appraisal_cad' });
+  // ── THIS BLOCK USED TO TEST AN ID FORMAT NOTHING PRODUCES ───────────────────────────────────
+  //
+  // It asserted `kofile-bell` and `bell-bis`, the two examples in the function's own doc comment.
+  // Both parse correctly and neither is ever emitted. `buildCheckList` — the only thing in the
+  // worker that makes a site id — produces exactly three shapes, and every one of them resolved
+  // wrongly while this file was green:
+  //
+  //   cad-48027-bis      → county "48027", looked up with .ilike('name', '48027')
+  //   clerk-kofile-bell  → county "Clerk"
+  //   clerk-texasfile    → county "Clerk"
+  //
+  // So no probe ever matched an adapter, nothing was written to
+  // `research_adapter_health_checks`, and the self-heal pipeline that reads that table has never
+  // seen a row. The tests below are written from `buildCheckList` outward.
+
+  it('THE REAL FORMAT: a CAD id carries a FIPS, and a FIPS is returned as a FIPS', () => {
+    // Not turned into a name. research_counties.fips is UNIQUE — an exact match beats an ilike
+    // against free text, and "48027" was never going to match a name column anyway.
+    expect(parseSiteId('cad-48027-bis', 'bis')).toEqual({
+      fips: '48027', county: null, siteType: 'appraisal_cad', statewide: false,
+    });
+    expect(parseSiteId('cad-48027-esearch', 'esearch')?.fips).toBe('48027');
+  });
+
+  it('THE REAL FORMAT: a clerk id no longer resolves to a county named "Clerk"', () => {
+    // "clerk" is a structural word in these ids. Its absence from the vendor-word list is the whole
+    // bug: the finder took the first token that was not the vendor, and that token was "clerk".
+    expect(parseSiteId('clerk-kofile-bell', 'kofile')).toEqual({
+      fips: null, county: 'Bell', siteType: 'clerk_deeds', statewide: false,
+    });
+  });
+
+  it('THE REAL FORMAT: a statewide source says so instead of inventing a county', () => {
+    // TexasFile covers all 254 counties and has no row in research_counties. Returning null here
+    // would be indistinguishable from a parse failure; `statewide` lets the caller tell them apart.
+    expect(parseSiteId('clerk-texasfile', 'texasfile')).toEqual({
+      fips: null, county: null, siteType: 'clerk_deeds', statewide: true,
+    });
+  });
+
+  it('CONTROL: the formats the old comment described still parse', () => {
+    // These were the only cases ever tested, and they were never wrong. Kept because the WebSocket
+    // dashboard's ids are not this function's to change — and because if THIS breaks, a failure
+    // above means the parser broke rather than the id format moving.
+    expect(parseSiteId('kofile-bell', 'kofile')).toEqual({
+      fips: null, county: 'Bell', siteType: 'clerk_deeds', statewide: false,
+    });
+    expect(parseSiteId('bell-bis', 'bis')).toEqual({
+      fips: null, county: 'Bell', siteType: 'appraisal_cad', statewide: false,
+    });
   });
 
   it('routes clerk vendors to deeds and everything else to the appraisal district', () => {
@@ -131,6 +178,44 @@ describe('matching a probe to a registered adapter', () => {
 
   it('returns null rather than guessing when it cannot tell', () => {
     expect(parseSiteId('kofile', 'kofile')).toBeNull();
+    // A county-less id for a vendor that is NOT statewide is still a genuine failure.
+    expect(parseSiteId('clerk-fidlar', 'fidlar')).toBeNull();
+  });
+
+  it('EVERY id buildCheckList can emit resolves — read out of the monitor, not hand-typed', () => {
+    // The whole defect was that these tests invented their own inputs. This one takes them from the
+    // only function that produces them, so the day someone adds a fourth id shape the parser cannot
+    // read, this fails instead of the health table quietly staying empty for another six months.
+    const monitor = fs.readFileSync(path.join(process.cwd(), 'src/infra/site-health-monitor.ts'), 'utf8');
+    const literals = [...monitor.matchAll(/siteId:\s*[`'"]([^`'"]+)[`'"]/g)].map((m) => m[1]);
+
+    // CONTROL: if this extraction finds nothing, every assertion below is vacuous.
+    expect(literals.length).toBeGreaterThanOrEqual(3);
+
+    for (const raw of literals) {
+      // Substitute the template holes with the values buildCheckList puts in them.
+      const id = raw
+        .replace('${fips}', '48027')
+        .replace('${config.vendor}', 'bis');
+      const vendor = id.includes('kofile') ? 'kofile'
+        : id.includes('texasfile') ? 'texasfile'
+        : 'bis';
+      const parsed = parseSiteId(id, vendor);
+      expect(parsed, `site id "${id}" does not parse`).not.toBeNull();
+      // Resolvable means it names a place OR admits it names none. "Clerk" is neither.
+      const namesSomething = Boolean(parsed!.fips) || Boolean(parsed!.county) || parsed!.statewide;
+      expect(namesSomething, `site id "${id}" parsed to nothing usable`).toBe(true);
+      expect(parsed!.county, `site id "${id}" resolved to a structural word`).not.toBe('Clerk');
+      expect(parsed!.county, `site id "${id}" resolved to a structural word`).not.toBe('Cad');
+    }
+  });
+
+  it('the resolver asks for the FIPS column when the id carried a FIPS', () => {
+    // Asserting the CALLER. parseSiteId returning a good FIPS is worth nothing if index.ts still
+    // passes it to .ilike('name', ...), which is precisely the state this slice found.
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
+    expect(src).toContain(".eq('fips', parsed.fips)");
+    expect(src).toContain('if (parsed.statewide) return null;');
   });
 
   it('reports probes with no registered adapter instead of dropping them', () => {

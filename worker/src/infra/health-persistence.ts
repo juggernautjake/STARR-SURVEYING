@@ -220,25 +220,73 @@ export async function persistHealthResults(
   return out;
 }
 
-/** Map a monitor site id to a (county, siteType) the registry understands.
+export interface ParsedSiteId {
+  /** Five-digit FIPS when the id carried one. The exact key, and the one to prefer. */
+  fips: string | null;
+  /** County name when the id carried one instead of a FIPS. */
+  county: string | null;
+  siteType: SiteType;
+  /** TexasFile and friends belong to no county row. Not a parse failure — a different shape. */
+  statewide: boolean;
+}
+
+/** Map a monitor site id to something the registry can look up.
  *
- *  The monitor's ids look like `kofile-bell` or `bell-bis` — vendor and county, in either order,
- *  because they grew organically. Parsed rather than renamed: renaming them would break the
- *  WebSocket dashboard that already uses them, and the mapping is one place either way. */
-export function parseSiteId(siteId: string, vendor: string): { county: string; siteType: SiteType } | null {
+ *  ── THIS PARSED AN ID FORMAT NOTHING PRODUCES ─────────────────────────────────────────────────
+ *
+ *  The doc comment here used to say the ids "look like `kofile-bell` or `bell-bis`". They do not,
+ *  and they never did. `buildCheckList` — the only thing that makes them — emits exactly three
+ *  shapes, and this function resolved all three wrongly:
+ *
+ *    `cad-48027-bis`       → county "48027", then looked up with `.ilike('name', '48027')`
+ *    `clerk-kofile-bell`   → county "Clerk"   ("clerk" was not in the vendor-word list)
+ *    `clerk-texasfile`     → county "Clerk"
+ *
+ *  Every probe therefore missed its adapter and was counted as unmatched, so the health table the
+ *  self-heal pipeline reads stayed empty — the exact gap this module was written to close, left
+ *  open by the one function standing between the two halves.
+ *
+ *  The formats in the old comment DO parse correctly, which is why the test covering them passed
+ *  while production resolved nothing. They are still accepted here: they cost one branch, and the
+ *  WebSocket dashboard's ids are not this function's to change.
+ *
+ *  A FIPS is returned as a FIPS rather than being turned into a name. `research_counties` has a
+ *  unique `fips` column; matching on it is exact, and matching on a name is a case-insensitive
+ *  string comparison against free text. */
+export function parseSiteId(siteId: string, vendor: string): ParsedSiteId | null {
   const parts = siteId.split('-').filter(Boolean);
   if (parts.length === 0) return null;
   const vendorLower = vendor.toLowerCase();
+  const siteType: SiteType = isClerkVendor(vendorLower) ? 'clerk_deeds' : 'appraisal_cad';
+
+  // A five-digit FIPS anywhere in the id wins outright — it is unambiguous where a name is not.
+  const fipsPart = parts.find((p) => /^\d{5}$/.test(p));
+  if (fipsPart) return { fips: fipsPart, county: null, siteType, statewide: false };
+
   const countyPart = parts.find((p) => p.toLowerCase() !== vendorLower && !isVendorWord(p));
-  if (!countyPart) return null;
+  if (!countyPart) {
+    // No county token left. For a statewide source that is the correct answer rather than a
+    // failure: TexasFile covers all 254 counties and has no row in `research_counties` to match.
+    // Saying so lets the caller record the check against the vendor instead of discarding it.
+    if (isStatewideVendor(vendorLower)) return { fips: null, county: null, siteType, statewide: true };
+    return null;
+  }
   return {
+    fips: null,
     county: countyPart.charAt(0).toUpperCase() + countyPart.slice(1),
-    // Clerk vendors index deeds; everything else in the monitor's list is an appraisal portal.
-    siteType: isClerkVendor(vendorLower) ? 'clerk_deeds' : 'appraisal_cad',
+    siteType,
+    statewide: false,
   };
 }
 
-const VENDOR_WORDS = new Set(['kofile', 'henschen', 'idocket', 'fidlar', 'texasfile', 'bis', 'cad', 'tad', 'hcad', 'tyler', 'publicsearch', 'trueautomation', 'esearch']);
+// `clerk` and `county` are structural words in the monitor's ids, not counties. Their absence from
+// this list is what made every clerk probe resolve to a county named "Clerk".
+const VENDOR_WORDS = new Set(['kofile', 'henschen', 'idocket', 'fidlar', 'texasfile', 'bis', 'cad', 'tad', 'hcad', 'tyler', 'publicsearch', 'trueautomation', 'esearch', 'clerk', 'county', 'gis', 'portal']);
+
+/** Sources that serve the whole state and so belong to no county row. */
+function isStatewideVendor(vendor: string): boolean {
+  return ['texasfile', 'titlepoint', 'datatree'].some((v) => vendor.includes(v));
+}
 function isVendorWord(part: string): boolean { return VENDOR_WORDS.has(part.toLowerCase()); }
 function isClerkVendor(vendor: string): boolean {
   return ['kofile', 'henschen', 'idocket', 'fidlar', 'texasfile', 'publicsearch', 'clerk'].some((v) => vendor.includes(v));

@@ -5076,20 +5076,42 @@ const siteHealthMonitor = new SiteHealthMonitor({
 async function resolveAdapterForSite(result: { siteId: string; vendor: string }) {
   const parsed = parseSiteId(result.siteId, result.vendor);
   if (!parsed) return null;
+  // A statewide vendor has no county row to match. It is reported as unmatched, honestly, rather
+  // than being resolved to whichever county happens to sort first.
+  if (parsed.statewide) return null;
   const supabase = await getSupabase();
   if (!supabase) return null;
   const db = supabase as unknown as {
     from: (t: string) => {
       select: (c: string) => {
         ilike: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { id: string } | null }> };
-        eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: { id: string; status: string } | null }> } };
+        eq: (c: string, v: unknown) => {
+          maybeSingle: () => Promise<{ data: { id: string } | null }>;
+          eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: { id: string; status: string } | null }> };
+        };
       };
     };
   };
-  const { data: county } = await db.from('research_counties').select('id').ilike('name', parsed.county).maybeSingle();
-  if (!county?.id) return null;
+
+  // ── FIPS FIRST, AND IT IS ALWAYS FIPS IN PRACTICE ────────────────────────────────────────────
+  //
+  // `buildCheckList` emits `cad-<fips>-<vendor>`, so every CAD probe carries a five-digit FIPS —
+  // which this used to pass to `.ilike('name', ...)` as though it were a county name. "48027" is
+  // not a county name, so the match failed for every probe, every time, and the health table the
+  // self-heal pipeline reads stayed empty.
+  //
+  // `research_counties.fips` is UNIQUE, so this is an exact match rather than a case-insensitive
+  // comparison against free text.
+  const countyRow = parsed.fips
+    ? await db.from('research_counties').select('id').eq('fips', parsed.fips).maybeSingle()
+    : parsed.county
+      ? await db.from('research_counties').select('id').ilike('name', parsed.county).maybeSingle()
+      : { data: null };
+  const countyId = countyRow.data?.id;
+  if (!countyId) return null;
+
   const { data: adapter } = await db.from('research_site_adapters')
-    .select('id, status').eq('county_id', county.id).eq('site_type', parsed.siteType).maybeSingle();
+    .select('id, status').eq('county_id', countyId).eq('site_type', parsed.siteType).maybeSingle();
   return adapter ?? null;
 }
 

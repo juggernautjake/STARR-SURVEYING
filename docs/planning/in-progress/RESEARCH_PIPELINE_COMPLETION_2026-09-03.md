@@ -491,10 +491,41 @@ below where they conflict, because several are prerequisites for it:
       Twelve tests, all asserting the **caller** — a field on an interface is precisely the state
       that produced this defect — with a control that finds `instrumentNumber`, a value this codebase
       already threads by the same route, so a miss means something.
-- [ ] **B*5. Health sensing has no consumer in either direction.** `parseSiteId` cannot resolve the
-      IDs `buildCheckList` emits, so 100% of the worker's selector-level probe output is discarded at
-      the resolver. And a run that got 0 documents from a 200-OK portal is the strongest breakage
-      signal there is; it is thrown away.
+- [x] **B*5a. `parseSiteId` parsed an ID format nothing produces.** — shipped 2026-09-03.
+      Measured, not inferred. `buildCheckList` is the only thing in the worker that makes a site ID,
+      it emits exactly three shapes, and every one resolved wrongly:
+
+      | Emitted | Resolved to | Then looked up as |
+      |---|---|---|
+      | `cad-48027-bis` | county `"48027"` | `.ilike('name', '48027')` |
+      | `clerk-kofile-bell` | county `"Clerk"` | a county that does not exist |
+      | `clerk-texasfile` | county `"Clerk"` | a county that does not exist |
+
+      So every probe missed its adapter and was counted "unmatched", nothing was written to
+      `research_adapter_health_checks`, and the self-heal pipeline that reads that table has never
+      seen a row — the exact gap `health-persistence.ts` was written to close, left open by the one
+      function standing between the two halves.
+      **The control is what makes this certain.** The two IDs in the function's own doc comment —
+      `kofile-bell`, `bell-bis` — parse correctly, and they are the only two the test file ever
+      checked. The parser worked; it worked on inputs nothing produces. A green test that invents its
+      own inputs is worth exactly nothing, which is this repo's signature defect wearing a lab coat.
+      A five-digit FIPS is now returned **as a FIPS** and matched against `research_counties.fips`,
+      which is UNIQUE — an exact match instead of a case-insensitive comparison against free text.
+      `clerk`, `county`, `gis` and `portal` joined the structural-word list. A statewide vendor
+      returns `statewide: true` rather than null, so "belongs to no county" is distinguishable from
+      "could not parse".
+      The new test extracts every `siteId:` literal **out of `site-health-monitor.ts`** and asserts
+      each one resolves, so a fourth ID shape fails here rather than emptying the table for another
+      six months. Mutation-checked: removing `clerk` from the word list fails four tests, and the
+      mutation aborts if the text does not change.
+
+- [ ] **B*5b. A run that got 0 documents from a 200-OK portal is the strongest breakage signal
+      there is, and it is thrown away.** Deliberately split from B*5a rather than bolted onto it:
+      the sensing half was a provable defect with a measured fix, and this half is a *judgement* —
+      a search returning nothing is sometimes a broken selector and sometimes a parcel with no
+      recorded deeds, and a system that confuses the two will mark working counties broken. Needs a
+      rule that separates them (a control search whose result is known non-empty is the obvious
+      candidate) before anything writes a health row from a run.
 - [ ] **B*6. Repair the guards before sweeping dead code.** The orphan guard's `hasCaller` matches a
       basename inside ANY quoted string, comments included, and scans 7 of the worker's directories
       — `sources/`, `adapters/`, `counties/`, `exports/`, `ai/` and `billing/` are unscanned. The
