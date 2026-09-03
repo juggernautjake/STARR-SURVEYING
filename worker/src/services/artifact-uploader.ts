@@ -13,6 +13,9 @@ import { pageImagesToBuffer } from './pages-to-pdf.js';
 import type { DocumentPage } from '../types/index.js';
 
 import { assessOcr, isLandRecordType, type Readability } from '../infra/ocr-quality.js';
+// Rating the SCAN, separately from rating the text — see assessArtifact.
+import { assessLegibility, type LegibilityReport } from './ocr-legibility.js';
+import { analyzeImageDimensions } from './adaptive-vision.js';
 import { ProjectLibrary, refFromRow } from '../research/project-library.js';
 import { fileResearchDocument, FilingTally, type FileDocumentDb, type FileOutcome } from '../research/file-document.js';
 
@@ -77,11 +80,33 @@ export function filingTally(projectId: string): FilingTally | null {
 //
 // Same assessor as the app, imported rather than reimplemented: two copies is how the rule ends up
 // enforced on one path and not the other.
-function assessArtifact(
+/**
+ * How readable a filed artifact is — judged from the TEXT and, when we can see it, from the SCAN.
+ *
+ * ── "UNREADABLE" HAS TO MEAN THE PAPER ──────────────────────────────────────────────────────────
+ *
+ * This rated readability from the extracted text alone, so empty text meant "unreadable document"
+ * — and D4 has just shown what that produced: sixteen legible deeds stamped unreadable because a
+ * conclusion was stored where an extraction belonged.
+ *
+ * D4 stops the text from lying. It does not, on its own, let anyone tell these two apart:
+ *
+ *   · the scan is too poor for any model to read      → the DOCUMENT is the problem; buy a better
+ *                                                       copy, or go to the courthouse
+ *   · the scan is fine and our extraction produced     → WE are the problem; re-run the analysis
+ *     nothing
+ *
+ * They have opposite fixes and looked identical on screen. `assessLegibility` answers the second
+ * question from the image's own dimensions — no model, no text — which is exactly the independent
+ * signal `project_receipt_confidence_and_editing` records: faded ink gives a CONFIDENT WRONG
+ * answer, so legibility has to be rated on its own.
+ */
+export function assessArtifact(
   text: string | null | undefined,
   pageCount: number,
   documentType: string | null | undefined,
-): { status: 'analyzed' | 'extracted' | 'unreadable'; readability: Readability; reason: string } {
+  scan?: LegibilityReport | null,
+): { status: 'analyzed' | 'extracted' | 'unreadable' | 'pending'; readability: Readability; reason: string } {
   const a = assessOcr({
     text: text ?? '',
     pageCount,
@@ -89,6 +114,26 @@ function assessArtifact(
     method: 'ocr-vision',
     isLandRecord: isLandRecordType(documentType),
   });
+
+  // The scan itself cannot carry the text. No amount of re-running fixes that, and saying
+  // "unreadable" here is the one place the word is honest.
+  if (scan?.verdict === 'unreadable') {
+    return { status: 'unreadable', readability: 'unreadable', reason: scan.statement };
+  }
+
+  // The scan is fine and we still got nothing. That is OUR failure, it is recoverable, and calling
+  // it 'unreadable' would tell an operator to go buy a document they already hold a good copy of.
+  if (scan && a.readability === 'unreadable') {
+    return {
+      status: 'pending',
+      readability: 'partial',
+      reason:
+        `The scan is legible — ${scan.statement} — but no usable text came out of it. ` +
+        `That is a failed extraction, not an unreadable document: re-run the analysis rather than ` +
+        `buying another copy.`,
+    };
+  }
+
   return {
     // 'analyzed' only when the text is good enough to have been analysed. A thin extraction is
     // 'extracted' — real, but not a finished analysis — and an unusable one says so.
@@ -96,6 +141,41 @@ function assessArtifact(
     readability: a.readability,
     reason: a.reason,
   };
+}
+
+/**
+ * Rate the SCAN we hold, from its pixels alone.
+ *
+ * Returns null when the image cannot be measured — sharp missing, bytes unreadable. Null means
+ * "we do not know", and `assessArtifact` falls back to judging the text, which is the behaviour
+ * that existed before. It never means "the scan is fine".
+ */
+async function scanLegibility(base64: string | null | undefined): Promise<LegibilityReport | null> {
+  if (!base64) return null;
+  try {
+    const { default: sharp } = await import('sharp');
+    const meta = await sharp(Buffer.from(base64, 'base64')).metadata();
+    if (!meta.width || !meta.height) return null;
+    // The physical sheet behind the pixels, from the same estimator the grid selector uses — so
+    // the rater and the splitter cannot disagree about what they are looking at.
+    const sheet = analyzeImageDimensions(meta.width, meta.height);
+    const longSideIn = Math.max(meta.width, meta.height) / Math.max(1, sheet.estimatedDpi);
+    const shortSideIn = Math.min(meta.width, meta.height) / Math.max(1, sheet.estimatedDpi);
+    const portrait = meta.height >= meta.width;
+    return assessLegibility(
+      {
+        widthIn: portrait ? shortSideIn : longSideIn,
+        heightIn: portrait ? longSideIn : shortSideIn,
+        pixelWidth: meta.width,
+        pixelHeight: meta.height,
+      },
+      // The grid the run actually uses — see selectOptimalGrid, which lands on 2×2 for every
+      // ordinary page. Rating against a grid nobody uses would be rating a different system.
+      { rows: 2, cols: 2 },
+    );
+  } catch {
+    return null;
+  }
 }
 
 
@@ -617,6 +697,14 @@ export async function uploadPipelineArtifacts(
           : `${capitalizeFirst(category)}: ${label}`);
       const finalDocType = firstPage.documentType || docType;
 
+      // Judged from the pixels, before any of the text-based reasoning below. Null when the
+      // image cannot be measured, which means "we do not know" and never "the scan is fine".
+      const scan = await scanLegibility(firstPage.imageBase64);
+      const verdict = assessArtifact(firstPage.extractedText, pages.length, finalDocType, scan);
+      if (scan) {
+        console.log(`[ArtifactUploader] ${label}: scan — ${scan.statement}`);
+      }
+
       const { error: docInsertErr } = await resilientInsertDocument(supabase, projectId, {
         research_project_id: projectId,
         source_type: 'property_search',
@@ -632,9 +720,14 @@ export async function uploadPipelineArtifacts(
         page_count: pages.length,
         // Both branches of this ternary used to read 'analyzed', so a document with NO extracted
         // text was marked fully analysed exactly like one with text. The floor now decides (R18).
-        processing_status: assessArtifact(firstPage.extractedText, pages.length, finalDocType).status,
-        readability: assessArtifact(firstPage.extractedText, pages.length, finalDocType).readability,
-        readability_reason: assessArtifact(firstPage.extractedText, pages.length, finalDocType).reason,
+        // Called once. It used to be called three times with the same arguments, which is
+        // harmless until the call does I/O — and rating the scan does.
+        processing_status: verdict.status,
+        readability: verdict.readability,
+        readability_reason: verdict.reason,
+        readability_signals: scan
+          ? [`scan:${scan.verdict}`, `dpi:${scan.effectiveDpi}`, `fineTextPx:${scan.fineTextPxAtModel}`]
+          : [],
         ocr_regions: JSON.stringify({ pageUrls }),  // Store all page URLs for gallery
         extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
         // ── THE METHOD TRAVELS WITH THE TEXT ────────────────────────────────────────────
@@ -857,6 +950,13 @@ export async function uploadDocumentIncremental(
       ? (sorted.length > 1 ? `${richLabel} (${sorted.length} pages)` : richLabel)
       : `${capitalizeFirst(category)}: ${label}${sorted.length > 1 ? ` (${sorted.length} pages)` : ''}`;
 
+    // Same two questions as the batch path: can this scan carry text, and did we get any?
+    const incScan = await scanLegibility(firstPage.imageBase64);
+    const incVerdict = assessArtifact(firstPage.extractedText, sorted.length, docType, incScan);
+    if (incScan) {
+      console.log(`[ArtifactUploader:Incremental] ${label}: scan — ${incScan.statement}`);
+    }
+
     const { error: insertErr } = await resilientInsertDocument(supabase, projectId, {
       research_project_id: projectId,
       source_type: 'property_search',
@@ -870,9 +970,12 @@ export async function uploadDocumentIncremental(
       document_type: docType,
       document_label: displayLabel,
       page_count: sorted.length,
-      processing_status: assessArtifact(firstPage.extractedText, sorted.length, docType).status,
-      readability: assessArtifact(firstPage.extractedText, sorted.length, docType).readability,
-      readability_reason: assessArtifact(firstPage.extractedText, sorted.length, docType).reason,
+      processing_status: incVerdict.status,
+      readability: incVerdict.readability,
+      readability_reason: incVerdict.reason,
+      readability_signals: incScan
+        ? [`scan:${incScan.verdict}`, `dpi:${incScan.effectiveDpi}`, `fineTextPx:${incScan.fineTextPxAtModel}`]
+        : [],
       ocr_regions: JSON.stringify({ pageUrls }),
       extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
       // ── THE METHOD TRAVELS WITH THE TEXT ────────────────────────────────────────────

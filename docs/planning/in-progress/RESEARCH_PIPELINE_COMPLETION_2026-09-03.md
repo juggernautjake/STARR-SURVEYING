@@ -871,12 +871,34 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       readable text is would be a very quiet way to be wrong — especially given D1b, where those
       exact constants decided between 4 Vision calls and 32. Imported now, one direction only,
       because `ocr-legibility.ts` imports nothing by design.
-- [ ] **D5b. "Unreadable" must mean the paper.** With D4 landed, `assessArtifact` no longer confuses
-      a skipped analysis with an illegible scan — but it still rates readability from the TEXT.
-      `assessLegibility` rates the SCAN, from its dimensions, which is the independent signal:
-      faded ink gives a confident wrong answer, so legibility has to be judged on its own
-      (`project_receipt_confidence_and_editing`). Wire it into the filing path and store its verdict
-      beside the text-based one.
+- [x] **D5b. "Unreadable" means the paper.** — shipped 2026-09-03.
+      D4 stopped `extracted_text` holding a conclusion where an extraction belonged. It did not, on
+      its own, let anyone tell these two apart — and they have **opposite fixes**:
+
+      | What happened | Whose problem | What to do |
+      |---|---|---|
+      | The scan is too poor for any model to read | the DOCUMENT | buy a better copy, or go to the courthouse |
+      | The scan is fine and our extraction produced nothing | **ours** | re-run the analysis — buying another copy wastes money |
+
+      On screen they were the same word. `assessLegibility` answers the second question from the
+      image's own dimensions — no model, no text — which is the independent signal
+      `project_receipt_confidence_and_editing` records: faded ink gives a **confident wrong**
+      answer, so legibility has to be rated on its own.
+      A legible scan with no text is now `pending` with a reason saying so in words an operator can
+      act on, not `unreadable`. The scan's verdict, effective DPI and modelled fine-text height are
+      stored in `readability_signals`, a column that has existed since the readability slice and
+      held `[]` here.
+      **An unmeasurable image means "we do not know", never "the scan is fine"** — `scanLegibility`
+      returns null and the old text-only judgement stands, which is a fallback rather than a claim.
+      The physical sheet comes from the same estimator the grid selector uses, so the rater and the
+      splitter cannot disagree about what they are looking at (and that estimator was wrong until
+      D1b, which is exactly why they should not have been separate).
+      Also fixed in passing: `assessArtifact` was called **three times with identical arguments** at
+      each insert site. Harmless while it was pure; rating the scan reads the image, so it is now
+      called once.
+      Ten tests including a CONTROL that the two scan fixtures really do produce different verdicts,
+      and one pinning the old collapse-to-unreadable behaviour as the no-information fallback.
+      Mutation-checked.
 - [ ] **D6. Analysis per document, not per run.** "A comprehensive idea of each one" means every
       filed document goes through it, not just the ones a stage happened to touch.
 - [ ] **D7. Backfill the 16 deeds from the FM 2484 run.** Real documents, 46 real pages, no text.
