@@ -103,11 +103,17 @@ describe('the gate is actually asked — assert the CALLERS', () => {
     expect(src).toMatch(/progress\('Budget'/);
   });
 
-  it('the generic pipeline asks before each clerk owner search', () => {
+  it('the generic pipeline asks before each clerk owner search, and bounds it (A2)', () => {
     const src = code('src/services/pipeline.ts');
+    // The call sites, not `await searchClerkRecords(` — since 2026-09-03 each search is passed to
+    // `withStepDeadline` as a thunk, so the await moved to the wrapper. Counting the await made
+    // this guard read "0 clerk searches" the moment the searches were bounded.
+    const calls = (src.match(/searchClerkRecords\(input\.county/g) ?? []).length;
     const guarded = (src.match(/mayStart\(input\.projectId, 'clerk owner search'\)/g) ?? []).length;
-    const calls = (src.match(/await searchClerkRecords\(/g) ?? []).length;
+    const bounded = (src.match(/withStepDeadline\(input\.projectId, 'clerk owner search'/g) ?? []).length;
+    expect(calls, 'the probe found no clerk owner searches at all').toBeGreaterThan(0);
     expect(guarded, `${calls} clerk searches, ${guarded} guarded`).toBe(calls);
+    expect(bounded, `${calls} clerk searches, ${bounded} bounded by the run's remaining time`).toBe(calls);
   });
 
   it('mayRun finally has a caller', () => {
