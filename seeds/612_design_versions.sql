@@ -64,13 +64,40 @@ COMMENT ON COLUMN public.design_mockups.theme_group IS
 -- Partial, so the constraint says exactly what is meant: any number of alternatives and drafts,
 -- exactly one of each of the two singular kinds. `deleted_at IS NULL` is part of the predicate
 -- because a soft-deleted design must not hold the slot.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_design_mockups_one_default_per_route
-  ON public.design_mockups (route)
-  WHERE status = 'default' AND deleted_at IS NULL AND route IS NOT NULL;
+-- ── SUPERSEDED BY SEED 617, AND THAT IS WHY THIS IS GUARDED ─────────────────────────────────────
+--
+-- These two indexes are correct for the model as it stood here, and 617 explains at length why the
+-- model changed: keyed on the route ALONE, they refuse a second default for `/admin/billing` when
+-- the two rows are different STATES of that route. 617 drops both and replaces them with
+-- `(route, state_key)` versions.
+--
+-- On a fresh database the order still works: this runs first and creates them, 617 then drops them.
+-- On a RE-RUN against a live database it does not, and it failed exactly that way on 2026-09-01:
+--
+--     ✗ 612_design_versions.sql — 23505 could not create unique index
+--                                 "idx_design_mockups_one_default_per_route"
+--
+-- That error is CORRECT. `/admin/learn/manage` legitimately has 13 defaults — thirteen states, one
+-- default each — and the per-route index says it may have one. Measured at the same time: routes
+-- violating the old per-route rule, 5+; rows violating the current per-state rule, **zero**.
+--
+-- So the failure was not a defect, it was a superseded constraint doing its job against a model it
+-- predates. But it made `npm run db:seed` fail forever on file 5 of 417 and report an ambiguous
+-- "already-applied data or a real error — review", which costs the next person the same
+-- investigation. Guarded on the presence of 617's index: absent (fresh DB) these are created as
+-- before; present (any database 617 has reached) this is a no-op.
+DO $$
+BEGIN
+  IF to_regclass('public.idx_design_mockups_one_default_per_state') IS NULL THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_design_mockups_one_default_per_route
+      ON public.design_mockups (route)
+      WHERE status = 'default' AND deleted_at IS NULL AND route IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_design_mockups_one_active_per_route
-  ON public.design_mockups (route)
-  WHERE status = 'active' AND deleted_at IS NULL AND route IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_design_mockups_one_active_per_route
+      ON public.design_mockups (route)
+      WHERE status = 'active' AND deleted_at IS NULL AND route IS NOT NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_design_mockups_route_status
   ON public.design_mockups (route, status) WHERE deleted_at IS NULL;

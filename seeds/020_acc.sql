@@ -5691,7 +5691,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
 ('A deflection angle is measured from the extension of the back line.', 'true_false', '["True","False"]'::jsonb, 'True', 'A deflection angle is measured from the prolongation (extension) of the preceding line to the next line. It is designated as right (R) or left (L) and cannot exceed 180°.', 'easy', 'acc00001-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'ACC-1301', ARRAY['acc-srvy-1301','week-7','quiz','deflection-angles']),
 ('Convert the following bearings to azimuths: (a) N 35°20'' E, (b) S 72°45'' E, (c) S 15°10'' W, (d) N 80°00'' W.', 'short_answer', '[]'::jsonb, '(a) 35°20'', (b) 107°15'', (c) 195°10'', (d) 280°00''', '(a) NE quadrant: Az = 35°20''. (b) SE: Az = 180° - 72°45'' = 107°15''. (c) SW: Az = 180° + 15°10'' = 195°10''. (d) NW: Az = 360° - 80°00'' = 280°00''.', 'medium', 'acc00001-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'ACC-1301', ARRAY['acc-srvy-1301','week-7','homework','bearing-azimuth-conversion']),
 ('At a location the magnetic declination is 8°30'' East. A compass bearing reads N 45°30'' E. What is the true bearing?', 'short_answer', '[]'::jsonb, 'N 54°00'' E', 'With east declination, magnetic north is east of true north. True bearing = magnetic bearing + declination (for NE bearings) = 45°30'' + 8°30'' = N 54°00'' E.', 'hard', 'acc00001-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'ACC-1301', ARRAY['acc-srvy-1301','week-7','homework','declination','correction']),
-('A five-sided closed traverse has interior angles measured as: 98°15'', 110°30'', 122°45'', 88°10'', and 120°25''. What is the angular misclosure?', 'short_answer', '[]'::jsonb, '5'' misclosure', 'Sum of interior angles for 5-sided polygon = (5-2) × 180° = 540°00''00". Measured sum = 98°15'' + 110°30'' + 122°45'' + 88°10'' + 120°25'' = 540°05''. Misclosure = 540°05'' - 540°00'' = +5''.', 'medium', 'acc00001-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'ACC-1301', ARRAY['acc-srvy-1301','week-7','homework','angular-closure','traverse']);
+('A five-sided closed traverse has interior angles measured as: 98°15'', 110°30'', 122°45'', 88°10'', and 120°25''. What is the angular misclosure?', 'short_answer', '[]'::jsonb, '5'' misclosure', 'Sum of interior angles for 5-sided polygon = (5-2) × 180° = 540°00''00". Measured sum = 98°15'' + 110°30'' + 122°45'' + 88°10'' + 120°25'' = 540°05''. Misclosure = 540°05'' - 540°00'' = +5''.', 'medium', 'acc00001-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'ACC-1301', ARRAY['acc-srvy-1301','week-7','homework','angular-closure','traverse'])
+ON CONFLICT DO NOTHING;
 
 -- Weeks 9-15 quiz and homework questions will be populated as the course progresses.
 -- The structure is established and ready for content to be added lesson by lesson.
@@ -5712,7 +5713,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
 ('A four-sided closed traverse should have interior angles summing to:', 'multiple_choice', '["180°","360°","540°","720°"]'::jsonb, '360°', 'Sum of interior angles = (n-2) × 180° = (4-2) × 180° = 360°.', 'easy', 'acc00001-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'ACC-1301-MIDTERM', ARRAY['acc-srvy-1301','midterm','traverse','angles']),
 ('Three propagated errors of ±0.01, ±0.02, and ±0.03 ft combine to:', 'numeric_input', '[]'::jsonb, '0.037', 'E = sqrt(0.01² + 0.02² + 0.03²) = sqrt(0.0001+0.0004+0.0009) = sqrt(0.0014) = 0.0374 ≈ 0.037 ft.', 'medium', 'acc00001-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'ACC-1301-MIDTERM', ARRAY['acc-srvy-1301','midterm','error-propagation']),
 ('Convert S 28°45'' W to an azimuth.', 'numeric_input', '[]'::jsonb, '208.75', 'SW quadrant: Az = 180° + 28°45'' = 208°45'' = 208.75°.', 'medium', 'acc00001-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'ACC-1301-MIDTERM', ARRAY['acc-srvy-1301','midterm','bearing-to-azimuth']),
-('What leveling order uses k = 0.050 ft/√mi for allowable closure?', 'multiple_choice', '["First order","Second order","Third order","Fourth order"]'::jsonb, 'Third order', 'k values: first-order ≈ 0.017, second-order ≈ 0.035, third-order ≈ 0.050. Third-order leveling allows 0.050 × √(miles).', 'hard', 'acc00001-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'ACC-1301-MIDTERM', ARRAY['acc-srvy-1301','midterm','leveling-standards']);
+('What leveling order uses k = 0.050 ft/√mi for allowable closure?', 'multiple_choice', '["First order","Second order","Third order","Fourth order"]'::jsonb, 'Third order', 'k values: first-order ≈ 0.017, second-order ≈ 0.035, third-order ≈ 0.050. Third-order leveling allows 0.050 × √(miles).', 'hard', 'acc00001-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'ACC-1301-MIDTERM', ARRAY['acc-srvy-1301','midterm','leveling-standards'])
+ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1341 QUESTION BANK — SRVY 1341 (Select questions for weeks 2-7)
@@ -5742,7 +5744,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
 -- Week 6 Quiz (Compass Rule)
 ('In the compass rule adjustment, corrections are proportional to:', 'multiple_choice', '["The angle at each station","The length of each leg","The latitude of each leg","The number of stations"]'::jsonb, 'The length of each leg', 'The compass rule (Bowditch method) distributes corrections proportional to the leg distance: correction_lat = -(ΣLat × leg_distance / perimeter).', 'medium', 'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001', 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','compass-rule']),
 ('After compass rule adjustment, the sum of adjusted latitudes should equal:', 'multiple_choice', '["The misclosure","Zero","The total distance","The original sum"]'::jsonb, 'Zero', 'After adjustment, ΣAdjusted Latitudes = 0 and ΣAdjusted Departures = 0. This is the mathematical verification that the adjustment was performed correctly.', 'easy', 'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001', 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','adjustment-verification']),
-('The compass rule latitude correction formula is: correction = -(misclosure_lat × leg_dist / perimeter).', 'true_false', '["True","False"]'::jsonb, 'True', 'The compass rule (Bowditch) formula for latitude correction is: C_lat = -(ΣLat × D_leg / D_total). Each leg gets a correction proportional to its length relative to the total perimeter.', 'medium', 'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001', 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','compass-rule-formula']);
+('The compass rule latitude correction formula is: correction = -(misclosure_lat × leg_dist / perimeter).', 'true_false', '["True","False"]'::jsonb, 'True', 'The compass rule (Bowditch) formula for latitude correction is: C_lat = -(ΣLat × D_leg / D_total). Each leg gets a correction proportional to its length relative to the total perimeter.', 'medium', 'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001', 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','compass-rule-formula'])
+ON CONFLICT DO NOTHING;
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1335 QUESTION BANK — SRVY 1335 (Select lab questions)
@@ -5767,7 +5770,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
 ('After completing a closed traverse in the field, you should compute the angular closure before leaving the site.', 'true_false', '["True","False"]'::jsonb, 'True', 'Computing angular closure on-site allows you to detect blunders and remeasure angles if the closure is unacceptable. Leaving the site without checking closure risks having to return for remeasurement.', 'easy', 'acc00002-0000-0000-0000-000000000002', 'acc02b10-0000-0000-0000-000000000001', 'ACC-1335', ARRAY['acc-srvy-1335','week-10','quiz','field-closure-check']),
 
 -- Week 12
-('In differential leveling, what reading establishes the Height of Instrument?', 'multiple_choice', '["Foresight on a turning point","Backsight on a known elevation","Intermediate foresight","Stadia reading"]'::jsonb, 'Backsight on a known elevation', 'HI = Known Elevation + Backsight. The backsight on a point of known elevation establishes the height of the instrument''s line of sight above the datum.', 'easy', 'acc00002-0000-0000-0000-000000000002', 'acc02b12-0000-0000-0000-000000000001', 'ACC-1335', ARRAY['acc-srvy-1335','week-12','quiz','differential-leveling']);
+('In differential leveling, what reading establishes the Height of Instrument?', 'multiple_choice', '["Foresight on a turning point","Backsight on a known elevation","Intermediate foresight","Stadia reading"]'::jsonb, 'Backsight on a known elevation', 'HI = Known Elevation + Backsight. The backsight on a point of known elevation establishes the height of the instrument''s line of sight above the datum.', 'easy', 'acc00002-0000-0000-0000-000000000002', 'acc02b12-0000-0000-0000-000000000001', 'ACC-1335', ARRAY['acc-srvy-1335','week-12','quiz','differential-leveling'])
+ON CONFLICT DO NOTHING;
 
 
 -- 1335_wk1
@@ -5928,7 +5932,8 @@ VALUES
  'A 15% battery may die during fieldwork, wasting the entire lab session. A scratched lens degrades measurement accuracy. Both issues should be reported to the instructor and logged. You should request a replacement or at minimum a fully charged battery, and the scratch must be documented so that the current crew is not blamed for pre-existing damage.',
  'hard',
  'acc00002-0000-0000-0000-000000000002', 'acc02b01-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-1','quiz','equipment','inspection','problem-solving']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-1','quiz','equipment','inspection','problem-solving'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -6006,7 +6011,8 @@ VALUES
  'A strong answer provides clear, actionable safety guidance with Texas-specific concerns (heat, wildlife, traffic) and correct equipment handling rules.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b01-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-1','practice','essay','safety','orientation','comprehensive']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-1','practice','essay','safety','orientation','comprehensive'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -6158,7 +6164,8 @@ VALUES
  'A good answer explains the physics (warm air = faster signal = short reading), quantifies the magnitude (10–15 ppm in Texas summer), and describes the practical steps to apply corrections.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b02-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-2','quiz','essay','atmospheric-correction','Texas']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-2','quiz','essay','atmospheric-correction','Texas'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -6235,7 +6242,8 @@ VALUES
  'A strong answer identifies at least three specific causes with clear diagnostic procedures. The best answers prioritize checking the simplest things first (prism constant, atmospheric settings) before suspecting instrument calibration.',
  'hard',
  'acc00002-0000-0000-0000-000000000002', 'acc02b02-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-2','practice','essay','error-analysis','troubleshooting']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-2','practice','essay','error-analysis','troubleshooting'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -6387,7 +6395,8 @@ VALUES
  'A good answer defines parallax clearly, explains why it causes angular errors, and describes the two-step focus procedure with the parallax check.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b03-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-3','quiz','essay','parallax','focus']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-3','quiz','essay','parallax','focus'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -6469,7 +6478,8 @@ VALUES
  'A good answer walks through the process in logical order with correct terminology, covering rough aiming, clamp/tangent technique, all recorded values, and at least one check procedure.',
  'easy',
  'acc00002-0000-0000-0000-000000000002', 'acc02b03-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-3','practice','essay','measurement-procedure','training']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-3','practice','essay','measurement-procedure','training'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -6621,7 +6631,8 @@ VALUES
  'A good answer clearly distinguishes the three methods with correct procedures, states the closure check for each, and identifies appropriate use cases.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b04-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-4','quiz','essay','angle-methods','comparison']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-4','quiz','essay','angle-methods','comparison'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -6700,7 +6711,8 @@ VALUES
  'A thorough answer covers all three categories with two examples each, explains the effect on measurements, and identifies the correct field technique for each.',
  'hard',
  'acc00002-0000-0000-0000-000000000002', 'acc02b04-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-4','practice','essay','error-analysis','RPLS-prep']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-4','practice','essay','error-analysis','RPLS-prep'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -6852,7 +6864,8 @@ VALUES
  'A good answer emphasizes the cost of return trips, shows the closure formula, and describes a practical strategy for identifying and re-measuring suspect angles.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b05-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-5','quiz','essay','field-closure','cost-benefit']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-5','quiz','essay','field-closure','cost-benefit'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -6931,7 +6944,8 @@ VALUES
  'A complete answer describes all five components with correct formulas and formatting expectations.',
  'medium',
  'acc00002-0000-0000-0000-000000000002', 'acc02b05-0000-0000-0000-000000000001',
- 'ACC-1335', ARRAY['acc-srvy-1335','week-5','practice','essay','lab-report','post-lab']);
+ 'ACC-1335', ARRAY['acc-srvy-1335','week-5','practice','essay','lab-report','post-lab'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -7111,7 +7125,8 @@ INSERT INTO question_bank (
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
  'acc03a01-0001-0000-0000-000000000001',
  'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','systematic-error','correction-type'],
- '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"}]'::jsonb);
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"}]'::jsonb)
+ON CONFLICT DO NOTHING;
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000001'
@@ -7195,7 +7210,8 @@ INSERT INTO question_bank (
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
  'acc03a01-0005-0000-0000-000000000001',
  'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','essay','all-corrections'],
- '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"},{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"},{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb);
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"},{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"},{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb)
+ON CONFLICT DO NOTHING;
 
 
 
@@ -7399,7 +7415,8 @@ INSERT INTO question_bank (
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
  'acc03a02-0006-0000-0000-000000000001',
  'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','sag-correction','always-negative','review'],
- '[{"type":"topic","id":"acc03a02-0006-0000-0000-000000000001","label":"Chaining Corrections Review"}]'::jsonb);
+ '[{"type":"topic","id":"acc03a02-0006-0000-0000-000000000001","label":"Chaining Corrections Review"}]'::jsonb)
+ON CONFLICT DO NOTHING;
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b02-0000-0000-0000-000000000001'
@@ -7793,7 +7810,8 @@ INSERT INTO question_bank (
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
  'acc03a02-0002-0000-0000-000000000001',
  'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','azimuth-to-bearing','compass'],
- '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb);
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb)
+ON CONFLICT DO NOTHING;
 
 
 
@@ -7965,7 +7983,8 @@ VALUES
  'It is the opposite: the RIGHT-hand page is for tabular data (measurements, angles, distances) and the LEFT-hand page is for sketches, notes, and diagrams. This is the traditional convention in surveying field books.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b03-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-3','quiz','field-notes','convention']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-3','quiz','field-notes','convention'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -8159,7 +8178,8 @@ VALUES
  'A complete header includes date, time, project identification, weather details (cloud cover, temperature, wind), full crew list with roles, and page number.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b03-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-3','practice','field-notes','header','sketch']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-3','practice','field-notes','header','sketch'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -8331,7 +8351,8 @@ VALUES
  'For continuous outdoor use in extreme temperatures, the instrument should be stored overnight in its closed case OUTSIDE so there is no significant temperature change. Bringing it inside creates a large temperature differential — when taken back outside, condensation will form inside the instrument. If the instrument is wet, leave the case open for air circulation.',
  'hard',
  'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','climatize','storage','condensation']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','climatize','storage','condensation'])
+ON CONFLICT DO NOTHING;
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -8529,7 +8550,8 @@ VALUES
  'A complete answer lists deep cleaning and full calibration of all equipment at the start of a new job.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','new-job','calibration','maintenance']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','new-job','calibration','maintenance'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -8709,7 +8731,8 @@ VALUES
  'A good answer covers all four sub-points with specific details and demonstrates understanding of when each type is advantageous.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','essay','optical-vs-laser','comparison']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','essay','optical-vs-laser','comparison'])
+ON CONFLICT DO NOTHING;
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b05-0000-0000-0000-000000000001'
@@ -8832,7 +8855,8 @@ VALUES
  'An excellent answer integrates instrument care habits from Week 4 (case handling, grip), the complete 10-step setup procedure from Week 5, and pre-measurement instrument checks.',
  'hard',
  'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','essay','complete-sequence','comprehensive']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','essay','complete-sequence','comprehensive'])
+ON CONFLICT DO NOTHING;
 
 
 
@@ -9012,7 +9036,8 @@ VALUES
  'A good answer addresses all five sub-points with specific details and demonstrates understanding of when each angle type is operationally appropriate.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','essay','interior-vs-deflection','comparison']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-6','quiz','essay','interior-vs-deflection','comparison'])
+ON CONFLICT DO NOTHING;
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b06-0000-0000-0000-000000000001'
@@ -9137,7 +9162,8 @@ VALUES
  'A complete answer shows both the wrong and right computations, demonstrating why the 360° rule is critical — forgetting it produces errors of many degrees, not just seconds.',
  'hard',
  'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-6','practice','360-rule','blunder','error-magnitude']);
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-6','practice','360-rule','blunder','error-magnitude'])
+ON CONFLICT DO NOTHING;
 
 
 -- ============================================================================
@@ -9302,7 +9328,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
  '[]'::jsonb,
  'Key concepts: HI = known elev + BS; new elev = HI - FS; misclosure = computed return elev - known elev; correction = -(misclosure × cumulative distance / total distance)',
  'Differential leveling determines elevations using a level instrument and rod. Process: (1) Set up level between known benchmark (BM) and first unknown point. (2) Take backsight (BS) on BM: HI = BM elevation + BS. (3) Take foresight (FS) on turning point (TP): TP elevation = HI - FS. (4) Move level ahead, backsight on TP, foresight on next TP, repeat. (5) Close back to known BM. (6) Misclosure = computed return elevation - known BM elevation. (7) Check against allowable: k × √(miles). (8) Distribute correction proportionally by cumulative distance: correction at each TP = -(misclosure × cumulative distance to that TP / total circuit distance).',
- 'hard', 'acc00001-0000-0000-0000-000000000001', 'acc01b16-0000-0000-0000-000000000001', 'ACC-1301-FINAL', ARRAY['acc-srvy-1301','final-exam','leveling','essay']);
+ 'hard', 'acc00001-0000-0000-0000-000000000001', 'acc01b16-0000-0000-0000-000000000001', 'ACC-1301-FINAL', ARRAY['acc-srvy-1301','final-exam','leveling','essay'])
+ON CONFLICT DO NOTHING;
 
 
 -- ----------------------------------------------------------------------------
@@ -9452,7 +9479,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
  '[]'::jsonb,
  'Key steps: tripod placement, rough centering, leveling, fine centering, re-leveling, power on, backsight setup, set zero or known azimuth',
  'Complete procedure: (1) Extend and plant tripod legs over the point, checking that the tripod head is roughly level and centered. (2) Attach tribrach and instrument. (3) Look through optical plummet — adjust tripod legs to rough-center over the point. (4) Level the circular bubble using leveling screws. (5) Fine-center using optical plummet — slide instrument on tripod head. (6) Re-check level, re-center; iterate until both are achieved. (7) Power on instrument. (8) Set backsight: sight the prism on the backsight point. (9) Set the horizontal angle to 0°00''00" (or enter the known azimuth to the backsight). (10) Verify by re-sighting the backsight after several measurements.',
- 'hard', 'acc00002-0000-0000-0000-000000000002', 'acc02b16-0000-0000-0000-000000000001', 'ACC-1335-FINAL', ARRAY['acc-srvy-1335','final-exam','setup','essay']);
+ 'hard', 'acc00002-0000-0000-0000-000000000002', 'acc02b16-0000-0000-0000-000000000001', 'ACC-1335-FINAL', ARRAY['acc-srvy-1335','final-exam','setup','essay'])
+ON CONFLICT DO NOTHING;
 
 
 -- ----------------------------------------------------------------------------
@@ -9602,7 +9630,8 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
  '[]'::jsonb,
  'Lat/Dep for each side, compute ΣLat and ΣDep, error of closure, relative precision, compass rule corrections, adjusted coordinates',
  'AB: Lat = 400cos45° = 282.84, Dep = 400sin45° = 282.84. BC: Lat = 300cos135° = -212.13, Dep = 300sin135° = 212.13. CA: Lat = 500cos255° = -129.41, Dep = 500sin255° = -482.96. ΣLat = 282.84 - 212.13 - 129.41 = -58.70 (misclosure). ΣDep = 282.84 + 212.13 - 482.96 = 12.01. Error = sqrt(58.70² + 12.01²). Note: This problem is designed to test the complete process. Students should compute all latitudes and departures, find the misclosure, compute error of closure and relative precision, apply compass rule corrections proportional to leg distance, and derive adjusted coordinates from A(5000, 5000).',
- 'hard', 'acc00003-0000-0000-0000-000000000003', 'acc03b16-0000-0000-0000-000000000001', 'ACC-1341-FINAL', ARRAY['acc-srvy-1341','final-exam','traverse-adjustment','essay']);
+ 'hard', 'acc00003-0000-0000-0000-000000000003', 'acc03b16-0000-0000-0000-000000000001', 'ACC-1341-FINAL', ARRAY['acc-srvy-1341','final-exam','traverse-adjustment','essay'])
+ON CONFLICT DO NOTHING;
 
 
 
