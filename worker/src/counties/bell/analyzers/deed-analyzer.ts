@@ -35,6 +35,13 @@ export interface DeedAnalysisInput {
   cadLegalDescription: string | null;
   /** Current owner from CAD */
   currentOwner: string | null;
+  /**
+   * What the operator wrote about this property, if anything.
+   *
+   * A title examiner given "the neighbour disputes the fence line" reads the chain differently
+   * from one given nothing, which is the whole reason the create form asks for it.
+   */
+  operatorNotes?: string;
   /** Target property context for relevance filtering in summaries */
   targetProperty?: {
     situsAddress: string | null;
@@ -155,7 +162,7 @@ export async function analyzeBellDeeds(
 
   // ── Step 3: Generate overall summary ───────────────────────────────
   progress('Generating ownership history summary...');
-  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey, input.targetProperty);
+  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey, input.targetProperty, input.operatorNotes);
   accumulateUsage(usage, summaryUsage);
 
   // ── Step 4: Compute confidence ─────────────────────────────────────
@@ -685,6 +692,7 @@ async function generateDeedSummary(
   currentOwner: string | null,
   apiKey: string,
   targetProperty?: DeedAnalysisInput['targetProperty'],
+  operatorNotes?: string,
 ): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
     return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
@@ -716,6 +724,22 @@ async function generateDeedSummary(
 `
       : '';
 
+    // ── WHAT THE OPERATOR ALREADY KNOWS ────────────────────────────────────────────────────
+    //
+    // Trimmed and capped. The notes are free text an operator typed, so they get a wrapper that
+    // says plainly what they are and what weight to give them: a surveyor's standing knowledge,
+    // not a recorded fact. A model told "seller says 2.3 acres" without that framing will happily
+    // report 2.3 acres as though a deed said so.
+    const notes = (operatorNotes ?? '').trim();
+    const notesContext = notes
+      ? `
+WHAT THE SURVEYOR ALREADY KNOWS. Typed by the operator who ordered this research. Treat it as
+context and as questions to answer, NOT as recorded fact. Where a record contradicts it, say so
+explicitly rather than silently preferring one:
+${notes.slice(0, 4000)}
+`
+      : '';
+
     const response = await client.messages.create({
       model: modelFor('read_scan').model,
       max_tokens: 4000,
@@ -724,7 +748,7 @@ async function generateDeedSummary(
         content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a Bell County, Texas surveyor.
 
 Current owner: ${currentOwner ?? 'unknown'}.
-${targetContext}
+${targetContext}${notesContext}
 Chain of title:
 ${chainText}
 

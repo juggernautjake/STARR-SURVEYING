@@ -1108,6 +1108,14 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // the payload reaches the door and stops, which is the defect shape this file keeps finding.
     instrumentNumber: instrumentNumber ?? undefined,
     ownerName: ownerName ?? undefined,
+    // ── THE NOTES REACHED THE DOOR AND STOPPED ────────────────────────────────────────────
+    //
+    // `body.operatorNotes` was already read twice below — once into the run record's `inputs`,
+    // once into the HTTP response — so both of those said the notes had been sent. Neither is
+    // read by any research code. This object is the only thing the research code sees, and the
+    // notes were never put on it, so the create form's "Sent to the AI with the run" was false
+    // for every run ever made.
+    operatorNotes: body.operatorNotes?.trim() || undefined,
     uploadedFiles: parsedUserFiles?.map(f => ({
       name: f.filename,
       mimeType: f.mimeType,

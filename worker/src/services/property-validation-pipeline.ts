@@ -452,6 +452,15 @@ export async function runPropertyValidationPipeline(
     acreage: number | null;
     legalDescription: string | null;
     county: string;
+    /**
+     * What the operator typed about this property, if anything.
+     *
+     * This is the run's only AI pass over everything it found, so it is where a note like "the
+     * fence is not the line" can actually change an answer. Framed below as context rather than
+     * fact: an operator's "seller says 2.3 acres" is a claim to check against the record, not a
+     * figure to repeat back as though a deed carried it.
+     */
+    operatorNotes?: string | null;
   },
   anthropicApiKey: string,
   logger: PipelineLogger,
@@ -503,6 +512,11 @@ export async function runPropertyValidationPipeline(
     references:         boundary?.references,
     legalDescription:   propertyMeta.legalDescription,
     warnings:           boundary?.warnings ?? [],
+    // Given its own key, under a name that says what weight to give it, so the synthesis cannot
+    // mistake an operator's belief for something a document said.
+    operatorContext_unverifiedClaimsToCheckNotFacts: propertyMeta.operatorNotes
+      ? String(propertyMeta.operatorNotes).slice(0, 4000)
+      : undefined,
     // Raw OCR text from each document/page — gives the AI the full unstructured
     // output of the adaptive-vision passes so it can detect per-pass disagreements.
     rawOcrTexts:        rawOcrTexts && rawOcrTexts.length > 0

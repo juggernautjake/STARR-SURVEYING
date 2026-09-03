@@ -239,9 +239,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     //
     // What the operator wrote when the project was created — "the fence is not the line", "seller
     // says 2.3 acres" — used to be stored as `analysis_metadata.user_notes` and read by NOTHING.
-    // `operatorNotes` is the channel that already reaches the AI briefing, so the intake context
-    // travels down it rather than getting a second, parallel pipe that would need its own wiring
-    // at every stage.
+    // `operatorNotes` is the channel that reaches the AI briefing, so the intake context travels
+    // down it rather than getting a second, parallel pipe that would need its own wiring at every
+    // stage.
+    //
+    // That sentence was written before it was true. When this route was built, `operatorNotes` had
+    // three occurrences in the entire worker — a type, and two places that recorded what the
+    // operator had SENT — and was never put on the object the research code reads. It reached the
+    // door and stopped. It now lands in Bell's deed-summary prompt and the generic pipeline's
+    // Stage 5 synthesis, and is printed on the run log both paths write, so an operator can see
+    // their own words go past.
     //
     // Intake first, then this run's notes: the per-run note is usually a correction or an addition
     // to the standing context, and a reader (human or model) resolves a contradiction in favour of

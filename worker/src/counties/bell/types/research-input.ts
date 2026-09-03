@@ -30,8 +30,22 @@ export interface BellResearchInput {
   surveyType?: SurveyType;
   /** Purpose of the survey */
   jobPurpose?: string;
-  /** Additional instructions or notes */
+  /**
+   * Additional instructions or notes.
+   *
+   * Nothing sends this and nothing in a run reads it — `generateSurveyPlan` is its only reader
+   * and no run calls that. Left in place rather than deleted because the survey-plan generator
+   * is real code with a real use; `operatorNotes` below is the field the app actually fills.
+   */
   specialInstructions?: string;
+  /**
+   * What the operator wrote about this property — intake notes plus this run's notes.
+   *
+   * Reaches the deed-summary prompt in Phase 3. "The neighbour disputes the fence line" is
+   * exactly the kind of fact a title examiner would want before reading a chain, and it was
+   * being typed into a box that led nowhere.
+   */
+  operatorNotes?: string;
 
   // ── Uploaded files ─────────────────────────────────────────────────
   /** User-uploaded documents (base64 or Supabase storage URLs) */

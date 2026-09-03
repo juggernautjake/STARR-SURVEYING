@@ -58,6 +58,27 @@ export interface CountyResearchInput {
   jobPurpose?: string;
   /** Special instructions */
   specialInstructions?: string;
+  /**
+   * Free text the operator wrote about THIS property — intake notes, per-run notes, and any
+   * note the attachment step left behind. The app joins those three into one string.
+   *
+   * ── THE CHANNEL THAT WAS ADVERTISED AND NEVER CONNECTED ──────────────────────────────────
+   *
+   * The create form says, under the notes box, "Sent to the AI with the run." The pipeline route
+   * that starts a run carries a comment calling `operatorNotes` "the channel that already reaches
+   * the AI briefing". Both were written in good faith and both were false: `operatorNotes` had
+   * three occurrences in the entire worker — a type, and two places that copy it into a record of
+   * what the operator SENT — and was never once put on this object, which is the only thing the
+   * research code ever sees.
+   *
+   * So "the fence is not the line" and "seller says 2.3 acres" were typed, stored, displayed back,
+   * and never read by anything that could act on them.
+   *
+   * `specialInstructions` above is the same defect one layer deeper: declared here, declared again
+   * on the Bell input, and read only by `generateSurveyPlan`, which nothing in a run calls. It is
+   * left alone rather than quietly repurposed — this field is the one the app actually sends.
+   */
+  operatorNotes?: string;
   /** Uploaded files */
   uploadedFiles?: Array<{ name: string; mimeType: string; content: string; isUrl?: boolean; description?: string }>;
   /** Research adjacent properties */
@@ -504,6 +525,8 @@ export async function runCountyResearch(
             surveyType: input.surveyType as import('./bell/types/research-input.js').SurveyType | undefined,
             jobPurpose: input.jobPurpose,
             specialInstructions: input.specialInstructions,
+            // What the operator wrote. Reaches the deed-summary prompt via the orchestrator.
+            operatorNotes: input.operatorNotes,
             uploadedFiles: input.uploadedFiles,
             includeAdjacentProperties: input.includeAdjacentProperties,
             maxResearchTimeMinutes: input.maxResearchTimeMinutes,
@@ -598,6 +621,18 @@ export async function runCountyResearch(
         state: input.state ?? 'TX',
         propertyId: input.propertyId,
         ownerName: input.ownerName,
+        // What the operator wrote about this property. Reaches the Stage 5 synthesis prompt.
+        operatorNotes: input.operatorNotes,
+        // ── THE STOP BUTTON REACHED ONE COUNTY OUT OF FORTY-ONE ──────────────────────────
+        //
+        // `runCountyResearch` has taken a signal since it was written and Bell has been given it
+        // since it was written. The generic pipeline — every other routed county — was called
+        // without one, so an operator pressing Cancel, and the budget ceiling firing, both had
+        // nothing to abort. The run kept going until it ended on its own.
+        //
+        // Same shape as `operatorNotes` above: the value existed at the call site and was simply
+        // not written into the object being passed.
+        signal,
         // Convert uploaded files to the generic UserFile format
         userFiles: input.uploadedFiles?.map(f => ({
           filename: f.name,
@@ -629,10 +664,24 @@ export async function runCountyResearch(
         result = await runPipeline(pipelineInput);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[CountyRouter] ${input.projectId}: generic pipeline CRASHED — ${errMsg.slice(0, 200)}`);
+        // ── AN EXPECTED STOP IS NOT A CRASH ────────────────────────────────────────────────
+        //
+        // The same distinction the Bell branch above draws, on the path that serves the other
+        // forty counties. Until this slice the generic pipeline could not be stopped at all, so
+        // the branch had nothing to distinguish; now that it can, a run that ended where its
+        // operator or its budget told it to must not be announced as a failure.
+        const abort = signal?.aborted
+          ? describeAbort((signal as AbortSignal & { reason?: unknown }).reason)
+          : null;
+        const expected = abort?.isExpected === true;
+        if (expected) {
+          console.log(`[CountyRouter] ${input.projectId}: generic pipeline stopped early — ${abort!.message}`);
+        } else {
+          console.error(`[CountyRouter] ${input.projectId}: generic pipeline CRASHED — ${errMsg.slice(0, 200)}`);
+        }
         onProgress({
-          phase: 'Failed',
-          message: `Pipeline failed: ${errMsg}`,
+          phase: expected ? 'Stopped' : 'Failed',
+          message: expected ? abort!.message : `Pipeline failed: ${errMsg}`,
           timestamp: new Date().toISOString(),
         });
         throw err;

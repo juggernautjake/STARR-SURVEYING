@@ -23,6 +23,29 @@ export interface PipelineInput {
    * the same starting point rather than the value existing on one path only.
    */
   instrumentNumber?: string;
+  /**
+   * Free text the operator wrote about this property — intake notes, per-run notes, and any
+   * note the attachment step left behind, joined by the app into one string.
+   *
+   * Read by Stage 5, which is the run's one AI pass over everything it found. A note like "the
+   * fence is not the line" changes how a synthesis reads a boundary; it was typed into the create
+   * form, stored, shown back to the operator, and never reached any code that could use it.
+   */
+  operatorNotes?: string;
+  /**
+   * Stop this run.
+   *
+   * Aborted between stages, never inside one — the reasoning is the same as the Bell
+   * orchestrator's: stopping between leaves a coherent partial result, stopping mid-stage leaves
+   * half a chain of title. `signal.reason` carries WHICH kind of stop this was (see
+   * `research/abort-reason.ts`), which is why the run that hit its budget ceiling on 2026-09-03
+   * reported itself as the operator pressing cancel.
+   *
+   * Optional because a direct caller (a test, a one-off script) has nothing to cancel with.
+   * Absent means the run cannot be stopped early, which is the behaviour every non-Bell county
+   * had until this field existed.
+   */
+  signal?: AbortSignal;
   /** User-uploaded files to process alongside online-retrieved documents */
   userFiles?: UserFile[];
   /**

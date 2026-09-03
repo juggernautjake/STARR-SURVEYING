@@ -16,6 +16,7 @@ import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
 import { mayStart } from '../research/budget-gate.js';
+import { describeAbort } from '../research/abort-reason.js';
 import { patchDocument } from '../research/file-document.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
@@ -505,6 +506,29 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
   // Handed to fileNow at every push site, so "found" and "filed" cannot drift apart.
   const onDocument = input.onDocument;
+
+  // ── THE STOP BUTTON REACHED ONE COUNTY OUT OF FORTY-ONE ────────────────────────────────────
+  //
+  // `runCountyResearch` has taken an AbortSignal since it was written, and Bell has been handed it
+  // since it was written. The generic pipeline — which serves every OTHER routed county — was
+  // called without one. So an operator pressing Cancel on a Travis County run, and the budget
+  // ceiling firing on a Harris County run, both had nothing to abort: the run kept going until it
+  // ended on its own, and the only thing the stop produced was a message saying it had stopped.
+  //
+  // Checked BETWEEN stages, never inside one. Same reasoning as the Bell orchestrator's
+  // `checkAborted`: stopping between stages leaves a coherent partial result, and stopping inside
+  // one leaves half a chain of title. A stage already running is allowed to finish.
+  //
+  // `signal.reason` carries WHICH kind of stop this is. That distinction is not decoration — a run
+  // that reached the ceiling its operator set reported itself as the operator pressing cancel on
+  // 2026-09-03, and the owner correctly disputed it.
+  const stopIfAborted = (stage: string): void => {
+    const signal = input.signal;
+    if (!signal?.aborted) return;
+    const { message } = describeAbort((signal as AbortSignal & { reason?: unknown }).reason);
+    logger.warn('Pipeline', `${stage} not started — ${message}`);
+    throw new DOMException(message, 'AbortError');
+  };
   const startTime = Date.now();
   const logger = new PipelineLogger(input.projectId);
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
@@ -535,7 +559,18 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
   if (input.propertyId) hints.push(`ID:${input.propertyId}`);
   if (input.ownerName)  hints.push(`owner:"${input.ownerName}"`);
   if (input.userFiles?.length) hints.push(`${input.userFiles.length} file(s)`);
+  if (input.operatorNotes) hints.push('operator notes');
   logger.info('Pipeline', `${input.county} County, ${input.state} — ${input.address}${hints.length ? ` [${hints.join(', ')}]` : ''}`);
+
+  // Printed in full, on its own lines, because the operator needs to be able to SEE that what they
+  // typed reached the run. A hint reading "operator notes" proves a field was set; it does not show
+  // the surveyor that "the fence is not the line" is what the AI was actually told.
+  if (input.operatorNotes) {
+    logger.info('Pipeline', 'What the operator told us about this property:');
+    for (const line of input.operatorNotes.split(/\r?\n/).slice(0, 20)) {
+      if (line.trim()) logger.info('Pipeline', `  ${line.trim()}`);
+    }
+  }
 
   await updateStatus(input.projectId, 'running', 'Stage 0: Normalizing address…');
 
@@ -548,6 +583,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     if (input.userFiles && input.userFiles.length > 0) {
       userDocuments = processUserFiles(input.userFiles, logger);
     }
+
+    stopIfAborted('Stage 0');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 0: Address Normalization + County Capability Discovery
@@ -589,6 +626,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
 
     await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
     const stage1Start = Date.now();
+
+    stopIfAborted('Stage 1');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 1: Property Identification
@@ -840,6 +879,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : input.ownerName ? ` for "${input.ownerName}"` : ''}…`,
       { propertyId: propertyResult?.propertyId, ownerName: propertyResult?.ownerName ?? input.ownerName },
     );
+
+    stopIfAborted('Stage 2');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 2: Document Retrieval
@@ -1496,6 +1537,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     await updateStatus(input.projectId, 'running',
       `Stage 3: Running Claude AI on ${docSummary} — extracting boundaries, owners, legal descriptions…`);
 
+    stopIfAborted('Stage 3');
+
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
@@ -2104,6 +2147,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
 
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
+    stopIfAborted('Stage 3.5');
+
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3.5: Geometric Reconciliation
     // Visual geometry analysis of the plat image vs OCR text extraction.
@@ -2212,6 +2257,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
 
     await updateStatus(input.projectId, 'running', 'Stage 4: Validating…');
 
+    stopIfAborted('Stage 4');
+
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 4: Validation
     // ═══════════════════════════════════════════════════════════════════
@@ -2239,6 +2286,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       logger.warn('Stage4', `  Curve at call ${c.callIndex + 1}: ${c.check.statement}`);
     }
     for (const d of surveyReading.derivedChords) logger.warn('Stage4', `  ${d.statement}`);
+
+    stopIfAborted('Stage 5');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 5: Property Validation Pipeline (Calls 5-7)
@@ -2269,6 +2318,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           acreage:          propertyResult?.acreage ?? null,
           legalDescription: propertyResult?.legalDescription ?? null,
           county:           input.county,
+          // The line the create form has been promising since it was written.
+          operatorNotes:    input.operatorNotes ?? null,
         },
         anthropicApiKey,
         logger,
@@ -2308,6 +2359,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     } catch (err) {
       logger.warn('Stage5', `Property validation pipeline failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
     }
+
+    stopIfAborted('Stage 6');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 6: Master Validation Report
@@ -2492,9 +2545,23 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     return result;
 
   } catch (err) {
-    // Pipeline crash — capture logs before cleanup
     const duration_ms = Date.now() - startTime;
     const errMsg = err instanceof Error ? err.message : String(err);
+
+    // ── AN EXPECTED STOP IS NOT A CRASH ──────────────────────────────────────────────────────
+    //
+    // Rethrown rather than turned into a failed result, so the router's generic branch can draw
+    // the same "Stopped" vs "Failed" distinction it already draws for Bell. Swallowing it here
+    // would hand the caller `status: 'failed'` and `documents: []` for a run that stopped exactly
+    // where its operator told it to — and the documents it had already filed are real and in the
+    // database, which is what `filedDocumentCount` is for.
+    if (input.signal?.aborted) {
+      logger.warn('Pipeline', `Stopped after ${(duration_ms / 1000).toFixed(1)}s — ${errMsg}`);
+      clearRunningMessage(input.projectId);
+      throw err;
+    }
+
+    // Pipeline crash — capture logs before cleanup
     logger.error('Pipeline', `CRASH: ${errMsg}`, err);
 
     await updateStatus(input.projectId, 'failed', `Pipeline crashed: ${errMsg}`);

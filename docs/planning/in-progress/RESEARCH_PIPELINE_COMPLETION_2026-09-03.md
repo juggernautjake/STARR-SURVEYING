@@ -450,11 +450,47 @@ below where they conflict, because several are prerequisites for it:
 
 
 
-- [ ] **B*4. `operatorNotes` and the abort signal are dropped at the last hop.** Eleven verified
-      findings share this shape. `operatorNotes` has three occurrences in the whole worker and is
-      never copied into `researchInput`; `CountyResearchInput` has no field for it — while three UI
-      surfaces, including the create form, promise "Sent to the AI with the run". **Either land it or
-      delete the promise.** The abort signal is dropped for the generic pipeline at `router.ts:629`.
+- [x] **B*4. `operatorNotes` and the abort signal were dropped at the last hop.** — shipped
+      2026-09-03. Landed rather than deleted, because the thing being promised is worth having.
+
+      **The notes.** `operatorNotes` had three occurrences in the entire worker: a type, and two
+      places that copy it into a record of what the operator *sent*. It was never written onto
+      `researchInput`, which is the only object the research code ever sees. So "the fence is not
+      the line" and "seller says 2.3 acres" were typed into the create form, stored, displayed back,
+      and read by nothing that could act on them — while the form said "Sent to the AI with the
+      run" and this route's own comment called `operatorNotes` "the channel that already reaches the
+      AI briefing". Both were written in good faith and both were false.
+      It now lands in the two places on each path where an AI actually reads context: Bell's
+      deed-summary prompt (`generateDeedSummary`, both call sites including the historical pass) and
+      the generic pipeline's Stage 5 synthesis, which is that path's only AI pass over everything
+      the run found. Both paths also print it, in full, on the run log the operator is watching —
+      a hint reading "notes present" proves a field was set; it does not show a surveyor that their
+      own sentence is what the model was told.
+      **Framed as a claim, never as a fact.** An operator's "seller says 2.3 acres" repeated back as
+      though a deed carried it is worse than not passing the notes at all: it launders a belief into
+      the record. Both prompts say so explicitly, and the Stage 5 key is literally named
+      `operatorContext_unverifiedClaimsToCheckNotFacts`.
+      **`specialInstructions` was left alone on purpose.** The obvious shortcut was to reuse it. It
+      is the same defect one layer deeper — declared on three types, passed at the Bell dispatch, and
+      read only by `generateSurveyPlan`, which no run calls. Quietly repurposing it would have hidden
+      a second dead channel inside the fix for the first. Its doc comment now says it is unread, and
+      a test asserts that.
+
+      **The stop button.** `runCountyResearch` has taken an `AbortSignal` since it was written and
+      Bell has been handed it since it was written. The generic pipeline — every *other* routed
+      county — was called without one. Pressing Cancel on a Travis County run, and the budget ceiling
+      firing on a Harris County run, both had nothing to abort; the only thing the stop produced was
+      a message saying it had stopped. `stopIfAborted()` now runs at all eight stage boundaries —
+      between stages, never inside one, the same reasoning as Bell's `checkAborted`: stopping between
+      leaves a coherent partial result, stopping inside leaves half a chain of title.
+      An expected stop is rethrown rather than turned into a failed result, and the router's generic
+      branch now draws the same `Stopped` vs `Failed` distinction Bell's already draws — otherwise a
+      run that ended exactly where its operator told it to would report `status: 'failed'` with
+      `documents: []`, which is §1.4 all over again on forty counties instead of one.
+
+      Twelve tests, all asserting the **caller** — a field on an interface is precisely the state
+      that produced this defect — with a control that finds `instrumentNumber`, a value this codebase
+      already threads by the same route, so a miss means something.
 - [ ] **B*5. Health sensing has no consumer in either direction.** `parseSiteId` cannot resolve the
       IDs `buildCheckList` emits, so 100% of the worker's selector-level probe output is discarded at
       the resolver. And a run that got 0 documents from a 200-OK portal is the strongest breakage

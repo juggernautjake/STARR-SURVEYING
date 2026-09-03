@@ -249,6 +249,17 @@ export async function orchestrateBellResearch(
   // ══════════════════════════════════════════════════════════════════
   checkAborted();
 
+  // Printed in full, on the run log the operator is watching, because a hint saying "notes present"
+  // proves a field was set and does not show the surveyor that "the fence is not the line" is what
+  // the AI was actually told. The claim under the notes box — "Sent to the AI with the run" — was
+  // false for every run ever made until this slice; it should be visibly true now.
+  if (input.operatorNotes) {
+    progress('Start', 'What the operator told us about this property:');
+    for (const line of input.operatorNotes.split(/\r?\n/).slice(0, 20)) {
+      if (line.trim()) progress('Start', `  ${line.trim()}`);
+    }
+  }
+
   progress('Phase 1', '─────────────────────────────────────────────', 5);
   progress('Phase 1', 'PHASE 1 — Property Identification', 5);
   progress('Phase 1', `  Input: address="${input.address ?? '—'}" propertyId="${input.propertyId ?? '—'}" owner="${input.ownerName ?? '—'}"`, 5);
@@ -1174,6 +1185,8 @@ export async function orchestrateBellResearch(
         deedRecords: filteredDeedRecords,
         cadLegalDescription: property.legalDescription,
         currentOwner: property.ownerName,
+        // What the operator told us about this property, carried into the summary prompt.
+        operatorNotes: input.operatorNotes,
         targetProperty: {
           situsAddress: property.situsAddress,
           acreage: property.acreage,
@@ -1344,6 +1357,7 @@ export async function orchestrateBellResearch(
               deedRecords: historicalDeedRecords,
               cadLegalDescription: property.legalDescription,
               currentOwner: property.ownerName,
+              operatorNotes: input.operatorNotes,
               targetProperty: {
                 situsAddress: property.situsAddress,
                 acreage: property.acreage,

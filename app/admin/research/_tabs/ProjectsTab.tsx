@@ -946,10 +946,14 @@ export default function ProjectsTab() {
                     onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
                     rows={3}
                   />
-                  {/* This claim used to be in the tooltip and was FALSE — the notes were stored as
-                      `analysis_metadata.user_notes` and read by nothing at all. Seed 624 gave them
-                      a column and the pipeline route now puts them on `operatorNotes`, the channel
-                      that reaches the briefing. Said in the open so the claim stays falsifiable. */}
+                  {/* This claim used to be in the tooltip and was FALSE twice over. First the notes
+                      were stored as `analysis_metadata.user_notes` and read by nothing at all; seed
+                      624 gave them a column and the pipeline route put them on `operatorNotes` —
+                      and `operatorNotes` itself then stopped at the worker's front door, never
+                      reaching the object the research code reads. Both halves are connected now:
+                      the notes reach Bell's deed-summary prompt and the generic pipeline's Stage 5
+                      synthesis, and both paths print them on the run log so the operator can watch
+                      their own words go past. Said in the open so the claim stays falsifiable. */}
                   <p className="research-modal__field-note">
                     Sent to the AI with the run.
                   </p>
