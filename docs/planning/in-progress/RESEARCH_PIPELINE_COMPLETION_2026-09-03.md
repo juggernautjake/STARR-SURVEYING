@@ -789,6 +789,50 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       Every other county runs the generic pipeline, which DOES reach `ai-extraction` →
       `adaptive-vision`. So there is one orchestrator that grew its own analysis layer, not a fleet
       of adapters to retrofit. Unify that one and every county is served by the same tools.
+
+      **Shipped 2026-09-03 — and §1.5b's description of Bell was wrong, in Bell's favour.**
+      The plan said Bell "sends WHOLE page images to Claude". It does not: `splitImageIntoRegions`
+      has always split. What it produced was three fixed regions on every page — the full image, the
+      top half and the bottom half, at 15% overlap, with no grid selection, no per-segment confidence
+      and no escalation. Two horizontal strips are not quadrants; a "half" of a 24×36 sheet is
+      eighteen inches of drawing in one Vision call, which is the resolution problem
+      `adaptive-vision.ts` exists to solve.
+      `selectOptimalGrid`, `computeCropBoxes` and `analyzeImageDimensions` are exported now — they
+      are pure functions over dimensions — and Bell uses them, keeping its own deed prompt for what
+      each segment MEANS. One segmentation rule, two prompts, rather than two of each.
+
+- [x] **D1b. A deed page was costing 32 Vision calls, and nobody had measured it.** — shipped
+      2026-09-03. Found by probing the planner *before* wiring Bell to it, rather than after.
+      Three defects compounding in the module every non-Bell county already uses:
+
+      1. **`analyzeImageDimensions` never searched.** It reads as "match to closest standard sheet
+         by aspect ratio". `bestDiff` started at `Infinity`, so the first candidate always satisfied
+         `diff < bestDiff` — and the body `return`ed *inside* the loop. Every image ever measured
+         was called a 24×36 sheet, because 24×36 is first in the list. The other entries were
+         unreachable and `bestDiff` was assigned once and read never.
+      2. **Letter and legal were not in the sheet table**, and deeds are the majority of what this
+         system reads.
+      3. **The grid test did not mention the grid.** `fineTextPx = dpi × 0.07` is constant across
+         all four options, so the loop could only return 2×2 on the first pass or fail all four —
+         **2×4 and 4×4 have never been selected in the history of this module.** The surrounding log
+         messages computed the same quantity *with* the API downscale factor, so the log and the
+         decision were different numbers and only one of them was printed.
+
+      Compounded: a 2550×3300 scan — letter at a perfectly good 300 DPI — was computed as
+      3300/36 ≈ **92 DPI**, its fine text estimated at 6.4px against a 13px floor, every grid
+      failed, and the selector fell through to its finest: **4×8, thirty-two Vision calls for one
+      deed page** — each able to escalate to four more, and those to four more again. On the
+      2026-09-03 run's 16 deeds that is the shape of a $29.19 bill against a $2 ceiling.
+      **The fallback was also backwards.** A finer grid helps only by avoiding downscale, so "no
+      grid reaches the floor" means the scan lacks the resolution — the ink is not there. Cutting a
+      120 DPI page into 32 pieces buys 32 calls to read the same blur. The floor is 2×2 now, which
+      is the quadrant split the owner asked for, and rating the paper is `ocr-legibility.ts`'s job
+      (D5).
+      Measured after: letter/legal/11×17/24×36 all identify correctly, and every one of them selects
+      2×2 — **four calls per page instead of thirty-two**, with escalation still firing on a
+      quadrant that scores under 60, which is the owner's "zoom in and get an even better
+      understanding" driven by evidence rather than by a DPI miscalculation. No plat regresses: a
+      24×36 at 300 DPI chose 2×2 before and chooses 2×2 now. Fourteen tests; mutation-checked.
 - [ ] **D2. Every page, whole and quartered.** The whole page stays exactly as it is stored today —
       that half already works and must not regress. Each page additionally goes through grid
       selection, cropping and per-segment analysis, and the per-segment findings are stored against

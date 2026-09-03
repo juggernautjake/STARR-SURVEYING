@@ -81,7 +81,7 @@ const MIN_FINE_TEXT_PX = 13;
 /** Typical bearing/distance label height in Texas plat documents */
 const FINE_TEXT_HEIGHT_IN = 0.07;
 /** Normal inter-segment overlap (5%) */
-const OVERLAP_PCT = 0.05;
+export const OVERLAP_PCT = 0.05;
 /** Zoom escalation overlap (8%) */
 const ZOOM_OVERLAP_PCT = 0.08;
 /** Confidence below this triggers auto-zoom (provided the segment has data) */
@@ -93,12 +93,24 @@ const SMALL_IMAGE_BYTES = 800_000;
 /** Anthropic Vision API hard limit: 5 MiB per image. Use 4.5 MiB as safety margin. */
 const MAX_IMAGE_BYTES = 4_718_592; // 4.5 MiB
 
-/** Standard Texas plat sheet sizes (width × height in inches) */
+/** Standard sheet sizes (width × height in inches).
+ *
+ *  ── LETTER AND LEGAL WERE MISSING, AND MOST DOCUMENTS ARE LETTER ────────────────────────────
+ *
+ *  This list held plat sheets only, so an ordinary 8.5×11 deed page was measured against a 24×36
+ *  sheet. A 2550×3300 scan — letter at a perfectly good 300 DPI — was therefore computed as
+ *  3300/36 ≈ **92 DPI**, its fine text estimated at 6.4px against a 13px floor, and the grid
+ *  selector fell through to its finest option: 4×8, **thirty-two Vision calls for one deed page**,
+ *  each able to escalate to four more and those to four more again.
+ *
+ *  Deeds are the majority of what this system reads. */
 const STANDARD_SIZES = [
   { name: '24×36',  widthIn: 24, heightIn: 36 },
   { name: '18×24',  widthIn: 18, heightIn: 24 },
   { name: '30×42',  widthIn: 30, heightIn: 42 },
   { name: '11×17',  widthIn: 11, heightIn: 17 },
+  { name: 'legal',  widthIn: 8.5, heightIn: 14 },
+  { name: 'letter', widthIn: 8.5, heightIn: 11 },
 ] as const;
 
 /** Grid options evaluated in order — smallest satisfying grid wins */
@@ -139,44 +151,78 @@ PRECISION RULES:
 
 // ── Phase 1: Image analysis ───────────────────────────────────────────────────
 
-interface ImageInfo {
+export interface ImageInfo {
   width: number;
   height: number;
   estimatedDpi: number;
   sheetName: string;
 }
 
-function analyzeImageDimensions(width: number, height: number): ImageInfo {
+/**
+ * Estimate the physical sheet and scan resolution behind a bitmap.
+ *
+ * ── THE LOOP RETURNED ON ITS FIRST ITERATION, ALWAYS ────────────────────────────────────────────
+ *
+ * This read as a search for the closest standard sheet by aspect ratio. It was not one.
+ * `bestDiff` started at `Infinity`, so the FIRST candidate always satisfied `diff < bestDiff` — and
+ * the body `return`ed. Every image ever measured was called a 24×36 sheet, because 24×36 is first
+ * in the list. The remaining entries have never been reached, and `bestDiff` was assigned once and
+ * read never.
+ *
+ * Combined with letter and legal being absent from that list (see above), the effect on cost was
+ * severe: an ordinary 300 DPI letter deed page was scored at 92 DPI, failed the fine-text floor at
+ * every grid, and fell through to a 4×8 split — 32 Vision calls per page, before escalation.
+ *
+ * The loop now finishes before it decides.
+ */
+export function analyzeImageDimensions(width: number, height: number): ImageInfo {
   const aspectRatio = width / height;
 
-  // Match to closest standard sheet by aspect ratio (portrait and landscape)
-  let bestName = '24×36';
+  let best: { name: string; widthIn: number; heightIn: number } = STANDARD_SIZES[0];
   let bestDiff = Infinity;
 
   for (const size of STANDARD_SIZES) {
     const sheetAspect = size.widthIn / size.heightIn;
+    // Either orientation: a landscape plat and a portrait one are the same sheet.
     const diff = Math.min(
       Math.abs(aspectRatio - sheetAspect),
       Math.abs(aspectRatio - 1 / sheetAspect),
     );
     if (diff < bestDiff) {
       bestDiff = diff;
-      bestName = size.name;
-      const matched = size;
-      const longerDim = Math.max(width, height);
-      const longerSheetDim = Math.max(matched.widthIn, matched.heightIn);
-      const estimatedDpi = Math.round(longerDim / longerSheetDim);
-      return { width, height, estimatedDpi, sheetName: bestName };
+      best = size;
     }
   }
 
-  // Fallback: assume 200 DPI
-  return { width, height, estimatedDpi: 200, sheetName: bestName };
+  const longerDim = Math.max(width, height);
+  const longerSheetDim = Math.max(best.widthIn, best.heightIn);
+  return {
+    width,
+    height,
+    estimatedDpi: Math.round(longerDim / longerSheetDim),
+    sheetName: best.name,
+  };
 }
 
 // ── Phase 2: Grid selection ───────────────────────────────────────────────────
+//
+// ── EXPORTED SO THERE IS ONE SEGMENTATION RULE, NOT TWO ──────────────────────
+//
+// The owner asked that "each page should also be split up into quadrants and then enlarged and
+// reviewed/analyzed individually". This module does that. Bell's deed analyzer did NOT — despite
+// what the plan doc's first reading said, it does split, but into three fixed regions: the full
+// image, the top half and the bottom half, at 15% overlap, with no grid selection, no per-segment
+// confidence and no escalation.
+//
+// Two horizontal strips are not quadrants. On a 24×36 plat sheet a "half" is still eighteen inches
+// of drawing in one Vision call, which is the resolution problem this module exists to solve.
+//
+// So the planner is exported rather than reimplemented: `selectOptimalGrid` and
+// `computeCropBoxes` are pure functions over dimensions, and Bell can use the same rule while
+// keeping its own deed-specific prompt for what each segment MEANS. Copying the rule is how the
+// two would drift, which is the defect this whole plan keeps finding.
 
-interface GridChoice {
+export interface GridChoice {
   rows: number;
   cols: number;
   pieceWidth: number;
@@ -185,36 +231,64 @@ interface GridChoice {
   totalPieces: number;
 }
 
-function selectOptimalGrid(info: ImageInfo): GridChoice {
-  // Always use at least a 2x2 grid to ensure thorough quadrant-level OCR analysis.
-  // For larger images, use finer grids as needed for readability.
+/** Fine-text height, in pixels, as the API will actually SEE it at this piece size.
+ *
+ *  A piece larger than the Vision limit is downscaled on the way in, and that downscale is the only
+ *  reason a finer grid helps: smaller pieces are shrunk less, so the same ink survives as more
+ *  pixels. A piece already within the limit gains nothing from being cut further. */
+function fineTextPxAt(info: ImageInfo, rows: number, cols: number): number {
+  const pieceMaxDim = Math.max(Math.ceil(info.width / cols), Math.ceil(info.height / rows));
+  const apiScale = pieceMaxDim > CLAUDE_MAX_PIXELS ? CLAUDE_MAX_PIXELS / pieceMaxDim : 1;
+  return info.estimatedDpi * FINE_TEXT_HEIGHT_IN * apiScale;
+}
+
+/**
+ * The smallest grid whose pieces keep fine surveying text legible.
+ *
+ * ── THE TEST WAS CONSTANT ACROSS EVERY GRID ─────────────────────────────────────────────────────
+ *
+ * The loop computed `fineTextPx = estimatedDpi × 0.07` — a value that does not mention `grid` at
+ * all. So the condition was the same on every iteration, and the loop could only ever do one of two
+ * things: return 2×2 on the first pass, or fail all four and fall through. **2×4 and 4×4 have never
+ * been selected.** The choice was binary between the coarsest and the finest option, dressed as a
+ * search over four.
+ *
+ * `fineTextPxAt` is the formula the surrounding log messages already used, and now the decision uses
+ * it too — the log and the decision had been computing different numbers and printing one of them.
+ *
+ * ── AND THE FALLBACK WAS BACKWARDS ──────────────────────────────────────────────────────────────
+ *
+ * When no grid reached the floor it returned the FINEST — 4×8, thirty-two Vision calls. But a grid
+ * only helps by avoiding downscale, so "no grid reaches the floor" means the scan simply does not
+ * have the resolution: the ink is not there. Cutting a 120 DPI page into 32 pieces buys 32 calls to
+ * read the same blur. The floor is 2×2 instead, which is the quadrant split the owner asked for,
+ * and `ocr-legibility.ts` is the right place to say the paper cannot be read.
+ */
+export function selectOptimalGrid(info: ImageInfo): GridChoice {
+  // At least 2×2 always: "each page should also be split up into quadrants".
   for (const grid of GRID_OPTIONS) {
     const pieceWidth  = Math.ceil(info.width  / grid.cols);
     const pieceHeight = Math.ceil(info.height / grid.rows);
-
-    if (pieceWidth > CLAUDE_MAX_PIXELS || pieceHeight > CLAUDE_MAX_PIXELS) continue;
-
-    // Fine text pixel height at this piece size (no API resize needed when ≤ 8000px)
-    const fineTextPx = info.estimatedDpi * FINE_TEXT_HEIGHT_IN;
+    const fineTextPx  = fineTextPxAt(info, grid.rows, grid.cols);
     if (fineTextPx >= MIN_FINE_TEXT_PX) {
       return { ...grid, pieceWidth, pieceHeight, fineTextPx, totalPieces: grid.rows * grid.cols };
     }
   }
 
-  // Fallback: finest grid available
-  const fallback = GRID_OPTIONS[GRID_OPTIONS.length - 1];
+  // Nothing reached the floor — the scan is low-resolution, not badly divided.
+  const floor = GRID_OPTIONS[0];
   return {
-    ...fallback,
-    pieceWidth:  Math.ceil(info.width  / fallback.cols),
-    pieceHeight: Math.ceil(info.height / fallback.rows),
-    fineTextPx:  info.estimatedDpi * FINE_TEXT_HEIGHT_IN,
-    totalPieces: fallback.rows * fallback.cols,
+    ...floor,
+    pieceWidth:  Math.ceil(info.width  / floor.cols),
+    pieceHeight: Math.ceil(info.height / floor.rows),
+    fineTextPx:  fineTextPxAt(info, floor.rows, floor.cols),
+    totalPieces: floor.rows * floor.cols,
   };
 }
 
 // ── Phase 3: Crop box computation ────────────────────────────────────────────
 
-interface CropBox {
+export interface CropBox {
   left: number;
   top: number;
   width: number;
@@ -224,7 +298,7 @@ interface CropBox {
   col: number;
 }
 
-function computeCropBoxes(
+export function computeCropBoxes(
   imgWidth: number,
   imgHeight: number,
   rows: number,

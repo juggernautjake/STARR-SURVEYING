@@ -10,6 +10,10 @@
  */
 
 import { convertLength } from '../../../services/survey-units.js';
+// One segmentation rule for every county — see the note in adaptive-vision.ts.
+import {
+  analyzeImageDimensions, selectOptimalGrid, computeCropBoxes,
+} from '../../../services/adaptive-vision.js';
 import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
@@ -304,22 +308,36 @@ async function splitImageIntoRegions(base64Img: string): Promise<ImageRegion[]> 
       } catch { return null; }
     }
 
-    const halfH = height / 2;
-    const overlapH = height * OVERLAP;
+    // ── QUADRANTS, NOT TWO HORIZONTAL STRIPS (plan D1) ──────────────────────────────────────
+    //
+    // > "Each page should be saved as a whole page, but each page should also be split up into
+    // >  quadrants and then enlarged and reviewed/analyzed individually."
+    //
+    // This produced exactly three regions on every page, forever: the full image, the top half and
+    // the bottom half, at a fixed 15% overlap. A "half" of a 24×36 plat sheet is still eighteen
+    // inches of drawing in one Vision call — which is the resolution problem `adaptive-vision.ts`
+    // was written to solve, six phases of it, used by the generic pipeline that serves every county
+    // EXCEPT the one with a dedicated orchestrator.
+    //
+    // The grid is chosen by the same rule now — 2×2 up to 4×8, picked so fine surveying text stays
+    // at least 13px tall — from the exported planner rather than a second copy of the idea.
+    // What Bell keeps is its own prompt: `analyzeRegion` knows what a deed segment MEANS, and that
+    // is the half of this that was already working.
+    const info = analyzeImageDimensions(width, height);
+    const grid = selectOptimalGrid(info);
 
-    // Full image (resized)
+    // The full page stays, first, exactly as before. The owner asked for the whole page AND the
+    // quadrants, not the quadrants instead — and an overview region is what lets a reader tell
+    // where a segment sat.
     const fullResized = await resizeDeedImage(base64Img);
     if (fullResized) {
       regions.push({ ...fullResized, label: 'full image (overview)', regionIndex: 0, totalRegions: 0 });
     }
 
-    // Top half (with overlap into bottom)
-    const topHalf = await cropRegion(0, 0, width, halfH + overlapH, 'top half');
-    if (topHalf) regions.push(topHalf);
-
-    // Bottom half (with overlap into top)
-    const bottomHalf = await cropRegion(0, halfH - overlapH, width, halfH + overlapH, 'bottom half');
-    if (bottomHalf) regions.push(bottomHalf);
+    for (const box of computeCropBoxes(width, height, grid.rows, grid.cols, OVERLAP)) {
+      const seg = await cropRegion(box.left, box.top, box.width, box.height, box.segmentId);
+      if (seg) regions.push(seg);
+    }
 
     // Assign indices
     for (let i = 0; i < regions.length; i++) {
