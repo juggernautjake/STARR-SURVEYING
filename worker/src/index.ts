@@ -1886,6 +1886,19 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             const updatedMeta: Record<string, unknown> = {
               ...currentMeta,
               result: {
+                // ── THE OUTCOME WAS NEVER WRITTEN DOWN ────────────────────────────────────
+                //
+                // Everything else about a finished run was persisted here — owner, boundary,
+                // documents, the validation report — and the one fact that says whether any of it
+                // can be trusted was not. So the review page had nothing to read, and passed the
+                // LITERAL string 'success' to its log panel: every project, forever, under a green
+                // "Research complete" tick, including the ones that failed.
+                //
+                // `stopReason` travels with it because "complete" and "stopped at the ceiling you
+                // set" are both non-failures that mean different things to a reviewer.
+                status: r.status ?? null,
+                stopReason: (r as { stopReason?: string | null }).stopReason ?? null,
+                failureReason: r.failureReason ?? null,
                 ownerName: r.ownerName ?? null,
                 propertyId: r.propertyId ?? null,
                 geoId: r.geoId ?? null,

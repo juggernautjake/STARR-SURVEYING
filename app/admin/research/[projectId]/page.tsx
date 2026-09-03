@@ -2795,8 +2795,33 @@ export default function ResearchProjectPage() {
               <span className="review-log-section__title"><Search size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Research Logs</span>
               <PipelineProgressStyles />
             </div>
+            {/* ── AN OPERATOR SIGNED OFF A FAILED RUN FROM A GREEN TICK ────────────────────
+                This passed the LITERAL string "success". Every project, forever, regardless of
+                what its run did — so the review page's log viewer showed "✓ Research complete"
+                above the logs of a run that had crashed, and the person reading them was being
+                told the opposite of what the logs said.
+
+                The page could not have known better: the outcome was the one thing the worker did
+                not persist into analysis_metadata.result. It does now. Where it is absent — every
+                project that ran before this change — the panel is given "archived", which claims
+                nothing and titles itself "Run log". A page that does not know a run's outcome must
+                say so rather than pick the cheerful option. */}
             <PipelineProgressPanel
-              status="success"
+              status={(() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const r = meta?.result as Record<string, unknown> | null;
+                const stored = typeof r?.status === 'string' ? r.status : null;
+                return stored ?? 'archived';
+              })()}
+              failureReason={(() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const r = meta?.result as Record<string, unknown> | null;
+                // The stop reason first: "reached the ceiling you set" is a more useful sentence
+                // than a generic failure line, and it is the one the 2026-09-03 run needed.
+                const stop = typeof r?.stopReason === 'string' ? r.stopReason : null;
+                const fail = typeof r?.failureReason === 'string' ? r.failureReason : null;
+                return stop ?? fail ?? undefined;
+              })()}
               result={(() => {
                 const meta = project.analysis_metadata as Record<string, unknown> | null;
                 const r = meta?.result as Record<string, unknown> | null;

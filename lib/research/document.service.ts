@@ -7,6 +7,7 @@ import { callAI, callVision, callDocumentAI, AIServiceError } from './ai-client'
 import type { ResearchDocument, DocumentType } from '@/types/research';
 // An unreadable page must say so rather than becoming a document with no facts (research plan R18).
 import { assessOcr, isLandRecordType, statusFor } from './ocr-quality';
+import { toConfidenceFraction } from './confidence-scale';
 
 // ── Processing Pipeline ──────────────────────────────────────────────────────
 
@@ -53,7 +54,9 @@ export async function processDocument(documentId: string): Promise<void> {
       extracted_text: extraction.text,
       extracted_text_method: extraction.method,
       page_count: extraction.pageCount || null,
-      ocr_confidence: extraction.ocrConfidence || null,
+      // The extraction prompt returns 0–100 and the worker's returns 0–1. One scale in the column;
+      // see lib/research/confidence-scale.ts for why 0–1 won.
+      ocr_confidence: toConfidenceFraction(extraction.ocrConfidence),
       // `ocr_regions` is DELIBERATELY NOT WRITTEN HERE (plan R17, seed 570).
       //
       // Despite its name it does not hold OCR regions: `artifact-uploader.ts` stores

@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { ResearchDocument } from '@/types/research';
+import { confidencePercentLabel } from '@/lib/research/confidence-scale';
 
 export const RESEARCH_SOURCES = [
   'County Appraisal District',
@@ -158,7 +159,9 @@ export function ReviewDocCard({ typeIcon: TypeIcon, title, typeName, doc, excerp
                     : `${(doc.file_size_bytes / 1024).toFixed(0)} KB`
                   }</span>
                 )}
-                {doc.ocr_confidence != null && <span>OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
+                {/* Multiplying by 100 is right for a worker-written row (0–1) and renders an
+                    app-written row (0–100) as "9000%". One helper now, for both readers. */}
+                {confidencePercentLabel(doc.ocr_confidence) && <span>OCR {confidencePercentLabel(doc.ocr_confidence)}</span>}
                 {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
               </div>
               <div className="review-doc-card__actions">

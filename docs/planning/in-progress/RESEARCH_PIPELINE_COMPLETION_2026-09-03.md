@@ -533,13 +533,60 @@ below where they conflict, because several are prerequisites for it:
       `fema` — written only by Bell — "passes" for all 254 counties. `adjoiner-persistence.test.ts`
       mocks the `upsert` and asserts the option string, so it passes while the real statement fails
       42P10 and `research_adjoiners` holds **0 rows**. Do not sweep before the guard is honest.
-- [ ] **B*7. Two confidence scales collide on screen.** `ocr_confidence` is 0–100 from the app and
-      0–1 from the worker; `ArtifactGallery` renders both for the same object. `boundary.confidence`
-      is 0–100 from Bell and 0–1 from generic, and `PipelineProgressPanel` multiplies by 100 —
-      producing **"6800%"** classed as high confidence. `normaliseConfidence` exists in
-      `infra/ocr-quality.ts` with a comment saying exactly why, and neither writer calls it.
-- [ ] **B*8. `page.tsx:2799` passes the literal `status="success"`.** An operator signs off a FAILED
-      run from a green "Research complete". One word.
+- [x] **B*7. Two confidence scales in one column, and two viewers each assuming a different one.**
+      — shipped 2026-09-03.
+
+      | | Scale | Evidence |
+      |---|---|---|
+      | `lib/research/analysis.service.ts` | 0–100 | `prompts.ts` asks for `"overall_confidence": 0-100` |
+      | `lib/research/document.service.ts` | 0–100 | same prompt |
+      | `worker/.../file-generic-document.ts` | 0–1 | `ai-extraction.ts`: *"Set confidence per-call (0.0-1.0)"* |
+      | `SourceDocumentViewer.tsx` | reads as 0–100 | `{doc.ocr_confidence}%` → a worker row shows **"0.92%"** |
+      | `ReviewDocCard.tsx` | reads as 0–1 | `Math.round(x * 100)}%` → an app row shows **"9000%"** |
+
+      One document could be 92% confident on one screen and 0.92% on another, with nothing on either
+      screen to say which number was the lie. `lib/research/confidence-scale.ts` is now the one rule
+      at every read and every write; the worker's writer finally calls the `normaliseConfidence`
+      that has carried a comment describing this exact hazard, with no callers outside its own
+      module, since it was written. Seed 627 brings the stored rows onto the 0–1 scale, adds the
+      column comment, and adds a `NOT VALID` check so anything written from here on obeys it.
+      The genuinely ambiguous value — exactly `1`, which is 100% on one scale and 1% on the other —
+      is read as 100%, and the tie-break is stated in both the module and the seed rather than left
+      as silent behaviour.
+      **The "6800%" claim I could not reproduce.** The audit attributed it to `boundary.confidence`
+      being 0–100 from Bell and 0–1 from generic. The Bell status response carries no `boundary`
+      key at all, and the Bell metadata branch writes `boundary: null`, so I could not find the path
+      that produces it. What is true and worth guarding: `confidence: number` on
+      `ExtractedBoundaryData` declares no scale and has more than one producer, and the panel
+      multiplied it by 100 on trust. It normalises now. Recorded as a guard against an unproven
+      claim rather than as a fix for a confirmed defect.
+
+- [x] **B*8. The review page passed the literal `status="success"`.** — shipped 2026-09-03.
+      Every project, forever, regardless of what its run did: "✓ Research complete" above the logs
+      of a run that had crashed, with an operator signing off from it.
+      Not one word, in the end. The page could not have known better — the outcome was the one thing
+      the worker did **not** persist into `analysis_metadata.result`. Owner, boundary, documents and
+      the entire validation report were written down; whether any of it could be trusted was not.
+      The worker now writes `status`, `stopReason` and `failureReason`, the page reads them, and
+      where they are absent — every project that ran before this change — the panel is given
+      `archived`, which claims nothing and titles itself "Run log". `stopReason` leads the failure
+      banner, because "reached the ceiling you set" is a more useful sentence than a generic failure
+      line and is the one the 2026-09-03 run needed.
+
+- [x] **B*6 (part). The ratchet flagged the explanation, not the code.** — shipped 2026-09-03,
+      out of order, because B*5a tripped it. `writes-hit-real-columns` scanned raw source in
+      `badFilters` and `badSelects`, so a doc comment quoting a fixed bad filter was read as a live
+      call — and it fired on precisely that, in the commit that fixed the defect the comment was
+      describing. `badWrites` had blanked comments since it was written; the other two had not,
+      which is the divergence three copies of one idea always produce.
+      `blankComments` also had the `Accept: */*` hazard: an unanchored block opener would blank
+      every line to the next real `*/`, hiding real filters — and a scanner that cannot see a defect
+      reports none, which reads exactly like a clean file. The opener is anchored to a line start
+      now, and three controls prove it: a filter inside a comment is not flagged, the same filter
+      outside one still is, and a `*/` inside a string literal does not blank what follows.
+      The rest of B*6 — the orphan guard's `hasCaller`, the seven unscanned worker directories, the
+      concatenated-corpus "review reads what the worker writes" test, and `adjoiner-persistence`
+      mocking the `upsert` it should be exercising — is still open below.
 
 
 

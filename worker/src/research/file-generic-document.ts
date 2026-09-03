@@ -30,6 +30,7 @@
 import type { DocumentResult } from '../types/index.js';
 import { resilientInsertDocument } from '../services/artifact-uploader.js';
 import { getSupabase } from '../services/pipeline.js';
+import { normaliseConfidence } from '../infra/ocr-quality.js';
 
 /** Maximum characters stored in `extracted_text`. Mirrors the limit index.ts has always used. */
 const MAX_EXTRACTED_TEXT_LENGTH = 50_000;
@@ -113,7 +114,11 @@ export function genericDocumentRow(
     processing_status: 'analyzed',
     page_count: pageCount ?? null,
     source_url: ref?.url ?? null,
-    ocr_confidence: doc.extractedData?.confidence ?? null,
+    // One scale in this column. The worker's extraction prompt asks for 0.0–1.0 and the app's asks
+    // for 0–100; both write here, and two viewers each assumed a different one, so the same
+    // document read as "92%" on one screen and "0.92%" on another. `normaliseConfidence` has said
+    // why this is needed since it was written, and had no callers outside its own module.
+    ocr_confidence: normaliseConfidence(doc.extractedData?.confidence),
     created_at: now,
     updated_at: now,
   };

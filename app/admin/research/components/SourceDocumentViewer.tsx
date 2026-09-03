@@ -12,6 +12,7 @@ import {
 } from '@/lib/viewers/viewer-fit';
 // A `storage_url` is a string built by `getPublicUrl`, never a check that the file exists.
 import { storedFileUrl } from '@/lib/research/stored-file';
+import { confidencePercentLabel } from '@/lib/research/confidence-scale';
 // Markup that survives closing the viewer, kept apart from the original (research plan R24).
 import {
   normaliseWidth,
@@ -1055,10 +1056,13 @@ export default function SourceDocumentViewer({
           </button>
         </div>
 
-        {/* OCR confidence */}
-        {doc.ocr_confidence != null && (
+        {/* OCR confidence — see lib/research/confidence-scale.ts. This read the column raw and
+            appended "%", which is right for an app-written row (0–100) and turns a worker-written
+            row into "0.92%". ReviewDocCard made the opposite assumption about the same column and
+            rendered an app row as "9000%". */}
+        {confidencePercentLabel(doc.ocr_confidence) && (
           <div className="research-viewer__confidence">
-            OCR Confidence: {doc.ocr_confidence}%
+            OCR Confidence: {confidencePercentLabel(doc.ocr_confidence)}
           </div>
         )}
 

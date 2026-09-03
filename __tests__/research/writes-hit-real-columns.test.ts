@@ -78,8 +78,13 @@ function seedColumns(): Map<string, Set<string>> {
 
 /** Comments blanked, LENGTH PRESERVED — see the header; changing lengths broke this twice. */
 function blankComments(src: string): string {
+  // The block opener is anchored to the START OF A LINE, optionally after indentation and a JSX
+  // `{`. Unanchored, the `*` `/` `*` inside a header string like `Accept: */*;q=0.8` opens a
+  // "comment" that runs to the next real `*/` and blanks every line between — in this file that
+  // would silently hide real filters from the scan, and a guard that cannot see a defect reports
+  // zero of them. Blanking preserves length and newlines, so line numbers stay honest.
   return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/^[ \t]*\{?\/\*[\s\S]*?\*\//gm, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:'"`])\/\/[^\n]*/g, (m, p1: string) => p1 + ' '.repeat(m.length - p1.length));
 }
 
@@ -255,7 +260,9 @@ function badSelects(cols: Map<string, Set<string>>, files: string[], sources?: M
     // lib/research/ — a directory other suites walk in parallel worker threads — so the
     // whole-suite run failed intermittently with ENOENT inside an unrelated test.
     const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
-    for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)\s*(?:\r?\n\s*)?\.select\(\s*(['"`])([^'"`]*)\2/g)) {
+    // Same reason as badFilters: a comment quoting a `.select('bad_col')` is prose, not a query.
+    const src = blankComments(raw);
+    for (const m of src.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)\s*(?:\r?\n\s*)?\.select\(\s*(['"`])([^'"`]*)\2/g)) {
       const known = cols.get(m[1]);
       if (!known) continue;
       const list = m[3];
@@ -271,7 +278,7 @@ function badSelects(cols: Map<string, Set<string>>, files: string[], sources?: M
         const name = part.trim().split(':').pop()!.trim();
         if (!name || name === '*' || !/^[a-z_][a-z0-9_]*$/i.test(name)) continue;
         if (!known.has(name.toLowerCase())) {
-          found.push({ file, table: m[1], key: name, line: raw.slice(0, m.index!).split('\n').length });
+          found.push({ file, table: m[1], key: name, line: src.slice(0, m.index!).split('\n').length });
         }
       }
     }
@@ -346,11 +353,23 @@ function badFilters(cols: Map<string, Set<string>>, files: string[], sources?: M
     // lib/research/ — a directory other suites walk in parallel worker threads — so the
     // whole-suite run failed intermittently with ENOENT inside an unrelated test.
     const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
-    for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)/g)) {
+    // ── A COMMENT IS NOT A QUERY ────────────────────────────────────────────────────────────
+    //
+    // This scanned the raw source, so a doc comment DESCRIBING a bad filter — the natural way to
+    // record "this used to call ilike on a name column with a FIPS, which is why nothing ever
+    // matched" — was read as a live call and reported as a defect. It fired on exactly that, in
+    // the commit that FIXED the defect it was describing: the guard flagged the explanation.
+    //
+    // `badWrites` has blanked comments since it was written. `badFilters` and `badSelects` did
+    // not, which is the divergence three copies of one idea always produce.
+    //
+    // Blanked rather than deleted so offsets survive and the reported line number is the real one.
+    const src = blankComments(raw);
+    for (const m of src.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)/g)) {
       const known = cols.get(m[1]);
       if (!known) continue;
       // The chain runs until the next `.from(` — anything after that belongs to another table.
-      let chain = raw.slice(m.index! + m[0].length, m.index! + 1200);
+      let chain = src.slice(m.index! + m[0].length, m.index! + 1200);
       const next = chain.indexOf('.from(');
       if (next >= 0) chain = chain.slice(0, next);
 
@@ -359,7 +378,7 @@ function badFilters(cols: Map<string, Set<string>>, files: string[], sources?: M
         // dot, and that is what has to exist.
         const col = f[2].split('.')[0].toLowerCase();
         if (!known.has(col)) {
-          found.push({ file, table: m[1], key: `${f[1]}('${col}')`, line: raw.slice(0, m.index!).split('\n').length });
+          found.push({ file, table: m[1], key: `${f[1]}('${col}')`, line: src.slice(0, m.index!).split('\n').length });
         }
       }
     }
@@ -400,6 +419,50 @@ describe('every research filter names a real column', () => {
     const REL = 'lib/research/__filter_probe_two__.ts';
     const SRC = new Map([[REL, code]]);
     expect(badFilters(COLUMNS, [REL], SRC)).toEqual([]);
+  });
+
+  it('does not flag a filter that exists only inside a comment', () => {
+    // The natural way to record a fixed defect is to quote it. This guard read the quote as a live
+    // call and reported the explanation as the problem — which it did, on the commit that fixed the
+    // very defect being explained.
+    const code = [
+      `/**`,
+      ` * This used to call .ilike('name', fips) here, which is why nothing ever matched.`,
+      ` */`,
+      `await db.from('research_site_adapters').select('*').eq('id', a);`,
+      `// and .eq('another_fake_col', 1) in a line comment`,
+    ].join('\n');
+    const REL = 'lib/research/__filter_probe_comment__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC)).toEqual([]);
+  });
+
+  it('CONTROL: the same bad filter OUTSIDE a comment is still caught', () => {
+    // Without this, the test above would pass just as well if comment-blanking had eaten the file.
+    const code = [
+      `/**`,
+      ` * This used to call .ilike('name', fips) here, which is why nothing ever matched.`,
+      ` */`,
+      `await db.from('research_site_adapters').select('*').eq('another_fake_col', 1);`,
+    ].join('\n');
+    const REL = 'lib/research/__filter_probe_comment_control__.ts';
+    const SRC = new Map([[REL, code]]);
+    const bad = badFilters(COLUMNS, [REL], SRC);
+    expect(bad.length).toBe(1);
+    expect(bad[0].key).toBe("eq('another_fake_col')");
+  });
+
+  it('CONTROL: a "*/" inside a string literal does not blank the code after it', () => {
+    // `Accept: */*;q=0.8` has opened a false comment in this codebase before and swallowed 83
+    // lines. Blanking from an unanchored opener would hide every filter that followed — and a
+    // scanner that cannot see a defect reports none, which reads exactly like a clean file.
+    const code = [
+      `const headers = { Accept: '*/*;q=0.8' };`,
+      `await db.from('research_site_adapters').select('*').eq('yet_another_fake_col', 1);`,
+    ].join('\n');
+    const REL = 'lib/research/__filter_probe_starslash__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC).length).toBe(1);
   });
 
   it('has no filter naming a column the seeds do not define', () => {

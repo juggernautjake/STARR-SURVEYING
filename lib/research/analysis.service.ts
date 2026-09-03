@@ -8,6 +8,7 @@ import { searchOpenWeb, renderFindingsAsDocument, type OpenWebResult } from './o
 // Matching a fact's quote back to the tile it was read from (plan R17).
 import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
+import { toConfidenceFraction, confidencePercentLabel } from './confidence-scale';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -1554,7 +1555,12 @@ async function extractFromDocument(
             (textForExtraction ? `[EXISTING TEXT]\n${textForExtraction}` : '');
 
           // Persist the enriched text so future runs and the UI can display it
-          const ocrConfidence = (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null;
+          // prompts.ts asks the model for `"overall_confidence": 0-100`; the worker's extraction
+          // prompt asks for 0.0–1.0; both wrote to this one column. Normalised on the way in so the
+          // column has one meaning — see lib/research/confidence-scale.ts.
+          const ocrConfidence = toConfidenceFraction(
+            (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null,
+          );
           await supabaseAdmin.from('research_documents').update({
             extracted_text: textForExtraction.substring(0, 40000),
             extracted_text_method: 'vision+ocr',
@@ -1564,7 +1570,7 @@ async function extractFromDocument(
 
           // Friendly log about Vision OCR results
           const ocrLen = ocrText.trim().length;
-          const confStr = ocrConfidence ? ` (${Math.round(ocrConfidence * 100)}% confidence)` : '';
+          const confStr = ocrConfidence ? ` (${confidencePercentLabel(ocrConfidence)} confidence)` : '';
           console.log(`[Analysis] Vision OCR extracted ${ocrLen} chars from "${doc.document_label}"${confStr}`);
         }
       }

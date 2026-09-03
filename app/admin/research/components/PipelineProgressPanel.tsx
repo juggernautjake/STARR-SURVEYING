@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isDoneStatus, statusIcon, formatTimestamp, formatLogAsText, formatDetailedLogAsText,
 } from './pipeline-log';
+import { toConfidenceFraction, confidencePercentLabel } from '@/lib/research/confidence-scale';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,16 @@ export interface PipelineLogEntry {
 }
 
 export interface PipelineProgressProps {
-  status:       string | null;         // 'starting'|'running'|'success'|'partial'|'failed'|'complete'|null
+  /**
+   * 'starting' | 'running' | 'success' | 'partial' | 'complete' | 'failed' | 'archived' | null
+   *
+   * `archived` means "this is the stored log of a run that has ended, and its outcome is not
+   * being asserted here". It exists because the review page passed the LITERAL string 'success'
+   * for every project it rendered — so an operator signed off a failed run from under a green
+   * "Research complete" tick. A run's outcome is a fact about the run; a page that does not know
+   * it must say so rather than pick the cheerful option.
+   */
+  status:       string | null;
   message?:     string;                // Latest "Stage N: …" message from updateStatus
   /** Short stage label from the worker (e.g. "Phase 3", "Routing") — used when message is absent. */
   currentStage?: string;
@@ -134,8 +144,12 @@ function Spinner() {
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
 function ResultCard({ result }: { result: PipelineResultSummary }) {
-  const confidence = result.boundary?.confidence;
-  const confPct    = confidence != null ? Math.round(confidence * 100) : null;
+  // Multiplying a raw value by 100 assumes a scale this type does not declare — `confidence: number`
+  // on `ExtractedBoundaryData`, with no comment and two producers. The generic extractor's prompt
+  // asks for 0.0–1.0; nothing guarantees the next one will. Normalised rather than trusted, because
+  // the failure mode is a number like "6800%" shown to a surveyor as high confidence.
+  const confFraction = toConfidenceFraction(result.boundary?.confidence);
+  const confPct = confidencePercentLabel(result.boundary?.confidence);
 
   return (
     <div className="ppanel__result-card">
@@ -176,9 +190,9 @@ function ResultCard({ result }: { result: PipelineResultSummary }) {
           <span className="ppanel__result-value">
             {result.boundary.type}
             {result.boundary.callCount != null && ` · ${result.boundary.callCount} calls`}
-            {confPct != null && (
-              <span className={`ppanel__confidence ppanel__confidence--${confPct >= 80 ? 'high' : confPct >= 50 ? 'mid' : 'low'}`}>
-                {confPct}%
+            {confPct != null && confFraction != null && (
+              <span className={`ppanel__confidence ppanel__confidence--${confFraction >= 0.8 ? 'high' : confFraction >= 0.5 ? 'mid' : 'low'}`}>
+                {confPct}
               </span>
             )}
             {/* A bare ✓ carried the whole meaning and was announced as "check mark" or as nothing
@@ -498,6 +512,8 @@ export function PipelineProgressPanel({
   const isRunning  = status === 'running' || status === 'starting';
   const isSuccess  = status === 'success' || status === 'partial' || status === 'complete';
   const isFailed   = status === 'failed';
+  // Not success and not failure: a stored log whose outcome this caller cannot vouch for.
+  const isArchived = status === 'archived';
   const isPartial  = status === 'partial';
   const isDone     = isDoneStatus(status);
 
@@ -586,6 +602,7 @@ export function PipelineProgressPanel({
             {isRunning  && (stageDescription ?? 'Research running…')}
             {isSuccess  && (isPartial ? 'Research complete — partial results' : 'Research complete')}
             {isFailed   && 'Research failed'}
+            {isArchived && 'Run log'}
             {!status    && 'Starting research…'}
           </span>
         </div>
