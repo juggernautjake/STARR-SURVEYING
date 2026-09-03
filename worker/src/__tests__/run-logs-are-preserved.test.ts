@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { mergeRunLogs, capRunLogs, persistRunLogs, MAX_PERSISTED_ENTRIES } from '../research/persist-run-logs.js';
+import {
+  mergeRunLogs, capRunLogs, persistRunLogs, MAX_PERSISTED_ENTRIES,
+  shouldFlush, markFlushed, resetFlushClock, FLUSH_INTERVAL_MS,
+} from '../research/persist-run-logs.js';
 
 // ── 163 MINUTES OF WORK, ONE SAVED LOG ENTRY ────────────────────────────────────────────────────
 //
@@ -171,5 +174,89 @@ describe('both writers go through the merge', () => {
 
   it('and they report a failure rather than assuming the save landed', () => {
     expect(SRC).toContain('could not save');
+  });
+});
+
+// ── F3 — A DIARY WRITTEN ONLY AT THE END IS NOT A DIARY ────────────────────────────────────────
+//
+// Both writers fired at completion, so a run that is killed loses everything it learned. That is
+// what "there are no logs really" was: the 163-minute run of 2026-09-03 survived only because it
+// happened to finish, and had it been killed at minute 160 the whole diary would have gone with it.
+
+describe('the log is flushed while the run is still alive', () => {
+  const P = 'proj-flush';
+
+  it('the first tick of a run always flushes', () => {
+    resetFlushClock(P);
+    expect(shouldFlush(P, 1_000_000)).toBe(true);
+  });
+
+  it('and then waits — a flush per progress line would write constantly', () => {
+    resetFlushClock(P);
+    markFlushed(P, 1_000_000);
+    expect(shouldFlush(P, 1_000_000 + 1_000)).toBe(false);
+    expect(shouldFlush(P, 1_000_000 + FLUSH_INTERVAL_MS - 1)).toBe(false);
+  });
+
+  it('until the interval has passed', () => {
+    resetFlushClock(P);
+    markFlushed(P, 1_000_000);
+    expect(shouldFlush(P, 1_000_000 + FLUSH_INTERVAL_MS)).toBe(true);
+  });
+
+  it('a re-run flushes promptly rather than inheriting the previous clock', () => {
+    // That window is exactly where a crash is most likely to fall: right after a run starts.
+    markFlushed(P, 1_000_000);
+    resetFlushClock(P);
+    expect(shouldFlush(P, 1_000_001)).toBe(true);
+  });
+
+  it('projects have their own clocks', () => {
+    resetFlushClock('a'); resetFlushClock('b');
+    markFlushed('a', 1_000_000);
+    expect(shouldFlush('a', 1_000_100)).toBe(false);
+    expect(shouldFlush('b', 1_000_100)).toBe(true);
+  });
+
+  it('SAFE BY CONSTRUCTION: a mid-run flush cannot shrink what is stored', () => {
+    // This is why a periodic flush is safe here at all. `persistRunLogs` reads what is stored and
+    // merges, so two flushes racing produce the union rather than the shorter one — the property
+    // the whole of F1 was built on, asserted here because F3 now depends on it.
+    const stored = [
+      { layer: 'A', source: 's', method: 'm', input: 'i', status: 'success', duration_ms: 1, dataPointsFound: 1, timestamp: '2026-09-03T01:00:00.000Z' },
+      { layer: 'B', source: 's', method: 'm', input: 'i', status: 'success', duration_ms: 1, dataPointsFound: 1, timestamp: '2026-09-03T01:01:00.000Z' },
+    ] as never[];
+    const thinLater = [stored[0]!] as never[];
+    expect(mergeRunLogs(stored, thinLater)).toHaveLength(2);
+  });
+});
+
+describe('the run calls the flush — assert the CALLER', () => {
+  const SRC = (() => {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'index.ts'), 'utf8');
+    const stripped = raw.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '').replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
+    if (!stripped.includes('import')) throw new Error('comment stripping destroyed index.ts');
+    return stripped;
+  })();
+
+  it('from the progress callback, which only ticks when there is something new', () => {
+    expect(SRC).toContain('if (shouldFlush(projectId, Date.now()))');
+    expect(SRC).toContain('markFlushed(projectId, Date.now())');
+  });
+
+  it('and it is not awaited — the research must not wait on the diary', () => {
+    const at = SRC.indexOf('if (shouldFlush(projectId, Date.now()))');
+    expect(at).toBeGreaterThan(-1);
+    expect(SRC.slice(at, at + 400)).toContain('void (async () =>');
+  });
+
+  it('an empty live log writes nothing at all', () => {
+    // A flush that stores an empty array would be a write that says the run has learned nothing.
+    const at = SRC.indexOf('if (shouldFlush(projectId, Date.now()))');
+    expect(SRC.slice(at, at + 500)).toContain('if (live.length === 0) return;');
+  });
+
+  it('the clock is reset when a run starts AND when it ends', () => {
+    expect(SRC.match(/resetFlushClock\(projectId\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });

@@ -977,16 +977,34 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
 
 ### Phase F — logs you can actually read
 
-- [ ] **F1. Land the merged log writer.** Written and green on 2026-09-03, not yet committed: one
-      function merges every source, de-duplicates, orders by time and reads-before-writing so a thin
-      write can never shrink a full one. Two writers were racing; one wrote the crash line and
-      discarded 1,529 lines into a memory map.
-- [ ] **F2. Land the view-side merge.** The panel picked one source whole, so any re-render — the
-      copy button's `setAllCopied` included — swapped a live log for the single persisted entry.
-      Also written and green: merge instead of swap, and one Copy All Logs button instead of three.
-- [ ] **F3. Persist DURING the run, not only at the end.** Both writers fire at completion. A run
-      that is killed loses everything, which is exactly what happened. Flush periodically so a
-      crashed run still has its diary.
+- [x] **F1. The merged log writer landed** — commit `cbcfeee21`, 2026-09-03. One function merges
+      every source, de-duplicates, orders by time and reads-before-writing, so a thin write can
+      never shrink a full one. Two writers were racing; one wrote the crash line and discarded
+      1,529 lines into a memory map that dies with the process.
+      *(This item said "not yet committed" — it was, on the same day. Corrected by checking
+      `git log` rather than the doc.)*
+- [x] **F2. The view-side merge landed** — same commit. The panel picked one source whole, so any
+      re-render — the copy button's own `setAllCopied` included — swapped a live log for the single
+      persisted entry, which is precisely what the owner saw: *"whenever I clicked the copy all logs
+      button, they went away"*. Merge instead of swap, and one Copy All Logs button instead of
+      three.
+- [x] **F3. The diary is written while the run is still alive.** — shipped 2026-09-03.
+      Both writers fired at completion, so a run that is killed — process restarted, container
+      replaced, box rebooted — lost everything it had learned. The 163-minute run of 2026-09-03
+      survived only because it happened to finish; killed at minute 160, the whole diary would have
+      gone with it. That is what *"there are no logs really"* was, on the other side of the same
+      coin from F1.
+      **Safe by construction, not by care** — and that is the reason F1 was worth building as a
+      merging read-before-write: a mid-run flush can only ever GROW the stored log, and two flushes
+      racing produce the union rather than the shorter one. The test that asserts this is in the F3
+      block, because F3 is what now depends on it.
+      Throttled by elapsed time rather than run on a timer: a timer has to be created, cleared and
+      remembered per run, and a forgotten one writes to a project that finished an hour ago. This
+      fires from the progress callback, which only ticks when there is something new, is **not
+      awaited** (research must not wait on its diary), and writes nothing at all when the live log
+      is empty. The clock resets at both ends of a run, so a re-run does not spend its first thirty
+      seconds — the window a crash is most likely to fall in — waiting on the previous run's clock.
+      Ten tests; mutation-checked.
 - [ ] **F4. Frontend logs in the same viewer.** The owner asked for both. `usePageError` already
       collects client-side errors; the viewer shows worker entries only.
 - [ ] **F5. Live streaming.** `worker/src/websocket/progress-server.ts` (379 lines, zero importers)

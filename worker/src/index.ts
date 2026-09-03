@@ -92,7 +92,9 @@ import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
-import { persistRunLogs } from './research/persist-run-logs.js';
+import {
+  persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
+} from './research/persist-run-logs.js';
 import { BudgetAbort, OperatorAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun } from './infra/usage.js';
@@ -1186,6 +1188,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   // A re-run must take its own captures. Left set, the second run would see the first run's flag
   // and skip its fallback — the precise shape of stale-state bug this block exists to prevent.
   visualsCaptured.delete(projectId);
+  // Otherwise a re-run started within the interval would wait before its first flush, which is
+  // exactly the window a crash is most likely to fall in.
+  resetFlushClock(projectId);
   clearRunningMessage(projectId);
   clearLiveLogForProject(projectId);
   clearTracker(projectId);
@@ -1397,6 +1402,27 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // stopping inside leaves half a chain of title. When a ceiling is hit the run is ABORTED
       // rather than failed — the abort unwinds to the caller, which returns what it has, and the
       // wind-down summary says what was skipped and why.
+      // ── FLUSH THE DIARY WHILE THE RUN IS STILL ALIVE (plan F3) ────────────────────────────
+      //
+      // Both log writers fired at completion, so a run that is killed lost everything it learned —
+      // which is what "there are no logs really" was. Safe to call repeatedly BY CONSTRUCTION:
+      // `persistRunLogs` reads what is stored and merges, so a flush can only grow the record.
+      //
+      // Deliberately not awaited. The research must not wait on the diary, and a flush that loses
+      // a race with the next one merges with it rather than overwriting it.
+      if (shouldFlush(projectId, Date.now())) {
+        markFlushed(projectId, Date.now());
+        void (async () => {
+          const supabase = await getSupabase().catch(() => null);
+          const live = getLiveLogForProject(projectId) ?? [];
+          if (live.length === 0) return;
+          const outcome = await persistRunLogs(supabase as never, projectId, [live]);
+          if (!outcome.saved) {
+            console.warn(`[Worker] ${projectId}: mid-run log flush failed (${outcome.error ?? 'unknown'})`);
+          }
+        })();
+      }
+
       const budget = checkBudget(projectId, spendForRun(projectId));
       if (!budget.ok && !pipelineAbortController.signal.aborted) {
         const summary = windDownSummary(budget);
@@ -1578,6 +1604,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         console.warn(`[Re-analysis] ${projectId}: pass threw — ${String(e)}`);
       }
 
+      resetFlushClock(projectId);
       const filing = endFiling(projectId);
       if (filing) {
         // B1. This logged 'info' and `.success()` unconditionally, so `1 could not be written` was
