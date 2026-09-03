@@ -87,6 +87,42 @@ export interface PipelineProgressProps {
 
 
 
+/**
+ * Combine the live stream and the persisted log into one view that cannot shrink.
+ *
+ * Identity is time + layer + message, not the whole object: the same event reaches the two sources
+ * with slightly different incidental fields, and comparing whole objects would show every entry
+ * twice. Entries with no timestamp sort last rather than being dropped — an entry with no time is
+ * still evidence.
+ *
+ * Mirrors `mergeRunLogs` in `worker/src/research/persist-run-logs.ts`. Two implementations because
+ * the app and the worker are separate builds; the rule they share is that a log never gets smaller.
+ */
+function mergeLogEntries(
+  live: PipelineLogEntry[] | undefined,
+  saved: PipelineLogEntry[] | null,
+): PipelineLogEntry[] | undefined {
+  const a = live ?? [];
+  const b = saved ?? [];
+  if (a.length === 0 && b.length === 0) return undefined;
+  if (a.length === 0) return b;
+  if (b.length === 0) return a;
+
+  const seen = new Map<string, PipelineLogEntry>();
+  for (const e of [...a, ...b]) {
+    if (!e) continue;
+    const key = [e.timestamp ?? '', e.layer ?? '', e.method ?? '', e.details ?? e.error ?? ''].join(' ');
+    if (!seen.has(key)) seen.set(key, e);
+  }
+  return [...seen.values()].sort((x, y) => {
+    const tx = x.timestamp ?? '', ty = y.timestamp ?? '';
+    if (!tx && !ty) return 0;
+    if (!tx) return 1;
+    if (!ty) return -1;
+    return tx < ty ? -1 : tx > ty ? 1 : 0;
+  });
+}
+
 function Spinner() {
   return (
     <span className="ppanel__spinner" aria-label="loading">
@@ -362,7 +398,27 @@ export function PipelineProgressPanel({
   const [logCollapsed,   setLogCollapsed]   = useState(false);
 
   // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
-  const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
+  // ── A SWAP HERE IS WHY THE LOGS "DISAPPEARED" ───────────────────────────────────────────────
+  //
+  // This was:
+  //
+  //     const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
+  //
+  // — pick one source, whole. While a run streams, `logProp` carries every entry the worker has
+  // emitted. The moment it empties (the run ends, the parent re-renders, or ANY state change in
+  // this component triggers a render where the parent has since cleared it) the display silently
+  // falls back to `loadedLog`: whatever was persisted, which for the 2026-09-03 FM 2484 run was a
+  // single crash line out of 163 minutes of work.
+  //
+  // The owner reported it as "the logs disappeared specifically whenever I clicked the copy logs
+  // button", and that is exactly right: `handleCopyAllLogs` calls `setAllCopied(true)`, which
+  // renders, and the render picked the thinner source. The copy button did not delete anything —
+  // it was just the most common thing to click while a live log was on screen.
+  //
+  // Merged and de-duplicated now, so the view can never shrink. Both sources are partial: the live
+  // stream has entries that were never persisted, and the persisted log survives a page refresh
+  // that the live stream does not.
+  const log = mergeLogEntries(logProp, loadedLog);
 
   // Apply filter to get the visible log entries
   const filteredLog = useMemo(() => {
@@ -537,16 +593,14 @@ export function PipelineProgressPanel({
           {result?.duration_ms && (
             <span className="ppanel__header-dur">{(result.duration_ms / 1000).toFixed(1)}s</span>
           )}
-          {/* Copy All Logs — always visible so users can copy at any time */}
-          <button
-            className="ppanel__header-btn ppanel__header-btn--copy"
-            onClick={handleCopyAllLogs}
-            type="button"
-            title="Copy all run logs to clipboard"
-            disabled={!log || log.length === 0}
-          >
-            {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-          </button>
+          {/* ── ONE COPY BUTTON, NOT THREE ──────────────────────────────────────────────────
+              This panel rendered "⎘ Copy All Logs" three times — here, in the log-stream header,
+              and again in the log-stream footer — all calling the same `handleCopyAllLogs` with
+              the same result. The owner's words: "we have a bunch of the copy all logs buttons".
+
+              The survivor is the one in the log-stream header, because it sits on the thing it
+              acts on. A control repeated three times does not make an action easier to find; it
+              makes a reader wonder whether the three do different things. */}
         </div>
       </div>
 
@@ -746,14 +800,9 @@ export function PipelineProgressPanel({
                   {errorCount > 0 && <span className="ppanel__logstream-footer-errors"> · {errorCount} error{errorCount !== 1 ? 's' : ''}</span>}
                   {warningCount > 0 && <span className="ppanel__logstream-footer-warnings"> · {warningCount} warning{warningCount !== 1 ? 's' : ''}</span>}
                 </span>
-                <button
-                  className="ppanel__logstream-copy-btn ppanel__logstream-copy-btn--footer"
-                  onClick={handleCopyAllLogs}
-                  type="button"
-                  title="Copy all run logs to clipboard"
-                >
-                  {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-                </button>
+                {/* The third copy button lived here. See the note in the panel header — the one in
+                    the log-stream header above is the only one now. The count line stays; it is
+                    the useful part of this footer. */}
               </div>
             )}
           </>

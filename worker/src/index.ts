@@ -87,6 +87,7 @@ import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
+import { persistRunLogs } from './research/persist-run-logs.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
@@ -1609,30 +1610,31 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
           completedLogs.set(projectId, capturedLiveLog);
         }
         // Persist log to Supabase so the frontend can retrieve it after page refresh.
-        // Fire-and-forget — a save failure must never affect the completed result.
-        if (r.log.length > 0) {
-          getSupabase()
-            .then((supabase) => {
-              if (!supabase) return;
-              // `as any` because the Supabase client types haven't been regenerated
-              // to include the new `research_logs` column from migration 104.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return (supabase as any)
-                .from('research_projects')
-                .update({ research_logs: r.log })
-                .eq('id', projectId);
-            })
-            .then((dbRes: { error?: { message?: string } } | null | undefined) => {
-              if (dbRes?.error) {
-                console.warn(`[Worker] ${projectId}: failed to save logs to Supabase: ${dbRes.error.message}`);
-              } else {
-                console.log(`[Worker] ${projectId}: saved ${r.log.length} log entries to Supabase`);
-              }
-            })
-            .catch((err: unknown) => {
-              console.warn(`[Worker] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
-            });
-        }
+        // ── BOTH SOURCES, NOT WHICHEVER THIS BRANCH HAPPENS TO HOLD ──────────────────────────
+        //
+        // This wrote `r.log` alone, and eleven lines above it the FULL live log was captured into
+        // an in-memory `completedLogs` map that dies with the process. Measured 2026-09-03: a
+        // 163-minute Bell County run that produced 19 documents and spent $29.19 left exactly ONE
+        // entry in `research_logs` — the crash line — because `r.log` for a crashed county run is
+        // the crash and nothing else. The rich log was collected, held in memory, and never
+        // written; the thin one was written.
+        //
+        // `persistRunLogs` merges every source it is given, de-duplicates, orders by time, and
+        // reads what is already stored so a later thin write can never shrink an earlier fuller
+        // one — the second call site did the mirror-image of this bug, and the two were racing
+        // with no ordering between them.
+        //
+        // Still non-fatal: a run that did real work must not be reported as failed because its
+        // diary could not be filed. But it now says what happened rather than assuming.
+        void (async () => {
+          const supabase = await getSupabase().catch(() => null);
+          const outcome = await persistRunLogs(supabase as never, projectId, [r.log ?? [], capturedLiveLog]);
+          if (outcome.saved) {
+            console.log(`[Worker] ${projectId}: saved ${outcome.entries} log entries to Supabase`);
+          } else {
+            console.warn(`[Worker] ${projectId}: could not save run logs (${outcome.error ?? 'unknown'}) — ${outcome.entries} entries were ready`);
+          }
+        })();
         // ── Persist pipeline documents to research_documents table ────────────
         // Save every document the pipeline found so the Review stage can display
         // them after navigating away or refreshing the page.
@@ -2113,22 +2115,24 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // ── Persist live logs to Supabase for county-specific pipelines ────────
         // These are the entries shown in the live log viewer; we persist them so
         // the Review stage can reload them on page refresh.
-        const logsToSave = capturedLiveLog.length > 0 ? capturedLiveLog : [];
-        console.log(`[Worker] ${projectId}: persisting ${logsToSave.length} live log entries to Supabase`);
-        if (logsToSave.length > 0) {
-          getSupabase()
-            .then((supabase) => {
-              if (!supabase) return;
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return (supabase as any)
-                .from('research_projects')
-                .update({ research_logs: logsToSave })
-                .eq('id', projectId);
-            })
-            .catch((err: unknown) => {
-              console.warn(`[Worker] ${projectId}: error saving county logs to Supabase:`, err instanceof Error ? err.message : String(err));
-            });
-        }
+        // The mirror image of the site above: that one persisted `r.log` and dropped the live log,
+        // this one persists the live log and drops `r.log`. Both fire-and-forget, no ordering
+        // between them, so when both ran the last writer won and the answer to "what is in
+        // research_logs?" depended on which path a run happened to take. One function, both
+        // sources, and a read-before-write so neither can shrink the other.
+        void (async () => {
+          const supabase = await getSupabase().catch(() => null);
+          // Only the live log here — `BellResearchResult` carries no `log` field of its own, which
+          // is itself part of the story: the Bell path's entries reach the database ONLY through
+          // the live registry, so the other site overwriting that registry's contents with a
+          // one-entry `r.log` erased the only copy that existed.
+          const outcome = await persistRunLogs(supabase as never, projectId, [capturedLiveLog]);
+          if (outcome.saved) {
+            console.log(`[Worker] ${projectId}: saved ${outcome.entries} run log entries to Supabase`);
+          } else {
+            console.warn(`[Worker] ${projectId}: could not save county run logs (${outcome.error ?? 'unknown'}) — ${outcome.entries} entries were ready`);
+          }
+        })();
 
         // ── THE RUN IS NOT DONE UNTIL THE DOCUMENTS ARE ────────────────────────
         //
