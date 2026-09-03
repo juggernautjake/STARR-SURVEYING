@@ -2257,10 +2257,24 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         boundary: null,
         validation: null,
         log: [{ layer: 'Pipeline', source: isAborted ? 'cancelled' : 'crash', method: isAborted ? 'user-cancel' : 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
-        duration_ms: 0,
+        // ── ZERO IS NOT WHAT HAPPENED ──────────────────────────────────────────────────────
+        //
+        // `duration_ms: 0` and `documents: []` were hardcoded on this path, so an aborted run
+        // reported "Duration 0.0s" and "Documents: none retrieved" — on the 2026-09-03 run that
+        // meant 0.0s for 163 minutes of work, and "none retrieved" printed beside a documents
+        // panel reading 19. The run had done real work; the crash object simply never asked.
+        //
+        // `endFiling` was ALREADY being called on the next line and its return value discarded.
+        // It returns the tally that knows how many documents were filed.
+        duration_ms: Math.max(0, Date.now() - (Date.parse(activePipelines.get(projectId)?.startedAt ?? '') || Date.now())),
         failureReason: errMessage,
       };
-      endFiling(projectId);
+      const finalTally = endFiling(projectId);
+      if (finalTally) {
+        // The count the operator can verify against the Documents panel, rather than a zero that
+        // contradicts it on the same screen.
+        fallback.filedDocumentCount = finalTally.filed + finalTally.merged;
+      }
       // An abort caused by the BUDGET is a completion, not a cancellation and not a failure. The
       // run did the work it could afford and stopped at a phase boundary, which is what the ceiling
       // is for. Only the operator's cancel is a cancellation.
@@ -2467,7 +2481,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
           ownerName: result.ownerName,
           legalDescription: result.legalDescription,
           acreage: result.acreage,
-          documentCount: result.documents.length,
+          documentCount: result.documents.length || result.filedDocumentCount || 0,
           boundary: result.boundary ? {
             type: result.boundary.type,
             callCount: result.boundary.calls.length,

@@ -526,6 +526,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       runId: String(run.id),
       runNumber: run.run_number ?? null,
       startedAt: (run.started_at as string) ?? undefined,
+      // Selected since this query was written and never returned, so the client had no way to stop
+      // its own clock: a finished run went on counting from its start to NOW. The 2026-09-03 run
+      // ended at 06:41 and the screen read "8:14:36 / 25:00" at 12:12 — six hours of a bar that
+      // had nothing left to measure.
+      finishedAt: (run.finished_at as string) ?? null,
       percent: typeof run.progress_percent === 'number' ? run.progress_percent : undefined,
       currentStage: (run.phase as string) ?? undefined,
       message: (run.message as string) ?? undefined,

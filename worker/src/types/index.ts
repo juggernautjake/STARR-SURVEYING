@@ -44,6 +44,15 @@ export interface PipelineInput {
 
 export interface PipelineResult {
   projectId: string;
+  /**
+   * How many documents the run actually filed, when `documents` below could not be enumerated.
+   *
+   * The abort/crash path builds a result with `documents: []` because it has no objects to put
+   * there — and the status endpoint reports `result.documents.length`, so an aborted run said
+   * "Documents: none retrieved" on the same screen as a panel reading 19. The documents were real
+   * and already in the database; only this object had never counted them.
+   */
+  filedDocumentCount?: number;
   status: 'complete' | 'partial' | 'failed';
   propertyId: string | null;
   geoId: string | null;

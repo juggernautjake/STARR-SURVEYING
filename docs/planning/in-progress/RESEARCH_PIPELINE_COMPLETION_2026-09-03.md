@@ -285,10 +285,25 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       One existing guard re-pointed: it pinned the literal bare `abort()`, which is now the defect.
       It asserts the reason is carried.
 
-- [ ] **A5b. The remaining display contradictions.** Still open: the `8:14:36 / 25:00` elapsed for a
-      163-minute run, "Duration 0.0s", "Documents: none retrieved" beside "Documents & Sources 19",
-      and 19-vs-16 counts on one screen. These are app-side reads of run fields rather than worker
-      writes, so they are a separate slice from A5a.
+- [x] **A5b. The clock stops, and an aborted run reports what it did.** — shipped 2026-09-03.
+      **`8:14:36 / 25:00`** — three numbers on one line, none of them true. The run started 03:58:07Z
+      and finished 06:41:23Z (163 minutes); the screen was read at 12:12, and `run-state.ts:464`
+      computed `now - startedMs` unconditionally. Its own comment shows the START was corrected once
+      — the clock used to begin at component mount — and the END was never considered, so a finished
+      run counted forever. `run-console.ts:114` had it right all along
+      (`run.finished_at ? Date.parse(...) : now`): two implementations of one measurement, and only
+      one stopped. Same shape as the two log writers and the two analysis systems.
+      The API had been **selecting `finished_at` since that query was written and never returning
+      it**, so the client could not have stopped the clock had it tried. Fixed at all three links.
+      **"Duration 0.0s" and "Documents: none retrieved" beside a panel reading 19** came from the
+      same object: the abort/crash path builds a result with `duration_ms: 0` and `documents: []`
+      hardcoded, because it has no document objects to put there. `endFiling(projectId)` was already
+      being called on the very next line and its return value discarded — it returns the tally that
+      knows how many were filed. Real duration from the run's start; `filedDocumentCount` carries the
+      count the operator can check against the Documents panel.
+      **And a control of mine was wrong**: `readCode`'s guard asserted every file contains `import`,
+      and fired on `run-state.ts`, which has none. A guard against false negatives producing one. It
+      checks for any of several code markers and a survival fraction now.
 
 ### Phase B — the run can find the property
 

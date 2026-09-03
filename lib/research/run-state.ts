@@ -323,6 +323,11 @@ export interface PollPayload {
   message?: string | null;
   currentStage?: string | null;
   startedAt?: string | null;
+  /** When the run ended. Absent while it is still going.
+   *
+   *  Added 2026-09-03: without it the elapsed clock below could only count to `now`, so a finished
+   *  run kept ticking. The API had been SELECTING `finished_at` and not returning it. */
+  finishedAt?: string | null;
   stopReason?: string | null;
   failureReason?: string | null;
   budgetSummary?: string | null;
@@ -460,9 +465,23 @@ export function buildRunState(input: BuildRunStateInput): RunState {
   // Elapsed is computed from the run's real start, not from when a component mounted. The panel's
   // clock read "00:00 elapsed" beside a console reading two minutes because it started counting at
   // mount and the run had begun before the operator opened the page.
+  //
+  // ── AND IT MUST STOP AT THE END, WHICH THAT FIX DID NOT DO ──────────────────────────────────
+  //
+  // The start was corrected and the END was not, so a FINISHED run kept counting. The 2026-09-03
+  // run ended at 06:41:23Z; at 12:12 the screen read "8:14:36 / 25:00" — six hours of a progress
+  // bar measuring nothing, against a 25-minute limit, for a run that took 163 minutes. Three
+  // numbers on one line and not one of them true.
+  //
+  // `run-console.ts:114` already had this right — `run.finished_at ? Date.parse(...) : now`. Two
+  // implementations of "how long did this take", and only one of them stopped. This is the same
+  // shape as the two log writers and the two analysis systems: a second copy that drifted where it
+  // mattered.
   const startedMs = poll?.startedAt ? Date.parse(poll.startedAt) : NaN;
+  const finishedMs = poll?.finishedAt ? Date.parse(poll.finishedAt) : NaN;
+  const endMs = Number.isFinite(finishedMs) ? finishedMs : now;
   const elapsedMs = Number.isFinite(startedMs)
-    ? Math.max(0, now - startedMs)
+    ? Math.max(0, endMs - startedMs)
     : cons?.time?.elapsedMs ?? 0;
 
   const outcome = resolveOutcome({

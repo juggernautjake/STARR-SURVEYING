@@ -48,9 +48,23 @@ export function readCode(relPath: string): string {
     .replace(/^[ \t]*\{?\/\*[\s\S]*?\*\/\}?/gm, '')
     .replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
 
-  if (!stripped.includes('import')) {
+  // ── THE CONTROL'S OWN PREMISE WAS WRONG ONCE ────────────────────────────────────────────────
+  //
+  // This checked `stripped.includes('import')`, and fired on `lib/research/run-state.ts` — a
+  // self-contained module with ZERO import statements. The stripping was perfect; the control
+  // assumed every source file imports something, and reported "comment stripping destroyed" a file
+  // it had not touched. A guard against false negatives, producing one.
+  //
+  // It looks for any of several markers instead, and only complains when the file has been cut to
+  // almost nothing — the actual symptom of the failure it exists to catch, which is a mid-line
+  // `*/` inside a string literal swallowing the rest of the file.
+  const hasCode = /\b(import|export|function|const|class|interface)\b/.test(stripped);
+  const survivedFraction = raw.length === 0 ? 1 : stripped.length / raw.length;
+
+  if (!hasCode || survivedFraction < 0.02) {
     throw new Error(
-      `comment stripping destroyed ${relPath}: ${raw.length} chars in, ${stripped.length} out. ` +
+      `comment stripping destroyed ${relPath}: ${raw.length} chars in, ${stripped.length} out ` +
+      `(${Math.round(survivedFraction * 100)}% survived, code markers ${hasCode ? 'present' : 'ABSENT'}). ` +
       `A mid-line "*/" or "/*" inside a string literal is the usual cause.`,
     );
   }
