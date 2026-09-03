@@ -9,6 +9,7 @@ import { ParsedAddress, AddressVariant, NormalizedAddress } from '../types/index
 import { PipelineLogger } from '../lib/logger.js';
 import { resolveAddressParts, hasUsableParts, type AddressParts } from '../research/address-parts.js';
 import { geocodeWithGoogle } from '../research/google-geocode.js';
+import { compareAddress, discrepancyLogLine } from '../research/address-discrepancy.js';
 
 // ━━ TEXAS ROAD PREFIX REGISTRY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -521,6 +522,22 @@ export async function normalizeAddress(
       // are what was missing; the street parts come from the operator's own fields (seed 624),
       // which are better than any geocoder's guess and must not be overwritten by one.
       console.log(tag + ' Google -> "' + g.result.formattedAddress + '"');
+
+      // B3 — the operator typed one place and the parcel is in another. Reported rather than
+      // resolved: this cannot tell a typo from a rural mailing-address convention, and a system
+      // that guessed would eventually guess wrong on somebody's boundary survey.
+      if (hasUsableParts(parts)) {
+        const d = compareAddress({
+          enteredCity: parts?.city ?? null,
+          enteredZip: parts?.zip ?? null,
+          resolvedCity: g.result.city,
+          resolvedZip: g.result.zip,
+          resolvedAddress: g.result.formattedAddress,
+          source: 'Google',
+        });
+        const line = discrepancyLogLine(d);
+        if (line) logger.warn('Stage0C', line);
+      }
     }
   }
 

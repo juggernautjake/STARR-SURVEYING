@@ -344,10 +344,23 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       A control asserts an empty boundary yields null rather than `0,0`, which is in the Gulf of
       Guinea: a fallback that invents a point off the coast of Africa is worse than no point, because
       every downstream lookup would then run and return confident nonsense.
-- [ ] **B3. Warn when city and ZIP disagree.** The run's address said Belton 76513; the parcel is in
-      Salado 76571. `assessRunReadiness` rates street + city as strong — a WRONG city is worse than
-      none. Check the ZIP against the county's known ZIP list (`BELL_COUNTY_ZIPS` already exists in
-      the pipeline route) and say so at intake.
+- [x] **B3. The entered address is compared against where the parcel actually is.** — shipped
+      2026-09-03. **Written as an intake-time city/ZIP check, and that would not have caught the
+      case that prompted it.** The operator entered `Belton 76513`; the parcel is `Salado 76571`.
+      Belton IS a Bell County city and 76513 IS a Bell County ZIP — the pair is internally
+      consistent, geographically sensible, and passes every check writable against the data
+      available at intake. It is simply not this property's address, and nothing typed into a form
+      can be validated into correctness.
+      Only a source that knows where the parcel IS can tell you, and two became available in this
+      same session: Google geocoding (B1) and the parcel centroid (B2).
+      `research/address-discrepancy.ts` compares entered against resolved at the Google layer. A
+      differing ZIP is a **warning** (a different postal area is a materially different place); a
+      differing city at the same ZIP is a **note** (rural Texas routinely carries one town's mailing
+      address and another's situs). It names both readings — a typo, meaning the run is about the
+      wrong property, or a naming convention, meaning nothing — and picks neither, because it cannot
+      tell them apart and a system that guessed would eventually guess wrong on somebody's boundary
+      survey. Silent when the operator entered no city or ZIP: they have not disagreed with anything,
+      and warning them anyway trains people to ignore the real ones.
 - [ ] **B4. A second door into Bell CAD.** `worker/src/sources/bell-cad-data-portal.ts` (391 lines,
       zero importers) is an alternative data source for the site that was down. Read it, verify it
       still resolves, wire it as a fallback — or delete it and say why.
