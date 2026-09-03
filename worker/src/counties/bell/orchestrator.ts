@@ -37,6 +37,7 @@ import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
 import { assessDegradation } from '../../research/run-degradation.js';
+import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
@@ -309,6 +310,33 @@ export async function orchestrateBellResearch(
   // Graded by what is still known rather than by what failed: a parcel ID identifies the property
   // even when the district is down, and that run HAD one. Stopping outright would have discarded
   // 16 real deeds over an outage that never prevented it knowing which property it was about.
+  // ── B2: THE PARCEL ITSELF KNOWS WHERE IT IS ─────────────────────────────────────────────────
+  //
+  // `lat`/`lon` are resolved by GEOCODING, above, before the GIS runs. When the geocoders fail —
+  // and on 2026-09-03 both did, on a rural FM address — the run carried on with no location, and
+  // every aerial, satellite, GIS, FEMA and TxDOT lookup was skipped for want of one.
+  //
+  // But the GIS scraper had already fetched the parcel POLYGON by property ID, on a different
+  // host from the appraisal site that was down, and `computeCentroid` has existed in
+  // `adjacent-analyzer.ts` the whole time. The coordinates were sitting in memory, one function
+  // call away, and nothing joined them.
+  //
+  // Only used when geocoding produced nothing: a geocoded rooftop is a better point than a parcel
+  // centroid for a long thin tract, so this is a fallback and not a replacement.
+  if ((!lat || !lon) && gis?.parcelBoundary) {
+    const c = computeCentroid(gis.parcelBoundary);
+    if (c) {
+      lat = c.lat;
+      lon = c.lon;
+      progress(
+        'Phase 1',
+        `✓ Coordinates from the parcel boundary itself: ${c.lat.toFixed(5)}, ${c.lon.toFixed(5)} — ` +
+        `the geocoders found nothing, but the GIS returned this parcel's polygon. Imagery, flood ` +
+        `zone and ROW lookups can run.`,
+      );
+    }
+  }
+
   const degradation = assessDegradation({
     cadReachable: cadResult.status === 'fulfilled',
     cadRecordFound: cad !== null,

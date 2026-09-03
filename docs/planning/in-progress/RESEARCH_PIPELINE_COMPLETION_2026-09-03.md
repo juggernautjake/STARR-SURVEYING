@@ -327,9 +327,23 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       It does NOT overwrite the parsed street parts — the operator's own fields (seed 624) beat any
       geocoder's guess, which is the whole reason they are stored separately. Google supplies the
       coordinates, and coordinates are what was missing.
-- [ ] **B2. Coordinates from the parcel, not only the address.** When a Property ID is known, the
-      county ArcGIS parcel geometry gives a centroid directly. `resolveParcelDetails` already talks
-      to Bell's FeatureServer. A parcel we can name is a parcel we can locate.
+- [x] **B2. Coordinates from the parcel, not only the address.** — shipped 2026-09-03.
+      **The coordinates were in memory the whole time.** `lat`/`lon` are resolved by GEOCODING,
+      before the GIS runs; when both geocoders failed on 2026-09-03 they stayed null and every
+      aerial, satellite, GIS, FEMA and TxDOT lookup was skipped. But the GIS scraper had ALREADY
+      fetched that parcel's polygon by property ID — from `utility.arcgis.com`, **a different host
+      from the `esearch.bellcad.org` that was down** — and `computeCentroid` has existed in
+      `analyzers/adjacent-analyzer.ts` since it was written. One function call apart, and nothing
+      joined them.
+      Verified against the live service for prop_id 42156: a 20-point ring whose centroid is
+      `30.996905, -97.626639` — **49 metres** from Google's rooftop point on a 22.5-acre tract.
+      Guarded on `!lat || !lon`, because a geocoded rooftop beats a centroid for a long thin tract:
+      this is a fallback, not a replacement. Placed BEFORE `assessDegradation`, or a run rescued by
+      it would still be reported as having no location — an assessment describing a state that no
+      longer existed.
+      A control asserts an empty boundary yields null rather than `0,0`, which is in the Gulf of
+      Guinea: a fallback that invents a point off the coast of Africa is worse than no point, because
+      every downstream lookup would then run and return confident nonsense.
 - [ ] **B3. Warn when city and ZIP disagree.** The run's address said Belton 76513; the parcel is in
       Salado 76571. `assessRunReadiness` rates street + city as strong — a WRONG city is worse than
       none. Check the ZIP against the county's known ZIP list (`BELL_COUNTY_ZIPS` already exists in

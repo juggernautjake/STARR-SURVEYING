@@ -109,7 +109,7 @@ function estimateDirection(
   return 'Northwest';
 }
 
-function computeCentroid(
+export function computeCentroid(
   boundary: number[][][],
 ): { lat: number; lon: number } | null {
   if (boundary.length === 0 || boundary[0].length === 0) return null;
