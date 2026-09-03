@@ -2429,7 +2429,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         duration_ms: Math.max(0, Date.now() - (Date.parse(activePipelines.get(projectId)?.startedAt ?? '') || Date.now())),
         // `failureReason` exists for genuine errors; filling it on a wind-down is what made the
         // ceiling render as a crash.
-        failureReason: budgetStop ? null : errMessage,
+        failureReason: budgetStop ? undefined : errMessage,
       };
       const finalTally = endFiling(projectId);
       if (finalTally) {

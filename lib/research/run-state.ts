@@ -384,6 +384,9 @@ export interface RunState {
   activity: string | null;
   /** Milliseconds since the run began. Derived from `startedAt`, never from a mount-time clock. */
   elapsedMs: number;
+  /** When the run began, ISO — the bound the live Activity tab uses for the browser half of the
+   *  log, so a five-minute run is not shown beside whatever the operator did before starting it. */
+  startedAt: string | null;
   /** Wall-clock ceiling, when one was configured. */
   budgetMs: number | null;
   spendUsd: number | null;
@@ -501,6 +504,7 @@ export function buildRunState(input: BuildRunStateInput): RunState {
     phaseLabel: poll?.phaseLabel ?? poll?.currentStage ?? cons?.phase ?? null,
     activity: poll?.message ?? cons?.activity ?? null,
     elapsedMs,
+    startedAt: poll?.startedAt ?? null,
     // D3. The console's budget is authoritative when it exists, but it only exists once the console
     // has been fetched and the run record carries a ceiling. The run's CHOSEN length is known from
     // the moment it starts — it is what the operator picked in the dialog — so it stands in until the

@@ -614,7 +614,7 @@ export async function runCountyResearch(
             timestamp: new Date().toISOString(),
           }],
           duration_ms: 0,
-          failureReason: budgetStop ? null : expected ? errMsg : `Bell County research failed: ${errMsg}`,
+          failureReason: budgetStop ? undefined : expected ? errMsg : `Bell County research failed: ${errMsg}`,
         };
         return { resultType: 'generic-pipeline', county: 'Bell', data: failedResult };
       }
