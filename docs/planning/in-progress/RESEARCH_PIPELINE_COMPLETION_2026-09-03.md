@@ -365,6 +365,74 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       zero importers) is an alternative data source for the site that was down. Read it, verify it
       still resolves, wire it as a fallback — or delete it and say why.
 
+### Phase B* — what the eight-lens audit found, which reorders everything after it
+
+An ultracode audit of the whole platform ran on 2026-09-03: eight independent lenses, each finding
+adversarially verified by a second agent. **118 findings survived verification; 21 were refuted.**
+Full overview in the task output for run `wf_fc5cdf63-490`.
+
+It found something bigger than anything left in this plan, and it changes the order of the rest.
+
+- [x] **B*1. Three of the four document row builders could not execute.** — shipped 2026-09-03,
+      seed 626. Confirmed independently against the live database before acting on it.
+      `capture-runner.ts` failed FOUR ways in a single statement: `source_type: 'pipeline_capture'`
+      (23514 — the CHECK admitted only four values), `public_url` (42703 — the column is
+      `storage_url`), `ocr_text` (42703 — it is `extracted_text`), `processing_status: 'stored'`
+      (23514), and **13 of its 14 `document_type` values** (23514). `harvest-supabase-sync.ts` wrote
+      `harvest_metadata`, which did not exist. `project-library.ts` SELECTED the same column,
+      PostgREST rejected the whole query, and the error was downgraded to a `console.warn` that
+      returned an **empty library** — so cross-run deduplication has been off for every run ever
+      made, silently.
+      The proof it had never worked: **0 of 697** rows carry `source_type = 'pipeline_capture'`, and
+      **0 of 697** have `content_sha256` — and `capture-runner.ts` is its only originating writer.
+      Every satellite view, oblique, street view, GIS capture and generated drawing this system has
+      ever taken went to storage and was then dropped on the way to the row that would let anyone
+      find it.
+      **This is why the owner's first priority produces nothing.** Reordering the pipeline to do
+      plats and imagery first, without this, is a run that does the right work in the right order
+      and discards two thirds of it. Verified after the fix with rolled-back INSERTs: all fourteen
+      capture kinds, the harvest writer, and the library read now execute.
+
+**The audit's remaining findings, in its recommended order** — these supersede the C/D/E ordering
+below where they conflict, because several are prerequisites for it:
+
+- [ ] **B*2. Patch the row after extraction.** Filing happens the moment a document is found (right,
+      and deliberate) but nothing patches the row afterwards, so text, readability, confidence,
+      method and purchase links have nowhere to go. `patchDocument(rowId, fields)` called after
+      Stage 3. The audit calls this "the single largest gap between what the machine does and what
+      the database knows".
+- [ ] **B*3. Four county-table bugs.** `KOFILE_CONFIGS.williamson` serves an index with no land
+      records (a portal answering 200 with the wrong index is worse than one that fails); snake_case
+      keys are not normalised through `resolveCounty` in `bis-cad.ts`/`bell-clerk.ts`, losing Fort
+      Bend, Tom Green, Van Zandt, San Saba, Palo Pinto and San Jacinto; CAD dispatch bypasses
+      `getCADConfig`, losing Harris, Tarrant, Dallas and Travis; `getClerkByCountyName` falls back to
+      `fips: '000'` instead of failing.
+- [ ] **B*4. `operatorNotes` and the abort signal are dropped at the last hop.** Eleven verified
+      findings share this shape. `operatorNotes` has three occurrences in the whole worker and is
+      never copied into `researchInput`; `CountyResearchInput` has no field for it — while three UI
+      surfaces, including the create form, promise "Sent to the AI with the run". **Either land it or
+      delete the promise.** The abort signal is dropped for the generic pipeline at `router.ts:629`.
+- [ ] **B*5. Health sensing has no consumer in either direction.** `parseSiteId` cannot resolve the
+      IDs `buildCheckList` emits, so 100% of the worker's selector-level probe output is discarded at
+      the resolver. And a run that got 0 documents from a 200-OK portal is the strongest breakage
+      signal there is; it is thrown away.
+- [ ] **B*6. Repair the guards before sweeping dead code.** The orphan guard's `hasCaller` matches a
+      basename inside ANY quoted string, comments included, and scans 7 of the worker's directories
+      — `sources/`, `adapters/`, `counties/`, `exports/`, `ai/` and `billing/` are unscanned. The
+      "Review reads what the worker writes" test concatenates every producer into one corpus, so
+      `fema` — written only by Bell — "passes" for all 254 counties. `adjoiner-persistence.test.ts`
+      mocks the `upsert` and asserts the option string, so it passes while the real statement fails
+      42P10 and `research_adjoiners` holds **0 rows**. Do not sweep before the guard is honest.
+- [ ] **B*7. Two confidence scales collide on screen.** `ocr_confidence` is 0–100 from the app and
+      0–1 from the worker; `ArtifactGallery` renders both for the same object. `boundary.confidence`
+      is 0–100 from Bell and 0–1 from generic, and `PipelineProgressPanel` multiplies by 100 —
+      producing **"6800%"** classed as high confidence. `normaliseConfidence` exists in
+      `infra/ocr-quality.ts` with a comment saying exactly why, and neither writer calls it.
+- [ ] **B*8. `page.tsx:2799` passes the literal `status="success"`.** An operator signs off a FAILED
+      run from a green "Research complete". One word.
+
+
+
 ### Phase C — the order the owner asked for
 
 - [ ] **C1. Decide the fate of the prioritiser.** `lib/research/prioritized-pipeline.ts` (379) and

@@ -227,11 +227,14 @@ export function buildCaptureRow(
     document_type: documentTypeFor(item.kind),
     source_type: 'pipeline_capture',
     storage_path: stored.storagePath,
-    public_url: stored.publicUrl,
+    // `storage_url`, not `public_url`. This row builder has never executed — 0 of 697 rows carry
+    // source_type pipeline_capture — and this was one of four reasons in a single statement.
+    storage_url: stored.publicUrl,
     content_sha256: contentHash(bytes),
     page_count: 1,
     processing_status: ocrText ? 'analyzed' : 'stored',
-    ocr_text: ocrText,
+    // `extracted_text`, not `ocr_text`. Same statement, second wrong column name.
+    extracted_text: ocrText,
     harvest_metadata: {
       captureKey: item.key,
       captureKind: item.kind,

@@ -41,7 +41,7 @@ interface DocRow {
   duplicate_of: string | null;
   duplicate_reason: string | null;
   storage_path: string | null;
-  public_url: string | null;
+  storage_url: string | null;
   research_run_id: string | null;
   created_at: string | null;
 }
@@ -57,7 +57,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .from('research_documents')
     .select(
       'id, document_label, document_type, recording_info, duplicate_of, duplicate_reason, ' +
-      'storage_path, public_url, research_run_id, created_at',
+      // `storage_url`. `public_url` has never been a column on this table, so PostgREST rejected
+      // the WHOLE select with 42703 and this route returned 500 on every request — making the 88
+      // rows flagged `duplicate_of` unreachable from the UI that exists to show them.
+      'storage_path, storage_url, research_run_id, created_at',
     )
     .eq('research_project_id', projectId);
 
@@ -85,13 +88,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         // reader who cannot argue with it has to either trust it completely or distrust the whole
         // library.
         reason: r.duplicate_reason ?? 'No reason was recorded, which is itself worth knowing.',
-        publicUrl: r.public_url,
+        publicUrl: r.storage_url,
         createdAt: r.created_at,
         keeper: keeper
           ? {
               id: keeper.id,
               label: keeper.document_label ?? keeper.document_type ?? 'Untitled document',
-              publicUrl: keeper.public_url,
+              publicUrl: keeper.storage_url,
             }
           // A duplicate whose keeper is gone is worth surfacing loudly: it means the row it pointed
           // at was removed, so this document is now hidden behind nothing at all.
