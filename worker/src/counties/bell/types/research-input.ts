@@ -46,6 +46,8 @@ export interface BellResearchInput {
    * being typed into a box that led nowhere.
    */
   operatorNotes?: string;
+  /** Fired at "Phase 1 complete" — see `research/run-order.ts`. */
+  onPropertyIdentified?: import('../../../research/run-order.js').OnPropertyIdentified;
 
   // ── Uploaded files ─────────────────────────────────────────────────
   /** User-uploaded documents (base64 or Supabase storage URLs) */

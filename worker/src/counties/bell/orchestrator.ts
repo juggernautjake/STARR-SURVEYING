@@ -39,6 +39,7 @@ import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
 import { assessDegradation } from '../../research/run-degradation.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
+import { visualReadiness } from '../../research/run-order.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -571,6 +572,42 @@ export async function orchestrateBellResearch(
     `${knownIds.subdivisionNames.size} subdivision name(s)${lotBlockStr}`,
     15,
   );
+
+  // ── PHASE 1.5 — THE VISUAL EVIDENCE, BEFORE THE DOCUMENT GRIND (plan C3) ──────────────────
+  //
+  // "the order should be, drawings/plats, then the overhead views, then the rest of the documents"
+  //
+  // This is the boundary the owner's order turns on. Everything below needs only what Phase 1
+  // produced; everything after it is the open-ended part that consumed 163 minutes and every
+  // dollar of a $2 ceiling on 2026-09-03, reaching the imagery stage at [1377s] only to print
+  // "skipped — no property ID or coordinates".
+  //
+  // Awaited, so it genuinely precedes the clerk search rather than racing it. Never allowed to
+  // fail the run: the research is the point, and losing a completed run because a map server was
+  // slow would be a bad trade.
+  if (input.onPropertyIdentified) {
+    const identified = {
+      propertyId: property.propertyId ?? null,
+      latitude: lat,
+      longitude: lon,
+      acreage: property.acreage ?? null,
+      legalDescription: property.legalDescription ?? null,
+      // `propertyIds` is assembled in Phase 3 and does not exist yet here — the identifiers that
+      // DO exist at this point are the ones Phase 1 accumulated.
+      subdivisionName: property.subdivisionName ?? [...knownIds.subdivisionNames][0] ?? null,
+      situsAddress: property.situsAddress ?? null,
+      controllingDeedDate: null,
+      neighbours: [],
+    };
+    const readiness = visualReadiness(identified);
+    progress('Phase 1.5', 'PHASE 1.5 — Drawings, plats and overhead views (before the documents)', 16);
+    progress('Phase 1.5', `  ${readiness.statement}`, 16);
+    try {
+      await input.onPropertyIdentified(identified);
+    } catch (err) {
+      recordError('Phase 1.5', 'Visual capture', err);
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 2: SCRAPE EVERYTHING (~5-10 minutes)

@@ -46,6 +46,13 @@ export interface PipelineInput {
    * had until this field existed.
    */
   signal?: AbortSignal;
+  /**
+   * Called at the Stage 1 / Stage 2 boundary, once the parcel is identified.
+   *
+   * The owner's requested order — drawings/plats, then overhead views, then everything else — put
+   * into the one place that can honour it. See `research/run-order.ts`.
+   */
+  onPropertyIdentified?: import('../research/run-order.js').OnPropertyIdentified;
   /** User-uploaded files to process alongside online-retrieved documents */
   userFiles?: UserFile[];
   /**

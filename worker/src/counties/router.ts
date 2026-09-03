@@ -79,6 +79,22 @@ export interface CountyResearchInput {
    * left alone rather than quietly repurposed — this field is the one the app actually sends.
    */
   operatorNotes?: string;
+  /**
+   * Called the moment the run knows which parcel it is researching.
+   *
+   * This is the whole of Phase C. The owner asked for "drawings/plats, then the overhead views,
+   * then the rest of the documents", and the run did the exact inverse: imagery and the drawing
+   * hunt were post-processing steps in `index.ts`, after `runCountyResearch` had returned and
+   * every deed had been searched, downloaded and analysed.
+   *
+   * The visual work cannot simply move to the top — an aerial needs coordinates and a plat needs a
+   * subdivision name — so the order is "visuals first among the things possible once the parcel is
+   * known". Both paths already have that moment; neither had any way to tell a caller about it.
+   *
+   * Awaited by both paths. Fire-and-forget would let the deeds start immediately and restore the
+   * old ordering in everything but name.
+   */
+  onPropertyIdentified?: import('../research/run-order.js').OnPropertyIdentified;
   /** Uploaded files */
   uploadedFiles?: Array<{ name: string; mimeType: string; content: string; isUrl?: boolean; description?: string }>;
   /** Research adjacent properties */
@@ -527,6 +543,8 @@ export async function runCountyResearch(
             specialInstructions: input.specialInstructions,
             // What the operator wrote. Reaches the deed-summary prompt via the orchestrator.
             operatorNotes: input.operatorNotes,
+            // Fired at "Phase 1 complete", before the clerk search that ate 163 minutes.
+            onPropertyIdentified: input.onPropertyIdentified,
             uploadedFiles: input.uploadedFiles,
             includeAdjacentProperties: input.includeAdjacentProperties,
             maxResearchTimeMinutes: input.maxResearchTimeMinutes,
@@ -623,6 +641,8 @@ export async function runCountyResearch(
         ownerName: input.ownerName,
         // What the operator wrote about this property. Reaches the Stage 5 synthesis prompt.
         operatorNotes: input.operatorNotes,
+        // Fired at the Stage 1 / Stage 2 boundary — the generic path's identification moment.
+        onPropertyIdentified: input.onPropertyIdentified,
         // ── THE STOP BUTTON REACHED ONE COUNTY OUT OF FORTY-ONE ──────────────────────────
         //
         // `runCountyResearch` has taken a signal since it was written and Bell has been given it

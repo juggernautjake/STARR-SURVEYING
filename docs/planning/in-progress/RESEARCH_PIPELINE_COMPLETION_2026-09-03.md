@@ -668,18 +668,58 @@ below where they conflict, because several are prerequisites for it:
 
 ### Phase C — the order the owner asked for
 
-- [ ] **C1. Decide the fate of the prioritiser.** `lib/research/prioritized-pipeline.ts` (379) and
-      `prioritized-pipeline.service.ts` (387) are near-duplicates with zero callers, and all six of
-      their dependencies are live and used elsewhere. Determine which is real, merge or delete the
-      other, and record the decision. This is the long-open owner call in `project_orphan_guard`.
-- [ ] **C2. Re-tier the priority table to the requested order.** It currently scores plat 90,
-      survey 88, deed 85, gis_map 75, aerial 70, tax 55, easement 50 — plats already above deeds,
-      imagery already above secondary records. The requested order needs the imagery tier lifted
-      ABOVE deeds: drawings/plats → overhead → everything else.
-- [ ] **C3. Give it a caller.** Sequence the Bell orchestrator and the generic pipeline by the
-      table instead of by source order. The wiring test must assert the CALLER — that the
-      orchestrator imports and invokes the prioritiser — not that the prioritiser imports its
-      helpers.
+- [x] **C1. The prioritisers cannot be the run's sequencer, and the premise said otherwise.**
+      — settled 2026-09-03, by measurement rather than by choosing.
+      C3 as written said "sequence the Bell orchestrator and the generic pipeline by the table".
+      Both prioritisers live in `lib/research/`; the orchestrator and the pipeline live in
+      `worker/src/`; and `worker/tsconfig.json` sets `"rootDir": "./src"`. **The worker cannot
+      import them.** (The `worker/src/lib/…` imports that look like counter-evidence are the
+      worker's own `lib`, not the repo root's — checked before concluding.) So the whole of
+      Phase C had to be built worker-side, which is what C3 below does.
+      **They are also not near-duplicates**, which is how the audit described them.
+      `prioritized-pipeline.ts` DRIVES analysis — it imports `resource-analyzer` and `callAI` and
+      fetches each resource. `prioritized-pipeline.service.ts` CONSUMES analysis — it takes
+      pre-extracted atoms and only orders and cross-validates them, on `criteria-triggers` rather
+      than `analysis-triggers`. One is a producer and one is a consumer of the same idea.
+      **Their dependency sets each match a live route exactly**: `full-extract/route.ts` uses
+      `resource-analyzer` + `cross-validation.service` + `extraction-objectives`, and
+      `deep-lot-analysis/route.ts` uses `criteria-triggers` + `cross-validation.service` +
+      `pipeline-logger`. Each prioritiser is a plausible extraction of one of those routes' inline
+      loops. That is a real question with a real answer, and it is an **app-side refactor question**
+      with nothing to do with the run order the owner asked for — so it moves to C1b rather than
+      being answered here on a guess. Deleting them on the strength of "zero callers" would have
+      been wrong: the strongest evidence says they are unfinished, not dead.
+- [ ] **C1b. Adopt or delete the two prioritisers, from the routes' side.** Read
+      `full-extract/route.ts` and `deep-lot-analysis/route.ts` and decide whether either
+      re-implements its prioritiser's loop inline. If one does, adopt it there and delete the other;
+      if neither does, both are speculative and go. Not urgent, and explicitly not blocking Phase C.
+- [x] **C2 + C3. Drawings and overhead views run BEFORE the documents.** — shipped 2026-09-03.
+      C2 as written was moot: the app-side table it describes cannot reach the run (see C1). What
+      the owner asked for is a **run order**, not a scoring table, so it is one —
+      `worker/src/research/run-order.ts`, four steps as data with the reason each sits where it
+      does, printed to the run log before the run starts so an operator can see the order they were
+      promised rather than infer it from timestamps.
+      **The ordering could not simply be reversed.** An aerial needs coordinates and a plat needs a
+      subdivision name, and both come from identifying the parcel — so the real order is "visuals
+      first among the things possible once the parcel is known". Both paths already have that
+      moment (Bell's "Phase 1 complete", the generic pipeline's Stage 1/2 boundary) and neither had
+      any way to tell a caller about it. `onPropertyIdentified` is that hook, **awaited** by both —
+      fire-and-forget would let the deeds start immediately and restore the old order in all but
+      name, and a test asserts the await.
+      **What this would have changed on 2026-09-03.** Captures were a post-processing step in
+      `index.ts`, running after `runCountyResearch` returned. The run reached them at **[1377s]** —
+      23 of its 25 budgeted minutes gone, 163 actual minutes and $29.19 spent — and printed
+      *"Direct map screenshots skipped — no property ID or coordinates"*. Under this order it learns
+      that in the first minute, which is a far more useful failure.
+      The end-of-run capture stays as a **fallback**, because a run can finish without ever having
+      identified a parcel and the finished result may carry a centroid Phase 1 lacked. It skips when
+      the early pass ran, and the flag clears on re-run — otherwise a second run would skip its own
+      fallback on the first run's flag.
+      `visualReadiness()` reports which half is missing, because "no coordinates" and "no
+      subdivision name" have different fixes, and a stage that says only "skipped" leaves an
+      operator nowhere to go. Neither is ever reported as the property having no plat or no imagery.
+      Sixteen tests, all asserting the CALLERS, including that the fire point precedes the clerk
+      search and Stage 2 in the source. Mutation-checked: turning the `await` into `void` fails two.
 - [ ] **C4. Paid sources lead for plats when purchasing is on.** When `allow_paid_documents` is
       true, the plat/drawing stage tries TexasFile and Kofile FIRST, because a bought plat is the
       visual the run is built around. Newest available first.

@@ -42,6 +42,7 @@ import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
 import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
+import { describeRunOrder } from './research/run-order.js';
 // The 19 counties that carry a GIS viewer URL. Already in the tree, used only to query features
 // until now — never to photograph the viewer, which is what was asked for.
 import { BIS_CONFIGS } from './services/bis-cad.js';
@@ -1117,6 +1118,23 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // notes were never put on it, so the create form's "Sent to the AI with the run" was false
     // for every run ever made.
     operatorNotes: body.operatorNotes?.trim() || undefined,
+    // ── THE ORDER THE OWNER ASKED FOR (plan C3) ───────────────────────────────────────────
+    //
+    // "the order should be, drawings/plats, then the overhead views, then the rest of the
+    // documents". Both research paths await this at the moment they identify the parcel, so the
+    // visual evidence is gathered BEFORE the open-ended document search rather than after it.
+    //
+    // Until now these captures were a post-processing step here in `index.ts`, running after
+    // `runCountyResearch` returned. On 2026-09-03 that meant the run reached them at [1377s],
+    // having already spent 163 minutes and every dollar of a $2 ceiling, only to print
+    // "Direct map screenshots skipped — no property ID or coordinates".
+    onPropertyIdentified: async (identified) => {
+      try {
+        await captureVisualsAtIdentification(projectId, county, identified);
+      } catch (e) {
+        console.warn(`[Capture] ${projectId}: early visual phase threw — ${String(e)}`);
+      }
+    },
     uploadedFiles: parsedUserFiles?.map(f => ({
       name: f.filename,
       mimeType: f.mimeType,
@@ -1143,6 +1161,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   completedResults.delete(projectId);
   completedResultsCachedAt.delete(projectId);
   completedLogs.delete(projectId);
+  // A re-run must take its own captures. Left set, the second run would see the first run's flag
+  // and skip its fallback — the precise shape of stale-state bug this block exists to prevent.
+  visualsCaptured.delete(projectId);
   clearRunningMessage(projectId);
   clearLiveLogForProject(projectId);
   clearTracker(projectId);
@@ -1336,6 +1357,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       operatorNotes: body.operatorNotes ?? null,
     },
   });
+
+  // The order this run will follow, said out loud before it starts. An operator who asked for
+  // "drawings/plats, then the overhead views, then the rest" should be able to see that is what
+  // they got, rather than infer it from timestamps.
+  for (const line of describeRunOrder()) {
+    handshakeLogger.attempt('[Order]', 'info', 'Run order', line).success(0, line);
+  }
 
   // Run research pipeline in background — routes to county-specific or generic
   runCountyResearch(
@@ -3749,6 +3777,18 @@ async function captureImageryForRun(
   county: string,
   unifiedResult: UnifiedResearchResult,
 ): Promise<void> {
+  // ── THIS IS NOW THE FALLBACK, NOT THE ROUTE ─────────────────────────────────────────────────
+  //
+  // Captures moved to the identification boundary (plan C3), which is where the owner asked for
+  // them: "drawings/plats, then the overhead views, then the rest of the documents". This call
+  // stays because a run can reach the end WITHOUT ever having identified a parcel — the 2026-09-03
+  // run did exactly that — and in that case the finished result may carry a centroid that Phase 1
+  // did not have. Running the plan twice would re-file every screenshot, so it is skipped when the
+  // early pass already ran.
+  if (visualsCaptured.has(projectId)) {
+    console.log(`[Capture] ${projectId}: visuals were already captured at identification — nothing to redo.`);
+    return;
+  }
   const supabase = await getSupabase();
   if (!supabase) {
     console.warn(`[Capture] ${projectId}: no Supabase client — captures cannot be stored, so none were taken.`);
@@ -3760,7 +3800,17 @@ async function captureImageryForRun(
   console.log(`[Capture] ${projectId}: ${plan.summary}`);
   for (const skip of plan.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
   if (plan.captures.length === 0) return;
+  await runCapturePlan(projectId, plan);
+}
 
+/** Execute a capture plan: screenshot, OCR, store, file. Shared by the early and fallback paths. */
+async function runCapturePlan(
+  projectId: string,
+  plan: ReturnType<typeof planCaptures>,
+): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) return;
+  const county = activePipelines.get(projectId)?.county ?? '';
   const report = await runCaptures(plan, {
     // Playwright, through the same browser factory every scraper uses — so a capture inherits the
     // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
@@ -3853,6 +3903,65 @@ function documentsForDrawingHunt(
  *  Reads defensively because the two result shapes differ and a missing centroid is a legitimate
  *  state, not an error — `planCaptures` records it as a gap in what the run identified rather than
  *  as a fact about the land. */
+/**
+ * The same plan input, built from what a run knows at the IDENTIFICATION boundary (plan C3).
+ *
+ * `capturePlanInputFor` below reads a finished `UnifiedResearchResult`, which is why imagery
+ * could only ever run after everything else. Every field it actually uses is available the moment
+ * the parcel is identified; this is that same set, taken from the earlier moment.
+ */
+function capturePlanInputFromIdentified(
+  projectId: string,
+  county: string,
+  p: import('./research/run-order.js').IdentifiedProperty,
+): CapturePlanInput {
+  return {
+    projectId,
+    county,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    acreage: p.acreage,
+    parcelId: p.propertyId,
+    gisBaseUrl: gisBaseUrlFor(county),
+    controllingDeedDate: p.controllingDeedDate,
+    neighbours: p.neighbours,
+    obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
+    refreshImagery: (activePipelines.get(projectId)?.settings as { refreshImagery?: boolean } | undefined)?.refreshImagery === true,
+  };
+}
+
+/** Projects whose visual stage already ran at the identification boundary this run. */
+const visualsCaptured = new Set<string>();
+
+/**
+ * The owner's requested order, made real: drawings and overhead views BEFORE the documents.
+ *
+ * Handed to `runCountyResearch` as `onPropertyIdentified` and awaited by both research paths, so
+ * it runs between "we know which parcel this is" and "start searching the clerk" — rather than at
+ * the very end, where on 2026-09-03 it printed "[1377s] Direct map screenshots skipped" after the
+ * run had already spent 163 minutes and every dollar of its ceiling.
+ *
+ * Never throws. Both call sites also wrap it, deliberately: this is supporting evidence, and a
+ * completed run must not be lost to a slow map server.
+ */
+async function captureVisualsAtIdentification(
+  projectId: string,
+  county: string,
+  p: import('./research/run-order.js').IdentifiedProperty,
+): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) {
+    console.warn(`[Capture] ${projectId}: no Supabase client — captures cannot be stored, so none were taken.`);
+    return;
+  }
+  const plan = planCaptures(capturePlanInputFromIdentified(projectId, county, p));
+  console.log(`[Capture] ${projectId}: (early) ${plan.summary}`);
+  for (const skip of plan.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
+  if (plan.captures.length === 0) return;
+  await runCapturePlan(projectId, plan);
+  visualsCaptured.add(projectId);
+}
+
 function capturePlanInputFor(
   projectId: string,
   county: string,

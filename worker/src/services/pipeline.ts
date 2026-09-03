@@ -17,6 +17,7 @@ import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
 import { mayStart } from '../research/budget-gate.js';
 import { describeAbort } from '../research/abort-reason.js';
+import { visualReadiness } from '../research/run-order.js';
 import { patchDocument } from '../research/file-document.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
@@ -879,6 +880,39 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : input.ownerName ? ` for "${input.ownerName}"` : ''}…`,
       { propertyId: propertyResult?.propertyId, ownerName: propertyResult?.ownerName ?? input.ownerName },
     );
+
+    // ── STAGE 1.5 — THE VISUAL EVIDENCE, BEFORE THE DOCUMENT GRIND (plan C3) ─────────────────
+    //
+    // "the order should be, drawings/plats, then the overhead views, then the rest of the
+    // documents". Stage 2 onward is the open-ended part; this is the last moment before it, and
+    // everything the visual work needs — coordinates, a subdivision name — exists by now.
+    //
+    // Awaited so it genuinely precedes document retrieval rather than racing it, and wrapped
+    // because a slow map server must not fail research that has already succeeded.
+    if (input.onPropertyIdentified) {
+      const identified = {
+        propertyId: propertyResult?.propertyId ?? null,
+        // Stage 0's geocode is the generic path's only source of coordinates — `PropertyIdResult`
+        // carries none. B1 and B2 added Google and the parcel centroid to that chain, so this is
+        // the best answer the run has at this point rather than the first one it tried.
+        latitude: Number.isFinite(Number(normalized.lat)) ? Number(normalized.lat) : null,
+        longitude: Number.isFinite(Number(normalized.lon)) ? Number(normalized.lon) : null,
+        acreage: Number.isFinite(Number(propertyResult?.acreage)) ? Number(propertyResult!.acreage) : null,
+        legalDescription: propertyResult?.legalDescription ?? null,
+        subdivisionName: extractSubdivisionName(propertyResult?.legalDescription ?? '') ?? null,
+        situsAddress: propertyResult?.situsAddress ?? input.address ?? null,
+        controllingDeedDate: null,
+        neighbours: [],
+      };
+      const readiness = visualReadiness(identified);
+      logger.info('Stage1.5', 'Drawings, plats and overhead views — before the documents');
+      logger.info('Stage1.5', `  ${readiness.statement}`);
+      try {
+        await input.onPropertyIdentified(identified);
+      } catch (err) {
+        logger.warn('Stage1.5', `Visual capture failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     stopIfAborted('Stage 2');
 
