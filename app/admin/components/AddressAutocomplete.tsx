@@ -39,6 +39,10 @@ interface AddressAutocompleteProps {
   onSelect?: (details: AddressDetails) => void;
   placeholder?: string;
   className?: string;
+  /** Applied to the input itself, so a caller's <label htmlFor> actually reaches it. Without
+   *  this the component could only ever be labelled by wrapping, and a caller that used htmlFor
+   *  got a label pointing at nothing — announced by a screen reader as an unlabelled text box. */
+  id?: string;
   /** Bias results towards Texas */
   biasTexas?: boolean;
 }
@@ -52,6 +56,7 @@ export default function AddressAutocomplete({
   value,
   onChange,
   onSelect,
+  id,
   placeholder = 'Start typing an address...',
   className = '',
   biasTexas = true,
@@ -276,6 +281,7 @@ export default function AddressAutocomplete({
     <div ref={wrapperRef} className="address-autocomplete" style={{ position: 'relative' }}>
       <input
         ref={inputRef}
+        id={id}
         type="text"
         className={className}
         value={value}

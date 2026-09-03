@@ -42,6 +42,7 @@ import { summaryReviewData } from './_sections/summary-review-data';
 import { easementsReviewData } from './_sections/easements-review-data';
 // The same verdict the API refuses on, so the button and the server can never disagree (S3).
 import { checkScope } from '@/lib/research/scope';
+import { assessRunReadiness, describeRunReadiness } from '@/lib/research/run-readiness';
 import ScopeNotice, { scopeDescribedBy } from '../components/ScopeNotice';
 import {
   coherenceReviewData, scoreFillColor, deltaColor, deedCompleteColor,
@@ -1717,7 +1718,28 @@ export default function ResearchProjectPage() {
       {(() => {
         const isAnalyzing = project.status === 'analyzing' || currentStage === 'research';
         const postAnalysis = ['review', 'drawing', 'verifying', 'complete'].includes(project.status);
-        const hasInputs = Boolean(project.property_address || project.parcel_id) || documents.length > 0;
+        // ── IS THERE ENOUGH HERE TO FIND ONE PARCEL? ──────────────────────────────────────────
+        //
+        // This was `Boolean(project.property_address || project.parcel_id) || documents.length > 0`,
+        // so ANY non-empty address string enabled the button. "CEDAR CREEK" enabled it. A road name
+        // with no number runs for miles past dozens of parcels, and a run started on one either
+        // finds nothing after twenty-five minutes and real money, or — the outcome that actually
+        // matters — finds a confident answer about the wrong property.
+        //
+        // The API calls the SAME function, so the button can never offer a run the server refuses.
+        const readiness = assessRunReadiness({
+          county: project.county,
+          state: project.state,
+          parcelId: project.parcel_id,
+          instrumentNumber: (project as { instrument_number?: string | null }).instrument_number,
+          streetNumber: (project as { street_number?: string | null }).street_number,
+          streetName: (project as { street_name?: string | null }).street_name || project.property_address,
+          city: (project as { city?: string | null }).city,
+          zip: (project as { zip?: string | null }).zip,
+          ownerName: (project.analysis_metadata as { owner_name?: string | null } | null)?.owner_name,
+          documentCount: documents.length,
+        });
+        const hasInputs = readiness.canRun;
 
         // ── SCOPE, ON THE BUTTON (Phase S3) ─────────────────────────────────────────────────────
         //
@@ -1781,11 +1803,35 @@ export default function ResearchProjectPage() {
         // upload / configure → start
         return (
           <div className="research-action-bar" data-testid="research-action-bar">
+            {/* ── WHAT YOU GAVE, AND WHAT IS STILL MISSING ────────────────────────────────────
+                The old copy said "Add a property address (or parcel id), or upload a document" —
+                the same sentence whatever you had already entered, so somebody who HAD typed an
+                address and still could not start had no way to learn why. The readiness check names
+                what was supplied and lists, in order, what would make the run possible. */}
             <span className="research-action-bar__text">
-              {hasInputs
+              {readiness.canRun
                 ? <>Ready to analyze. STARR RECON will search public records, capture sources, and extract data with AI.</>
-                : <>Add a property address (or parcel id), or upload a document, to start the AI analysis.</>}
+                : <><strong>{readiness.headline}</strong></>}
             </span>
+
+            {!readiness.canRun && (
+              <div className="research-readiness" role="status">
+                <p className="research-readiness__have">
+                  <span className="research-readiness__label">You have supplied</span>
+                  {" "}{readiness.have.join(", ")}.
+                </p>
+                <p className="research-readiness__label">Any one of these would let the run start</p>
+                <ul className="research-readiness__list">
+                  {readiness.whatWouldWork.map(w => <li key={w}>{w}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {/* Said even when the run CAN go ahead. "Ready" and "exact" are different claims, and an
+                operator about to spend twenty-five minutes deserves to know which one this is. */}
+            {readiness.canRun && readiness.caution && (
+              <p className="research-readiness__caution" role="status">{readiness.caution}</p>
+            )}
             <ScopeNotice scope={scope} id="scope-start" />
             <button
               className="research-action-bar__btn"
@@ -1793,8 +1839,8 @@ export default function ResearchProjectPage() {
               aria-describedby={scopeDescribedBy(scope, 'scope-start')}
               title={
                 !scope.canRun ? scope.message
-                  : hasInputs ? 'Start the AI research pipeline'
-                  : 'Add an address/parcel id or a document first'
+                  : readiness.canRun ? 'Start the AI research pipeline'
+                  : describeRunReadiness(readiness)
               }
               onClick={handleStartAnalysis}
             >

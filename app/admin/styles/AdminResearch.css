@@ -510,6 +510,203 @@
   gap: 0.75rem;
 }
 
+/* ── THE REBUILT CREATE FORM ────────────────────────────────────────────────────────────────────
+ *
+ * The form used to hide City, ZIP, owner, project name and notes behind an "Optional details"
+ * disclosure. Optional and hidden are different claims, and the second one was wrong: City and ZIP
+ * change which parcel is found, the owner name is what the clerk index is searched on, and the
+ * notes are the only thing that tells the AI what the operator already knows. Folding them away
+ * made a nearly-empty form look finished.
+ *
+ * Everything is visible now, grouped by the question it answers. The grouping is what makes that
+ * bearable — twelve ungrouped inputs is a wall; four short sections is a form.
+ *
+ * Every custom property below is one this theme actually defines. `--theme-link`, `--theme-focus`
+ * and `--theme-fg` are the obvious names and NONE of them exist; they would have silently resolved
+ * to their fallbacks, which is how 159 rules once read sixteen tokens defined nowhere.
+ */
+
+/* Wider than the old 520px. Three-across rows (number/street/unit, city/state/ZIP) need the room,
+ * and the alternative is the fields being narrower than the values they hold. */
+.research-modal--wide { max-width: 680px; }
+
+.research-modal__form { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* `fieldset` and `legend`, not divs with a heading class. The grouping is real — these fields
+ * genuinely belong together — and a screen reader announces the legend with each field inside it,
+ * so "Number" is heard as "Where is it? Number" rather than as a bare word. */
+.research-modal__section {
+  border: 1px solid var(--theme-border-subtle, #E5E7EB);
+  border-radius: 12px;
+  padding: 1rem 1.1rem 0.6rem;
+  margin: 0;
+  min-width: 0;   /* a fieldset defaults to min-content and will not let a grid child shrink */
+}
+
+.research-modal__section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #1F2937);
+  padding: 0 0.4rem;
+  margin-left: -0.4rem;
+}
+
+.research-modal__section-hint {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #6B7280);
+  margin: 0 0 0.85rem;
+}
+
+/* Number : street : unit. The street name is the long one and gets the room; a unit is "Ste 200". */
+/* ── A GRID CHILD WILL NOT SHRINK BELOW ITS CONTENT UNLESS TOLD TO ──────────────────────────────
+ *
+ * Found in a browser on 2026-09-02, after 1,837 green test files. The Unit and ZIP columns were
+ * cut off at the right edge and the whole modal scrolled sideways.
+ *
+ * A grid item defaults to `min-width: auto`, which resolves to its content minimum — and an
+ * `<input>` carries an intrinsic minimum width from its default `size` attribute, roughly 20
+ * characters, regardless of `width: 100%`. Three of those in a row demand more than the track can
+ * give, so the row overflows its container instead of the columns shrinking.
+ *
+ * `min-width: 0` is the standard release valve. `box-sizing` and `width: 100%` do NOT help here:
+ * they govern how the input fills the track, not how small the track is allowed to be.
+ */
+.research-modal__row > * { min-width: 0; }
+.research-modal__input,
+.research-modal__textarea,
+.research-modal__select,
+.research-modal__file { min-width: 0; }
+.research-modal__row--street { grid-template-columns: 0.8fr 2.4fr 0.9fr; }
+/* City : state : ZIP. Two characters and five characters do not need a third of the width each. */
+.research-modal__row--citystatezip { grid-template-columns: 2.2fr 0.7fr 1.1fr; }
+
+@media (max-width: 560px) {
+  /* Below this the three-across rows stop being readable — the state box reaches about 60px and
+   * the labels wrap to two lines. One field per row is plainly better than a cramped grid. */
+  .research-modal__row,
+  .research-modal__row--street,
+  .research-modal__row--citystatezip { grid-template-columns: 1fr; }
+}
+
+/* "optional" / "required to run" beside a label. Small, quiet, and never a bare asterisk — an
+ * asterisk means nothing until you find its legend, and this form's earlier one was on a field the
+ * server never required. */
+.research-modal__optional,
+.research-modal__required {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+.research-modal__optional {
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.05));
+}
+.research-modal__required {
+  color: var(--theme-warning-fg, #92400E);
+  background: var(--theme-warning-bg, rgba(217, 119, 6, 0.12));
+}
+
+/* A note under one field, distinct from the section hint above a group. */
+.research-modal__field-note {
+  font-size: 0.75rem;
+  color: var(--theme-fg-muted, #6B7280);
+  margin: 0.35rem 0 0;
+}
+
+/* The line saying what the run will actually search for. Given real emphasis because catching a
+ * wrong field here costs a glance, and catching it after the run costs half an hour. */
+.research-modal__preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--theme-fg-primary, #1F2937);
+  background: var(--theme-brand-subtle, rgba(37, 99, 235, 0.07));
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.research-modal__preview-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* A file input styled to match the text inputs rather than left as the browser's default, which
+ * is a different height and font on every platform. */
+.research-modal__file {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--theme-border-strong, #9CA3AF);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.02));
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.research-modal__file:focus-visible {
+  outline: 2px solid var(--theme-accent, #2563EB);
+  outline-offset: 2px;
+}
+
+.research-modal__filelist {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.8rem;
+}
+.research-modal__filelist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.04));
+}
+.research-modal__filelist li + li { margin-top: 0.25rem; }
+/* A long filename truncates rather than pushing the size off the row. */
+.research-modal__filename { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-modal__filesize { color: var(--theme-fg-muted, #6B7280); flex-shrink: 0; }
+
+/* The spend toggle. A checkbox whose label is two paragraphs needs its own rule, or the text wraps
+ * back underneath the box. */
+.research-modal__checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  cursor: pointer;
+  margin-bottom: 0.6rem;
+}
+.research-modal__checkbox input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.research-modal__checkbox-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #374151);
+}
+.research-modal__checkbox-hint {
+  display: block;
+  font-weight: 400;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--theme-fg-muted, #6B7280);
+  margin-top: 0.2rem;
+}
+
 .research-modal__actions {
   display: flex;
   justify-content: flex-end;
@@ -13601,4 +13798,71 @@
   border: 1px solid #4B5563;
   border-radius: 3px;
   color: #F9FAFB;
+}
+
+/* ── RUN READINESS ──────────────────────────────────────────────────────────────────────────────
+ *
+ * "Is there enough here to find ONE parcel?" — shown in the create modal and on the project page's
+ * action bar, from the same `assessRunReadiness` the API enforces.
+ *
+ * The old copy said "Add a property address (or parcel id), or upload a document" whatever you had
+ * already entered, so somebody who HAD typed an address and still could not start had no way to
+ * learn why. These styles exist to make the alternative — what you gave, and what would fix it —
+ * readable rather than a wall of grey text.
+ *
+ * Styled as guidance, not as an error. Not being ready yet is the normal state of a form somebody
+ * is still filling in, and red would be a lie about the severity.
+ */
+.research-readiness {
+  border: 1px solid var(--theme-border-subtle, #E5E7EB);
+  border-left: 3px solid var(--theme-warning, #D97706);
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.03));
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #374151);
+}
+
+/* Ready. Same shape, different edge — the layout must not jump as the last field is filled in. */
+.research-readiness--ok {
+  border-left-color: var(--theme-success, #059669);
+}
+
+.research-readiness__headline {
+  margin: 0;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.research-readiness__have { margin: 0.4rem 0 0; }
+
+.research-readiness__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+  margin: 0.6rem 0 0.2rem;
+  display: block;
+}
+
+.research-readiness__list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+.research-readiness__list li { margin-bottom: 0.35rem; }
+.research-readiness__list li:last-child { margin-bottom: 0; }
+
+.research-readiness__footnote,
+.research-readiness__caution {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* On the action bar the caution stands alone rather than inside the panel. */
+.research-action-bar .research-readiness__caution {
+  margin: 0.4rem 0 0;
+  max-width: 60ch;
 }

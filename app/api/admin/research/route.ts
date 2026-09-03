@@ -88,6 +88,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     job_id, allow_paid_documents,
     // Seed 624 — the address arrives in parts and STAYS in parts. See below.
     street_number, street_name, unit, intake_notes,
+    // Seed 625 — a deed the operator already has. Seeds the Bell deed-following cascade.
+    instrument_number,
   } = body;
 
   if (!name || !name.trim()) {
@@ -157,6 +159,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       county: county?.trim() || null,
       state: state?.trim() || 'TX',
       parcel_id: parcel_id?.trim() || null,
+      // Raw, exactly as the county writes it. Instrument numbers come in a dozen forms and
+      // normalising here would destroy the one the clerk actually uses; comparison-normalisation
+      // already belongs to purchase-ledger.instrumentKey().
+      instrument_number: instrument_number?.trim() || null,
       job_id: job_id || null,
       status: 'upload',
       // Per-project spend gate (seed 620). Only an explicit `false` disables purchasing: an absent
@@ -216,6 +222,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     ['city', 'city'],
     ['zip', 'zip'],
     ['intake_notes', 'intake_notes'],
+    ['instrument_number', 'instrument_number'],
   ] as const) {
     if (updates[field] !== undefined) allowed[col] = updates[field]?.trim() || null;
   }

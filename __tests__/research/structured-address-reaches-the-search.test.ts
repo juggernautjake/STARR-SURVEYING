@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   composeAddress,
   splitStreetLine,
@@ -10,6 +8,7 @@ import {
   hasStructuredParts,
   splitFullAddress,
 } from '@/lib/research/property-address';
+import { readSource as read, readCode as code } from '../helpers/read-source';
 
 // ── THE DEFECT THIS CLOSES, MEASURED ────────────────────────────────────────────────────────────
 //
@@ -233,32 +232,6 @@ describe('hasStructuredParts decides which path the worker takes', () => {
 //
 // A model with perfect behaviour that nothing imports is this repo's signature defect and has been
 // found here more than a dozen times. These read the real files.
-
-const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
-
-/**
- * Source with comments removed. Necessary because the create route's own comment QUOTES the old
- * flattening join verbatim, so the `not.toMatch` below would fail against the fix that removed it.
- *
- * The block-comment opener is anchored to the start of a line. The obvious `\/\*[\s\S]*?\*\/` is
- * wrong, and was caught being wrong in the worker's copy of this test: an `Accept: ＊/＊;q=0.8`
- * header string opens a comment the regex closes 83 lines later, deleting real code. In a
- * `not.toMatch` assertion that failure mode is SILENT — the deleted region cannot match, so the
- * test passes and proves nothing.
- *
- * Line comments use `[^\n\r]*`: these files are CRLF and `$` in multiline mode sits before `\n`,
- * one character past where `.*` can reach.
- */
-const code = (p: string) => {
-  const raw = read(p);
-  const stripped = raw
-    .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '')
-    .replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
-  if (!stripped.includes('import')) {
-    throw new Error(`comment stripping destroyed ${p}: ${raw.length} chars in, ${stripped.length} out`);
-  }
-  return stripped;
-};
 
 describe('the create route stores the parts', () => {
   const ROUTE = code('app/api/admin/research/route.ts');

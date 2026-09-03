@@ -20,9 +20,11 @@ import AddressAutocomplete from '../../components/AddressAutocomplete';
 import { checkCounty } from '@/lib/research/county-input';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
 import { checkScope } from '@/lib/research/scope';
+import { assessRunReadiness } from '@/lib/research/run-readiness';
 import ScopeNotice from '../components/ScopeNotice';
 import JobLinkPicker, { type JobSummary } from '../components/JobLinkPicker';
-import { Accordion, ErrorState } from '../components/ui';
+// `Accordion` was dropped with the "Optional details" disclosure — see the note on the form.
+import { ErrorState } from '../components/ui';
 import { composeAddress, splitStreetLine, splitFullAddress } from '@/lib/research/property-address';
 // The SAME upload path the project page uses — signed URL straight to storage, a 50 MB cap, and
 // per-file errors that do not stop the other files. Writing a second uploader here would have meant
@@ -96,6 +98,13 @@ export default function ProjectsTab() {
     /** Operator context, given to the AI. Distinct from `description`, which is the project's own
      *  blurb — though the server falls back to `description` for projects that only send that. */
     intake_notes: '',
+    // ── A DEED WE ALREADY HAVE (seed 625) ──────────────────────────────────────────────────────
+    //
+    // The worker has accepted `instrumentNumber` since it was written, and the Bell orchestrator
+    // SEEDS its deed-following cascade from it (orchestrator.ts:142). Nothing had ever handed it
+    // one — no column, no field, and the route that starts a run never mentioned it. The cascade
+    // has begun from nothing in every run ever made.
+    instrument_number: '',
   // Spend gate (seed 620). ON by default so behaviour matches every existing project;
     // the toggle below makes the choice explicit rather than inherited from a column default.
     allow_paid_documents: true,
@@ -128,6 +137,20 @@ export default function ProjectsTab() {
    *  TexasFile county are different amounts of money. Checked against the 254-county list we
    *  already ship, as advice rather than a gate; see lib/research/county-input.ts. */
   const countyCheck = checkCounty(newProject.county);
+  /** Whether a RUN would be possible with what has been typed so far — the same function the run
+   *  button and the API both call, so the three can never disagree about what "enough" means. */
+  const readiness = assessRunReadiness({
+    county: newProject.county,
+    state: newProject.state,
+    parcelId: newProject.parcel_id,
+    instrumentNumber: newProject.instrument_number,
+    streetNumber: newProject.street_number,
+    streetName: newProject.street_name,
+    city: newProject.city,
+    zip: newProject.zip,
+    ownerName: newProject.owner_name,
+    documentCount: intakeFiles.length,
+  });
 
   const userRoles = session?.user?.roles || ['employee'];
   const canAccessResearch = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher') || userRoles.includes('drawer') || userRoles.includes('field_crew') || userRoles.includes('tech_support');
@@ -307,7 +330,7 @@ export default function ProjectsTab() {
           name: '', description: '', property_address: '',
           street_number: '', street_name: '', unit: '',
           city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '',
-          intake_notes: '', allow_paid_documents: true, job_id: null,
+          instrument_number: '', intake_notes: '', allow_paid_documents: true, job_id: null,
         });
         setIntakeFiles([]);
         setIntakeFileErrors([]);
@@ -548,7 +571,7 @@ export default function ProjectsTab() {
           aria-modal="true"
           aria-label="New Research Project"
         >
-          <div className="research-modal">
+          <div className="research-modal research-modal--wide">
             <div className="research-modal__header">
               <h2 className="research-modal__title">New Research Project</h2>
               <button
@@ -561,168 +584,201 @@ export default function ProjectsTab() {
                 ×
               </button>
             </div>
-            <form onSubmit={handleCreate}>
-              {/* ── Property ID (optional — an address identifies a parcel too) ──────────────
-                  It was `required` here and NEVER required on the server, which stores
-                  `parcel_id?.trim() || null`. So the only thing the asterisk did was send you
-                  to the appraisal district website before you could start a run you already
-                  had the address for. What a run genuinely needs is SOME way to find the
-                  parcel; an address is one, a CAD id is a better one. The form now asks for
-                  at least one and says which. */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Property ID <span style={{ opacity: 0.6, fontWeight: 400 }}>(optional)</span>
-                    <Tooltip text="The county appraisal district property ID. Optional — an address works too, and the run resolves the parcel from it. Supplying both is best: the ID pins the exact parcel where an address is ambiguous, and it centres the GIS viewer. Find it on the county appraisal district site." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <input
-                  className="research-modal__input"
-                  type="text"
-                  placeholder="Property ID"
-                  value={newProject.parcel_id}
-                  onChange={e => setNewProject(p => ({ ...p, parcel_id: e.target.value }))}
-                  autoFocus
-                />
-              </div>
+            <form onSubmit={handleCreate} className="research-modal__form">
+              {/* ── EVERY FIELD IS VISIBLE ────────────────────────────────────────────────────
+                  This form used to put City, ZIP, owner, project name and notes behind an
+                  "Optional details" disclosure. The reasoning was that the required path is short
+                  and the rest is optional — but "optional" and "hidden" are different claims, and
+                  the second one was wrong here: City and ZIP change which parcel the search finds,
+                  the owner name is what the clerk grantor/grantee search runs on, and the notes are
+                  the only thing that reaches the AI about what the operator already knows.
 
-              {/* ── QUICK FILL ──────────────────────────────────────────────────────────────
-                  Demoted from "the address field" to a convenience that FILLS the real fields
-                  below. Two reasons, and the second is the one that matters:
+                  Folding them away made the form look finished when it was nearly empty. Everything
+                  is on screen now, grouped by the question it answers, so what is worth filling in
+                  is visible without a click. */}
 
-                  1. Google Places is refusing this key right now — the Places API is not enabled
-                     on the Cloud project, so `REQUEST_DENIED` comes back on every keystroke and
-                     the component says so. If suggestions were the only way in, the form would be
-                     unusable until somebody clicks a button in a console.
+              {/* ══ WHERE IS THE PROPERTY ══════════════════════════════════════════════════ */}
+              <fieldset className="research-modal__section">
+                <legend className="research-modal__section-title">Where is it?</legend>
+                <p className="research-modal__section-hint">
+                  The street name or a Property ID is enough to start. County decides which clerk
+                  and appraisal district get searched.
+                </p>
 
-                  2. Even when it works, a selected suggestion was flattened into one string and
-                     the parts thrown away. Filling the separate fields means the operator can SEE
-                     what was understood, and correct it — a Places result for a rural parcel is
-                     frequently the road, not the property. */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Quick fill from an address search
-                    <Tooltip text="Optional shortcut. Pick a suggestion and it fills the street, city, county, state and ZIP fields below, which you can then correct. Everything here can be typed by hand instead — the fields below are what the run actually uses." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <AddressAutocomplete
-                  value={newProject.property_address}
-                  onChange={val => setNewProject(p => ({ ...p, property_address: val }))}
-                  onSelect={details => setNewProject(p => {
-                    // Split the chosen line into the parts the county search needs. Same helper the
-                    // server uses, so a suggestion and a hand-typed address end up identical.
-                    const street = splitStreetLine(details.address || '');
-                    return {
-                      ...p,
-                      property_address: details.address || p.property_address,
-                      street_number: street.streetNumber || p.street_number,
-                      street_name: street.streetName || p.street_name,
-                      unit: street.unit || p.unit,
-                      city: details.city || p.city,
-                      county: details.county || p.county,
-                      state: details.state || p.state,
-                      zip: details.zip || p.zip,
-                    };
-                  })}
-                  className="research-modal__input"
-                  placeholder="Start typing an address to fill the fields below"
-                  biasTexas={true}
-                />
-              </div>
-
-              {/* ── Street number + street name ─────────────────────────────────────────────
-                  Separate because that is how every county appraisal district indexes them, and
-                  because keeping them separate is the whole fix: nothing downstream has to guess
-                  where the number ends and the name begins. */}
-              <div className="research-modal__row">
-                <div className="research-modal__field" style={{ flex: '0 0 30%' }}>
-                  <label className="research-modal__label" htmlFor="np-street-number">
-                    <span className="job-form__label-row">
-                      Street number
-                      <Tooltip text="The house or site number on its own — 3779. Leave blank for a rural parcel that has none; the street name alone is a valid search." position="right">
-                        <span className="job-form__info-icon">?</span>
-                      </Tooltip>
-                    </span>
-                  </label>
-                  <input
-                    id="np-street-number"
-                    className="research-modal__input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="3779"
-                    value={newProject.street_number}
-                    onChange={e => setNewProject(p => ({ ...p, street_number: e.target.value }))}
-                  />
-                </div>
+                {/* Optional shortcut, and clearly labelled as one — Google Places is refusing this
+                    key until the Places API is enabled on the Cloud project, so the fields below
+                    have to stand on their own. Even when it works, a suggestion for a rural parcel
+                    is frequently the road rather than the property, which is why it FILLS the
+                    fields instead of replacing them. */}
                 <div className="research-modal__field">
-                  <label className="research-modal__label" htmlFor="np-street-name">
+                  <label className="research-modal__label" htmlFor="np-quickfill">
                     <span className="job-form__label-row">
-                      Street name
-                      <Tooltip text="The road only — 'W FM 436', 'MAIN ST'. No city, state or ZIP: those have their own fields, and including them here is what made past searches fail." position="right">
+                      Quick fill from an address search
+                      <span className="research-modal__optional">optional</span>
+                      <Tooltip text="A shortcut, not a requirement. Pick a suggestion and it fills the fields below, which you can then correct. If suggestions are unavailable, type into the fields directly — they are what the run actually uses." position="right">
                         <span className="job-form__info-icon">?</span>
                       </Tooltip>
                     </span>
                   </label>
-                  <input
-                    id="np-street-name"
-                    className="research-modal__input"
-                    type="text"
-                    placeholder="W FM 436"
-                    value={newProject.street_name}
-                    onChange={e => setNewProject(p => ({ ...p, street_name: e.target.value }))}
-                    // A typed-in city here is the exact failure this redesign removes, so it is
-                    // worth catching at the keyboard rather than twenty minutes into a run.
-                    onBlur={e => {
-                      const v = e.target.value;
-                      if (!v.includes(',')) return;
-                      // Everything the paste contained goes to the field that owns it, rather than
-                      // the city and ZIP being quietly dropped. Existing values win: this is a
-                      // rescue, not an overwrite.
-                      const a = splitFullAddress(v);
-                      setNewProject(p => ({
+                  <AddressAutocomplete
+                    id="np-quickfill"
+                    value={newProject.property_address}
+                    onChange={val => setNewProject(p => ({ ...p, property_address: val }))}
+                    onSelect={details => setNewProject(p => {
+                      // Same helper the server uses, so a suggestion and a hand-typed address end
+                      // up as identical rows.
+                      const street = splitStreetLine(details.address || '');
+                      return {
                         ...p,
-                        street_number: p.street_number || a.streetNumber,
-                        street_name: a.streetName,
-                        unit: p.unit || a.unit,
-                        city: p.city || a.city,
-                        state: p.state || a.state,
-                        zip: p.zip || a.zip,
-                      }));
-                    }}
+                        property_address: details.address || p.property_address,
+                        street_number: street.streetNumber || p.street_number,
+                        street_name: street.streetName || p.street_name,
+                        unit: street.unit || p.unit,
+                        city: details.city || p.city,
+                        county: details.county || p.county,
+                        state: details.state || p.state,
+                        zip: details.zip || p.zip,
+                      };
+                    })}
+                    className="research-modal__input"
+                    placeholder="Start typing an address…"
+                    biasTexas={true}
                   />
                 </div>
-              </div>
 
-              {/* What the run will actually search for, spelled out. An operator who can see the
-                  composed line before starting can catch a wrong field in a second, instead of
-                  reading "no appraisal record found" half an hour later. */}
-              {composedAddress && (
-                <div className="research-modal__hint" role="status">
-                  Searching for: <strong>{composedAddress}</strong>
+                {/* Number and name apart, because that is how every county appraisal district
+                    indexes them — Bell CAD's form wants `StreetNumber:3779` and `W FM 436` as two
+                    separate values. Keeping them separate here is what stopped the worker having to
+                    guess where the number ended and the name began. */}
+                <div className="research-modal__row research-modal__row--street">
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-street-number">Number</label>
+                    <input
+                      id="np-street-number"
+                      className="research-modal__input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="3779"
+                      value={newProject.street_number}
+                      onChange={e => setNewProject(p => ({ ...p, street_number: e.target.value }))}
+                    />
+                  </div>
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-street-name">
+                      <span className="job-form__label-row">
+                        Street name
+                        <Tooltip text="The road only — 'W FM 436', 'MAIN ST'. No city, state or ZIP: those have their own fields below, and including them here is what made past searches come back empty." position="right">
+                          <span className="job-form__info-icon">?</span>
+                        </Tooltip>
+                      </span>
+                    </label>
+                    <input
+                      id="np-street-name"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="W FM 436"
+                      value={newProject.street_name}
+                      onChange={e => setNewProject(p => ({ ...p, street_name: e.target.value }))}
+                      // Pasting a whole address in here is the mistake this layout exists to
+                      // prevent, and people will do it because every other address box in the
+                      // world accepts one. Rather than silently keeping a third of it, everything
+                      // the paste contained goes to the field that owns it.
+                      onBlur={e => {
+                        const v = e.target.value;
+                        if (!v.includes(',')) return;
+                        const a = splitFullAddress(v);
+                        setNewProject(p => ({
+                          ...p,
+                          street_number: p.street_number || a.streetNumber,
+                          street_name: a.streetName,
+                          unit: p.unit || a.unit,
+                          city: p.city || a.city,
+                          state: p.state || a.state,
+                          zip: p.zip || a.zip,
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-unit">
+                      <span className="job-form__label-row">
+                        Unit
+                        <Tooltip text="Suite, apartment or lot. Recorded on the project and shown in the report, but deliberately left OUT of appraisal-district searches — those are indexed by parcel, and a suite number turns a good search into an empty one." position="right">
+                          <span className="job-form__info-icon">?</span>
+                        </Tooltip>
+                      </span>
+                    </label>
+                    <input
+                      id="np-unit"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Ste 200"
+                      value={newProject.unit}
+                      onChange={e => setNewProject(p => ({ ...p, unit: e.target.value }))}
+                    />
+                  </div>
                 </div>
-              )}
 
+                <div className="research-modal__row research-modal__row--citystatezip">
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-city">City</label>
+                    <input
+                      id="np-city"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Belton"
+                      value={newProject.city}
+                      onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-state">State</label>
+                    <input
+                      id="np-state"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      maxLength={2}
+                      placeholder="TX"
+                      value={newProject.state}
+                      onChange={e => setNewProject(p => ({ ...p, state: e.target.value.toUpperCase() }))}
+                    />
+                  </div>
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-zip">ZIP</label>
+                    <input
+                      id="np-zip"
+                      className="research-modal__input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={10}
+                      placeholder="76513"
+                      value={newProject.zip}
+                      onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
+                    />
+                  </div>
+                </div>
 
-              {/* ── County + State ── */}
-              <div className="research-modal__row">
                 <div className="research-modal__field">
-                  <label className="research-modal__label">
+                  <label className="research-modal__label" htmlFor="np-county">
                     <span className="job-form__label-row">
-                      County
-                      <Tooltip text="The county where the property is located. Used to search county-specific deed records, plat maps, and appraisal data." position="right">
+                      County <span className="research-modal__required">required to run</span>
+                      <Tooltip text="The routing key. It chooses which clerk portal and appraisal district are searched, and it decides whether the run costs anything — Bell and the other Kofile counties are free, elsewhere falls through to TexasFile at roughly $1-3 a document." position="right">
                         <span className="job-form__info-icon">?</span>
                       </Tooltip>
                     </span>
                   </label>
                   <input
+                    id="np-county"
                     className="research-modal__input"
                     type="text"
-                    placeholder="County"
+                    autoComplete="off"
+                    placeholder="Bell"
                     value={newProject.county}
                     onChange={e => setNewProject(p => ({ ...p, county: e.target.value }))}
                     aria-invalid={isCountyInvalid(countyCheck)}
@@ -744,15 +800,12 @@ export default function ProjectsTab() {
                       Arriving from a job is a different situation. Everything else got filled in,
                       so the form LOOKS complete, and the one field that decides which clerk gets
                       searched — and therefore whether the run costs anything — is the one that
-                      silently did not. Without this, the next signal is the run button refusing on
-                      the project page, a screen away from the field that fixes it.
+                      silently did not.
 
                       Deliberately NOT inferred from the city. Buda is in Hays County and this form
                       could say so, but a wrong county routes to the wrong clerk and returns a
                       confident report about somebody else's land — far worse than a blank field.
-                      Ask; do not guess.
-
-                      It clears the moment anything is typed, so it cannot nag. */}
+                      Ask; do not guess. */}
                   {jobHadNoCounty && !newProject.county.trim() && (
                     <div className="research-prefill-note" role="status">
                       This job has no county on it, so it could not be filled in. Research is routed
@@ -761,275 +814,268 @@ export default function ProjectsTab() {
                   )}
                 </div>
 
-                {/* ── PAID DOCUMENTS ───────────────────────────────────────────────────────────
-                    Placed immediately after County on purpose: the county is what decides whether
-                    this run costs anything. Bell, Coryell, Milam, Lampasas and Bosque route to free
-                    clerk adapters; everywhere else falls through to TexasFile at roughly $1-3 a
-                    document. Asking the question next to the field that answers it. */}
-                <div className="research-modal__field research-modal__field--full">
-                  <label
-                    className="research-modal__label"
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={newProject.allow_paid_documents}
-                      onChange={e => setNewProject(p => ({ ...p, allow_paid_documents: e.target.checked }))}
-                      style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, cursor: 'pointer' }}
-                      data-testid="allow-paid-documents"
-                    />
-                    <span>
-                      <span style={{ fontWeight: 600 }}>Allow paid documents</span>
-                      <span style={{ display: 'block', fontWeight: 400, fontSize: 12.5, opacity: 0.75, marginTop: 3, lineHeight: 1.45 }}>
-                        {newProject.allow_paid_documents
-                          ? 'This run may buy deeds and plats where the county has no free portal — about $1–3 each, capped at $2.00 per run.'
-                          : 'Free county sources only. The run still completes; anything behind a paywall is skipped, and the report will say so rather than reporting it as missing from the record.'}
+                {/* What the run will actually search for, spelled out before it starts. An operator
+                    who can read this line catches a wrong field in a second instead of reading
+                    "no appraisal record found" half an hour later. */}
+                {composedAddress && (
+                  <p className="research-modal__preview" role="status">
+                    <span className="research-modal__preview-label">Searching for</span>
+                    <strong>{composedAddress}</strong>
+                  </p>
+                )}
+              </fieldset>
+
+              {/* ══ WHAT ELSE IS ALREADY KNOWN ═════════════════════════════════════════════ */}
+              <fieldset className="research-modal__section">
+                <legend className="research-modal__section-title">What do you already know?</legend>
+                <p className="research-modal__section-hint">
+                  None of these are required, and every one of them makes the run faster and more
+                  certain. A Property ID pins the exact parcel; an instrument number gives the deed
+                  search a document to start from; an owner name is what the county clerk index is
+                  searched on.
+                </p>
+
+                <div className="research-modal__row">
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-parcel">
+                      <span className="job-form__label-row">
+                        Property ID
+                        <Tooltip text="The county appraisal district's account number. The single strongest input there is — it identifies one parcel exactly, where an address can be ambiguous, and it centres the GIS viewer. Find it on the county appraisal district site." position="right">
+                          <span className="job-form__info-icon">?</span>
+                        </Tooltip>
                       </span>
+                    </label>
+                    <input
+                      id="np-parcel"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="42156"
+                      value={newProject.parcel_id}
+                      onChange={e => setNewProject(p => ({ ...p, parcel_id: e.target.value }))}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* ── NEW, AND OVERDUE (seed 625) ────────────────────────────────────────
+                      The worker has accepted an instrument number since it was written, and the
+                      Bell orchestrator SEEDS its deed-following cascade with it. Nothing had ever
+                      handed it one: there was no column, no field, and the route that starts a run
+                      did not mention it. The cascade has begun from nothing in every run ever made.
+
+                      Typing it into the notes does not count. That reaches the AI as prose and
+                      never reaches the cascade, which reads a field. */}
+                  <div className="research-modal__field">
+                    <label className="research-modal__label" htmlFor="np-instrument">
+                      <span className="job-form__label-row">
+                        Instrument number
+                        <Tooltip text="A deed or instrument number you already have — '2019-12345', or a volume and page like 'Vol 2466 Pg 385'. The deed search starts from this document instead of having to find one first, which is the fastest route into a chain of title. Type it exactly as the county writes it." position="right">
+                          <span className="job-form__info-icon">?</span>
+                        </Tooltip>
+                      </span>
+                    </label>
+                    <input
+                      id="np-instrument"
+                      className="research-modal__input"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="2022074210"
+                      value={newProject.instrument_number}
+                      onChange={e => setNewProject(p => ({ ...p, instrument_number: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="research-modal__field">
+                  <label className="research-modal__label" htmlFor="np-owner">
+                    <span className="job-form__label-row">
+                      Owner name
+                      <Tooltip text="As recorded at the appraisal district — 'GOODNIGHT, W GENE ETUX'. The clerk index is searched by grantor AND grantee under this name, which is how deeds conveying the property are found." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
                     </span>
                   </label>
-                </div>
-                <div className="research-modal__field">
-                  <label className="research-modal__label">State</label>
                   <input
+                    id="np-owner"
                     className="research-modal__input"
                     type="text"
-                    placeholder="State"
-                    value={newProject.state}
-                    onChange={e => setNewProject(p => ({ ...p, state: e.target.value }))}
+                    autoComplete="off"
+                    placeholder="SMITH, JOHN ETUX MARY"
+                    value={newProject.owner_name}
+                    onChange={e => setNewProject(p => ({ ...p, owner_name: e.target.value }))}
                   />
                 </div>
-              </div>
+              </fieldset>
 
-              {/* ── OPTIONAL DETAILS ─────────────────────────────────────────────────────
-                  The modal asked for twelve fields when the required path is three. City, ZIP,
-                  owner and notes are all genuinely useful and none of them BLOCKS a run, so
-                  they sit behind a disclosure rather than in front of it.
+              {/* ══ THE PROJECT ITSELF ═════════════════════════════════════════════════════ */}
+              <fieldset className="research-modal__section">
+                <legend className="research-modal__section-title">This project</legend>
 
-                  The summary keeps a closed section informative: it counts what is filled, so
-                  folding this away never hides the fact that something is in there. And the
-                  Accordion HIDES rather than unmounts, so a half-typed note survives a
-                  collapse — losing typed text to a fold is the same defect as losing it to a
-                  stray click on the overlay. */}
-              <Accordion
-                title="Optional details"
-                summary={[
-                  newProject.city && "city",
-                  newProject.zip && "ZIP",
-                  newProject.owner_name && "owner",
-                  newProject.name && "name",
-                  newProject.description && "notes",
-                ].filter(Boolean).join(", ") || "none set"}
-              >
-              {/* ── City + ZIP ── */}
-              <div className="research-modal__row">
                 <div className="research-modal__field">
-                  <label className="research-modal__label">City</label>
+                  <label className="research-modal__label" htmlFor="np-name">
+                    <span className="job-form__label-row">
+                      Project name
+                      <span className="research-modal__optional">auto-named if blank</span>
+                    </span>
+                  </label>
                   <input
+                    id="np-name"
                     className="research-modal__input"
                     type="text"
-                    placeholder="City"
-                    value={newProject.city}
-                    onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
+                    autoComplete="off"
+                    placeholder={composedAddress || 'Named from the address or Property ID'}
+                    value={newProject.name}
+                    onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))}
                   />
                 </div>
+
                 <div className="research-modal__field">
-                  <label className="research-modal__label">ZIP</label>
-                  <input
-                    className="research-modal__input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="ZIP"
-                    value={newProject.zip}
-                    onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
+                  <label className="research-modal__label" htmlFor="np-notes">
+                    <span className="job-form__label-row">
+                      Notes for the research
+                      <Tooltip text="What you know that no record will say. Specific documents to look for, a disputed line, a discrepancy you expect. This is given to the AI with the run, alongside anything you attach below." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
+                  <textarea
+                    id="np-notes"
+                    className="research-modal__textarea"
+                    placeholder="e.g. Verify the east boundary — the neighbour disputes the fence line. Seller says 2.3 acres. Look for easements or ROW along FM 436."
+                    value={newProject.description}
+                    onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
+                    rows={3}
                   />
+                  {/* This claim used to be in the tooltip and was FALSE — the notes were stored as
+                      `analysis_metadata.user_notes` and read by nothing at all. Seed 624 gave them
+                      a column and the pipeline route now puts them on `operatorNotes`, the channel
+                      that reaches the briefing. Said in the open so the claim stays falsifiable. */}
+                  <p className="research-modal__field-note">
+                    Sent to the AI with the run.
+                  </p>
                 </div>
-              </div>
-              {/* ── Unit ────────────────────────────────────────────────────────────────────
-                  Down here rather than beside the street because it is the one address part
-                  deliberately EXCLUDED from the county search: appraisal records are keyed to the
-                  parcel, not the apartment, and a suite number in the search box turns a match
-                  into a miss. It is kept for the report and the file, not for the lookup. */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Unit / Suite / Lot
-                    <Tooltip text="Recorded on the project and shown in the report, but left out of appraisal-district searches on purpose — those are indexed by parcel, and a suite number makes an otherwise good search return nothing." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <input
-                  className="research-modal__input"
-                  type="text"
-                  placeholder="Suite 200"
-                  value={newProject.unit}
-                  onChange={e => setNewProject(p => ({ ...p, unit: e.target.value }))}
-                />
-              </div>
-              {/* ── Owner Name ── */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Owner Name
-                    <Tooltip text="Current property owner name as recorded on the appraisal district. Helps cross-reference deed records and verify the correct property." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <input
-                  className="research-modal__input"
-                  type="text"
-                  placeholder="Owner name"
-                  value={newProject.owner_name}
-                  onChange={e => setNewProject(p => ({ ...p, owner_name: e.target.value }))}
-                />
-              </div>
 
-              {/* ── Project Name ── */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Project Name
-                    <Tooltip text="A descriptive name for this research project. If left blank, it will be auto-generated from the address or property ID." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <input
-                  className="research-modal__input"
-                  type="text"
-                  placeholder="Auto-generated if blank"
-                  value={newProject.name}
-                  onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))}
-                />
-              </div>
-
-              {/* ── Notes / Instructions ── */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Notes / Instructions
-                    <Tooltip text="Include any specific documents to look for, known issues, special instructions, or areas of concern. These notes are included in the AI analysis context and will be considered alongside all extracted data." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <textarea
-                  className="research-modal__textarea"
-                  placeholder="e.g. Verify east boundary — neighbor disputes fence line. Look for easements/ROW along FM 436."
-                  value={newProject.description}
-                  onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))}
-                  rows={3}
-                />
-                {/* ── THIS TOOLTIP WAS TELLING THE TRUTH ABOUT SOMETHING THAT DID NOT HAPPEN ──
-                    "These notes are included in the AI analysis context" has been on this field
-                    since it was built. The server stored them as `analysis_metadata.user_notes`,
-                    and a grep across app/, lib/ and worker/src on 2026-09-02 found NOTHING that
-                    read that key. The notes went into the database and stopped.
-
-                    Seed 624 gives them a column, and the pipeline route now prepends them to
-                    `operatorNotes` — the channel that already reaches the AI briefing. The
-                    sentence below is here so the claim is visible and therefore falsifiable. */}
-                <p className="research-modal__hint" style={{ marginTop: 6 }}>
-                  Sent to the AI with the run, alongside anything you attach below.
-                </p>
-              </div>
-
-              {/* ── DOCUMENTS AT INTAKE ─────────────────────────────────────────────────────
-                  An operator holding the old survey, the deed or the seller's plat had nowhere to
-                  put it until after the project existed and the first run had already gone out
-                  without it. The same component the re-run dialog uses, so the size caps, the
-                  rejection messages and the read path are one implementation rather than two. */}
-              <div className="research-modal__field">
-                <label className="research-modal__label">
-                  <span className="job-form__label-row">
-                    Documents you already have
-                    <Tooltip text="Deeds, plats, prior surveys, title commitments. They are attached to the project and given to the run, so the AI reads them alongside anything it finds itself." position="right">
-                      <span className="job-form__info-icon">?</span>
-                    </Tooltip>
-                  </span>
-                </label>
-                <input
-                  className="research-modal__input"
-                  type="file"
-                  multiple
-                  accept={ACCEPT_ATTRIBUTE}
-                  onChange={e => {
-                    const picked = Array.from(e.target.files ?? []);
-                    // Validated at the KEYBOARD, not after the project exists. A 60 MB TIFF
-                    // rejected here costs a re-pick; rejected after create, it costs a project
-                    // that silently has fewer documents than the operator believes.
-                    const { valid, errors } = validateFiles(picked);
-                    setIntakeFiles(valid);
-                    setIntakeFileErrors(errors);
-                  }}
-                />
-                {intakeFiles.length > 0 && (
-                  <ul className="research-modal__hint" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                    {intakeFiles.map(f => (
-                      <li key={f.name}>{f.name} <span style={{ opacity: 0.7 }}>({formatFileSize(f.size)})</span></li>
-                    ))}
-                  </ul>
-                )}
-                {intakeFileErrors.map(err => (
-                  <p key={err} className="research-modal__hint" role="alert" style={{ marginTop: 6 }}>{err}</p>
-                ))}
-              </div>
-              </Accordion>
-
-              {/* A disabled button with no explanation is its own bug — it reads as broken
-                  rather than as unmet. Say what is missing, and only while it is missing. */}
-              {!hasIdentifier && (
-                <div className="research-modal__hint" role="status">
-                  Enter a street name or a Property ID — either one identifies the parcel.
-                </div>
-              )}
-
-              {/* The project exists and its documents do not. `role="alert"` because this is the
-                  one outcome an operator must not walk past. */}
-              {uploadWarning && (
-                <div className="research-modal__hint" role="alert" style={{ fontWeight: 500 }}>
-                  {uploadWarning}
-                  {createdProjectId && (
-                    <>
-                      {' '}
-                      <button
-                        type="button"
-                        className="research-modal__link-btn"
-                        onClick={() => { setShowCreate(false); router.push(`/admin/research/${createdProjectId}`); }}
-                      >
-                        Open the project
-                      </button>
-                    </>
+                {/* ── DOCUMENTS AT INTAKE ───────────────────────────────────────────────────
+                    Somebody holding the deed, the old survey or the seller's plat had nowhere to
+                    put it until after the project existed and the first run had already gone out
+                    without it. Uses the project page's own signed-URL uploader, so there is one
+                    size cap and one validation list rather than two that drift. */}
+                <div className="research-modal__field">
+                  <label className="research-modal__label" htmlFor="np-files">
+                    <span className="job-form__label-row">
+                      Documents and images
+                      <Tooltip text="Deeds, plats, prior surveys, title commitments, photographs. They are attached to the project and given to the run, so the AI reads them alongside anything it finds itself. Up to 50 MB each." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
+                  <input
+                    id="np-files"
+                    className="research-modal__file"
+                    type="file"
+                    multiple
+                    accept={ACCEPT_ATTRIBUTE}
+                    onChange={e => {
+                      const picked = Array.from(e.target.files ?? []);
+                      // Validated at the keyboard. A 60 MB TIFF rejected here costs a re-pick;
+                      // rejected after create, it costs a project that silently holds fewer
+                      // documents than the operator believes it does.
+                      const { valid, errors } = validateFiles(picked);
+                      setIntakeFiles(valid);
+                      setIntakeFileErrors(errors);
+                    }}
+                  />
+                  {intakeFiles.length > 0 && (
+                    <ul className="research-modal__filelist">
+                      {intakeFiles.map(f => (
+                        <li key={f.name}>
+                          <span className="research-modal__filename">{f.name}</span>
+                          <span className="research-modal__filesize">{formatFileSize(f.size)}</span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
+                  {intakeFileErrors.map(err => (
+                    <p key={err} className="research-modal__hint" role="alert">{err}</p>
+                  ))}
                 </div>
-              )}
 
-              {/* ── AND THE JOB, IF THERE IS ONE (Phase J2) ──────────────────────────────────
-                  Pre-filled and pre-selected when you arrive from a job (`?new=1&job=<id>`), and
-                  settable by hand otherwise. Making the link at creation beats remembering to make
-                  it later, which is what "research nobody billed for" looks like from the inside. */}
-              <div className="research-modal__field">
-                <JobLinkPicker
-                  id="create-project-job"
-                  value={newProject.job_id}
-                  linked={createLinkedJob}
-                  onChange={jobId => setNewProject(p => ({ ...p, job_id: jobId }))}
-                  disabled={creating}
-                />
+                {/* ── AND THE JOB, IF THERE IS ONE (Phase J2) ────────────────────────────────
+                    Pre-filled and pre-selected when you arrive from a job (`?new=1&job=<id>`), and
+                    settable by hand otherwise. Making the link at creation beats remembering to
+                    make it later, which is what "research nobody billed for" looks like from the
+                    inside. */}
+                <div className="research-modal__field">
+                  <JobLinkPicker
+                    id="create-project-job"
+                    value={newProject.job_id}
+                    linked={createLinkedJob}
+                    onChange={jobId => setNewProject(p => ({ ...p, job_id: jobId }))}
+                    disabled={creating}
+                  />
+                </div>
+              </fieldset>
+
+              {/* ══ WHAT THIS WILL COST ════════════════════════════════════════════════════
+                  Its own section rather than buried beside County, because it is the only choice
+                  on this form that spends money. */}
+              <fieldset className="research-modal__section">
+                <legend className="research-modal__section-title">Spending</legend>
+                <label className="research-modal__checkbox">
+                  <input
+                    type="checkbox"
+                    checked={newProject.allow_paid_documents}
+                    onChange={e => setNewProject(p => ({ ...p, allow_paid_documents: e.target.checked }))}
+                    data-testid="allow-paid-documents"
+                  />
+                  <span>
+                    <span className="research-modal__checkbox-title">Allow paid documents</span>
+                    <span className="research-modal__checkbox-hint">
+                      {newProject.allow_paid_documents
+                        ? 'This run may buy deeds and plats where the county has no free portal — about $1–3 each, capped at $2.00 per run.'
+                        : 'Free county sources only. The run still completes; anything behind a paywall is skipped, and the report says so rather than reporting it as missing from the record.'}
+                    </span>
+                  </span>
+                </label>
+
+                {/* ── SCOPE, BEFORE THE PROJECT EXISTS (Phase S3) ─────────────────────────────
+                    Shown here and NOT enforced here, deliberately. Creating a record for a property
+                    we cannot research is a reasonable thing to do — you may want it on file, or you
+                    may be about to correct the state. What is refused is the RUN, on the button
+                    that starts one and again in the API.
+
+                    Finding out at creation rather than three screens later is the whole value. */}
+                <ScopeNotice scope={checkScope(newProject.state, newProject.county)} id="scope-create" />
+              </fieldset>
+
+              {/* ── CAN THIS ACTUALLY BE RESEARCHED? ──────────────────────────────────────────
+                  Shown, and deliberately NOT enforced here. Creating a record for a property that
+                  cannot be researched yet is a perfectly reasonable thing to do — you may want it
+                  on file, or you may be about to go and find the Property ID. What is refused is
+                  the RUN, on the button that starts one and again in the API.
+
+                  The value of saying it here is that the fields are in front of you. Learning on
+                  the project page that the county was never filled in means going back for it. */}
+              <div className={readiness.canRun ? "research-readiness research-readiness--ok" : "research-readiness"} role="status">
+                <p className="research-readiness__headline">{readiness.headline}</p>
+                {!readiness.canRun && (
+                  <>
+                    <p className="research-readiness__have">
+                      <span className="research-readiness__label">So far</span> {readiness.have.join(", ")}.
+                    </p>
+                    <p className="research-readiness__label">Any one of these would let the run start</p>
+                    <ul className="research-readiness__list">
+                      {readiness.whatWouldWork.map(w => <li key={w}>{w}</li>)}
+                    </ul>
+                    <p className="research-readiness__footnote">
+                      You can still create the project now and add the rest later.
+                    </p>
+                  </>
+                )}
+                {readiness.canRun && readiness.caution && (
+                  <p className="research-readiness__caution">{readiness.caution}</p>
+                )}
               </div>
-
-              {/* ── SCOPE, BEFORE THE PROJECT EXISTS (Phase S3) ─────────────────────────────────
-                  Shown here and NOT enforced here, deliberately. Creating a record for a property
-                  we cannot research is a reasonable thing to do — you may want it on file, or you
-                  may be about to correct the state. What is refused is the RUN, on the button that
-                  starts one and again in the API.
-
-                  Finding out at creation rather than three screens later is the whole value: the
-                  county field already warns about spelling, and this is the same courtesy for the
-                  question that decides whether the pipeline can do anything at all. */}
-              <ScopeNotice scope={checkScope(newProject.state, newProject.county)} id="scope-create" />
-
               <div className="research-modal__actions">
                 <button type="button" className="research-modal__cancel" onClick={() => setShowCreate(false)}>
                   Cancel

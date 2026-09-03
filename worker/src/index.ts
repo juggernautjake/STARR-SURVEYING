@@ -1024,7 +1024,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     trigger?: RunTrigger;
   };
 
-  const { projectId, address, addressParts, county, state, propertyId, ownerName, userFiles } = body;
+  const { projectId, address, addressParts, county, state, propertyId, ownerName, instrumentNumber, userFiles } = body;
 
   // Validate input: address and county are both required
   if (!projectId) {
@@ -1102,6 +1102,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // The parts the operator typed, carried through rather than re-derived downstream (seed 624).
     addressParts,
     propertyId: propertyId ?? undefined,
+    // Seed 625. Without this line the app sends a starting deed and the router never sees it —
+    // the payload reaches the door and stops, which is the defect shape this file keeps finding.
+    instrumentNumber: instrumentNumber ?? undefined,
     ownerName: ownerName ?? undefined,
     uploadedFiles: parsedUserFiles?.map(f => ({
       name: f.filename,

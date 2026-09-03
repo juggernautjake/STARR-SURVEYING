@@ -14,6 +14,15 @@ export interface PipelineInput {
   propertyId?: string;
   /** If the user knows the owner name, use it for direct search */
   ownerName?: string;
+  /**
+   * A deed/instrument number the operator already has (seed 625).
+   *
+   * `CountyResearchInput` has carried this since the worker was written and the Bell orchestrator
+   * SEEDS its known-identifiers cascade from it — but nothing ever supplied one, so the cascade
+   * began from nothing in every run. Declared here as well so the generic pipeline can be given
+   * the same starting point rather than the value existing on one path only.
+   */
+  instrumentNumber?: string;
   /** User-uploaded files to process alongside online-retrieved documents */
   userFiles?: UserFile[];
   /**

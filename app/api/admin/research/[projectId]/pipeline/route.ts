@@ -1,6 +1,7 @@
 // app/api/admin/research/[projectId]/pipeline/route.ts
 // Proxies deep research requests to the DigitalOcean worker and polls for results.
 import { NextRequest, NextResponse } from 'next/server';
+import { assessRunReadiness, describeRunReadiness } from '@/lib/research/run-readiness';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -80,7 +81,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // The address PARTS, not just the flattened line (seed 624). Selecting only
     // `property_address` is why the city and ZIP the operator typed never reached the worker: they
     // were written to `analysis_metadata`, and this list is what the run actually reads.
-    .select('id, property_address, street_number, street_name, unit, city, county, state, zip, parcel_id, intake_notes, allow_paid_documents')
+    .select('id, property_address, street_number, street_name, unit, city, county, state, zip, parcel_id, instrument_number, intake_notes, allow_paid_documents')
     .eq('id', projectId)
     .single();
 
@@ -224,6 +225,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
     ownerName: body.ownerName || undefined,
+    // ── SEED 625 — THE CASCADE FINALLY GETS A STARTING DOCUMENT ─────────────────────────────
+    //
+    // `CountyResearchInput.instrumentNumber` has existed since the worker was written and the Bell
+    // orchestrator seeds its known-identifiers cascade from it (orchestrator.ts:142). This route —
+    // the one that actually starts a run — never mentioned it, and no column held one, so the
+    // cascade has begun from nothing in every run ever made.
+    instrumentNumber: (project.instrument_number as string | null) || undefined,
     // Anything the attachment step could not do travels WITH the run rather than staying in a
     // server log nobody reads. "Six of your twenty documents were attached" is exactly the kind of
     // fact that, left unsaid, makes an operator believe the run read everything they gave it.
@@ -250,9 +258,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     trigger: body.trigger,
   };
 
-  if (!payload.county) {
-    console.warn(`[pipeline/route] POST ${projectId}: county missing — address="${rawAddress}" parcelId="${parcelId}"`);
-    return NextResponse.json({ error: 'County is required for deep research. Could not resolve county from property ID.' }, { status: 400 });
+  // ── IS THERE ENOUGH HERE TO FIND ONE PARCEL? ────────────────────────────────────────────────
+  //
+  // This used to check the county alone, and the button that calls it used to check
+  // `property_address || parcel_id || documents.length > 0` — so any non-empty string started a run.
+  // "CEDAR CREEK" started a run. Twenty-five minutes and real money later it either found nothing
+  // or, far worse, found a confident answer about a different parcel on the same road.
+  //
+  // Both ends call `assessRunReadiness` now, so a refusal here can never be one the button offered.
+  // The refusal body carries the full explanation — what was supplied and what would fix it — rather
+  // than a bare sentence, because this is also what an API caller outside the UI will read.
+  const readiness = assessRunReadiness({
+    county: payload.county,
+    state: payload.state,
+    parcelId: parcelId,
+    instrumentNumber: payload.instrumentNumber,
+    streetNumber: addressParts.streetNumber,
+    streetName: addressParts.streetName || rawAddress,
+    city: addressParts.city,
+    zip: addressParts.zip,
+    ownerName: payload.ownerName,
+    documentCount: attachedFiles.length,
+  });
+
+  if (!readiness.canRun) {
+    console.warn(
+      `[pipeline/route] POST ${projectId}: refused — ${readiness.headline} ` +
+      `(have: ${readiness.have.join('; ')})`,
+    );
+    return NextResponse.json(
+      {
+        error: readiness.headline,
+        detail: describeRunReadiness(readiness),
+        have: readiness.have,
+        whatWouldWork: readiness.whatWouldWork,
+      },
+      { status: 400 },
+    );
   }
 
   console.log(

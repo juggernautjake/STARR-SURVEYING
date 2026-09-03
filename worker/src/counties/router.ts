@@ -576,6 +576,8 @@ export async function runCountyResearch(
         address: input.address ?? '',
         // Seed 624 — the generic pipeline's Stage 0 prefers these over parsing `address`.
         addressParts: input.addressParts,
+        // Seed 625 — the generic path gets the starting deed too, not just Bell.
+        instrumentNumber: input.instrumentNumber,
         county: input.county,
         state: input.state ?? 'TX',
         propertyId: input.propertyId,
