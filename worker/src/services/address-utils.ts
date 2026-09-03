@@ -8,6 +8,7 @@
 import { ParsedAddress, AddressVariant, NormalizedAddress } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { resolveAddressParts, hasUsableParts, type AddressParts } from '../research/address-parts.js';
+import { geocodeWithGoogle } from '../research/google-geocode.js';
 
 // ━━ TEXAS ROAD PREFIX REGISTRY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -493,6 +494,33 @@ export async function normalizeAddress(
       }
     } catch (e: any) {
       console.log(tag + ' Census error: ' + e.message);
+    }
+  }
+
+  // ── Layer 0C: Google, the last resort ───────────────────────────────────────────────────────
+  //
+  // Third and not first because the two above are free and Google bills per call: this costs
+  // nothing on the addresses that already work and rescues the ones that do not.
+  //
+  // Which, for this business, is the important minority. Measured 2026-09-03 on 11780 FM 2484:
+  // Nominatim "No results", Census "No matches", and the run then skipped every aerial, satellite
+  // and GIS capture — "Direct map screenshots skipped — no property ID or coordinates" — because
+  // imagery is gated on having a location. Google returns that address immediately. Rural Texas is
+  // exactly where the free geocoders are weakest and exactly what this business surveys.
+  if (!result.geocoded) {
+    const g = await geocodeWithGoogle(rawAddress);
+    logger.info('Stage0C', g.statement);
+    if (g.result) {
+      result.canonical = g.result.formattedAddress;
+      result.geocoded = true;
+      result.source = 'google';
+      result.lat = g.result.lat;
+      result.lon = g.result.lon;
+      if (g.result.county) result.detectedCounty = g.result.county;
+      // The PARSED address is deliberately left alone. Google gives coordinates, and coordinates
+      // are what was missing; the street parts come from the operator's own fields (seed 624),
+      // which are better than any geocoder's guess and must not be overwritten by one.
+      console.log(tag + ' Google -> "' + g.result.formattedAddress + '"');
     }
   }
 

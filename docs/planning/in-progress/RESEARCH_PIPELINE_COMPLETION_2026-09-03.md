@@ -307,10 +307,26 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
 
 ### Phase B — the run can find the property
 
-- [ ] **B1. Google Geocoding as the third provider.** Nominatim and Census both miss rural Texas
-      FM roads; Google resolves them instantly and `GOOGLE_MAPS_SERVER_KEY` already works. Add it
-      after the two free providers (free first is deliberate — Google costs per call). This one
-      change un-gates coordinates, which un-gates the entire imagery stage.
+- [x] **B1. Google Geocoding as the third provider.** — shipped 2026-09-03.
+      `research/google-geocode.ts`, wired as Layer 0C in `normalizeAddress` after Nominatim (0A) and
+      Census (0B). Third and not first is deliberate: the two above are free and Google bills per
+      call, so this costs nothing on the addresses that already work and rescues the ones that do
+      not — which for rural Texas FM and ranch roads is the important minority.
+      **Verified against the live API through the real module**, not a stub: the exact address that
+      killed the 2026-09-03 run —
+      `Google resolved "11780 FM 2484, Belton, TX 76513" to 11780 FM2484, Salado, TX 76571, USA at
+      30.997170, -97.626234 (rooftop)` — with `county: "Bell"` already stripped of the word "County"
+      so it matches our routing, and the real city and ZIP surfaced so the operator's Belton/76513
+      mismatch is visible rather than inferred.
+      Uses `GOOGLE_MAPS_SERVER_KEY` / `GOOGLE_MAPS_API_KEY` and never the browser key — the public
+      one is referrer-restricted, a server sends no referrer, and falling back to it would turn a
+      clear "not configured" into a confusing permission error while putting a billed API behind a
+      key that ships in the page source. It also keeps `ZERO_RESULTS` (a finding about the address)
+      distinct from `REQUEST_DENIED` (a finding about our key), which is how a misconfiguration
+      would otherwise hide behind a plausible story about a rural address.
+      It does NOT overwrite the parsed street parts — the operator's own fields (seed 624) beat any
+      geocoder's guess, which is the whole reason they are stored separately. Google supplies the
+      coordinates, and coordinates are what was missing.
 - [ ] **B2. Coordinates from the parcel, not only the address.** When a Property ID is known, the
       county ArcGIS parcel geometry gives a centroid directly. `resolveParcelDetails` already talks
       to Bell's FeatureServer. A parcel we can name is a parcel we can locate.

@@ -427,7 +427,9 @@ export interface NormalizedAddress {
   canonical: string | null;
   parsed: ParsedAddress;
   geocoded: boolean;
-  source: 'nominatim' | 'census' | 'manual';
+  /** Which layer produced the coordinates. `google` is the paid last resort, reached only when
+   *  the two free providers found nothing — which for rural Texas FM and ranch roads is common. */
+  source: 'nominatim' | 'census' | 'google' | 'manual';
   variants: AddressVariant[];
   lat: number | null;
   lon: number | null;
