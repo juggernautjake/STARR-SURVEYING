@@ -37,11 +37,47 @@ BEGIN;
 -- §0. Safety guard — abort loudly if either table has data
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- ── "ARE THERE ROWS?" IS NOT THE SAME QUESTION AS "IS THERE WORK TO DO?" ────────────────────
+--
+-- Measured 2026-09-03, running the full seed set against production: this file aborted the run at
+-- file 35 of 420 with
+--
+--     research_usage_events has 14 rows — naive drop+add would lose data
+--
+-- which is a true sentence about a situation that does not exist. The migration had ALREADY RUN.
+-- Both columns are `uuid` and both foreign keys are in place
+-- (`research_usage_events_research_project_id_fkey`, `document_purchase_history_project_id_fkey`);
+-- the 14 rows accumulated afterwards, as rows do. There was no TEXT column left to convert and
+-- therefore nothing to lose.
+--
+-- The guard only ever asked "are there rows?" and reported a specific, alarming conclusion it had
+-- not checked — the same shape as `auto-update.sh` blaming a rewritten history for an expired
+-- credential, and the schema audit reporting a table that never existed. A refusal that names a
+-- cause it has not verified sends the reader to solve the wrong problem, and this one names data
+-- loss, which is the most expensive wrong problem to go looking for.
+--
+-- The order matters: ask "am I already applied?" FIRST. Only if there is real work to do does the
+-- row count mean anything, and then it means exactly what it says.
 DO $$
 DECLARE
     v_usage_events_count   bigint;
     v_purchase_history_count bigint;
+    v_usage_type           text;
+    v_purchase_type        text;
 BEGIN
+    SELECT data_type INTO v_usage_type FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'research_usage_events' AND column_name = 'research_project_id';
+    SELECT data_type INTO v_purchase_type FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'document_purchase_history' AND column_name = 'project_id';
+
+    -- Already converted. Nothing below would change anything, and running §1/§2 anyway would DROP
+    -- two live UUID columns — turning a no-op re-run into the very data loss the guard exists to
+    -- prevent.
+    IF v_usage_type = 'uuid' AND v_purchase_type = 'uuid' THEN
+        RAISE NOTICE '213: already applied — both columns are UUID with FKs. Nothing to do.';
+        RETURN;
+    END IF;
+
     SELECT COUNT(*) INTO v_usage_events_count   FROM research_usage_events;
     SELECT COUNT(*) INTO v_purchase_history_count FROM document_purchase_history;
 
@@ -66,28 +102,52 @@ END $$;
 -- §1. research_usage_events.research_project_id (TEXT NOT NULL → UUID NULL + FK)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-DROP INDEX IF EXISTS idx_usage_events_project;
-ALTER TABLE research_usage_events DROP COLUMN research_project_id;
-ALTER TABLE research_usage_events
-    ADD COLUMN research_project_id UUID
-    REFERENCES research_projects(id) ON DELETE SET NULL;
-CREATE INDEX idx_usage_events_project
-    ON research_usage_events(research_project_id)
-    WHERE research_project_id IS NOT NULL;
+-- Guarded by the SAME condition as §0, and this is not belt-and-braces — it is required.
+-- `RETURN` inside a DO block exits the BLOCK, not the file. Without this wrapper, an early-exiting
+-- guard would fall straight through to `DROP COLUMN` and destroy the live UUID column, converting a
+-- harmless re-run into precisely the data loss §0 exists to prevent. The guard would have caused
+-- the disaster it was written to stop.
+DO $$
+BEGIN
+    IF (SELECT data_type FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'research_usage_events'
+           AND column_name = 'research_project_id') = 'uuid' THEN
+        RETURN;   -- already converted
+    END IF;
+
+    DROP INDEX IF EXISTS idx_usage_events_project;
+    ALTER TABLE research_usage_events DROP COLUMN research_project_id;
+    ALTER TABLE research_usage_events
+        ADD COLUMN research_project_id UUID
+        REFERENCES research_projects(id) ON DELETE SET NULL;
+    CREATE INDEX idx_usage_events_project
+        ON research_usage_events(research_project_id)
+        WHERE research_project_id IS NOT NULL;
+END $$;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- §2. document_purchase_history.project_id (TEXT NULL → UUID NULL + FK)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-DROP INDEX IF EXISTS idx_doc_purchase_project;
-ALTER TABLE document_purchase_history DROP COLUMN project_id;
-ALTER TABLE document_purchase_history
-    ADD COLUMN project_id UUID
-    REFERENCES research_projects(id) ON DELETE SET NULL;
-CREATE INDEX idx_doc_purchase_project
-    ON document_purchase_history(project_id)
-    WHERE project_id IS NOT NULL;
+-- Same guard, same reason. See §1.
+DO $$
+BEGIN
+    IF (SELECT data_type FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'document_purchase_history'
+           AND column_name = 'project_id') = 'uuid' THEN
+        RETURN;   -- already converted
+    END IF;
+
+    DROP INDEX IF EXISTS idx_doc_purchase_project;
+    ALTER TABLE document_purchase_history DROP COLUMN project_id;
+    ALTER TABLE document_purchase_history
+        ADD COLUMN project_id UUID
+        REFERENCES research_projects(id) ON DELETE SET NULL;
+    CREATE INDEX idx_doc_purchase_project
+        ON document_purchase_history(project_id)
+        WHERE project_id IS NOT NULL;
+END $$;
 
 
 COMMIT;
