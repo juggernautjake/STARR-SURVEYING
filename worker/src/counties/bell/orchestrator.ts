@@ -36,6 +36,7 @@ import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
+import { assessDegradation } from '../../research/run-degradation.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -290,6 +291,34 @@ export async function orchestrateBellResearch(
 
   if (cadResult.status === 'rejected') recordError('Phase 1', 'CAD', cadResult.reason);
   if (gisResult.status === 'rejected') recordError('Phase 1', 'GIS', gisResult.reason);
+
+  // ── A3: HOW MUCH OF THIS RUN CAN BE TRUSTED ────────────────────────────────────────────────
+  //
+  // The appraisal record is what confirms WHICH parcel this run is about. On 2026-09-03 it was
+  // unreachable for 163 minutes and the run said nothing about it — it went on to match 16 deeds by
+  // owner name with no record to confirm the owner holds THIS parcel, and reported them plainly.
+  //
+  // Graded by what is still known rather than by what failed: a parcel ID identifies the property
+  // even when the district is down, and that run HAD one. Stopping outright would have discarded
+  // 16 real deeds over an outage that never prevented it knowing which property it was about.
+  const degradation = assessDegradation({
+    cadReachable: cadResult.status === 'fulfilled',
+    cadRecordFound: cad !== null,
+    hasCoordinates: Boolean(lat && lon),
+    parcelId: input.propertyId ?? cad?.propertyId ?? null,
+    county: 'Bell',
+  });
+
+  if (degradation.level !== 'ok') {
+    progress('Phase 1', `⚠ ${degradation.headline}`);
+    progress('Phase 1', degradation.detail);
+  }
+
+  // Nothing identifies the property. Anything found past this point would be attached to a parcel
+  // nobody can name, which is worse than an empty result — an empty result is honest.
+  if (!degradation.canContinue) {
+    throw new Error(degradation.headline + ' ' + degradation.detail);
+  }
 
   checkAborted();
 

@@ -231,10 +231,20 @@ Nothing else is safe to build until a run cannot spend fifteen times its cap.
       is what bounds the run, and the comment says so rather than implying a cancellation that never
       happens. The compiler caught the consequence twice — the fallback makes `clerk`/`plats` genuinely
       null, and both paths are now reported rather than assumed away.
-- [ ] **A3. A dead primary source ends the run early.** When `dead-host.ts` has marked the county
-      CAD unreachable AND no coordinates could be resolved, stop with a status that says so rather
-      than falling through to hours of owner-name grinding. "Bell CAD is down, try again later" at
-      minute five is the honest outcome.
+- [x] **A3. A run without its primary source says so — and stops only when it must.** — shipped
+      2026-09-03. **Written as "a dead primary source ends the run early", and that turned out to be
+      too blunt.** Checked against the actual run: the FM 2484 project carried `parcel_id: 42156`. A
+      parcel ID identifies one parcel exactly. Aborting on the outage would have discarded 16 real
+      deeds over a failure that never stopped the run knowing which property it was about.
+      `research/run-degradation.ts` grades by what is still KNOWN rather than by what failed:
+      `ok` (the record answered) · `degraded` (it did not, but a Property ID or coordinates still
+      name the parcel — continue, and mark every finding unconfirmed against the appraisal record,
+      because that is exactly what it is) · `cannot_attribute` (nothing names the parcel — stop,
+      because a document found by owner name would be attached to a property nobody can name, and an
+      empty result is more honest than a populated wrong one). It also keeps "the district could not
+      be reached" distinct from "the district returned no record" — a finding about us versus a
+      finding about the property, which is the conflation this codebase keeps unpicking. Assessed
+      once Phase 1 resolves, reported through `progress` either way.
 - [ ] **A4. Rate-limit the clerk portal.** 224 requests to one host in one run, one search taking
       11.6 minutes. `worker/src/lib/rate-limiter.ts` (291 lines) exists with zero importers — read
       it first and wire it if it fits; write nothing new if it does.
