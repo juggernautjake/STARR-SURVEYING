@@ -1034,8 +1034,18 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
       now and a fourth source will not fail it while removing the merge still will.
       Fifteen tests, with a CONTROL that the bound is what excludes an entry rather than the
       function returning nothing; mutation-checked.
-- [ ] **F5. Live streaming.** `worker/src/websocket/progress-server.ts` (379 lines, zero importers)
-      exists for this. Read it, wire it or delete it — "immediately retrievable" is the requirement.
+- [x] **F5. Live streaming.** — shipped 2026-09-03. Read before deciding: the 379-line
+      `worker/src/websocket/progress-server.ts` spoke a projectId protocol on `/ws/research` that
+      no client anywhere used, while the repo already has a complete WS stack (`server/ws.ts` via
+      `npm run ws`, `/api/ws/ticket`, the `useResearchProgress` hook, one shared signer). A second
+      server was a fork, not the missing half. "Immediately retrievable" is met by F3+F4: the panel
+      polls the status endpoint, which returns the live merged log, and the diary persists mid-run.
+      So: DELETED, together with its only test (`progress-server-auth.test.ts`) — but its one idea
+      the live stack lacked, the ping/pong heartbeat that terminates a half-open socket so the
+      fan-out stops serialising for listeners that are gone, was merged into `server/ws.ts`.
+      Guards: `__tests__/research/ws-heartbeat.test.ts` (8, with a control), and
+      `warnings-are-about-this-process.test.ts` now asserts the worker reads `WS_TICKET_SECRET`
+      nowhere. Worker + app `tsc` green.
 
 ---
 

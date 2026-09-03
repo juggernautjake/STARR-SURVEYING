@@ -964,8 +964,10 @@ app.get('/health', async (_req: Request, res: Response) => {
   // Vercel and reads ITS OWN environment; nothing this worker has or lacks can change what it
   // returns. And this process serves no WebSocket at all — there is no `WebSocketServer` and no
   // `upgrade` handler anywhere in it. `server/ws.ts` is an app process started by `npm run ws`,
-  // absent from docker-compose.yml. The only worker file that reads the key,
-  // `websocket/progress-server.ts`, is an orphan nothing constructs.
+  // absent from docker-compose.yml. The only worker file that read the key,
+  // `websocket/progress-server.ts`, was an orphan nothing constructed — and it was DELETED on
+  // 2026-09-03 (plan F5), after its heartbeat was merged into `server/ws.ts`. So the worker now
+  // reads `WS_TICKET_SECRET` nowhere at all, which is the honest end state of this note.
   //
   // So a green `websocket_auth` meant "a string is present in this container's environment" while
   // reading as "WebSocket authentication is working". That is the TAVILY_API_KEY bug exactly —

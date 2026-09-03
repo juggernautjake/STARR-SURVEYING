@@ -120,6 +120,18 @@ describe('worker health warnings are about the worker', () => {
 // straight through. What makes a key this process's business is that a module which actually RUNS
 // reads it. So the entry point is walked.
 
+/** Every .ts file under a directory, so "reachable" can be measured against "exists". */
+function listSourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === 'dist') continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...listSourceFiles(full));
+    else if (e.name.endsWith('.ts')) out.push(full);
+  }
+  return out;
+}
+
 /** Every worker module reachable from `src/index.ts` by following relative imports. */
 function reachableFromEntry(): Set<string> {
   const seen = new Set<string>();
@@ -179,11 +191,26 @@ describe('the deep /health handler in index.ts is about the worker too', () => {
   });
 
   it('does NOT count a key that only an orphan reads', () => {
-    // The specific hole this guard was rebuilt to close. progress-server.ts reads
-    // WS_TICKET_SECRET and nothing constructs it, so it must not be reachable.
-    const orphan = path.join(ROOT, 'src/websocket/progress-server.ts');
-    expect(fs.existsSync(orphan)).toBe(true);
-    expect(REACHABLE.has(orphan)).toBe(false);
+    // ── THIS NAMED THE ORPHAN, AND THE ORPHAN WAS DELETED ──────────────────────────────────
+    //
+    // It asserted that `src/websocket/progress-server.ts` EXISTS and is unreachable. That module
+    // was a second, parallel WebSocket server for a protocol no client speaks; F5 merged its
+    // heartbeat into `server/ws.ts` — the stack that does have a client and a ticket endpoint —
+    // and deleted it. A guard that requires a dead file to keep existing turns "we removed dead
+    // code" into a test failure, which is the wrong incentive.
+    //
+    // The property it exists for is not about that file: it is that the walk is a WALK, so a key
+    // read only by something nothing imports is not counted as this process's business. Stated
+    // against the walk itself now — there are unreachable files, and the walk excludes them —
+    // which stays true whichever module happens to be orphaned this month.
+    const allSrc = listSourceFiles(path.join(ROOT, 'src'));
+    const unreachable = allSrc.filter((f) => !REACHABLE.has(f) && !f.includes('__tests__'));
+
+    // CONTROL: if everything were reachable, the assertion below would be vacuous and the guard
+    // would pass against a "walk" that simply returned every file.
+    expect(unreachable.length, 'nothing in src/ is unreachable — the walk is not walking')
+      .toBeGreaterThan(0);
+    for (const f of unreachable) expect(REACHABLE.has(f)).toBe(false);
   });
 
   it('every key /health judges is read by a module that actually runs', () => {

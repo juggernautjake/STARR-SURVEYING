@@ -109,6 +109,40 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
     }
   });
 
+  // ── HEARTBEAT — a dead client is not the same as a quiet one (plan F5) ──────────────────
+  //
+  // Merged from `worker/src/websocket/progress-server.ts` before that module was deleted. It was a
+  // second, parallel WebSocket server for a protocol no client speaks, but it knew one thing this
+  // one did not: a socket whose far end has gone — laptop closed, wifi dropped, tab killed without
+  // a close frame — stays open here forever. It never fires 'close', so it is never removed from
+  // `clients`, and the fan-out below goes on serialising events for a listener that is not there.
+  //
+  // ping/pong is the only way to tell. `ws` answers a ping automatically, so a client that is
+  // still alive clears the flag without any client-side code at all; one that misses two sweeps is
+  // terminated, which DOES fire 'close' and unregisters it properly.
+  const HEARTBEAT_MS = 30_000;
+  wss.on('connection', (ws) => {
+    (ws as WS & { isAlive?: boolean }).isAlive = true;
+    ws.on('pong', () => { (ws as WS & { isAlive?: boolean }).isAlive = true; });
+  });
+
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      const tracked = ws as WS & { isAlive?: boolean };
+      if (tracked.isAlive === false) {
+        // Missed a full sweep. Terminate rather than close: a half-open socket will not complete
+        // a closing handshake, and waiting for one is how these accumulate in the first place.
+        ws.terminate();
+        continue;
+      }
+      tracked.isAlive = false;
+      ws.ping();
+    }
+  }, HEARTBEAT_MS);
+  // Do not hold the process open on its own account.
+  heartbeat.unref?.();
+  wss.on('close', () => clearInterval(heartbeat));
+
   // ── Subscribe to all research-events channels and fan out ──
   const subRedis = new IORedis(redisUrl, { lazyConnect: opts.noListen ?? false });
   subRedis.on('error', (err) => console.warn(`[ws-server] redis error: ${err.message}`));
@@ -171,6 +205,7 @@ export function startWsServer(opts: StartOptions = {}): WsServerHandles {
     subRedis,
     clientCount: () => clients.size,
     async close() {
+      clearInterval(heartbeat);
       for (const c of clients) c.socket.terminate();
       clients.clear();
       wss.close();
