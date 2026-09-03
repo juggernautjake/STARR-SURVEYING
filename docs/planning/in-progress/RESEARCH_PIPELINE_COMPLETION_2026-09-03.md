@@ -416,12 +416,40 @@ below where they conflict, because several are prerequisites for it:
 
 
 
-- [ ] **B*3. Four county-table bugs.** `KOFILE_CONFIGS.williamson` serves an index with no land
-      records (a portal answering 200 with the wrong index is worse than one that fails); snake_case
-      keys are not normalised through `resolveCounty` in `bis-cad.ts`/`bell-clerk.ts`, losing Fort
-      Bend, Tom Green, Van Zandt, San Saba, Palo Pinto and San Jacinto; CAD dispatch bypasses
-      `getCADConfig`, losing Harris, Tarrant, Dallas and Travis; `getClerkByCountyName` falls back to
-      `fips: '000'` instead of failing.
+- [x] **B*3a. Six counties were unreachable because of a space.** — shipped 2026-09-03.
+      Every config table is keyed snake_case — `fort_bend`, `tom_green`, `van_zandt`, `san_saba`,
+      `palo_pinto`, `san_jacinto` — and every lookup read `TABLE[county.toLowerCase()]`.
+      `"Fort Bend".toLowerCase()` is `"fort bend"`, with a space. It has never once matched. Six
+      counties with fully configured appraisal districts and clerk portals returned "no config for
+      this county" — a finding about our table, reported as a finding about the county. Verified with
+      a control: `Bell`, a single word, matches, which proves the lookup works and the misses are
+      real.
+      **And one the audit did not find: `"Bell County"` misses too**, because the raw lookup never
+      strips the word — and `CountyNote` in the create form suggests canonical names that operators
+      reasonably type that way. `research/county-key.ts` applies `resolveCounty`'s own normalisation
+      at all eight lookup sites across `bis-cad.ts`, `bell-clerk.ts` and `pipeline.ts`.
+      Also fixed: `getClerkByCountyName` returned `fips: '000'` for any unregistered county. There is
+      no county 000, and every consumer keying on FIPS got a value that cannot identify a place from
+      a function whose job is to identify one. **My first fix introduced a bug the compiler could not
+      catch** — `resolveCounty` returns five-digit FIPS and this table stores three-digit and
+      compares with `===`, so the "fix" would have matched nothing. Caught by reading
+      `getClerkByFIPS`'s own normalisation rather than assuming both halves agreed.
+      One guard re-pointed: it pinned the literal raw lookup, which is now the defect. It asserts the
+      normalised call AND that the raw one has not returned.
+
+- [ ] **B*3b. Williamson, and CAD dispatch for the big four.** Two claims from the audit not yet
+      acted on. **Williamson** — its Kofile host answers 200, but the live page advertises no real
+      property or land records where Bell's advertises five mentions (control: the same fetch detects
+      Bell's). Suggestive, not conclusive from a shell fetch of an SPA — and removing it is not the
+      safe move it appears, because the registry entry it would fall back to is `status: 'stub'` with
+      `baseUrl: null`, which is worse. Needs a live search against that portal to settle.
+      **CAD dispatch** — the run uses `BIS_CONFIGS` while `CAD_REGISTRY` holds 108 counties including
+      Harris, Tarrant, Dallas and Travis. Routing through `getCADConfig` is a real widening, but it
+      changes which adapter runs for the largest counties in the state and deserves its own slice
+      rather than being appended to a key-normalisation fix.
+
+
+
 - [ ] **B*4. `operatorNotes` and the abort signal are dropped at the last hop.** Eleven verified
       findings share this shape. `operatorNotes` has three occurrences in the whole worker and is
       never copied into `researchInput`; `CountyResearchInput` has no field for it — while three UI

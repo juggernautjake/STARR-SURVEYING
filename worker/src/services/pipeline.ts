@@ -11,6 +11,7 @@
 //   times so that chains like deed → prior deed → plat are automatically followed.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
+import { lookupByCounty } from '../research/county-key.js';
 import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
@@ -341,7 +342,7 @@ async function lookupByPropertyId(
   });
 
   // Use the BIS config to fetch property detail directly
-  const config = BIS_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(BIS_CONFIGS, county);
   const baseUrl = config?.baseUrl;
   if (!baseUrl) {
     finish({ status: 'fail', error: `No CAD URL for county: ${county}` });
@@ -563,7 +564,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // County capability summary — computed once, reused for all stage gates.
     // Replaces per-stage hasKofileConfig/hasPlatRepository calls and eliminates
     // "skipping because county X has no Y" noise logs.
-    const cadConfig   = BIS_CONFIGS[input.county.toLowerCase()] ?? null;
+    const cadConfig   = lookupByCounty(BIS_CONFIGS, input.county) ?? null;
     const kofile      = hasKofileConfig(input.county);
     const kofileBase  = getKofileBaseUrl(input.county) ?? '';
     const platRepo    = hasPlatRepository(input.county);

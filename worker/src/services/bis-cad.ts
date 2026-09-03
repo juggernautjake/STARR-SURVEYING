@@ -5,6 +5,7 @@
 // Every result is validated against the original search address.
 
 import { salvageJsonArray } from '../research/salvage-json-array.js';
+import { lookupByCounty } from '../research/county-key.js';
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
 import { hostGate, noteHostAnswered, noteHostUnreachable, classifyTransportError } from '../infra/dead-host.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
@@ -2372,7 +2373,7 @@ export async function searchBisCad(
     ownerId?: string;
   },
 ): Promise<{ property: PropertyIdResult | null; diagnostics: SearchDiagnostics }> {
-  const config = BIS_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(BIS_CONFIGS, county);
   const diagnostics: SearchDiagnostics = {
     variantsGenerated: normalized.variants,
     variantsTried: [],

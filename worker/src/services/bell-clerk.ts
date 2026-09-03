@@ -4,6 +4,7 @@
 // better URL extraction, retry logic for transient failures.
 
 import * as fs from 'fs';
+import { lookupByCounty } from '../research/county-key.js';
 import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import type { Response as PlaywrightResponse } from 'playwright';
@@ -954,7 +955,7 @@ export function hasKofileConfig(county: string): boolean {
  * e.g. "bell" → "https://bell.tx.publicsearch.us"
  */
 export function getKofileBaseUrl(county: string): string | null {
-  const cfg = KOFILE_CONFIGS[county.toLowerCase()];
+  const cfg = lookupByCounty(KOFILE_CONFIGS, county);
   if (!cfg) return null;
   const subdomain = cfg.subdomain;
   return subdomain.startsWith('http') ? subdomain : `https://${subdomain}`;
@@ -1036,7 +1037,7 @@ export async function searchClerkRecords(
   ownerName: string,
   logger: PipelineLogger,
 ): Promise<DocumentResult[]> {
-  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(KOFILE_CONFIGS, county);
   if (!config) {
     // ── NOT A KOFILE COUNTY IS NOT "NO CLERK" ──────────────────────────────────────────────────
     //
@@ -2035,7 +2036,7 @@ export async function searchSuperSearch(
   query: string,
   logger: PipelineLogger,
 ): Promise<DocumentResult[]> {
-  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(KOFILE_CONFIGS, county);
   if (!config) {
     logger.warn('Stage2-SS', `No Kofile config for county: ${county}`);
     return [];
@@ -2231,7 +2232,7 @@ export async function searchClerkByAddress(
   queries: AddressSearchQuery[],
   logger: PipelineLogger,
 ): Promise<DocumentResult[]> {
-  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(KOFILE_CONFIGS, county);
   if (!config) {
     logger.warn('Stage2-Addr', `No Kofile config for county: ${county}`);
     return [];
@@ -2482,7 +2483,7 @@ export async function searchClerkForPlats(
   logger: PipelineLogger,
   additionalTerms?: string,
 ): Promise<DocumentResult[]> {
-  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  const config = lookupByCounty(KOFILE_CONFIGS, county);
   if (!config) {
     logger.warn('Stage2-Plat', `No Kofile config for county: ${county}`);
     return [];

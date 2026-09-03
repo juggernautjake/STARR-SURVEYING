@@ -16,6 +16,8 @@
 
 // ── Clerk System Types ───────────────────────────────────────────────────────
 
+import { resolveCounty } from '../lib/county-fips.js';
+
 export type ClerkSystem =
   | 'kofile'           // Kofile/PublicSearch — fully implemented
   | 'henschen'         // Henschen & Associates — stub
@@ -352,10 +354,26 @@ export function getClerkByCountyName(
 
   if (entry) return entry;
 
-  // Not found — fall back to TexasFile
+  // Not found — fall back to TexasFile, which is a statewide aggregator and a reasonable answer
+  // for a county with no dedicated entry.
+  //
+  // ── BUT NOT WITH A FAKE FIPS ────────────────────────────────────────────────────────────────
+  //
+  // This returned `fips: '000'` unconditionally. There is no county 000; every downstream consumer
+  // that keys on FIPS — routing, the health monitor, the purchase ledger — then received a value
+  // that cannot identify a place, from a function whose entire job is to identify one. The county
+  // NAME was in hand the whole time and the FIPS is one lookup away.
+  //
+  // '000' now means only what it should: this name is not a Texas county at all, which is a
+  // different problem and worth being able to see.
+  const resolved = resolveCounty(countyName);
   return {
-    fips: '000',
-    county: countyName,
+    // Three-digit, matching this table's own convention — `getClerkByFIPS` above normalises with
+    // `fips.replace(/^48/, '').padStart(3, '0')` and compares with ===, so a five-digit value from
+    // resolveCounty would never match anything. Caught by reading the comparison rather than
+    // assuming both halves used the same format.
+    fips: resolved ? resolved.fips.replace(/^48/, '').padStart(3, '0') : '000',
+    county: resolved?.name ?? countyName,
     system: 'texasfile',
     status: 'stub',
     baseUrl: 'https://www.texasfile.com',

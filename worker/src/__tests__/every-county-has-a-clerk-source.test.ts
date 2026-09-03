@@ -48,7 +48,13 @@ describe('a non-Kofile county now reaches its real vendor', () => {
     // Without this, "always delegate to the vendor adapter" would satisfy the rest and would route
     // Bell — the home county, with a working portal — through a slower generic path.
     expect(hasKofileConfig('Bell')).toBe(true);
-    expect(clerkRec).toContain('KOFILE_CONFIGS[county.toLowerCase()]');
+    // Re-pointed 2026-09-03. This pinned the literal `KOFILE_CONFIGS[county.toLowerCase()]`, which
+    // is now the DEFECT: `.toLowerCase()` leaves the space in "Fort Bend", the table is keyed
+    // `fort_bend`, and six counties never matched. The intent — a Kofile county still takes the
+    // Kofile path — is unchanged and now also asserts the key is normalised.
+    expect(clerkRec).toContain('lookupByCounty(KOFILE_CONFIGS, county)');
+    expect(clerkRec, 'the raw lookup is back — multi-word counties will miss again')
+      .not.toContain('KOFILE_CONFIGS[county.toLowerCase()]');
   });
 
   it('the no-config branch no longer returns an empty array', () => {
