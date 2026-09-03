@@ -61,7 +61,15 @@ WITH expected_tables(t, source_seed_hint) AS (
     -- Starr Field other modules
     ('field_data_points',         'seed 221'),
     ('location_pings',            'seed 223'),
-    ('location_derivations',      'seed 224'),
+    -- 2026-09-02: this list said `location_derivations`, and reported it MISSING on every run since
+    -- the audit was written. No such table has ever existed. Seed 224 is named
+    -- `224_starr_field_location_derivations.sql` but the tables it creates are `location_stops` and
+    -- `location_segments` — the filename was read as the table name. Both are present on production
+    -- and nothing in app/, lib/ or worker/src references the name this list was checking.
+    --
+    -- A permanent false MISSING is worse than no check: it trains a reader to skim the failures.
+    ('location_stops',            'seed 224'),
+    ('location_segments',         'seed 224'),
     -- SaaS pivot
     ('organizations',                'seed 260'),
     ('organization_members',         'seed 260'),
