@@ -947,7 +947,9 @@ async function fetchDocumentDetail(
  * of hardcoding county names in the pipeline.
  */
 export function hasKofileConfig(county: string): boolean {
-  return Object.prototype.hasOwnProperty.call(KOFILE_CONFIGS, county.toLowerCase());
+  // The five INDEX lookups in this file were normalised; this one spells the same defect as a
+  // `hasOwnProperty` call and was missed by a sweep that searched for brackets.
+  return lookupByCounty(KOFILE_CONFIGS, county) !== undefined;
 }
 
 /**

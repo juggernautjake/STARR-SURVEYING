@@ -14,6 +14,7 @@ import { normalizeAddress } from './address-utils.js';
 import { searchBisCad } from './bis-cad.js';
 import { getCADConfig, buildDetailUrl } from './cad-registry.js';
 import { resolveCounty, countyToFIPS } from '../lib/county-fips.js';
+import { countyKey as sharedCountyKey, lookupByCounty } from '../research/county-key.js';
 import type { PipelineLogger } from '../lib/logger.js';
 import type {
   PropertyIdentity,
@@ -327,7 +328,10 @@ export async function discoverProperty(
   const countyRecord = resolveCounty(effectiveCounty);
   const countyFIPS   = countyRecord?.fips ?? countyToFIPS(effectiveCounty) ?? '';
   const cadConfig    = getCADConfig(effectiveCounty);
-  const countyKey    = countyRecord?.key ?? effectiveCounty.toLowerCase().replace(/\s+/g, '_');
+  // `resolveCounty`'s own rule, not a third copy of it. The hand-rolled version here collapsed
+  // spaces correctly and did NOT strip the word "County", so "Bell County" became `bell_county` —
+  // the mirror image of the defect that made "Fort Bend" miss `fort_bend` at eight other sites.
+  const countyKey    = countyRecord?.key ?? sharedCountyKey(effectiveCounty);
   const cadSystem: CadSystemName = countyRecord?.cadSystem ?? 'texasfile_fallback';
 
   logger.info('Discover-S2', `County: ${effectiveCounty} | FIPS: ${countyFIPS} | CAD: ${cadSystem}`);
@@ -364,7 +368,7 @@ export async function discoverProperty(
     }
     void diagnostics; // diagnostics stored for debugging; not surfaced in DiscoveryResult
   } else if (cadSystem === 'trueautomation') {
-    const taCfg = TRUEAUTO_BY_COUNTY[countyKey];
+    const taCfg = lookupByCounty(TRUEAUTO_BY_COUNTY, effectiveCounty);
     if (taCfg) {
       // Try each address variant until we get a hit
       for (const variant of normalized.variants.slice(0, 5)) {
@@ -449,7 +453,7 @@ export async function discoverProperty(
       sources.push({ name: 'CAD Property Detail', url: detailUrl, method: 'http', success: false, error: String(err) });
     }
   } else if (cadSystem === 'trueautomation') {
-    const taCfg = TRUEAUTO_BY_COUNTY[countyKey];
+    const taCfg = lookupByCounty(TRUEAUTO_BY_COUNTY, effectiveCounty);
     if (taCfg) {
       const detail = await trueAutoDetail(taCfg.cid, propertyId, logger);
       if (detail) {

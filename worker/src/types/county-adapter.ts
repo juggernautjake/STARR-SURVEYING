@@ -5,6 +5,8 @@
 // behind a consistent API. All adapters must implement this interface.
 // The factory function getCountyAdapter() selects the right adapter for a county.
 
+import { lookupByCounty } from '../research/county-key.js';
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 export type ClerkSystemType = 'kofile' | 'countyfusion' | 'texasfile' | 'custom';
@@ -266,8 +268,10 @@ const TEXAS_COUNTY_FIPS: Record<string, string> = {
 };
 
 export function getCountyFIPS(countyName: string): string {
-  const key = countyName.toLowerCase().replace(/\s+/g, '_');
-  return TEXAS_COUNTY_FIPS[key] ?? '00000';
+  // Collapsed spaces correctly and did not strip the word, so "Bell County" became `bell_county`
+  // and this returned '00000' — a value that identifies no place, from a function whose job is to
+  // identify one. Same defect as `gisBaseUrlFor`, opposite half.
+  return lookupByCounty(TEXAS_COUNTY_FIPS, countyName) ?? '00000';
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────

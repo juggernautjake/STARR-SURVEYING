@@ -45,6 +45,7 @@ import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
 // The 19 counties that carry a GIS viewer URL. Already in the tree, used only to query features
 // until now — never to photograph the viewer, which is what was asked for.
 import { BIS_CONFIGS } from './services/bis-cad.js';
+import { lookupByCounty } from './research/county-key.js';
 import { storeCaptureImage, fileCaptureRow } from './services/artifact-uploader.js';
 import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
@@ -3890,12 +3891,24 @@ function capturePlanInputFor(
   };
 }
 
-/** The county's GIS viewer URL, from the registry that already knows it. */
+/** The county's GIS viewer URL, from the registry that already knows it.
+ *
+ *  ── THE NINTH SITE OF THE SAME DEFECT ─────────────────────────────────────────────────────────
+ *
+ *  This normalised by hand: lowercase, strip a trailing " County", index. It handled the word and
+ *  not the space, so `"Fort Bend"` became `"fort bend"` while the key is `fort_bend` — and this is
+ *  the function that generalises imagery capture past Bell to the nineteen counties carrying a GIS
+ *  viewer. Six of them could never be reached, and the capture planner recorded it as the county
+ *  having no viewer: a fact about our table, reported as a fact about the county, for the third
+ *  time in one plan.
+ *
+ *  Missed by the sweep that fixed the other eight sites because it does not spell `.toLowerCase()`
+ *  AT the index — it wrote its own normaliser two lines earlier. Copying a rule is how a rule
+ *  drifts, so the guard now scans for the SHAPE rather than listing the known lines.
+ */
 function gisBaseUrlFor(county: string): string | null {
-  const key = county.trim().toLowerCase().replace(/\s+county$/, '');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cfg = (BIS_CONFIGS as any)[key];
-  return (cfg?.gisBaseUrl as string) ?? null;
+  const cfg = lookupByCounty(BIS_CONFIGS, county) as { gisBaseUrl?: string } | undefined;
+  return cfg?.gisBaseUrl ?? null;
 }
 
 /** How long a finished run will wait for its own documents to finish uploading. */

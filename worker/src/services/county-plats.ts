@@ -17,6 +17,7 @@
 // No pipeline code changes are required.
 
 import type { PipelineLogger } from '../lib/logger.js';
+import { lookupByCounty } from '../research/county-key.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -144,14 +145,26 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   },
 };
 
-/** Returns true when the given county has a free plat repository configured. */
+/** Returns true when the given county has a free plat repository configured.
+ *
+ *  ── THE HEADER'S PROMISE WAS ONE ADDITION FROM BEING FALSE ────────────────────────────────────
+ *
+ *  This file opens with "Adding a new county: add one entry to PLAT_REPO_REGISTRY. No pipeline code
+ *  changes are required." Both lookups read `county.toLowerCase()`, which works only because the
+ *  two entries — `bell` and `hays` — are single words. The first `fort_bend` entry would be
+ *  unreachable, and so is `"Bell County"` typed the way the create form suggests it.
+ *
+ *  Latent rather than live, and fixed anyway: this is the FREE route to a plat, and a plat is the
+ *  document the owner asked the whole run to be built around. Discovering this the day someone adds
+ *  a two-word county would cost a paid purchase per run.
+ */
 export function hasPlatRepository(county: string): boolean {
-  return Object.prototype.hasOwnProperty.call(PLAT_REPO_REGISTRY, county.toLowerCase());
+  return lookupByCounty(PLAT_REPO_REGISTRY, county) !== undefined;
 }
 
 /** Returns the plat repository config for a county, or null if not configured. */
 export function getPlatRepoConfig(county: string): PlatRepoConfig | null {
-  return PLAT_REPO_REGISTRY[county.toLowerCase()] ?? null;
+  return lookupByCounty(PLAT_REPO_REGISTRY, county) ?? null;
 }
 
 /** Returns the list of county names with configured plat repositories. */

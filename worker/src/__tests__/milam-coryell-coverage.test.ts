@@ -4,6 +4,7 @@ import path from 'node:path';
 import { BIS_CONFIGS } from '../services/bis-cad.js';
 import { getClerkSystem, KOFILE_FIPS_SET, EDOCTEC_FIPS_SET } from '../services/clerk-registry.js';
 import { planCaptures } from '../research/capture-plan.js';
+import { lookupByCounty } from '../research/county-key.js';
 
 // A6 — the two counties the owner asked for, proven present at each layer they have to exist in.
 //
@@ -79,18 +80,33 @@ describe('Milam and Coryell are routed everywhere a run touches', () => {
   }
 
   it('the county-name normaliser the worker uses finds both, including "X County"', () => {
-    // index.ts strips a trailing " county" and lowercases before the lookup. A run whose county
-    // arrives as "Milam County" must not silently lose its GIS viewer.
+    // ── THIS TEST PINNED THE DEFECT IT WAS GUARDING AGAINST ──────────────────────────────────
+    //
+    // It asserted that `gisBaseUrlFor` contains `toLowerCase()` and `county$/, ''` — the literal
+    // text of a hand-rolled normaliser that stripped the WORD "County" and not the SPACE. So
+    // `"Fort Bend"` became `"fort bend"` against a key of `fort_bend`, and this is the function
+    // that decides whether a county's CAD GIS map gets photographed at all. Six counties with a
+    // configured viewer were told they had none.
+    //
+    // Milam and Coryell are single words, so the loop below passed either way — and the loop
+    // re-implemented the same buggy rule, so it could not have disagreed with the code even if
+    // the code had been wrong for them too. Both halves now go through the shared helper, and a
+    // MULTI-WORD county is the control that makes the assertion mean something.
     const SRC = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
     const at = SRC.indexOf('function gisBaseUrlFor');
     expect(at, 'gisBaseUrlFor is gone — the caller that supplies gisBaseUrl').toBeGreaterThan(-1);
     const fn = SRC.slice(at, at + 400);
-    expect(fn).toContain('toLowerCase()');
-    expect(fn, 'the trailing " County" is no longer stripped').toContain("county$/, ''");
+    expect(fn, 'gisBaseUrlFor rolled its own normaliser again').toContain('lookupByCounty(BIS_CONFIGS, county)');
 
     for (const c of COUNTIES) {
-      const key = `${c.name} County`.trim().toLowerCase().replace(/\s+county$/, '');
-      expect(BIS_CONFIGS[key as keyof typeof BIS_CONFIGS], `"${c.name} County" does not resolve`).toBeTruthy();
+      expect(lookupByCounty(BIS_CONFIGS, c.name), `"${c.name}" does not resolve`).toBeTruthy();
+      expect(lookupByCounty(BIS_CONFIGS, `${c.name} County`), `"${c.name} County" does not resolve`).toBeTruthy();
     }
+
+    // CONTROL: a two-word county with a real entry. This is what the old rule could never reach,
+    // and what makes the two single-word assertions above evidence rather than coincidence.
+    expect(lookupByCounty(BIS_CONFIGS, 'Fort Bend'), '"Fort Bend" does not resolve').toBeTruthy();
+    expect(lookupByCounty(BIS_CONFIGS, 'Fort Bend County')).toBeTruthy();
+    expect(BIS_CONFIGS['Fort Bend'.toLowerCase() as keyof typeof BIS_CONFIGS]).toBeUndefined();
   });
 });

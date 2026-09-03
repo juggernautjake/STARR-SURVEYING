@@ -437,6 +437,40 @@ below where they conflict, because several are prerequisites for it:
       One guard re-pointed: it pinned the literal raw lookup, which is now the defect. It asserts the
       normalised call AND that the raw one has not returned.
 
+- [x] **B*3c. Five more sites of the same defect, and the guard that finds the sixth.** — shipped
+      2026-09-03, while starting Phase C.
+      B*3a fixed eight lookup sites by **listing them**. That is not a guard, and the proof arrived
+      the next hour: `index.ts`'s `gisBaseUrlFor` — the function that decides whether a county's CAD
+      GIS map gets photographed at all — read
+
+      ```js
+      const key = county.trim().toLowerCase().replace(/\s+county$/, '');
+      const cfg = (BIS_CONFIGS as any)[key];
+      ```
+
+      It handled the *word* "County" and not the *space*, so six of the nineteen counties carrying a
+      GIS viewer were told they had none. Invisible to the earlier tests because it does not spell
+      `.toLowerCase()` at the index: it wrote its own normaliser two lines up.
+      Four more, all found by the new guard rather than by reading: `hasKofileConfig` (the same
+      defect as a `hasOwnProperty` call, missed by a sweep that searched for brackets),
+      `county-plats.ts` ×2 — the **free** plat repository, whose header promises "add one entry, no
+      pipeline code changes required", one two-word county away from being false — `getCountyFIPS`
+      in `county-adapter.ts` and `discovery-engine.ts`, which are the *mirror image*: they collapse
+      the space correctly and do not strip the word, so `"Bell County"` returns `'00000'`.
+      **The guard asks the data, not the syntax.** Its first version looked for
+      `TABLE[…toLowerCase()…]` and hand-rolled `replace(/\s+county$/)`, and was wrong in both
+      directions at once — it flagged `SOURCE_FILE_MAP`, which maps log sources to file paths, and
+      twelve files legitimately building a URL slug. A guard that noisy gets baselined and stops
+      meaning anything. It now identifies county-keyed tables *by their keys being Texas counties*
+      and requires every one of them to be reached through the helper, in all three syntactic forms.
+      A file declaring its own table of the same name is skipped — `kofile-clerk-adapter.ts` has a
+      FIPS-keyed `KOFILE_CONFIGS`, and indexing that with a FIPS is correct.
+      **And one more guard pinning the defect.** `milam-coryell-coverage.test.ts` asserted that
+      `gisBaseUrlFor` *contains* `toLowerCase()` and `county$/, ''` — the literal text of the broken
+      normaliser — and its own loop re-implemented the same broken rule, so it could not have
+      disagreed with the code. Both halves go through the helper now, with a two-word county as the
+      control. That is the fifth guard in this plan found pinning the thing it was guarding against.
+
 - [ ] **B*3b. Williamson, and CAD dispatch for the big four.** Two claims from the audit not yet
       acted on. **Williamson** — its Kofile host answers 200, but the live page advertises no real
       property or land records where Bell's advertises five mentions (control: the same fetch detects
