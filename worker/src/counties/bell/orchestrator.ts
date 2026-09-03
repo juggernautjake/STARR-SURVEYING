@@ -41,6 +41,10 @@ import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
 import { visualReadiness } from '../../research/run-order.js';
 import { geocodeWithGoogle } from '../../research/google-geocode.js';
+import { writePropertySummary } from '../../research/property-summary.js';
+import { hostGate } from '../../infra/dead-host.js';
+import type { RunSourceOutcome } from '../../infra/health-persistence.js';
+import { BELL_ENDPOINTS } from './config/endpoints.js';
 import { scrapeBellFema } from './scrapers/fema-scraper.js';
 import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
 import { scrapeBellTax } from './scrapers/tax-scraper.js';
@@ -1104,6 +1108,45 @@ export async function orchestrateBellResearch(
     progress('Phase 2', 'Direct map screenshots skipped — no property ID or coordinates');
   }
 
+  // ── WHAT THE SOURCES DID FOR THIS RUN (plan B*5b) ────────────────────────────────────────
+  //
+  // Recorded against the adapter registry by index.ts once the run persists. Only the two
+  // registered site types — the appraisal district and the county clerk — because a plat
+  // repository or the GIS layer has no registry row and would resolve to the wrong one.
+  // A step that did not run (gated, or out of time) records nothing: that is a fact about the
+  // run's budget, not about the site.
+  const sourceOutcomes: RunSourceOutcome[] = [];
+  {
+    const fips = BELL_ENDPOINTS.clerk.fipsCode;
+    const cadHost = BELL_ENDPOINTS.cad.home;
+    const cadGate = hostGate(cadHost);
+    sourceOutcomes.push({
+      siteId: `cad-${fips}-bis`, vendor: 'bis', name: 'Bell CAD eSearch', url: cadHost,
+      projectId: input.projectId, durationMs: 0,
+      outcome: cad ? 'found' : cadGate.blocked ? 'unreachable' : 'empty',
+      detail: cad
+        ? `Appraisal record found for property ${cad.propertyId} (via ${cad.source}).`
+        : cadGate.blocked
+          ? `The appraisal site did not answer: ${cadGate.reason ?? 'host marked dead'}.`
+          : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
+    });
+    if (mayClerk && clerk) {
+      const clerkHost = BELL_ENDPOINTS.clerk.home;
+      const clerkGate = hostGate(clerkHost);
+      sourceOutcomes.push({
+        siteId: `clerk-${fips}-kofile`, vendor: 'kofile', name: 'Bell County Clerk (Kofile)', url: clerkHost,
+        projectId: input.projectId, durationMs: 0,
+        outcome: clerk.documents.length > 0 ? 'found' : clerkGate.blocked ? 'unreachable' : 'empty',
+        detail: clerk.documents.length > 0
+          ? `${clerk.documents.length} document(s) found (${clerk.stats.deedsFound} deeds, ${clerk.stats.platsFound} plats).`
+          : clerkGate.blocked
+            ? `The clerk site did not answer: ${clerkGate.reason ?? 'host marked dead'}.`
+            : 'The clerk site answered and returned no documents for the identifiers searched.',
+      });
+    }
+    progress('Phase 2', `Source outcomes: ${sourceOutcomes.map((o) => `${o.name}=${o.outcome}`).join(', ')}`);
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  PHASE 3: AI ANALYSIS (~5-15 minutes)
   // ══════════════════════════════════════════════════════════════════
@@ -1873,6 +1916,9 @@ export async function orchestrateBellResearch(
   }
 
   const result: BellResearchResult = {
+    // Filled in below, once the result it summarises exists (plan E2).
+    propertySummary: null,
+    sourceOutcomes,
     researchId: `bell-${input.projectId}-${startedAt.getTime()}`,
     projectId: input.projectId,
     startedAt: startedAt.toISOString(),
@@ -1967,6 +2013,18 @@ export async function orchestrateBellResearch(
     `errors=${errors.filter(e => !e.recovered).length} fatal + ${errors.filter(e => e.recovered).length} recovered ` +
     `confidence=${overallConfidence.tier}(${overallConfidence.score})`,
   );
+
+  // ── THE SUMMARY, WITH CITATIONS (plan E2) ────────────────────────────────────────────────
+  //
+  // One model call over the result assembled above — no new fetches. Behind the same gate as
+  // every other paid step, so a run at its ceiling skips it and says so rather than writing it
+  // off-budget. `writePropertySummary` never throws.
+  if (mayStep('property summary')) {
+    progress('Phase 4', 'Writing the property summary with document references...');
+    const summary = await writePropertySummary(result, anthropicApiKey);
+    progress('Phase 4', `  ${summary.statement}`);
+    result.propertySummary = summary.text;
+  }
 
   return result;
 }

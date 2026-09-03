@@ -79,6 +79,12 @@ export interface BellResearchResult {
   overallConfidence: ConfidenceRating;
   /** True if the pipeline detected that AI credits were depleted */
   creditDepleted?: boolean;
+  /** The in-depth, cited property summary (plan E2) — Markdown with a numbered source list.
+   *  Null when it could not be written; the run log says why. */
+  propertySummary?: string | null;
+  /** What each registered source did for THIS run (plan B*5b) — persisted against the adapter
+   *  registry by index.ts so reliability is measured from real runs, not only probes. */
+  sourceOutcomes?: import('../../../infra/health-persistence.js').RunSourceOutcome[];
 }
 
 // ── Resolved Property ────────────────────────────────────────────────

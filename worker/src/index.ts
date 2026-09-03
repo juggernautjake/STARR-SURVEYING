@@ -90,7 +90,7 @@ import { pollerEnabled, startPoller } from './infra/queue-poller.js';
 import { receiptPollerEnabled, makeSupabaseReceiptTick } from './infra/receipt-poller.js';
 import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
-import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
+import { parseSiteId, persistHealthResults, persistRunOutcomes } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
 import {
   persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
@@ -373,6 +373,26 @@ async function persistCountyResults(
     }
   }
 
+  // ── 0b. What the sources did for this run (plan B*5b) ──────────────
+  //
+  // The same registry the six-hourly probe writes, fed by the strongest evidence there is: a
+  // real search against a real parcel. `no_record` is recorded but never quarantines; two `error`s
+  // do. See health-persistence.ts for the judgement.
+  if (r.sourceOutcomes && r.sourceOutcomes.length > 0) {
+    try {
+      const h = await persistRunOutcomes(r.sourceOutcomes, resolveAdapterForSite);
+      const bits = [
+        `${h.written} source outcome(s) recorded from the run`,
+        h.statusChanges.length > 0 ? `${h.statusChanges.length} adapter status change(s): ${h.statusChanges.map((c) => `${c.from}→${c.to}`).join(', ')}` : null,
+        h.unmatched.length > 0 ? `${h.unmatched.length} with no registered adapter (${h.unmatched.join(', ')})` : null,
+        h.errors.length > 0 ? `errors: ${h.errors.join('; ')}` : null,
+      ].filter(Boolean).join(' · ');
+      console.log(`[SourceHealth] ${projectId}: ${bits}`);
+    } catch (e) {
+      console.warn(`[SourceHealth] ${projectId}: run outcomes not recorded —`, e);
+    }
+  }
+
   // ── 1. Save analysis_metadata ──────────────────────────────────────
   const now = new Date().toISOString();
   const property = r.property;
@@ -490,8 +510,11 @@ async function persistCountyResults(
       discrepancyCount: r.discrepancies.length,
       confidenceTier: r.overallConfidence.tier,
       confidenceScore: r.overallConfidence.score,
-      finalSummary: autoSummary,
-      masterReportText: null,
+      // E2 — the cited summary when the run wrote one; the five-line field list only as a
+      // fallback. `masterReportText` was hardcoded null here, which is why every Bell project's
+      // Summary tab showed a form rather than a reading.
+      finalSummary: r.propertySummary ?? autoSummary,
+      masterReportText: r.propertySummary ?? null,
 
       // ── FEMA Flood Zone Data ──
       fema: r.easementsAndEncumbrances.fema ? {

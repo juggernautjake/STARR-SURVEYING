@@ -584,7 +584,19 @@ below where they conflict, because several are prerequisites for it:
       six months. Mutation-checked: removing `clerk` from the word list fails four tests, and the
       mutation aborts if the text does not change.
 
-- [ ] **B*5b. A run that got 0 documents from a 200-OK portal is the strongest breakage signal
+- [x] **B*5b. — shipped 2026-09-03.** Every Bell run now records what the appraisal site and the
+      clerk site did for it into `research_adapter_health_checks` (`triggered_by: 'run'`), through
+      the same ratchet the six-hourly probe uses: `found` → healthy, `empty` (200 with nothing) →
+      **`no_record`, which is visible on the coverage page and never quarantines on its own** —
+      the judgement this slice asked for, since a tract with no recorded deeds looks identical from
+      here — and `unreachable`/`error` → error, two of which in a row mark the adapter broken; one
+      real-run success clears it. Only the two registered site types are recorded (a plat repository
+      or the GIS layer has no registry row and would resolve to the wrong one); a step that did not
+      run records nothing. `health-persistence.ts` gained `RunSourceOutcome`, `toRunHealthCheck`,
+      `persistRunOutcomes` and one shared write path; the orchestrator builds the outcomes at the
+      Phase 2/3 boundary and `persistCountyResults` files them. Guard:
+      `run-source-health.test.ts` (mapping; three `empty`s never flip; two `unreachable`s do; one
+      `found` clears; unmatched is reported, not mis-resolved). The original text follows. A run that got 0 documents from a 200-OK portal is the strongest breakage signal
       there is, and it is thrown away.** Deliberately split from B*5a rather than bolted onto it:
       the sensing half was a provable defect with a measured fix, and this half is a *judgement* —
       a search returning nothing is sometimes a broken selector and sometimes a parcel with no
@@ -1113,7 +1125,19 @@ use it (§1.5b). The work is to make one analysis path serve every county, not t
 
 - [ ] **E1. Rank documents by usefulness.** The prioritiser's cross-validation loop already scores
       each resource's contribution. Surface that ranking.
-- [ ] **E2. A property summary with document references.** Every claim links to the document it came
+- [x] **E2. A property summary with document references.** — shipped 2026-09-03 for the Bell
+      path (the generic path already had a master report; Bell hardcoded `masterReportText: null`
+      and showed a five-line field list — the audit's correction). `research/property-summary.ts`:
+      one `synthesize`-tier call over the assembled result, no new fetches; sources are numbered
+      [P1..] [D1..] [E1..] [A1..] [F1], the model is told a sentence without a citation is one it
+      must not write, and the numbered source list (identity + URL) is appended by CODE so every
+      citation resolves. It also ranks the five most useful sources (E1's ask) and names sources
+      that do not appear to concern this tract (E3's ask) as sections a reviewer can check. Behind
+      `mayStep('property summary')`; never throws; the run log says whether it was written, how
+      many citations it carries, or why not. `finalSummary`/`masterReportText` now carry it, so
+      the Summary tab and the run panel's report show it. Guard: `property-summary.test.ts`.
+      Not done: the generic path's report is unreferenced prose; E1/E3 as standalone ranking and
+      relevance stages on the generic path remain open. The original text follows. Every claim links to the document it came
       from. The run currently produces no master report at all.
 - [ ] **E3. Flag documents that do not belong.** `multi-source-confidence.ts` (322 lines, zero
       importers) scores agreement across sources — read it before writing anything. A document whose

@@ -153,10 +153,101 @@ export interface PersistResult {
  *  closes. Silently discarding them would hide it. */
 export async function persistHealthResults(
   results: SiteHealthResult[],
-  resolveAdapterId: (result: SiteHealthResult) => Promise<{ id: string; status: string } | null>,
+  // Only the id and vendor are needed to find the registry row; typed that narrowly so the same
+  // resolver serves the run-derived path below.
+  resolveAdapterId: (site: { siteId: string; vendor: string }) => Promise<{ id: string; status: string } | null>,
   triggeredBy = 'scheduled',
 ): Promise<PersistResult> {
+  return persistHealthRows(
+    results.map((result) => ({
+      siteId: result.siteId,
+      vendor: result.vendor,
+      build: (adapterId: string) => toHealthCheck(adapterId, result, triggeredBy),
+    })),
+    resolveAdapterId,
+  );
+}
+
+// ── RUN-DERIVED HEALTH (plan B*5b) ──────────────────────────────────────────────────────────────
+//
+// > "The system should be able to determine if the sources are reliable or are healthy or if our
+// >  system needs to be adjusted to be even better."
+//
+// Until 2026-09-03 the only writer of `research_adapter_health_checks` was the six-hourly Chromium
+// probe, scoped to Bell, checking that selectors were present. No research run ever wrote a
+// health signal — the strongest evidence there is (a real search, against a real parcel, with a
+// known outcome) was held in memory and pruned in ten minutes. Found by the 2026-09-03 audit
+// (health-selfheal H1, api-routes C2).
+//
+// The judgement B*5b asked for is in the mapping:
+//   found        → healthy    the site answered and the parcel had records
+//   empty        → no_record  the site answered 200 and had nothing for THIS parcel — which is
+//                             sometimes a broken selector and sometimes a tract with no recorded
+//                             deeds. It is recorded, it is visible on the coverage page, and it
+//                             does NOT count toward flipping the adapter to broken; only a run of
+//                             `error`s does. A county with no deeds must not be quarantined.
+//   unreachable  → error      the host did not answer; the dead-host circuit already tripped
+//   error        → error      the site answered but the adapter could not use the answer
+//
+// Two consecutive `error`s from real runs mark the adapter broken (same ratchet as the probe);
+// one `healthy` from a real run clears it.
+
+export type RunSourceOutcomeKind = 'found' | 'empty' | 'unreachable' | 'error';
+
+export interface RunSourceOutcome {
+  /** The probe-shaped id the registry resolver understands: `cad-<fips>-<vendor>`, `clerk-<fips>-<vendor>`. */
+  siteId: string;
+  vendor: string;
+  name: string;
+  url: string;
+  outcome: RunSourceOutcomeKind;
+  /** One sentence: what the run asked and what came back. */
+  detail: string;
+  durationMs: number;
+  /** The project the outcome came from, so a coverage reader can open the run. */
+  projectId: string;
+  httpStatus?: number | null;
+}
+
+export function toRunHealthCheck(adapterId: string, o: RunSourceOutcome, ranAt = new Date().toISOString()): HealthCheckRow {
+  const status: HealthStatus =
+    o.outcome === 'found' ? 'healthy'
+    : o.outcome === 'empty' ? 'no_record'
+    : 'error';
+  return {
+    adapter_id: adapterId,
+    ran_at: ranAt,
+    triggered_by: 'run',
+    status,
+    layer_results: {
+      run: { outcome: o.outcome, project_id: o.projectId, detail: o.detail },
+      probe: { vendor: o.vendor, url: o.url, site_id: o.siteId },
+      alerts: [],
+    },
+    diff_summary: `${o.name} (research run): ${o.detail}`,
+    http_status: o.httpStatus ?? null,
+    error_message: status === 'error' ? o.detail : null,
+    duration_ms: Math.round(o.durationMs),
+  };
+}
+
+export async function persistRunOutcomes(
+  outcomes: RunSourceOutcome[],
+  resolveAdapterId: (site: { siteId: string; vendor: string }) => Promise<{ id: string; status: string } | null>,
+): Promise<PersistResult> {
+  return persistHealthRows(
+    outcomes.map((o) => ({ siteId: o.siteId, vendor: o.vendor, build: (adapterId: string) => toRunHealthCheck(adapterId, o) })),
+    resolveAdapterId,
+  );
+}
+
+/** The one write path: insert the check, then move the ADAPTER's status only on a run of failures. */
+async function persistHealthRows(
+  items: Array<{ siteId: string; vendor: string; build: (adapterId: string) => HealthCheckRow }>,
+  resolveAdapterId: (site: { siteId: string; vendor: string }) => Promise<{ id: string; status: string } | null>,
+): Promise<PersistResult> {
   const out: PersistResult = { written: 0, statusChanges: [], unmatched: [], errors: [] };
+  if (items.length === 0) return out;
   const supabase = await getSupabase();
   if (!supabase) {
     out.errors.push('no Supabase client — health results not persisted');
@@ -174,13 +265,13 @@ export async function persistHealthResults(
     };
   };
 
-  for (const result of results) {
-    const adapter = await resolveAdapterId(result);
-    if (!adapter) { out.unmatched.push(result.siteId); continue; }
+  for (const item of items) {
+    const adapter = await resolveAdapterId(item);
+    if (!adapter) { out.unmatched.push(item.siteId); continue; }
 
-    const row = toHealthCheck(adapter.id, result, triggeredBy);
+    const row = item.build(adapter.id);
     const { error } = await db.from('research_adapter_health_checks').insert(row);
-    if (error) { out.errors.push(`${result.siteId}: ${error.message}`); continue; }
+    if (error) { out.errors.push(`${item.siteId}: ${error.message}`); continue; }
     out.written++;
 
     // Move the adapter's own status only on a RUN of failures — see the constant above.
@@ -204,7 +295,7 @@ export async function persistHealthResults(
       const { error: updErr } = await db.from('research_site_adapters')
         .update({ status: next, last_verified_at: nowHealthy ? row.ran_at : undefined })
         .eq('id', adapter.id);
-      if (updErr) out.errors.push(`${result.siteId} status update: ${updErr.message}`);
+      if (updErr) out.errors.push(`${item.siteId} status update: ${updErr.message}`);
       else {
         out.statusChanges.push({ adapterId: adapter.id, from: adapter.status, to: next });
         // A repaired or newly-broken adapter must not be served from a stale cache for a minute.
