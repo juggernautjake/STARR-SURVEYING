@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readingRank, orderForReading, readingAllowanceMs, summaryInputFromLibrary } from '../research/reading-pass.js';
+import { readingRank, orderForReading, readingAllowanceMs, summaryInputFromLibrary, summariseUnsummarisedDocuments } from '../research/reading-pass.js';
 import { reanalyseFiledDocuments, type FiledDocument, type ReadResult } from '../research/reanalyze-documents.js';
 
 // ── "OCR … every single file that is found in a run … produce the summary and results" and
@@ -107,5 +107,32 @@ describe('the run wires it in — not gated on the ceiling, and the summary writ
   });
   it('writes the property summary from the library after the meta persist', () => {
     expect(index).toContain('writeRunSummaryFromLibrary(supabase as never, projectId, summaryKey');
+  });
+  it('sweeps every file with text but no summary, after the reading pass', () => {
+    expect(index).toContain('summariseUnsummarisedDocuments(supa as never, projectId, summaryKey, mayRead');
+  });
+  it('CALLEE EXISTS: the swept function is really exported (the caller shipped once without it)', () => {
+    // 2026-09-04: index.ts (committed) called summariseUnsummarisedDocuments while reading-pass.ts
+    // (uncommitted) held the export — the deployed sweep threw silently and no summary was written.
+    // Importing the symbol at the top of this file fails the whole run if the export is missing;
+    // this asserts it is a function so a future export-shape change is caught too.
+    expect(typeof summariseUnsummarisedDocuments).toBe('function');
+  });
+});
+
+describe('every file with text gets a summary, even one read on an earlier run', () => {
+  // The reader skips a document that already has good text — so its per-document summary would
+  // never be written without a sweep. The sweep selects exactly the documents with text and no
+  // summary, in reading order.
+  it('selects documents with text and no summary, in a surveyor\'s order', () => {
+    const rows = [
+      { id: 'lien', document_type: 'other', document_label: 'MECHANICS LIEN', extracted_text: 'a'.repeat(60), analysis_metadata: null },
+      { id: 'deed', document_type: 'deed', document_label: 'DEED', extracted_text: 'b'.repeat(60), analysis_metadata: null },
+      { id: 'done', document_type: 'deed', document_label: 'DEED already', extracted_text: 'c'.repeat(60), analysis_metadata: { aiSummary: 'already' } },
+      { id: 'blank', document_type: 'deed', document_label: 'DEED blank', extracted_text: '', analysis_metadata: null },
+    ];
+    const needing = rows.filter((d) => (d.extracted_text ?? '').trim().length >= 40 && !d.analysis_metadata?.aiSummary);
+    expect(needing.map((d) => d.id)).toEqual(['lien', 'deed']);           // 'done' has a summary, 'blank' has no text
+    expect(orderForReading(needing).map((d) => d.id)).toEqual(['deed', 'lien']); // deed before money-only
   });
 });

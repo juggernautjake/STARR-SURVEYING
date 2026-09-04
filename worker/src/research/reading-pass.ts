@@ -96,7 +96,54 @@ export async function summariseDocumentText(
   return out || null;
 }
 
-// ── The pass ────────────────────────────────────────────────────────────────────────────────────
+// ── Summarise every document that has text but no summary ────────────────────────────────────────
+//
+// The re-reader only reads (and so only summarises) documents whose text is missing or suspect.
+// A document read cleanly on an earlier run keeps its text and is rightly skipped by the reader —
+// but the owner asked for a summary of EVERY file, and a clean read with no summary is a file with
+// no summary. This sweep gives each one a summary from the text already on the row, under the same
+// cost budget, so "a summary for every file" holds whether the text was read this run or last.
+
+export interface SummariseSweepReport {
+  summarised: number;
+  considered: number;
+  statement: string;
+}
+
+export async function summariseUnsummarisedDocuments(
+  supabase: { from: (t: string) => any },
+  projectId: string,
+  apiKey: string,
+  mayContinue: () => boolean,
+  log: (line: string) => void,
+): Promise<SummariseSweepReport> {
+  if (!apiKey) return { summarised: 0, considered: 0, statement: 'No API key — no summaries written.' };
+  const { data } = await supabase.from('research_documents')
+    .select('id, document_type, document_label, extracted_text, analysis_metadata')
+    .eq('research_project_id', projectId)
+    .is('duplicate_of', null);
+  const rows = ((data ?? []) as Array<{ id: string; document_type: string | null; document_label: string | null; extracted_text: string | null; analysis_metadata: { aiSummary?: string | null } | null }>)
+    .filter((d) => (d.extracted_text ?? '').trim().length >= 40 && !d.analysis_metadata?.aiSummary);
+  const ordered = orderForReading(rows);
+  let summarised = 0;
+  for (const d of ordered) {
+    if (!mayContinue()) { log(`Summary sweep stopped — the run reached its cost limit; ${ordered.length - summarised} document(s) still to summarise.`); break; }
+    try {
+      const summary = await summariseDocumentText(d, d.extracted_text ?? '', apiKey);
+      if (!summary) continue;
+      const { error } = await supabase.from('research_documents')
+        .update({ analysis_metadata: { ...(d.analysis_metadata ?? {}), aiSummary: summary, summarisedAt: new Date().toISOString() }, processing_status: 'analyzed', updated_at: new Date().toISOString() })
+        .eq('id', d.id);
+      if (!error) summarised++;
+      else log(`  ${d.document_label ?? d.id}: summary not saved — ${error.message}`);
+    } catch (err) {
+      log(`  ${d.document_label ?? d.id}: summary failed — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const statement = `Summary sweep: ${summarised} of ${ordered.length} document(s) with text but no summary now summarised.`;
+  log(statement);
+  return { summarised, considered: ordered.length, statement };
+}
 
 // ── The property summary, from the library ──────────────────────────────────────────────────────
 
