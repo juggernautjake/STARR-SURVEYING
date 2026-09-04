@@ -93,6 +93,9 @@ export interface PipelineResult {
   ownerName: string | null;
   legalDescription: string | null;
   acreage: number | null;
+  /** The county's GIS parcel polygon ([lon,lat] rings), so the review page can draw the actual
+   *  lot. Distinct from `boundary`, which is the metes-and-bounds reconstruction from the deed. */
+  parcelBoundary?: number[][][] | null;
   documents: DocumentResult[];
   boundary: BoundaryDescription | null;
   validation: ValidationResult | null;

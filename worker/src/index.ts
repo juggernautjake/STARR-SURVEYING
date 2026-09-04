@@ -509,6 +509,8 @@ async function persistCountyResults(
       // acreage tract, which is what most of this county is.
       abstractNumber: property.abstractNumber || null,
       surveyName: property.surveyName || null,
+      // E1 — the county's parcel polygon, so the review page can draw the actual lot outline.
+      parcelBoundary: property.parcelBoundary ?? null,
       documentCount: deedCount + platCount,
       duration_ms: r.durationMs,
       deedSummary: r.deedsAndRecords.summary || null,
@@ -1743,6 +1745,19 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             (report.failed ? `, ${report.failed} could not be read` : '') +
             ` of ${report.considered} on file.`);
         }
+        // And a summary for every file that has text but no summary — including the ones read
+        // cleanly on an earlier run, which the reader rightly skipped. Same cost budget.
+        const summaryKey = process.env.ANTHROPIC_API_KEY ?? '';
+        if (summaryKey) {
+          const supa = await getSupabase().catch(() => null);
+          if (supa) {
+            const { summariseUnsummarisedDocuments } = await import('./research/reading-pass.js');
+            const sweep = await withRunContext(projectId, () =>
+              summariseUnsummarisedDocuments(supa as never, projectId, summaryKey, mayRead,
+                (line) => console.log(`[Summary] ${projectId}: ${line}`)));
+            if (sweep.considered > 0) tailLog(sweep.statement);
+          }
+        }
       } catch (e) {
         console.warn(`[Reading] ${projectId}: pass threw — ${String(e)}`);
       }
@@ -2147,6 +2162,14 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 geoId: r.geoId ?? null,
                 legalDescription: r.legalDescription ?? null,
                 acreage: r.acreage ?? null,
+                // ── E1: the GIS parcel polygon, so the review page can draw the actual lot ──
+                //
+                // The run has the county's own parcel outline (rings of [lon, lat]) from Phase 1,
+                // uses it to frame the maps and find the adjoiners, and then dropped it here: the
+                // persisted result carried the metes-and-bounds `boundary` reconstruction but not
+                // the polygon the county draws. The review page had no shape to render. It is a
+                // handful of points; no cap needed.
+                parcelBoundary: r.parcelBoundary ?? null,
                 documentCount: r.documents.length,
                 duration_ms: r.duration_ms,
                 boundary: r.boundary ? {

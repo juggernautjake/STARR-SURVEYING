@@ -44,6 +44,32 @@ Main is at `090c2df6e` (worker + Vercel deployed) as this document is written.
 - Google Maps times out from the worker; Esri tiles carry the aerials (z19, 0.26 m/px here).
 - `research_document_purchases` is still 0 rows: a paid path has never executed end to end.
 
+## Progress — 2026-09-04 (append-only)
+
+Shipped and merged since this document was written (worker + Vercel deployed on each):
+
+- **A2, A3 — the reading pass** (`a6c18d2cc`): one tiled reader for every page of every document,
+  in surveyor's order, under a cost budget not the clock; queued-and-counted what the allowance
+  did not reach; runs on EVERY run (was gated on the ceiling, which every run hit).
+- **A5 (summary half)** (`a6c18d2cc`): each document summarised from the text just read, plus a
+  sweep that summarises any file with text but no summary; the property summary written from the
+  library on every run. The extracted-data-points half of A5 is still open.
+- **D1** (already true, confirmed run 6): the clerk runs paths A (instruments) + B (owner) before
+  C (subdivision sweep), so the ceiling cuts the sweep and the subject's deed chain finishes.
+- **D-adjacent — the runaway** (`39d38c172`): the step deadline now ABORTS the scraper instead of
+  only ceasing to wait for it; Path A/D honour the signal; `plat-repo` Browserbase adapter
+  registered. Run 7 had reproduced the "keeps going" at 24 min; killed by a container restart.
+- **E1 — the parcel polygon is persisted** (this slice): `PipelineResult.parcelBoundary`; the Bell
+  path writes `property.parcelBoundary` into the result; the generic path has no polygon source and
+  writes null honestly. The review page can now draw the county's lot outline. Guard:
+  parcel-boundary-persisted-2026-09-04.test.ts.
+- Earlier the same day (part-1 close): centring on the polygon, the lines-only drawing, the
+  library seeing marked duplicates, kept-partial wording, year-stamped instrument identity.
+
+Still open and worth doing: A1 (persisted reading_priority — read-time ordering covers the intent
+for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run, all of
+Phase B (site atlas + playbooks), Phase C (plat recipe + repository egress), D2–D4, E2–E5, F.
+
 ## 3. Phases
 
 Each slice ends with: worker/app type-check + lint green, a guard test that asserts the CALLER,
