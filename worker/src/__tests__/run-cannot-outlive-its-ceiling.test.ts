@@ -85,6 +85,29 @@ describe('the tail', () => {
     expect(clerk.split('input.signal?.aborted').length - 1).toBeGreaterThanOrEqual(2);
     expect(clerk).toContain('opts.signal?.aborted');
   });
+
+  it('EVERY browser-driving clerk call is bounded (run 8, 2026-09-04)', () => {
+    // Run 8: the MAIN clerk search stopped at the ceiling exactly as designed — then the run drove
+    // the browser eight more minutes in the 2B½ deed-chain fetch and the Phase 3B historical fetch,
+    // because those two scrapeBellClerk calls had neither a deadline nor a signal. There are three
+    // browser-driving clerk calls in the orchestrator and ALL THREE must be bounded, or the next
+    // long deed chain runs away again. This counts the calls and asserts the wiring on each.
+    const orch = read('counties/bell/orchestrator.ts');
+    // The real calls are `() => scrapeBellClerk(` (each wrapped in a deadline thunk); not the
+    // import or the two `typeof scrapeBellClerk` annotations.
+    const calls = orch.split('() => scrapeBellClerk(').length - 1;
+    expect(calls).toBe(3);
+    // Each call is wrapped in a deadline step and passes that step's own abort controller...
+    for (const step of ['clerk deed search', 'deed chain fetch', 'historical deed fetch']) {
+      expect(orch).toContain(`withStepDeadline(input.projectId, '${step}'`);
+    }
+    for (const [ctrl, sig] of [['clerkAbort', 'clerkAbort.signal'], ['deedAbort', 'deedAbort.signal'], ['histAbort', 'histAbort.signal']]) {
+      expect(orch).toContain(`abortController: ${ctrl}`);
+      expect(orch).toContain(`signal: ${sig}`);
+    }
+    // ...and the number of signals handed to clerk inputs equals the number of browser calls.
+    expect((orch.match(/signal: \w+Abort\.signal/g) ?? []).length).toBe(calls);
+  });
   it('the reading pass still cannot outlive the run: its own clock and a cost ceiling bound it', () => {
     expect(tail).toContain('const allowanceMs = readingAllowanceMs(');
     expect(tail).toContain('withRunContext(projectId, () =>');

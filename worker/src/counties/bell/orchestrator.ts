@@ -934,16 +934,27 @@ export async function orchestrateBellResearch(
         // by passing only the deed instrument numbers as known instruments.
         // IMPORTANT: skipOwnerSearch=true prevents re-running the full owner name
         // search (Path B) which would duplicate work already done in Phase 2A.
-        const deedClerk = await scrapeBellClerk(
+        // The deed-chain fetch follows instrument numbers one at a time through the browser, exactly
+        // like the main clerk search — so it needs the SAME ceiling. Before 2026-09-04 it had none:
+        // run 8's main search stopped at the ceiling as designed, then this fetch drove the browser
+        // eight more minutes finding AMENDMENTs, because the deadline and abort signal never reached
+        // it. It now runs under the run's remaining time with its own abort controller, and returns
+        // null (its work left for a later run) rather than run past the ceiling.
+        const deedAbort = new AbortController();
+        const deedClerk = await withStepDeadline(input.projectId, 'deed chain fetch', () => scrapeBellClerk(
           {
             instrumentNumbers: newInstruments,
             ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
             projectId: input.projectId,
             captureImages: true,
             skipOwnerSearch: true,
+            signal: deedAbort.signal,
           },
           (p) => progress('Phase 2', `Deeds: ${p.message}`, 43),
-        );
+        ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve, abortController: deedAbort });
+        if (!deedClerk) {
+          progress('Phase 2', `2B½ — deed chain fetch reached the run's time reserve; ${newInstruments.length} instrument(s) left for a later run.`, 44);
+        } else {
 
         // Merge deed documents into the existing clerk result
         if (clerk) {
@@ -989,6 +1000,7 @@ export async function orchestrateBellResearch(
             progress('Phase 2', `  ✓ ${deedClerk.documents.length} deed/dedication(s) uploaded for live preview`);
           }
         }
+        } // end: deed chain fetch returned a result
       } catch (err) {
         recordError('Phase 2', 'Deed-Fetch', err);
       }
@@ -1502,18 +1514,24 @@ export async function orchestrateBellResearch(
       );
 
       try {
-        const historicalClerk = await scrapeBellClerk(
+        // Same ceiling as every other browser step: the historical deed fetch follows up to ten
+        // instrument/vol-page references one at a time and must not outlive the run (the 2B½ hole
+        // that let run 8 overrun was the same shape). Runs under the run's remaining time with its
+        // own abort controller; null means it hit the reserve and left the rest for a later run.
+        const histAbort = new AbortController();
+        const historicalClerk = await withStepDeadline(input.projectId, 'historical deed fetch', () => scrapeBellClerk(
           {
             instrumentNumbers: histInstruments,
             volumePages: histVolPages,
             maxDocuments: maxHistorical,
             captureImages: true,
             projectId: input.projectId,
+            signal: histAbort.signal,
           },
           (p) => progress('Phase 3B', `Historical: ${p.message}`),
-        );
+        ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve, abortController: histAbort });
 
-        if (historicalClerk.documents.length > 0) {
+        if (historicalClerk && historicalClerk.documents.length > 0) {
           progress('Phase 3B',
             `Retrieved ${historicalClerk.documents.length} historical document(s) — running AI analysis`,
           );
