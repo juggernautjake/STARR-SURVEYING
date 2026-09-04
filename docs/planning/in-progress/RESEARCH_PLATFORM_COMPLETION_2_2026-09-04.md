@@ -158,8 +158,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       Behaviour unchanged; the source of truth moved into the reviewed playbooks. REMAINING: the GIS
       scraper's waits and the clerk disclaimer dismissal, read from their playbooks — the same shape
       of change, best done alongside each scraper's dossier (B1/B2).
-- [ ] **B5 — Drift watch.** A nightly atlas re-walk diffs each site against its dossier and files
-      a health row when a state no longer matches.
+- [~] **B5 — Drift watch (decision half shipped).** (`97b310bb6`) `assessPlaybookDrift` (pure,
+      tested) diffs a site OBSERVATION (reachable, captcha, done-signal seen, egress used) against its
+      playbook and returns every drift — unreachable, an unrecorded captcha, a missing done-signal, a
+      changed egress; `describeDrift` renders the health-row line. REMAINING: gathering the
+      observation (the B1 atlas walk, or a plain fetch for the non-SPA sites) and filing the health
+      row on a nightly schedule — the integration half, which rides on B1's walk. The diff logic the
+      watch needs is done and reusable.
 - [~] **B6 — Captcha detection + report (core shipped).** (`3f2da6695`) `detectCaptcha` recognises
       reCAPTCHA, hCaptcha, Cloudflare Turnstile/interstitials, PerimeterX/DataDome/Incapsula, and a
       plain "verify you are human" prompt by page markup; `describeCaptcha` reports it — not solved
