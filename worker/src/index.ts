@@ -4084,6 +4084,26 @@ async function runCapturePlan(
           capLog('warn', `${item.label}: render from the parcel layer failed (${String(e)}) — falling back to the viewer screenshot.`);
         }
       }
+      // ── THE PARCEL LINES ALONE ─────────────────────────────────────────────────────────────
+      //
+      // The county viewer's imagery-off view, drawn from the layer with each side's length in feet.
+      // Owner, 2026-09-04: "at least one where it is just the parcel lines". Never photographed;
+      // if it cannot be drawn there is nothing to fall back to, and the outcome says so.
+      if (item.kind === 'cad_parcel_lines') {
+        if (!item.parcelLayerUrl || !item.centre) return null;
+        try {
+          const { renderParcelMap } = await import('./research/parcel-map-render.js');
+          const map = await renderParcelMap({
+            county, parcelId: item.parcelId ?? null, centre: item.centre, acreage: item.acreage ?? null,
+            parcelLayerUrl: item.parcelLayerUrl, basemap: 'none', edgeLengths: true, title: item.label,
+          });
+          capLog('info', `${item.label}: drawn from the parcel layer — ${map.parcelCount} parcel(s), subject ${map.subjectFound ? 'matched' : 'NOT matched'}`);
+          return { bytes: map.png, width: map.width, height: map.height, text: map.text, sourceUrl: map.sources.parcelQueryUrl, metresPerPixel: map.metresPerPixel };
+        } catch (e) {
+          capLog('warn', `${item.label}: could not be drawn (${String(e)})`);
+          return null;
+        }
+      }
       // ── THE AERIALS ARE RENDERED TOO ──────────────────────────────────────────────────────
       //
       // This project holds two captured images after four runs, both the GIS map: not one

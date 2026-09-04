@@ -68,6 +68,10 @@ export type CaptureKind =
   | 'oblique'
   /** Street View at a public frontage. */
   | 'streetview'
+  /** The parcel lines alone, drawn from the parcel layer on a plain ground with edge lengths —
+   *  the view the county viewer shows with imagery off, and the one a surveyor reads dimensions
+   *  from. Owner, 2026-09-04: "at least one where it is just the parcel lines". */
+  | 'cad_parcel_lines'
   /** The county appraisal district's own GIS viewer, showing the parcel as the county draws it. */
   | 'cad_gis'
   /** A recorded plat, survey or CAD drawing published by the county. */
@@ -299,6 +303,8 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
   // ── 2. The county's own GIS view ─────────────────────────────────────────────────────────────
   const gis = planCadGis(input, held, refresh);
   if (gis.capture) captures.push(gis.capture); else if (gis.skip) skipped.push(gis.skip);
+  const lines = planCadParcelLines(input, held, refresh);
+  if (lines.capture) captures.push(lines.capture); else if (lines.skip) skipped.push(lines.skip);
 
   // ── 3. The neighbours ────────────────────────────────────────────────────────────────────────
   const neighbours = input.neighbours ?? [];
@@ -485,6 +491,44 @@ function planCadGis(
       centre: Number.isFinite(Number(input.latitude)) && Number.isFinite(Number(input.longitude))
         ? { lat: Number(input.latitude), lon: Number(input.longitude) }
         : undefined,
+    },
+  };
+}
+
+/** The parcel lines alone. Needs the parcel layer (it is drawn, never photographed) and a centre. */
+function planCadParcelLines(
+  input: CapturePlanInput,
+  held: Set<string>,
+  refresh: boolean,
+): { capture?: PlannedCaptureItem; skip?: SkippedCaptureItem } {
+  const layer = (input.parcelLayerUrl ?? '').trim();
+  const lat = Number(input.latitude), lon = Number(input.longitude);
+  if (!layer || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return {
+      skip: {
+        kind: 'cad_parcel_lines',
+        reason: !layer
+          ? `No parcel layer is registered for ${input.county || 'this county'} in BIS_CONFIGS, so its parcel lines could not be drawn. A registry gap, not a county without parcels.`
+          : 'No parcel centre is known, so there is nothing to frame the parcel lines on.',
+      },
+    };
+  }
+  const key = captureKey(input.projectId, 'cad_parcel_lines', input.parcelId ?? input.county);
+  if (held.has(key) && !refresh) {
+    return { skip: { kind: 'cad_parcel_lines', reason: 'The project library already holds this parcel-lines drawing and the run was not asked to re-capture imagery.' } };
+  }
+  return {
+    capture: {
+      key,
+      kind: 'cad_parcel_lines',
+      source: 'cad_gis',
+      label: `County parcel lines — ${input.county} CAD (drawn, with dimensions)`,
+      purpose: 'The lot lines alone, with each side\'s length in feet from the parcel-layer geometry — the view a surveyor reads dimensions from, without imagery in the way.',
+      ocr: false,
+      parcelLayerUrl: layer,
+      parcelId: input.parcelId ?? null,
+      acreage: input.acreage ?? null,
+      centre: { lat, lon },
     },
   };
 }

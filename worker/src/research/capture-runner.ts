@@ -289,6 +289,7 @@ function fileTypeOf(storagePath: string): string {
 function documentTypeFor(kind: PlannedCaptureItem['kind']): string {
   switch (kind) {
     case 'cad_gis': return 'gis_map';
+    case 'cad_parcel_lines': return 'gis_map';
     case 'drawing': return 'drawing';
     case 'streetview': return 'street_view';
     case 'oblique': return 'oblique_aerial';

@@ -135,12 +135,10 @@ export function refFromRow(row: Record<string, unknown>, county: string): Docume
 export interface LibraryDb {
   from: (t: string) => {
     select: (c: string) => {
-      eq: (c: string, v: unknown) => {
-        is: (c: string, v: unknown) => Promise<{
-          data: Array<Record<string, unknown>> | null;
-          error: { message: string } | null;
-        }>;
-      };
+      eq: (c: string, v: unknown) => Promise<{
+        data: Array<Record<string, unknown>> | null;
+        error: { message: string } | null;
+      }>;
     };
   };
 }
@@ -194,10 +192,17 @@ export class ProjectLibrary {
         .from('research_documents')
         .select(
           'id, identity_key, content_sha256, document_label, recording_info, original_filename, ' +
-          'recorded_date, storage_path, research_run_id, run_seen_count, harvest_metadata',
+          'recorded_date, storage_path, research_run_id, run_seen_count, harvest_metadata, duplicate_of',
         )
-        .eq('research_project_id', projectId)
-        .is('duplicate_of', null);
+        .eq('research_project_id', projectId);
+      // ── EVERY ROW, INCLUDING THE ONES THE APP HAS MARKED AS DUPLICATES ───────────────────────
+      //
+      // This used to load only rows with `duplicate_of` null. The review page's duplicate merge
+      // marks the older copies of a document as duplicates of a canonical row — and once it had,
+      // the library could no longer see them, so the next run found nothing held and filed the
+      // document again, and the page merged again. Plat 1982002520 was on file four times by run
+      // 6 (2026-09-04), every copy but the newest marked a duplicate. A marked copy is still
+      // evidence that the project holds the document; a match on it merges onto the canonical.
 
       if (error) {
         console.warn(`[library] ${projectId}: could not read the project library — ${error.message}`);
@@ -219,8 +224,10 @@ export class ProjectLibrary {
     const ref = refFromRow(row, this.county);
     const derived = stored ?? identityKey(ref);
 
+    const canonical = typeof row.duplicate_of === 'string' && row.duplicate_of ? row.duplicate_of : row.id;
     const entry: LibraryEntry = {
-      id: String(row.id),
+      // A copy the app marked as a duplicate answers for its canonical row: merges land there.
+      id: String(canonical),
       identityKey: derived,
       contentSha256: typeof row.content_sha256 === 'string' ? row.content_sha256 : null,
       documentLabel: (row.document_label as string) ?? null,

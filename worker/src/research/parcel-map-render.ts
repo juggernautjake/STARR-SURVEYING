@@ -51,6 +51,11 @@ export interface RenderParcelMapInput {
   title?: string;
   /** Label the neighbours too (default true). Off for a wide aerial, where labels would carpet it. */
   labelNeighbours?: boolean;
+  /** 'imagery' (default) draws on Esri tiles; 'none' draws the lines alone on a plain ground — the
+   *  county viewer's imagery-off view, which the owner asked for on every run. */
+  basemap?: 'imagery' | 'none';
+  /** Label each side of the subject parcel with its length in feet (from the layer geometry). */
+  edgeLengths?: boolean;
   /** Output edge, px. Square. 2048 keeps Esri's export inside its 4096 ceiling with room. */
   sizePx?: number;
   fetchImpl?: typeof fetch;
@@ -323,6 +328,13 @@ function centroid(ring: number[][]): { lon: number; lat: number } {
   return { lon: lon / ring.length, lat: lat / ring.length };
 }
 
+/** The centre of a polygon's bounding box, in lon/lat — where a frame on the parcel belongs. */
+export function bboxCentre(rings: number[][][]): LonLat {
+  let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+  for (const ring of rings) for (const [lon, lat] of ring) { if (lon < xmin) xmin = lon; if (lon > xmax) xmax = lon; if (lat < ymin) ymin = lat; if (lat > ymax) ymax = lat; }
+  return { lon: (xmin + xmax) / 2, lat: (ymin + ymax) / 2 };
+}
+
 /** A round scale length that fits about a fifth of the frame. Metres and feet both, because the
  *  deed says feet and the layer says metres. */
 export function scaleBarFor(f: Frame): { metres: number; px: number; feet: number } {
@@ -338,14 +350,18 @@ export function renderOverlaySvg(
   subjectId: string | null,
   title: string,
   attribution: string,
-  opts: { labelNeighbours?: boolean } = {},
+  opts: { labelNeighbours?: boolean; linesOnly?: boolean; edgeLengths?: boolean } = {},
 ): string {
   const labelNeighbours = opts.labelNeighbours !== false;
+  const linesOnly = opts.linesOnly === true;
+  const ink = linesOnly ? '#1F2A33' : '#FFFFFF';
+  const lineColour = linesOnly ? '#C8102E' : '#FFF176';
+  const subjectColour = linesOnly ? '#D9480F' : '#FF7A1A';
   const S = f.sizePx;
   const font = Math.max(14, Math.round(S / 90));
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">`);
-  parts.push('<defs><filter id="halo"><feMorphology in="SourceAlpha" operator="dilate" radius="2.5"/><feFlood flood-color="#000" flood-opacity="0.85"/><feComposite in2="SourceAlpha" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>');
+  parts.push(`<defs><filter id="halo"><feMorphology in="SourceAlpha" operator="dilate" radius="2.5"/><feFlood flood-color="${linesOnly ? '#F4F0E4' : '#000'}" flood-opacity="0.85"/><feComposite in2="SourceAlpha" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`);
 
   const isSubject = (p: ParcelFeature) => subjectId != null && p.propId != null && String(p.propId) === String(subjectId);
   const ordered = [...parcels.filter((p) => !isSubject(p)), ...parcels.filter(isSubject)];
@@ -356,9 +372,27 @@ export function renderOverlaySvg(
       const d = ring.map(([lon, lat], i) => { const { px, py } = toPixel(f, lon, lat); return `${i === 0 ? 'M' : 'L'}${px.toFixed(1)} ${py.toFixed(1)}`; }).join(' ') + ' Z';
       parts.push(
         subject
-          ? `<path d="${d}" fill="#FF7A1A" fill-opacity="0.22" stroke="#FF7A1A" stroke-width="${Math.max(4, S / 400)}" stroke-linejoin="round"/>`
-          : `<path d="${d}" fill="none" stroke="#FFF176" stroke-width="${Math.max(2, S / 900)}" stroke-opacity="0.95" stroke-linejoin="round"/>`,
+          ? `<path d="${d}" fill="${subjectColour}" fill-opacity="${linesOnly ? 0.12 : 0.22}" stroke="${subjectColour}" stroke-width="${Math.max(4, S / 400)}" stroke-linejoin="round"/>`
+          : `<path d="${d}" fill="none" stroke="${lineColour}" stroke-width="${Math.max(2, S / 900)}" stroke-opacity="0.95" stroke-linejoin="round"/>`,
       );
+      if (subject && opts.edgeLengths) {
+        // Each side's ground length in feet, set along the side at its midpoint.
+        for (let i = 0; i + 1 < ring.length; i++) {
+          const a = toMercator({ lon: ring[i][0], lat: ring[i][1] });
+          const c2 = toMercator({ lon: ring[i + 1][0], lat: ring[i + 1][1] });
+          const midLat = (ring[i][1] + ring[i + 1][1]) / 2;
+          const scale = Math.cos((midLat * Math.PI) / 180); // Mercator lengths are inflated by 1/cos(lat)
+          const metres = Math.hypot(c2.x - a.x, c2.y - a.y) * scale;
+          const feet = metres * 3.28084;
+          if (feet < 5) continue;
+          const p1 = toPixel(f, ring[i][0], ring[i][1]);
+          const p2 = toPixel(f, ring[i + 1][0], ring[i + 1][1]);
+          const mx = (p1.px + p2.px) / 2, my = (p1.py + p2.py) / 2;
+          let angle = (Math.atan2(p2.py - p1.py, p2.px - p1.px) * 180) / Math.PI;
+          if (angle > 90 || angle < -90) angle += 180; // keep the text upright
+          parts.push(`<text x="${mx.toFixed(1)}" y="${(my - font * 0.35).toFixed(1)}" transform="rotate(${angle.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})" font-family="Arial, Helvetica, sans-serif" font-size="${font * 0.95}" font-weight="700" fill="${linesOnly ? '#7A1F00' : '#FFE3C2'}" text-anchor="middle" filter="url(#halo)">${feet.toFixed(2)}′</text>`);
+        }
+      }
     }
     const c = centroid(p.rings[0]);
     const { px, py } = toPixel(f, c.lon, c.lat);
@@ -367,7 +401,7 @@ export function renderOverlaySvg(
     const line1 = p.propId ? `#${p.propId}` : '';
     const line2 = p.situs ?? (p.owner ? p.owner.split(',')[0] : '');
     const size = subject ? font * 1.35 : font;
-    parts.push(`<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${subject ? 700 : 600}" fill="${subject ? '#FFD9BF' : '#FFFFFF'}" text-anchor="middle" filter="url(#halo)">` +
+    parts.push(`<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${subject ? 700 : 600}" fill="${linesOnly ? (subject ? '#7A1F00' : ink) : (subject ? '#FFD9BF' : '#FFFFFF')}" text-anchor="middle" filter="url(#halo)">` +
       `<tspan x="${px.toFixed(1)}" dy="-0.2em">${esc(line1)}</tspan><tspan x="${px.toFixed(1)}" dy="1.15em">${esc(line2)}</tspan></text>`);
   }
 
@@ -438,25 +472,44 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
 
   // Pass 2: reframe on the subject polygon (unless the caller fixed the frame) and fetch what
   // that frame holds.
-  const frame = fixedFrame ?? frameFor(subject?.rings ?? null, input.centre, input.acreage ?? null, sizePx);
+  // A fixed-width frame is centred on the SUBJECT POLYGON when one was matched, not on the run's
+  // geocode: on run 5 the subject and close aerials had 1512 Chisholm in the top-left corner
+  // because the census geocode sits on the street, 40 m from the lot's centre.
+  const frame = fixedFrame
+    ? (subject ? frameFromHalfWidth(bboxCentre(subject.rings), input.halfWidthMetres!, sizePx) : fixedFrame)
+    : frameFor(subject?.rings ?? null, input.centre, input.acreage ?? null, sizePx);
+  if (layer && subject && fixedFrame) {
+    // Re-query for the re-centred frame so the neighbours in view are the ones drawn.
+    queryUrl = parcelQueryUrl(layer, frame);
+    const res = await doFetch(queryUrl, { signal: AbortSignal.timeout(25_000) });
+    if (res.ok) parcels = parseParcelFeatures(await res.json());
+  }
   if (layer && subject && !fixedFrame) {
     queryUrl = parcelQueryUrl(layer, frame);
     const res = await doFetch(queryUrl, { signal: AbortSignal.timeout(25_000) });
     if (res.ok) parcels = parseParcelFeatures(await res.json());
   }
 
-  const bm = basemapUrl(frame);
-  const { png: basemap, plan, missing } = await fetchBasemap(frame, doFetch);
-  if (missing > 0) console.warn(`[parcel-map] ${missing}/${plan.tiles.length} imagery tile(s) missing at z${plan.z} — drawn on a dark ground`);
+  const linesOnly = input.basemap === 'none';
+  const bm = linesOnly ? 'none (parcel lines drawn on a plain ground)' : basemapUrl(frame);
+  const { default: sharp } = await import('sharp');
+  let basemap: Buffer;
+  let plan: TilePlan | null = null;
+  if (linesOnly) {
+    basemap = await sharp({ create: { width: sizePx, height: sizePx, channels: 3, background: '#F4F0E4' } }).png().toBuffer();
+  } else {
+    const fetched = await fetchBasemap(frame, doFetch);
+    basemap = fetched.png; plan = fetched.plan;
+    if (fetched.missing > 0) console.warn(`[parcel-map] ${fetched.missing}/${plan.tiles.length} imagery tile(s) missing at z${plan.z} — drawn on a dark ground`);
+  }
 
   const subjectLabel = subject
     ? `#${subject.propId}${subject.situs ? ` · ${subject.situs}` : ''}${subject.acreage != null ? ` · ${subject.acreage} ac` : ''}`
     : `#${input.parcelId ?? '?'} (polygon not matched — centred on run coordinates)`;
   const title = input.title ?? `${input.county} CAD parcels — ${subjectLabel}`;
-  const attribution = `${layer ? 'Parcels: county appraisal district GIS layer · ' : ''}Imagery: Esri World Imagery · rendered ${now.toISOString().slice(0, 16).replace('T', ' ')}Z · ${frame.metresPerPixel.toFixed(2)} m/px`;
-  const svg = renderOverlaySvg(frame, parcels, input.parcelId, title, attribution, { labelNeighbours: input.labelNeighbours !== false });
+  const attribution = `${layer ? 'Parcels: county appraisal district GIS layer · ' : ''}${linesOnly ? 'Lines only, side lengths in feet from the layer geometry' : 'Imagery: Esri World Imagery'} · rendered ${now.toISOString().slice(0, 16).replace('T', ' ')}Z · ${frame.metresPerPixel.toFixed(2)} m/px`;
+  const svg = renderOverlaySvg(frame, parcels, input.parcelId, title, attribution, { labelNeighbours: input.labelNeighbours !== false, linesOnly, edgeLengths: input.edgeLengths === true });
 
-  const { default: sharp } = await import('sharp');
   const png = await sharp(basemap)
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
     .png()
@@ -465,14 +518,14 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
   const sources = { parcelQueryUrl: queryUrl, basemapUrl: bm };
   // An honest word about sharpness: the close band asks for 0.07 m/px and the cache here stops
   // at 0.26. The frame is right; the pixels are enlarged, and the text says so.
-  const upscaled = frame.metresPerPixel < plan.metresPerPixel * 0.95
+  const upscaled = plan && frame.metresPerPixel < plan.metresPerPixel * 0.95
     ? `\nImagery enlarged ${(plan.metresPerPixel / frame.metresPerPixel).toFixed(1)}× from the ${plan.metresPerPixel.toFixed(2)} m/px tile cache (zoom ${plan.z}); parcel lines are exact, photo detail is not finer than the cache.`
     : '';
   return {
     png, width: sizePx, height: sizePx,
     bbox: frameBboxLonLat(frame),
     metresPerPixel: frame.metresPerPixel,
-    text: describeParcelMap(input.county, input.parcelId, parcels, frame, sources, now) + upscaled,
+    text: describeParcelMap(input.county, input.parcelId, parcels, frame, sources, now) + (upscaled || '') + (linesOnly ? '\nLines-only drawing: side lengths are ground distances in feet computed from the parcel-layer geometry, not the recorded plat calls.' : ''),
     subjectFound: Boolean(subject),
     parcelCount: parcels.length,
     sources,
