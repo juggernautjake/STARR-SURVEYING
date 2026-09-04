@@ -94,6 +94,12 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by
+  // the runner script worker/src/scripts/backfill-identity.mjs and its test, not by the pipeline —
+  // a .mjs caller the .ts scanner does not count. Kept as a utility for future identity backfills.
+  'worker/src/research/identity-backfill.ts':
+    'D4 backfill utility — called by scripts/backfill-identity.mjs (a .mjs, uncounted here) and its test, not the runtime graph. A deliberate one-shot tool, not dead code.',
+
   // ── Found 2026-09-01, when plan E1 replaced the Research & Analysis stack ─────────────────
   //
   // These three are SUPERSEDED, and they are listed rather than deleted for one specific

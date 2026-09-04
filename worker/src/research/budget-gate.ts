@@ -151,7 +151,12 @@ export async function withStepDeadline<T>(
   // less than 45 seconds — enough to notice it has nothing — so a late step still says what it
   // saw rather than being skipped in silence.
   const reserveMs = Math.max(0, opts.reserveMs ?? 0);
-  const deadlineMs = Math.max(45_000, status.remainingMs - reserveMs);
+  // Since cost (not the clock) is the run ceiling (owner, 2026-09-04), `remainingMs` is now a
+  // generous 2-hour SAFETY, so a single step must not be allowed to run to it. Cap each step at
+  // STEP_MAX so a hung or runaway scrape (which costs nothing, so the cost watchdog never catches
+  // it) is still stopped in a reasonable time.
+  const STEP_MAX_MS = 20 * 60_000;
+  const deadlineMs = Math.min(STEP_MAX_MS, Math.max(45_000, status.remainingMs - reserveMs));
   if (reserveMs > 0 && status.remainingMs - reserveMs < deadlineMs) {
     onTimeout?.(`${step} has ${Math.round(deadlineMs / 1000)} s: ${Math.round(reserveMs / 60_000)} minute(s) of the run are held back for reading what it finds.`);
   }

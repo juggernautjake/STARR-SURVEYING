@@ -135,9 +135,12 @@ describe('the gate is actually asked — assert the CALLERS', () => {
 // Two such steps exhaust a 25-minute run, and the gate before the third is correct and far too late.
 
 describe('a step cannot outlive the run', () => {
-  it('returns the fallback when the step overruns the time the run has left', async () => {
+  it('returns the fallback when the run has no time-safety left for the step', async () => {
+    // Deterministic: the run's (tiny) safety wall clock is already spent, so the step is not even
+    // started and the fallback comes back at once. The step-overran-mid-run timeout path is the
+    // same fallback and is exercised by the clerk-abort tests (a >45 s step is impractical here).
     const p = 'proj-deadline';
-    startRun(p, { ...DEFAULT_LIMITS, maxWallClockMs: 40 }, Date.now());
+    startRun(p, { ...DEFAULT_LIMITS, maxWallClockMs: 40 }, Date.now() - 60_000);
     const skips: string[] = [];
     const out = await withStepDeadline(
       p, 'slow step',
@@ -146,7 +149,7 @@ describe('a step cannot outlive the run', () => {
       (m) => skips.push(m),
     );
     expect(out).toBe('gave up');
-    expect(skips.join(' ')).toMatch(/still running when the run's time ran out/);
+    expect(skips.join(' ')).toMatch(/no time left/);
     endRun(p);
   });
 
@@ -164,11 +167,14 @@ describe('a step cannot outlive the run', () => {
     expect(out).toBe('ran');
   });
 
-  it('the deadline is the run REMAINING, not a fixed number', async () => {
-    // A fixed per-step figure would be wrong for some county. Deriving it from what the run has
-    // left is what makes the wall-clock limit mean what it says.
+  it('the step deadline is derived from the run remaining, capped by a per-step safety max', async () => {
+    // Cost is the run ceiling now (owner, 2026-09-04) and the wall clock is a generous 2-hour
+    // safety, so a step must not be allowed to run to it: the deadline is the run's remaining time
+    // (minus the reserve, floored at 45 s) BUT capped at STEP_MAX so a runaway scrape — which costs
+    // nothing, so the cost watchdog never catches it — is still stopped in a reasonable time.
     const gate = read('src/research/budget-gate.ts');
-    expect(gate).toContain('const deadlineMs = status.remainingMs');
+    expect(gate).toContain('const STEP_MAX_MS = 20 * 60_000;');
+    expect(gate).toContain('const deadlineMs = Math.min(STEP_MAX_MS, Math.max(45_000, status.remainingMs - reserveMs));');
   });
 
   it('and it does NOT claim to cancel the underlying work', async () => {

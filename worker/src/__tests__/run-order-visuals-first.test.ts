@@ -129,7 +129,8 @@ describe('the hook is wired — assert the CALLERS', () => {
 
   it('the end-of-run capture became a fallback and cannot double-file', () => {
     const s = code('index.ts');
-    expect(s).toContain('visualsCaptured.has(projectId)');
+    // visualsCaptured is a Map<projectId, Set<kind>> now (which kinds the early pass already got).
+    expect(s).toContain('visualsCaptured.get(projectId)');
     // Cleared on re-run, or the second run skips its own fallback on the first run's flag.
     expect(s).toContain('visualsCaptured.delete(projectId)');
   });

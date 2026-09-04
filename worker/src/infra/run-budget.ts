@@ -109,12 +109,18 @@ export function limitsFor(
   requested?: { maxResearchTimeMinutes?: number; maxCostUsd?: number },
   env: NodeJS.ProcessEnv = process.env,
 ): BudgetLimits {
-  const envMinutes = Number(env.RUN_MAX_MINUTES);
   const envCost = Number(env.RUN_MAX_COST_USD);
   const envPages = Number(env.RUN_MAX_PAID_PAGES);
 
-  const minutes = requested?.maxResearchTimeMinutes
-    ?? (Number.isFinite(envMinutes) && envMinutes > 0 ? envMinutes : DEFAULT_LIMITS.maxWallClockMs / 60_000);
+  // ── COST IS THE CEILING; TIME IS ONLY A SAFETY BACKSTOP (owner, 2026-09-04) ──────────────────
+  //
+  // A run ends when it reaches its COST limit — a hard stop the cost watchdog enforces — not on a
+  // clock. The wall clock is no longer the user's ceiling; it is a generous safety net so a genuinely
+  // hung step (a frozen browser) cannot run forever. `maxResearchTimeMinutes` from the request is
+  // ignored on purpose. To run longer / more thoroughly, raise the cost cap.
+  const SAFETY_WALL_CLOCK_MS = 120 * 60_000; // 2 h — a hung run, not a normal one, reaches this
+  const envSafety = Number(env.RUN_SAFETY_MINUTES);
+  const safetyMs = (Number.isFinite(envSafety) && envSafety > 0 ? envSafety * 60_000 : SAFETY_WALL_CLOCK_MS);
 
   // A requested cost of 0 is meaningful — "spend nothing, free sources only" — so it must survive,
   // which `||` would not: `0 || fallback` is the fallback. Only a missing or unusable number falls
@@ -125,9 +131,8 @@ export function limitsFor(
     : (Number.isFinite(envCost) && envCost > 0 ? envCost : DEFAULT_LIMITS.maxCostUsd);
 
   return {
-    maxWallClockMs: clamp(minutes, 1, 60) * 60_000,
-    // Clamped like the clock, and for the same reason: a per-run limit that any caller can raise
-    // without bound is not a limit. See MAX_COST_CEILING_USD.
+    maxWallClockMs: safetyMs,
+    // The real ceiling. Clamped so a caller cannot raise it without bound. See MAX_COST_CEILING_USD.
     maxCostUsd: clamp(cost, 0, MAX_COST_CEILING_USD),
     maxPaidPages: Number.isFinite(envPages) && envPages > 0 ? envPages : DEFAULT_LIMITS.maxPaidPages,
   };

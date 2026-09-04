@@ -232,6 +232,14 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
   next();
 }
 
+/** Progress as a fraction of the COST cap (owner, 2026-09-04): the bar shows how close the run is to
+ *  its payment limit, not the clock. Capped at 99 until the run truly finishes (finish() sets 100). */
+function costProgressPercent(projectId: string): number {
+  const status = checkBudget(projectId, spendForRun(projectId));
+  if (!Number.isFinite(status.limitUsd) || status.limitUsd <= 0) return 0;
+  return Math.min(99, Math.max(0, Math.round((status.spentUsd / status.limitUsd) * 100)));
+}
+
 // ── In-Memory State ────────────────────────────────────────────────────────
 
 const activePipelines = new Map<string, ActivePipeline>();
@@ -1342,16 +1350,41 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const active = activePipelines.get(projectId);
       if (!active || active.abortController?.signal.aborted) return;
       const minutes = Math.round(budgetLimits.maxWallClockMs / 60_000);
+      // The wall clock is a SAFETY net now, not the ceiling (cost is). Reaching it means a step hung.
       const message =
-        `Finished early because this run reached its ${minutes}-minute time limit while a step ` +
-        'was still running. The step was stopped; what it had produced is kept.';
+        `Stopped by the ${minutes}-minute safety limit — a step was still running long after it should ` +
+        'have finished. What was produced is kept. (The run is bounded by its cost limit, not time.)';
       active.stopReason = { kind: 'budget', message };
       active.abortController?.abort(new BudgetAbort(message));
-      console.warn(`[budget] ${projectId}: watchdog fired at ${minutes} min — ${message}`);
+      console.warn(`[budget] ${projectId}: SAFETY watchdog fired at ${minutes} min — a step hung`);
     }, budgetLimits.maxWallClockMs + graceMs);
     watchdog.unref?.();
     const active = activePipelines.get(projectId);
     if (active) active.watchdog = watchdog;
+  }
+
+  // ── THE COST WATCHDOG — the run ends the moment it reaches its cost limit (owner, 2026-09-04) ──
+  //
+  // Cost is the ceiling. Checking only at phase boundaries let run 9 spend $2.92 on a $2 cap. This
+  // polls the run's spend and fires the same abort the instant spend crosses the cap, so the
+  // overshoot is at most one in-flight AI call, not a dollar. Self-clearing: it stops when the run
+  // is gone or already aborted. Raising the cost cap mid-run (a later slice) simply lets it run on.
+  if (Number.isFinite(budgetLimits.maxCostUsd) && budgetLimits.maxCostUsd > 0) {
+    const costPoll = setInterval(() => {
+      const active = activePipelines.get(projectId);
+      if (!active || active.abortController?.signal.aborted) { clearInterval(costPoll); return; }
+      const status = checkBudget(projectId, spendForRun(projectId));
+      if (status.exceeded === 'cost' || status.exceeded === 'paid_pages') {
+        const message = status.exceeded === 'cost'
+          ? `Finished at the $${budgetLimits.maxCostUsd.toFixed(2)} cost limit you set. Raise the cost limit and re-run to research further.`
+          : `Finished at the ${budgetLimits.maxPaidPages} paid-page limit you set.`;
+        active.stopReason = { kind: 'budget', message };
+        active.abortController?.abort(new BudgetAbort(message));
+        console.warn(`[budget] ${projectId}: COST watchdog fired — spent $${status.spentUsd.toFixed(2)} of $${budgetLimits.maxCostUsd.toFixed(2)}`);
+        clearInterval(costPoll);
+      }
+    }, 500);
+    costPoll.unref?.();
   }
   // The bar paces itself to the length this run was given (15–60 min, 30 default). The SHARES
   // are unchanged — retrieval is the same proportion of a short run as of a long one, because it
@@ -1635,7 +1668,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         spendForRun(projectId),
         0,
         pipeline?.runId ?? null,
-        snapshot?.percent,
+        costProgressPercent(projectId), // the bar is cost, not time (owner, 2026-09-04)
       );
       // Push the latest phase message to the running-message cache so the status
       // endpoint can return it as the `message` field. Without this, Bell County
@@ -1783,32 +1816,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // gate, read nothing: 60 documents on file, none summarised. The reading pass has its own
       // allowance (a slice of the ceiling) so it cannot itself run without end.
       try {
-        const status0 = checkBudget(projectId, spendForRun(projectId));
-        const limitMs = status0.limitMs;
-        const { readingAllowanceMs } = await import('./research/reading-pass.js');
-        // ── THE READING FITS INSIDE THE RUN, IT IS NOT ADDED ON TOP ──────────────────────────────
+        // ── COST IS THE CEILING: read until the cost cap or an abort (owner, 2026-09-04) ──────────
         //
-        // Run 9 (2026-09-04) ran to 36:25 on a 30-minute ceiling and $2.92 on a $2 one, because the
-        // reading got its OWN 8-minute window regardless of how much of the ceiling the search had
-        // already used — 28 min of search + 8 of reading = 36. That is not a reasonable run time.
-        // The reading still happens (documents already fetched must be read), but it now fits inside
-        // the ceiling: its window is the wall-clock time LEFT plus a small hard grace, and the whole
-        // run — reading included — hard-stops once it is more than that grace past the ceiling. So a
-        // 30-minute run stops by ~33 minutes whether the search finished early or ran to the wire.
-        const HARD_GRACE_MS = 3 * 60_000;
-        const remainingWallMs = Number.isFinite(status0.remainingMs) ? Math.max(0, status0.remainingMs) : Infinity;
-        const allowanceMs = Math.min(
-          readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null),
-          remainingWallMs + HARD_GRACE_MS,
-        );
-        const readStartedAt = Date.now();
+        // The documents already fetched are read until the run reaches its COST limit (the cost
+        // watchdog aborts hard at the cap) or the safety net trips. No time window any more: a run
+        // that stays under its cost cap reads everything it found; one that reaches the cap stops
+        // there. Run 9 (36:25 on a 30-minute ceiling) is the run this replaces — there is no clock
+        // to overrun now, only the cost limit, and the cost watchdog holds that to the dollar.
         const mayRead = () => {
-          if (Date.now() - readStartedAt > allowanceMs) return false; // the reading pass's own clock
-          // HARD wall-clock cap: reading included, the run stops within the grace of its ceiling.
-          const status = checkBudget(projectId, spendForRun(projectId));
-          if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;
-          if (tailSignal?.aborted && Date.now() - readStartedAt > 45_000) return false;
-          return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';
+          if (tailSignal?.aborted) return false;
+          const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
+          return ex !== 'cost' && ex !== 'paid_pages';
         };
         const report = await withRunContext(projectId, () =>
           reanalyseProjectDocuments(projectId, (line) => console.log(`[Reading] ${projectId}: ${line}`), mayRead));
@@ -2837,7 +2855,7 @@ async function respondWithLivePipeline(projectId: string, res: Response): Promis
     phaseLabel: snapshot?.phaseLabel ?? null,
     phaseIndex: snapshot?.phaseIndex ?? 0,
     phaseCount: snapshot?.phaseCount ?? 0,
-    percent: snapshot?.percent ?? 0,
+    percent: costProgressPercent(projectId), // cost proximity, not time (owner, 2026-09-04)
     log: liveLog,
     timeline: timelineEntries,
   };

@@ -64,14 +64,13 @@ describe('the tail', () => {
     const guarded = (tail.match(/if \(!ceilingHit\) \{/g) ?? []).length;
     expect(guarded).toBe(1);
     expect(tail).toMatch(/withStepDeadline\(projectId, 'imagery capture'/);
-    // The reading pass reads what the search already bought (runs 4-6 read nothing under the old
-    // `!ceilingHit` gate). But it FITS INSIDE the run: since run 9 (36:25 on a 30-min ceiling) its
-    // window is the wall-clock time left plus a hard grace, and it hard-stops more than that grace
-    // past the ceiling — cost still stops it too. So a run cannot run half again over its ceiling.
-    expect(tail).toContain("return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';");
-    expect(tail).toContain('if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;');
-    expect(tail).toContain('remainingWallMs + HARD_GRACE_MS');
-    expect(tail).toContain('if (Date.now() - readStartedAt > allowanceMs) return false;');
+    // COST IS THE CEILING (owner, 2026-09-04): the reading reads what the search bought until the
+    // run reaches its COST cap or is aborted — no time window. The cost watchdog (asserted below)
+    // holds the cap to the dollar; the reading itself just checks cost and the abort.
+    expect(tail).toContain("const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;");
+    expect(tail).toContain("return ex !== 'cost' && ex !== 'paid_pages';");
+    expect(tail).toContain('if (tailSignal?.aborted) return false;');
+    expect(tail).not.toContain('HARD_GRACE_MS');
     expect(tail).not.toContain("withStepDeadline(projectId, 'document re-read'");
   });
 
@@ -111,12 +110,25 @@ describe('the tail', () => {
     // ...and the number of signals handed to clerk inputs equals the number of browser calls.
     expect((orch.match(/signal: \w+Abort\.signal/g) ?? []).length).toBe(calls);
   });
-  it('the reading pass still cannot outlive the run: its own clock and a cost ceiling bound it', () => {
-    expect(tail).toContain('const allowanceMs = Math.min(');
-    expect(tail).toContain('readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null),');
+  it('the reading pass is bounded by COST and the abort, not a clock (owner, 2026-09-04)', () => {
     expect(tail).toContain('withRunContext(projectId, () =>');
-    // an operator abort still stops it within 45 s
-    expect(tail).toContain('if (tailSignal?.aborted && Date.now() - readStartedAt > 45_000) return false;');
+    // an abort (cost watchdog, or operator) stops it
+    expect(tail).toContain('if (tailSignal?.aborted) return false;');
+    expect(tail).toContain("return ex !== 'cost' && ex !== 'paid_pages';");
+  });
+
+  it('a COST WATCHDOG hard-stops the run at the cost cap (run 9 spent $2.92 on $2)', () => {
+    // Cost is the ceiling now. A poll fires the abort the instant spend crosses the cap, so the
+    // overshoot is one AI call, not a dollar. The wall clock is only a SAFETY net for a hung step.
+    const start = index.indexOf('activePipelines.set(projectId, {');
+    const window = index.slice(start, start + 5000);
+    expect(window).toContain('const costPoll = setInterval(');
+    expect(window).toContain("checkBudget(projectId, spendForRun(projectId))");
+    expect(window).toContain("status.exceeded === 'cost'");
+    expect(window).toContain('active.abortController?.abort(new BudgetAbort(message))');
+    expect(window).toContain('clearInterval(costPoll)');
+    // the wall-clock watchdog is reframed as a safety net, not the ceiling
+    expect(window).toContain('SAFETY watchdog fired');
   });
 });
 

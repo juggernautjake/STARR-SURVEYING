@@ -123,9 +123,11 @@ describe('the plat repository is asked once when it refuses this server', () => 
 });
 
 describe('the clerk plat search waits for the page to finish loading', () => {
-  it('polls "Loading Results" away for up to 30 s after the fixed wait', () => {
+  it('polls the playbook done-signal away for up to 30 s after the fixed wait', () => {
     const src = read('services/bell-clerk.ts');
-    expect(src).toContain('/loading results/i.test(document.body?.innerText');
+    // Since B4 (8352dbacc) the "Loading Results" signal comes from the bell-clerk playbook, not a
+    // literal — the wait still polls it away for up to 30 s.
+    expect(src).toContain("loadPlaybook('bell-clerk')?.doneSignal");
     expect(src).toContain('for (let waited = 0; waited < 30_000; waited += 1_000)');
   });
 });

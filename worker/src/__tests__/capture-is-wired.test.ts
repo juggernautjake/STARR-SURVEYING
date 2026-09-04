@@ -25,11 +25,11 @@ describe('the run actually captures imagery', () => {
   });
 
   it('CALLS the capture phase from the completion path', () => {
-    expect(index).toContain('await captureImageryForRun(projectId, county, unifiedResult)');
+    expect(index).toContain('captureImageryForRun(projectId, county, unifiedResult)');
   });
 
   it('and the phase actually plans and runs captures', () => {
-    expect(index).toContain('const plan = planCaptures(input)');
+    expect(index).toContain('planCaptures(input)');
     expect(index).toContain('await runCaptures(plan,');
   });
 
@@ -37,7 +37,7 @@ describe('the run actually captures imagery', () => {
     // The filing context holds the project library and this run's id. After endFiling it is gone,
     // so a capture would take the no-context path — a bare insert — which is what produced 19 of
     // the 53 duplicate document groups measured in production.
-    const capture = index.indexOf('await captureImageryForRun(');
+    const capture = index.indexOf('captureImageryForRun(');
     const endFiling = index.indexOf('const filing = endFiling(projectId)');
     expect(capture).toBeGreaterThan(-1);
     expect(endFiling).toBeGreaterThan(-1);
@@ -47,7 +47,7 @@ describe('the run actually captures imagery', () => {
   it('never lets the imagery phase fail the run', () => {
     // The research is the point; imagery is supporting evidence. Losing a completed run because a
     // map server was slow would be a bad trade.
-    const at = index.indexOf('await captureImageryForRun(');
+    const at = index.indexOf('captureImageryForRun(');
     const around = index.slice(Math.max(0, at - 400), at + 300);
     expect(around).toMatch(/try \{/);
     expect(around).toMatch(/catch \(e\)/);

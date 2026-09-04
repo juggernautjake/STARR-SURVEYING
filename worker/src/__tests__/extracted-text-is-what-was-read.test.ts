@@ -68,7 +68,9 @@ describe('what was read and what was concluded are different fields', () => {
   it('the per-segment findings are stored, so a fact can be traced to a quadrant', () => {
     // plan D2. `ocr_segments` has existed as a column since seed 570 and nothing wrote it here.
     const s = code('services/artifact-uploader.ts');
-    expect(s.split('ocr_segments: firstPage.ocrSegments').length - 1).toBe(2);
+    // Since E4 (ace0f38a9) both inserts write EVERY page's segments (mergePageSegments), not just
+    // the first page's.
+    expect(s.split('ocr_segments: mergePageSegments(').length - 1).toBe(2);
     expect(code('counties/bell/analyzers/deed-analyzer.ts')).toContain('ocrSegments: segments.length > 0');
   });
 });

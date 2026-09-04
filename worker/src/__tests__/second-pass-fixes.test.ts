@@ -66,9 +66,12 @@ describe('MD-3: a thrown appraisal scrape is an error, not an empty index', () =
   it('CONTROL: the probe reads the source-outcome block', () => {
     expect(orch).toContain("siteId: `cad-${fips}-bis`");
   });
-  it('maps a rejected CAD promise to error before considering the host circuit', () => {
+  it('maps a rejected CAD promise to error — unless WE aborted it (then aborted, not error)', () => {
+    // Since 9b72a78b6 a scrape WE stopped (ceiling/abort) records `aborted` (no_record), not the
+    // `error` that would mark the adapter broken; a genuine rejection is still `error`.
     expect(orch).toContain("const cadThrew = cadResult.status === 'rejected'");
-    expect(orch).toMatch(/outcome: cad \? 'found' : cadThrew \? 'error' : cadGate\.blocked \? 'unreachable' : 'empty'/);
+    expect(orch).toContain('const cadStoppedByUs = cadThrew && Boolean(signal?.aborted);');
+    expect(orch).toMatch(/outcome: cad \? 'found' : cadStoppedByUs \? 'aborted' : cadThrew \? 'error' : cadGate\.blocked \? 'unreachable' : 'empty'/);
   });
 });
 

@@ -123,9 +123,12 @@ describe('the scraping steps leave time for the reading (analysis reserve)', () 
     expect(notes.some((n) => /held back for reading what it finds/.test(n))).toBe(true);
   });
 
-  it('both Bell scraping steps carry the reserve', () => {
+  it('all four Bell scraping steps carry the reserve', () => {
+    // plat search, clerk deed search, deed-chain fetch and historical deed fetch — every
+    // browser-driving step holds back the analysis reserve (the last two were added with the
+    // runaway fix, 8382b640f).
     const orch = read('counties/bell/orchestrator.ts');
     expect(orch).toContain('const analysisReserve = analysisReserveMs(input.projectId);');
-    expect(orch.split('reserveMs: analysisReserve').length - 1).toBe(2);
+    expect(orch.split('reserveMs: analysisReserve').length - 1).toBe(4);
   });
 });

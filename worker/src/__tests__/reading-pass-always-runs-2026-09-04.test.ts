@@ -95,14 +95,15 @@ describe('the property summary is built from the library', () => {
 
 describe('the run wires it in — not gated on the ceiling, and the summary written every run', () => {
   const index = read('index.ts');
-  it('the reading pass runs under a cost budget AND a hard wall-clock grace (run 9 fix)', () => {
-    expect(index).toContain("if (Date.now() - readStartedAt > allowanceMs) return false;");
-    expect(index).toContain("return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';");
-    // the reading fits INSIDE the run: its window is the wall-clock time left plus a hard grace,
-    // and it hard-stops once more than that grace past the ceiling — so a run cannot run to 36 min.
-    expect(index).toContain('remainingWallMs + HARD_GRACE_MS');
-    expect(index).toContain('if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;');
-    // it is NOT inside an `if (!ceilingHit)` block any more
+  it('COST IS THE CEILING: the reading reads until the cost cap or an abort, no time window', () => {
+    // Owner 2026-09-04: cost is the ceiling, not the clock. The reading has no time allowance any
+    // more — it reads until the cost cap (the cost watchdog aborts hard there) or an abort.
+    expect(index).toContain("const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;");
+    expect(index).toContain("return ex !== 'cost' && ex !== 'paid_pages';");
+    expect(index).toContain('if (tailSignal?.aborted) return false;');
+    // the old time-window / wall-clock-grace machinery is gone
+    expect(index).not.toContain('HARD_GRACE_MS');
+    expect(index).not.toContain("if (Date.now() - readStartedAt > allowanceMs) return false;");
     expect(index).not.toContain('withStepDeadline(projectId, \'document re-read\'');
   });
   it('reads every page, not the first five', () => {
