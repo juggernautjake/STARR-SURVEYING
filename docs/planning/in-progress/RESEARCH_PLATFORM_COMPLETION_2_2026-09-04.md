@@ -173,12 +173,16 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       plat search stays the primary road. (The office-side relay is a separate egress the owner would
       have to stand up; the decision C2 asked for — record and stop asking — is made and enforced.)
       Unit tests: per-host scope, hourly expiry, reset, and both paths honour it.
-- [~] **C3 — Drawing hunt on the read text (read half shipped).** (`7701ff11d`) `citationsFromText`
-      (pure, tested) reads cabinet/slide, volume/page, and survey-abstract citations out of the
-      reading pass's text; wired into the tail after the reading pass, logged, and attached to the
-      result as `citedDrawings`. The FETCH of each citation into a filed clerk document (or a stated
-      miss) is the remaining half — it needs the clerk plat recipe (C1) and shares the browser
-      budget, so it follows C1.
+- [~] **C3 — Drawing hunt on the read text (read + miss halves shipped).** (`7701ff11d`, `e6e456ad7`)
+      `citationsFromText` reads cabinet/slide, volume/page, and survey-abstract citations out of the
+      reading pass's text; `reconcileCitations` marks each one held (a filed document already IS it,
+      matched by the document's own recording info/label) or a stated miss, named so a surveyor knows
+      what to pull. The tail attaches the per-citation status to the result as `citedDrawings` and
+      logs "N referenced; X on file; the rest not yet retrieved: …". REMAINING: the automated FETCH
+      of a miss into a filed clerk document — it drives the browser and shares the plat budget, and
+      needs the citation scan moved ahead of the historical-deed fetch so the run can act on it in
+      the same pass. That restructuring is the follow-on; the surveyor-facing "filed or a miss" is
+      live now.
 - [x] **C4 — Plat index per county (mechanism + honest default).** (`d31388c83`) `PlatRepoConfig`
       gains an `egress` note (Bell `browser-route` — 403s the worker IP; Hays `direct`);
       `platSourceStatement(county)` reports reachability, and the run announces it at start before
