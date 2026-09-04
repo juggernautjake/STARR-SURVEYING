@@ -1498,6 +1498,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     handshakeLogger.attempt('[Plats]', 'info', 'Plat source', platLine).success(0, platLine);
   }
 
+  // B3: name the site playbooks this run drives from (or say the county has none authored yet).
+  {
+    const { describePlaybooks } = await import('./playbooks/index.js');
+    const pbLine = describePlaybooks(county);
+    handshakeLogger.attempt('[Playbooks]', 'info', 'Site playbooks', pbLine).success(0, pbLine);
+  }
+
   // ── A4: read the queue we already paid for, before searching for more ────────────────────────
   //
   // A run leaves documents `processing_status = 'queued'` when its reading allowance runs out (see
