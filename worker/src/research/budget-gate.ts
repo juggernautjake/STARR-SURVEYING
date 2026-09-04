@@ -113,12 +113,27 @@ export function hasBudget(projectId: string): boolean {
  * `fallback` is what the caller gets when the deadline passes: whatever "we did not do this step"
  * looks like for them, usually an empty result. The skip is recorded either way.
  */
+/** How much of the run to hold back for reading what was found.
+ *
+ *  Every run on 1512 Chisholm Trail (4, 5, 6 on 2026-09-04, and the owner's 30-minute runs before
+ *  them) hit its ceiling inside Phase 2, so Phase 3 — the AI reading of the deeds, the data
+ *  points, the summary — never ran: 60 documents on file, none with a summary, no extracted data
+ *  points. A scraping step that may spend "whatever time the run has left" will spend all of it.
+ *  Thirty per cent of the ceiling, never less than three minutes nor more than eight, is kept for
+ *  the reading. */
+export function analysisReserveMs(projectId: string): number {
+  const limitMs = checkBudget(projectId, spendForRun(projectId)).limitMs;
+  if (!Number.isFinite(limitMs) || limitMs <= 0) return 0;
+  return Math.max(3 * 60_000, Math.min(8 * 60_000, Math.round(limitMs * 0.3)));
+}
+
 export async function withStepDeadline<T>(
   projectId: string,
   step: string,
   fn: () => Promise<T>,
   fallback: T,
   onTimeout?: (msg: string) => void,
+  opts: { reserveMs?: number } = {},
 ): Promise<T> {
   const status = checkBudget(projectId, spendForRun(projectId));
 
@@ -132,7 +147,14 @@ export async function withStepDeadline<T>(
     return fn();
   }
 
-  const deadlineMs = status.remainingMs;
+  // The reserve is held back for the steps that read what this one finds. A step is never given
+  // less than 45 seconds — enough to notice it has nothing — so a late step still says what it
+  // saw rather than being skipped in silence.
+  const reserveMs = Math.max(0, opts.reserveMs ?? 0);
+  const deadlineMs = Math.max(45_000, status.remainingMs - reserveMs);
+  if (reserveMs > 0 && status.remainingMs - reserveMs < deadlineMs) {
+    onTimeout?.(`${step} has ${Math.round(deadlineMs / 1000)} s: ${Math.round(reserveMs / 60_000)} minute(s) of the run are held back for reading what it finds.`);
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   const TIMED_OUT = Symbol('step-deadline');
 

@@ -93,3 +93,39 @@ describe('the plat repository is reached through a browser on another address wh
     expect(src).toContain('plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried');
   });
 });
+
+describe('the scraping steps leave time for the reading (analysis reserve)', () => {
+  const PROJECT = 'proj-reserve';
+  const T0 = 1_700_000_000_000;
+  beforeEach(() => { endRun(PROJECT); });
+
+  it('holds back 30% of the ceiling, never under three minutes nor over eight', async () => {
+    const { analysisReserveMs } = await import('../research/budget-gate.js');
+    startRun(PROJECT, { ...DEFAULT_LIMITS, maxWallClockMs: 15 * 60_000 }, T0);
+    expect(analysisReserveMs(PROJECT)).toBe(4.5 * 60_000);
+    endRun(PROJECT);
+    startRun(PROJECT, { ...DEFAULT_LIMITS, maxWallClockMs: 5 * 60_000 }, T0);
+    expect(analysisReserveMs(PROJECT)).toBe(3 * 60_000);
+    endRun(PROJECT);
+    startRun(PROJECT, { ...DEFAULT_LIMITS, maxWallClockMs: 60 * 60_000 }, T0);
+    expect(analysisReserveMs(PROJECT)).toBe(8 * 60_000);
+    endRun(PROJECT);
+    expect(analysisReserveMs('no-such-run')).toBe(0);
+  });
+
+  it('a step given a reserve still runs (45 s floor) and returns its value', async () => {
+    const { withStepDeadline } = await import('../research/budget-gate.js');
+    // Started NOW: the deadline is measured against the wall clock, and a run started in 2023 has no time left.
+    startRun(PROJECT, { ...DEFAULT_LIMITS, maxWallClockMs: 2 * 60_000 }, Date.now());
+    const notes: string[] = [];
+    const out = await withStepDeadline(PROJECT, 'plat search', async () => 'found', 'fallback', (m) => notes.push(m), { reserveMs: 3 * 60_000 });
+    expect(out).toBe('found');
+    expect(notes.some((n) => /held back for reading what it finds/.test(n))).toBe(true);
+  });
+
+  it('both Bell scraping steps carry the reserve', () => {
+    const orch = read('counties/bell/orchestrator.ts');
+    expect(orch).toContain('const analysisReserve = analysisReserveMs(input.projectId);');
+    expect((orch.match(/\{ reserveMs: analysisReserve \}/g) ?? []).length).toBe(2);
+  });
+});

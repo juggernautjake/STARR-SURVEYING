@@ -35,7 +35,7 @@ import { scrapeBellCad } from './scrapers/cad-scraper.js';
 import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk, type ClerkDocument as ClerkScrapedDocument } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
-import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
+import { mayStart, withStepDeadline, analysisReserveMs } from '../../research/budget-gate.js';
 import { recordPartial } from '../../infra/run-budget.js';
 import { assessDegradation } from '../../research/run-degradation.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
@@ -707,6 +707,9 @@ export async function orchestrateBellResearch(
   // that lands in the middle of it. Clerk plats the deed search turns up are still uploaded by
   // 2A as category 'plat'.
   progress('Phase 2', '2B — Plat repository + clerk plat search...', 25);
+  // Held back from every scraping step for Phase 3 — the reading — which no run on this property
+  // had reached before 2026-09-04 (see analysisReserveMs).
+  const analysisReserve = analysisReserveMs(input.projectId);
   const mayPlats = mayStep('plat search');
   let plats: Awaited<ReturnType<typeof scrapeBellPlats>> | null = null;
   if (mayPlats) try {
@@ -723,7 +726,7 @@ export async function orchestrateBellResearch(
         projectId: input.projectId,
       },
       (p) => progress('Phase 2', `Plats: ${p.message}`, 28),
-    ), null, (m) => progress('Budget', m));
+    ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve });
 
     if (!plats) {
       progress('Phase 2', '2B produced no result — the plat search did not finish in the time the run had left.', 30);
@@ -809,7 +812,7 @@ export async function orchestrateBellResearch(
         },
       },
       (p) => progress('Phase 2', `Clerk: ${p.message}`, 38),
-    ), null, (m) => progress('Budget', m));
+    ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve });
 
     // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
     // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.
