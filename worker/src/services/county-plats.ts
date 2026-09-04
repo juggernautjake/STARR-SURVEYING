@@ -21,7 +21,18 @@ import { lookupByCounty } from '../research/county-key.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+// ── C4: how a county's plat repository is actually REACHED, recorded per source ──────────────────
+//
+// A run should say, before it searches, whether the county has a plat source it can reach — and how.
+// 'direct' answers the worker over plain HTTP; 'browser-route' answers only through the Browserbase
+// egress because it blocks the worker's IP (bellcountytx.com is the standing example); 'blocked'
+// answers nowhere the worker can reach it, so the source is recorded unreachable-by-policy and not
+// asked. A county with no registry entry at all has no free plat source, which the run also says.
+export type PlatEgress = 'direct' | 'browser-route' | 'blocked';
+
 export interface PlatRepoConfig {
+  /** How the worker reaches this repository (C4). Absent is treated as 'direct'. */
+  egress?: PlatEgress;
   /** URL template for alphabetical index pages. {letter} replaced with a-z or 0-9. */
   indexUrlTemplate: string;
   /** Base URL for resolving relative file hrefs. */
@@ -169,6 +180,9 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   //   Layer 1 — bellcountytx.com index page scrape + fuzzy match (~5-15s)
   //   Layer 2 — Retry Layer 0 with name variations (A/B suffixes, abbreviation expansion, etc.)
   bell: {
+    // bellcountytx.com 403s every request from the worker's IP but answers from an office / the
+    // Browserbase egress — so the free repository is reachable only through the browser route.
+    egress: 'browser-route',
     indexUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php',
     fileBaseUrl:      'https://www.bellcountytx.com',
     directUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf',
@@ -194,6 +208,8 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   //         TIF files are converted to PNG by downloadPlatFile() before AI use.
   //         /Search/SubdivisionList provides canonical names for better matching.
   hays: {
+    // hayscad.com answers the worker directly once a real browser User-Agent is sent.
+    egress: 'direct',
     indexUrlTemplate: 'https://hayscad.com/subdivisionplats/sublist{letter}/',
     fileBaseUrl: 'https://hayscad.com',
     countyDisplayName: 'Hays CAD plat repository (hayscad.com)',
@@ -238,6 +254,33 @@ export function getPlatRepoConfig(county: string): PlatRepoConfig | null {
 /** Returns the list of county names with configured plat repositories. */
 export function listPlatRepoCounties(): string[] {
   return Object.keys(PLAT_REPO_REGISTRY);
+}
+
+/** The reachability of a county's free plat source (C4). `available` is false when there is no
+ *  registry entry or the one there is marked `blocked` (unreachable-by-policy). */
+export function platSourceStatus(county: string): { available: boolean; egress: PlatEgress | null; via: string } {
+  const config = getPlatRepoConfig(county);
+  if (!config) return { available: false, egress: null, via: 'none' };
+  const egress = config.egress ?? 'direct';
+  if (egress === 'blocked') return { available: false, egress, via: 'unreachable-by-policy' };
+  return {
+    available: true,
+    egress,
+    via: egress === 'browser-route' ? 'the browser egress (the site blocks the worker IP)' : 'a direct request',
+  };
+}
+
+/** One line, said before a run searches: whether this county has a free plat source, and how it is
+ *  reached — so a county without one says so rather than searching in silence. */
+export function platSourceStatement(county: string): string {
+  const status = platSourceStatus(county);
+  const config = getPlatRepoConfig(county);
+  if (!status.available) {
+    return config
+      ? `${config.countyDisplayName} is recorded unreachable-by-policy — its plats must come from the clerk index or an office fetch.`
+      : `No free plat repository is indexed for ${county} — plats for it must come from the clerk index or an office fetch.`;
+  }
+  return `Free plat repository for ${county}: ${config!.countyDisplayName}, reached through ${status.via}.`;
 }
 
 // ── Subdivision Name Extraction ───────────────────────────────────────────────

@@ -43,6 +43,7 @@ import { planCaptures, type CapturePlanInput } from './research/capture-plan.js'
 import { runCaptures } from './research/capture-runner.js';
 import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
 import { describeRunOrder } from './research/run-order.js';
+import { platSourceStatement } from './services/county-plats.js';
 import {
   reanalyseFiledDocuments, describeReanalysis, type FiledDocument,
 } from './research/reanalyze-documents.js';
@@ -1488,6 +1489,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   // they got, rather than infer it from timestamps.
   for (const line of describeRunOrder()) {
     handshakeLogger.attempt('[Order]', 'info', 'Run order', line).success(0, line);
+  }
+
+  // C4: say where this county's plats come from — or that it has no free source — before searching,
+  // so an unindexed county says so rather than searching in silence.
+  {
+    const platLine = platSourceStatement(county);
+    handshakeLogger.attempt('[Plats]', 'info', 'Plat source', platLine).success(0, platLine);
   }
 
   // ── A4: read the queue we already paid for, before searching for more ────────────────────────
