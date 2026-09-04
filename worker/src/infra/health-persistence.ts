@@ -192,7 +192,14 @@ export async function persistHealthResults(
 // Two consecutive `error`s from real runs mark the adapter broken (same ratchet as the probe);
 // one `healthy` from a real run clears it.
 
-export type RunSourceOutcomeKind = 'found' | 'empty' | 'unreachable' | 'error';
+// ── 'aborted' is a fact about OUR run, not about the site ─────────────────────────────────────────
+//
+// A source scrape that WE stopped — the run hit its ceiling, or the operator cancelled — is not the
+// site failing. Recording it as 'error' let our own budget mark an adapter `broken`: on 2026-09-04
+// the Bell clerk was demonstrably working (it found documents) while its adapter read `broken`,
+// because runs that were stopped mid-scrape counted against it. 'aborted' maps to `no_record`, the
+// same never-quarantines bucket as an empty answer, so a run we cut short never darkens a live site.
+export type RunSourceOutcomeKind = 'found' | 'empty' | 'unreachable' | 'error' | 'aborted';
 
 export interface RunSourceOutcome {
   /** The probe-shaped id the registry resolver understands: `cad-<fips>-<vendor>`, `clerk-<fips>-<vendor>`. */
@@ -212,7 +219,7 @@ export interface RunSourceOutcome {
 export function toRunHealthCheck(adapterId: string, o: RunSourceOutcome, ranAt = new Date().toISOString()): HealthCheckRow {
   const status: HealthStatus =
     o.outcome === 'found' ? 'healthy'
-    : o.outcome === 'empty' ? 'no_record'
+    : o.outcome === 'empty' || o.outcome === 'aborted' ? 'no_record'
     : 'error';
   return {
     adapter_id: adapterId,

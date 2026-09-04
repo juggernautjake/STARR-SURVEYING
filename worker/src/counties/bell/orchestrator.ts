@@ -1225,17 +1225,23 @@ export async function orchestrateBellResearch(
     // the CAD and GIS scrapes with allSettled; a rejection used to fall through to `empty`, which
     // the ratchet ignores by design (second review pass, MD-3).
     const cadThrew = cadResult.status === 'rejected';
+    // A scrape that threw BECAUSE WE STOPPED THE RUN (ceiling reached, or operator cancel) is not
+    // the CAD site failing — it must not count against the adapter's health. `aborted` maps to
+    // no_record, the never-quarantines bucket, so our own budget can never mark a live site broken.
+    const cadStoppedByUs = cadThrew && Boolean(signal?.aborted);
     sourceOutcomes.push({
       siteId: `cad-${fips}-bis`, vendor: 'bis', name: 'Bell CAD eSearch', url: cadHost,
       projectId: input.projectId, durationMs: 0,
-      outcome: cad ? 'found' : cadThrew ? 'error' : cadGate.blocked ? 'unreachable' : 'empty',
+      outcome: cad ? 'found' : cadStoppedByUs ? 'aborted' : cadThrew ? 'error' : cadGate.blocked ? 'unreachable' : 'empty',
       detail: cad
         ? `Appraisal record found for property ${cad.propertyId} (via ${cad.source}).`
-        : cadThrew
-          ? `The appraisal scrape threw: ${cadResult.reason instanceof Error ? cadResult.reason.message : String(cadResult.reason)}`
-          : cadGate.blocked
-            ? `The appraisal site did not answer: ${cadGate.reason ?? 'host marked dead'}.`
-            : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
+        : cadStoppedByUs
+          ? 'The appraisal scrape was stopped when the run reached its ceiling — not counted against the site.'
+          : cadThrew
+            ? `The appraisal scrape threw: ${cadResult.reason instanceof Error ? cadResult.reason.message : String(cadResult.reason)}`
+            : cadGate.blocked
+              ? `The appraisal site did not answer: ${cadGate.reason ?? 'host marked dead'}.`
+              : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
     });
     if (mayClerk && clerk) {
       const clerkHost = BELL_ENDPOINTS.clerk.home;
