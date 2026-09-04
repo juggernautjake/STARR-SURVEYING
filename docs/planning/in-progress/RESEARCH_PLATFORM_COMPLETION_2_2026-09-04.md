@@ -151,9 +151,14 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       names the playbook line.
 - [ ] **B5 — Drift watch.** A nightly atlas re-walk diffs each site against its dossier and files
       a health row when a state no longer matches.
-- [ ] **B6 — Popups and captchas.** From the dossiers: every dismissal encoded; captcha presence
-      detected and reported (with a screenshot) rather than silently timed out; a funded solver or
-      an office-side hand-off is the owner's decision, stated in the playbook.
+- [~] **B6 — Captcha detection + report (core shipped).** (`3f2da6695`) `detectCaptcha` recognises
+      reCAPTCHA, hCaptcha, Cloudflare Turnstile/interstitials, PerimeterX/DataDome/Incapsula, and a
+      plain "verify you are human" prompt by page markup; `describeCaptcha` reports it — not solved
+      (solving refused by policy). Wired into both plat-index fetch paths so a captcha'd 200 is
+      reported as "captcha in the way — <kind>" instead of a zero-link "empty" that reads as "no
+      plats". Tests cover each wall + no-false-positive. REMAINING: encode each site's popup
+      dismissals and wire the detector into every scraper's viewer step with a screenshot — that
+      depends on the B1 atlas/dossiers; the detector and the highest-value plat-index report are live.
 
 ### Phase C — Plats and drawings (requests 10, 14)
 
