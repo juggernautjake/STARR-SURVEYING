@@ -216,6 +216,75 @@ export const DRAWING_SEARCH_TERMS: Array<{ term: string; why: string }> = [
   { term: 'MONUMENT RECORD', why: 'what was set on the ground by an earlier surveyor' },
 ];
 
+// ── C3: the drawings a document POINTS AT, read out of its own text ───────────────────────────────
+//
+// A deed or survey names the drawings it depends on — "being the same tract described in Cabinet A,
+// Slide 312 of the Plat Records", "Volume 1234, Page 56", "the J. SMITH SURVEY, Abstract No. 123".
+// Each of those is a document a surveyor would pull next, and until now nothing read them out of the
+// text the reading pass produces. This turns the text into a list of citations the run can chase (or
+// state as a miss); the fetch itself is a later slice.
+
+export interface DrawingCitation {
+  kind: 'cabinet-slide' | 'volume-page' | 'survey-abstract';
+  /** The exact substring matched, so a reader can find it in the document. */
+  raw: string;
+  cabinet?: string;
+  slide?: string;
+  volume?: string;
+  page?: string;
+  abstract?: string;
+}
+
+/** A stable key so the same citation written twice (or in two documents) is listed once. */
+function citationKey(c: DrawingCitation): string {
+  if (c.kind === 'cabinet-slide') return `cs|${(c.cabinet ?? '').toUpperCase()}|${c.slide}`;
+  if (c.kind === 'volume-page') return `vp|${c.volume}|${c.page}`;
+  return `sa|${c.abstract}`;
+}
+
+/**
+ * Read the drawing/plat/survey citations out of one or more blocks of document text. Pure and
+ * deduplicated; the raw match is kept from the FIRST time a citation is seen.
+ */
+export function citationsFromText(...texts: Array<string | null | undefined>): DrawingCitation[] {
+  const out = new Map<string, DrawingCitation>();
+  const add = (c: DrawingCitation) => { const k = citationKey(c); if (!out.has(k)) out.set(k, c); };
+
+  for (const text of texts) {
+    if (!text) continue;
+
+    // "Cabinet A, Slide 312" / "Cab. A Sl. 312" / "Cabinet 2, Slides 5" — plat/map records.
+    for (const m of text.matchAll(/\bcab(?:inet)?\.?\s*([A-Za-z0-9]{1,4})[.,\s]+sl(?:ide)?s?\.?\s*(\d{1,5})/gi)) {
+      add({ kind: 'cabinet-slide', raw: m[0].trim(), cabinet: m[1], slide: m[2] });
+    }
+
+    // "Volume 1234, Page 56" / "Vol. 1234, Pg. 56" / "Vol 1234 Pg 56" — book-and-page records.
+    for (const m of text.matchAll(/\bvol(?:ume)?\.?\s*(\d{1,6})[.,\s]+(?:pg|page)s?\.?\s*(\d{1,6})/gi)) {
+      add({ kind: 'volume-page', raw: m[0].trim(), volume: m[1], page: m[2] });
+    }
+
+    // "Abstract No. 123" / "Abst. 123" / "A-123" — the survey abstract a tract sits in.
+    for (const m of text.matchAll(/\b(?:abstract|abst)\.?\s*(?:no\.?|number|#)?\s*(\d{1,5})\b/gi)) {
+      add({ kind: 'survey-abstract', raw: m[0].trim(), abstract: m[1] });
+    }
+    for (const m of text.matchAll(/\bA-(\d{1,5})\b/g)) {
+      add({ kind: 'survey-abstract', raw: m[0].trim(), abstract: m[1] });
+    }
+  }
+
+  return [...out.values()];
+}
+
+/** One line naming what the text pointed at, for the run log and the hunt report. */
+export function describeCitations(cites: DrawingCitation[]): string {
+  if (cites.length === 0) return 'No plat, map-record or survey-abstract citation was found in the read text.';
+  const say = (c: DrawingCitation) =>
+    c.kind === 'cabinet-slide' ? `Cabinet ${c.cabinet}, Slide ${c.slide}`
+    : c.kind === 'volume-page' ? `Volume ${c.volume}, Page ${c.page}`
+    : `Abstract No. ${c.abstract}`;
+  return `${cites.length} drawing citation(s) referenced in the text: ${cites.map(say).join('; ')}.`;
+}
+
 export interface DrawingHuntReport {
   /** Every document that looks like a drawing, strongest first. */
   found: Array<{ label: string; category: DrawingCategory; strength: DrawingMatch['strength']; reason: string }>;

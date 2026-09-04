@@ -1800,6 +1800,31 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             if (sweep.considered > 0) tailLog(sweep.statement);
           }
         }
+
+        // ── C3: read the plat/survey citations OUT OF the text the reading pass produced ──────
+        //
+        // A deed or survey names the drawings it depends on — "Cabinet A, Slide 312", "Volume
+        // 1234, Page 56", "Abstract No. 123". Those are the documents a surveyor pulls next.
+        // Scanned here, after the reading pass, so it runs on the text just read; attached to the
+        // result so the review screen can show what to chase (the fetch of each is a later slice).
+        try {
+          const supaCite = await getSupabase().catch(() => null);
+          if (supaCite) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: textRows } = await (supaCite as any)
+              .from('research_documents')
+              .select('extracted_text')
+              .eq('research_project_id', projectId);
+            const { citationsFromText, describeCitations } = await import('./research/drawing-hunt.js');
+            const cites = citationsFromText(
+              ...((textRows ?? []) as Array<{ extracted_text: string | null }>).map((r) => r.extracted_text),
+            );
+            tailLog(describeCitations(cites));
+            (unifiedResult as unknown as Record<string, unknown>).citedDrawings = cites;
+          }
+        } catch (e) {
+          console.warn(`[Drawings] ${projectId}: citation scan threw — ${String(e)}`);
+        }
       } catch (e) {
         console.warn(`[Reading] ${projectId}: pass threw — ${String(e)}`);
       }
