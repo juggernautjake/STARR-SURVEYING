@@ -82,11 +82,19 @@ Shipped and merged since this document was written (worker + Vercel deployed on 
   call site of a browser-driving function needs the ceiling, and a count-the-call-sites guard is
   what proves it.
 
+- **Health marking trustworthy** (`9b72a78b6`): a source scrape stopped by our own ceiling was
+  recorded as `error` and marked the adapter `broken` — Bell's clerk read `broken` while it worked.
+  New `aborted` outcome maps to `no_record`; the CAD outcome uses it when the run signal aborted;
+  the false-positive row was corrected live. This is the prerequisite the D2 defer named.
+- **A1, D2, D3 resolved** (2026-09-04): A1 deferred (reading_priority has zero consumers; dead
+  data), D2 deferred with evidence (the broken-marking over-marked, so skip-dispatch was
+  net-negative until `9b72a78b6`), D3 blocked on A6/F1 run data. See §3 for the inline rationale.
+
 Still open and worth doing: A1 (persisted reading_priority — read-time ordering covers the intent
 for now), A5 data-points half, A6 proof run (a clean run
 now that the runaway is closed and the sweep ships — verify deed chain stops at ceiling, tail runs,
 summaries written, polygon persisted), all of Phase B (site atlas + playbooks), Phase C (plat
-recipe + repository egress), D2, D3, E2/E3/E5, F. (E1, E4, D4 shipped.)
+recipe + repository egress), E2/E3/E5, F. (E1, E4, D4, A4 shipped; A1, D2, D3 deferred/blocked.)
 
 ## 3. Phases
 
@@ -96,10 +104,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 
 ### Phase A — Read everything that is found (request 13)
 
-- [ ] **A1 — The reading queue is real.** Every filed document gets `processing_status =
-      'queued'` until read; a `reading_priority` (subject deeds → plats → easements/restrictions
-      → adjoiner deeds → other) is set at filing. `research_documents` gains nothing new if the
-      existing columns carry it; otherwise one seed, applied live, with the CHECK verified.
+- [~] **A1 — DEFERRED (cost > value).** `reading_priority` has ZERO consumers in the worker or the
+      app (verified by grep), and `orderForReading` already sequences the reader in exactly that
+      priority on every run (and now at the head too, via A4). A persisted `reading_priority` column
+      would be dead data — the repo's most common defect. And filing every document as `'queued'`
+      would discard the readability verdict the uploader computes at filing. The 'queued' status is
+      already meaningful where it matters (A4 reads it first). Revisit only if the review page adds a
+      priority-sorted document display that needs the value server-side.
 - [ ] **A2 — One reader, tiled, for every page.** A single `readDocument(doc)` path (adaptive
       vision, tiles + zoom escalation, every page) used by Phase 3, the post-run re-read and the
       backlog job. Writes `extracted_text`, `extracted_text_method`, `ocr_confidence`,
@@ -162,10 +173,22 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 
 - [ ] **D1 — Order inside Phase 2.** Subject deed chain (instrument + owner) completes before the
       subdivision sweep begins; the sweep is what the ceiling cuts, never the chain.
-- [ ] **D2 — Provider health feeds dispatch.** A provider marked down (Google, the repository, a
-      dark CAD) is skipped by the next run for the marked period, with the reason in the log.
-- [ ] **D3 — Ceiling and reserve tuning from real runs.** Numbers from Phase A6 and three owner
-      runs; the 15-minute floor and the 30% reserve revisited with evidence, not taste.
+- [~] **D2 — DEFERRED (evidence: the marking over-marks, so skip-dispatch is net-negative now).**
+      The infrastructure exists (`persistRunOutcomes` moves `research_site_adapters.status` to
+      `broken` after a run of failures, back to `active` on one good check), and the CAD/clerk are
+      the only two registered sites, both dispatched in the Bell orchestrator — so wiring is bounded.
+      But live data shows the marking is NOT yet trustworthy: Bell's `clerk_deeds` adapter is
+      `broken` right now while the clerk demonstrably WORKS (run 8 found documents through it before
+      the 2B½ deed-chain runaway). Skipping `broken` sites at dispatch today would skip a working
+      clerk on the owner's primary test property — a regression, not an improvement. D2 is safe to
+      ship only once the marking cannot false-positive (a run stopped by our own ceiling/abort must
+      not count against the site, and the admin health probe must not over-mark). Blocked on that
+      correction; the in-memory dead-host gate (transport failures) already covers the CAD path
+      within a process.
+- [~] **D3 — BLOCKED on A6/F1 (no data yet).** By its own definition D3 needs "numbers from Phase
+      A6 and three owner runs" to revisit the 15-minute floor and 30% reserve "with evidence, not
+      taste." Those runs have not happened, so there is nothing to tune against. Revisit after F1
+      produces the run data; tuning now would be the taste D3 explicitly rejects.
 - [x] **D4 — Duplicate identity backfill.** (`ef1300e6c`) `planIdentityBackfill` (tested) keys a
       row with the same refFromRow→identityKey the pipeline uses; the partial unique index makes it
       one operation with duplicate-reconciliation (each key one canonical, the rest duplicate_of it;
