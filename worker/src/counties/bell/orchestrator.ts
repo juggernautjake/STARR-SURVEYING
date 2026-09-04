@@ -38,6 +38,7 @@ import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline, analysisReserveMs } from '../../research/budget-gate.js';
 import { recordPartial } from '../../infra/run-budget.js';
 import { assessDegradation } from '../../research/run-degradation.js';
+import { expandSubdivisionTerms } from '../../research/plat-search-terms.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
 import { visualReadiness } from '../../research/run-order.js';
@@ -672,7 +673,11 @@ export async function orchestrateBellResearch(
   // Assemble the full set of identifiers accumulated in Phase 1
   const uniqueInstruments = [...knownIds.instrumentNumbers];
   const uniqueOwnerNames = [...knownIds.ownerNames];
-  const uniqueSubdivisions = [...knownIds.subdivisionNames];
+  // C1: expand each subdivision name into the terms the county may have filed it under — the base
+  // name first, then section/phase stripped, then recording-form expansions — so the plat search
+  // (repository and clerk) asks for the right spelling. No new browser loop: this fills the variant
+  // list scrapeBellPlats already takes.
+  const uniqueSubdivisions = expandSubdivisionTerms([...knownIds.subdivisionNames]);
   const uniqueVolPages = [...knownIds.volumePages].map(vp => {
     const [volume, page] = vp.split('/');
     return { volume, page };
