@@ -151,9 +151,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       `dist/` where a src `*.json` would not travel — same shape, compile-checked, reviewed in the
       diff. The run names the playbooks it drives from at start. Tests: validation, load-by-county,
       run wiring. B4 (scrapers read the fields) is next.
-- [ ] **B4 — Scrapers read playbooks.** Clerk, CAD and GIS scrapers take selectors, waits and
-      done-signals from the playbook and assert the expected state before each step; a mismatch
-      names the playbook line.
+- [~] **B4 — Scrapers read playbooks (clerk done-signal shipped).** (`8352dbacc`) The clerk results
+      wait now reads its done-signal ("Loading Results", wait-to-disappear) from the bell-clerk
+      playbook instead of a hard-coded literal, and a signal that never clears in 30 s names the
+      playbook as the drift point. Behaviour unchanged; the source of truth moved into the reviewed
+      playbook. REMAINING: the clerk disclaimer dismissal, and the CAD/GIS scrapers' selectors and
+      waits, read from their playbooks — each is the same shape of change on its own scraper, best
+      done alongside that scraper's dossier (B1/B2).
 - [ ] **B5 — Drift watch.** A nightly atlas re-walk diffs each site against its dossier and files
       a health row when a state no longer matches.
 - [~] **B6 — Captcha detection + report (core shipped).** (`3f2da6695`) `detectCaptcha` recognises
