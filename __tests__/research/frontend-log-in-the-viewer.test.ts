@@ -110,7 +110,11 @@ describe('the viewer shows it — assert the CALLER', () => {
     // `PipelineLogEntry` is the shape the viewer already filters, orders, de-duplicates and copies.
     // A parallel panel would need its own filter, ordering and export, and the two would drift.
     const s = readCode(PANEL);
-    expect(s).toContain('frontendLogEntries(runStartedAt ?? null)');
+    // Since 2026-09-03 the bound falls back to the first worker entry when the caller passes no
+    // run start — the review page's case — so the browser half can never again be unbounded.
+    expect(s).toContain('frontendLogEntries(browserBound)');
+    // Line endings vary (the file is CRLF on Windows checkouts), so match across whitespace.
+    expect(s).toMatch(/runStartedAt\s*\?\?\s*firstTimestamp\(logProp\)\s*\?\?\s*firstTimestamp\(loadedLog\)/);
     expect(s).toContain('mergeLogEntries(mergeLogEntries(logProp, loadedLog), browserLog)');
   });
 

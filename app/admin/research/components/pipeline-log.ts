@@ -27,7 +27,12 @@
 // error that loses work.
 
 /** Statuses that mean the run has stopped, whatever the outcome. */
-export const TERMINAL_STATUSES = ['success', 'complete', 'partial', 'failed', 'cancelled'] as const;
+// `archived` is the review page's word for "the stored log of a run that has ended, outcome not
+// asserted" — it is what the page passes when the worker never persisted a result, which is
+// exactly a run that was killed or interrupted. Leaving it out meant the saved worker log was
+// never auto-loaded for the runs that most needed reading: on 2026-09-03 "Copy All Logs" on such
+// a project exported 36 browser clicks and not one of the 2,119 worker lines on file.
+export const TERMINAL_STATUSES = ['success', 'complete', 'partial', 'failed', 'cancelled', 'archived'] as const;
 
 /** Statuses that mean the run has not stopped. Listed so a NEW status is visible as neither. */
 export const ACTIVE_STATUSES = ['running', 'starting', 'queued', 'retrying'] as const;

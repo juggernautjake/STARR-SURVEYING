@@ -12,7 +12,7 @@ import {
   isDoneStatus, statusIcon, formatTimestamp, formatLogAsText, formatDetailedLogAsText,
 } from './pipeline-log';
 import { toConfidenceFraction, confidencePercentLabel } from '@/lib/research/confidence-scale';
-import { frontendLogEntries } from '@/lib/research/frontend-log';
+import { frontendLogEntries, BROWSER_LAYER } from '@/lib/research/frontend-log';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +118,13 @@ export interface PipelineProgressProps {
  * Mirrors `mergeRunLogs` in `worker/src/research/persist-run-logs.ts`. Two implementations because
  * the app and the worker are separate builds; the rule they share is that a log never gets smaller.
  */
+/** The earliest timestamp in a worker log, or null. Worker entries are appended in order. */
+function firstTimestamp(entries: PipelineLogEntry[] | null | undefined): string | null {
+  if (!entries) return null;
+  for (const e of entries) if (e?.timestamp) return e.timestamp;
+  return null;
+}
+
 export function mergeLogEntries(
   live: PipelineLogEntry[] | undefined,
   saved: PipelineLogEntry[] | null,
@@ -461,10 +468,17 @@ export function PipelineProgressPanel({
   // Recomputed on every render on purpose: the buffers are mutable module state, so a memo keyed on
   // anything else would show a stale browser half beside a live worker one. Reading thirty
   // breadcrumbs is not work worth caching.
+  // The bound for the browser half: the run's start when the caller knows it, otherwise the first
+  // worker entry's timestamp — the review page mounts this without `runStartedAt`, and an unbounded
+  // buffer showed three hours of clicks from before the run beside the run's own log.
+  const browserBound = runStartedAt
+    ?? firstTimestamp(logProp)
+    ?? firstTimestamp(loadedLog)
+    ?? null;
   const browserLog = useMemo(
-    () => (typeof window === 'undefined' ? [] : frontendLogEntries(runStartedAt ?? null)),
+    () => (typeof window === 'undefined' ? [] : frontendLogEntries(browserBound)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [runStartedAt, logProp, loadedLog, status],
+    [browserBound, logProp, loadedLog, status],
   ) as PipelineLogEntry[];
 
   const log = mergeLogEntries(mergeLogEntries(logProp, loadedLog), browserLog);
@@ -573,27 +587,47 @@ export function PipelineProgressPanel({
       });
   }, []);
 
-  /** Copy the full combined log (basic summary + detailed) to the clipboard. */
-  const handleCopyAllLogs = useCallback(() => {
-    if (!log || log.length === 0) return;
+  /** Copy the full combined log (basic summary + detailed) to the clipboard.
+   *
+   *  ── THE EXPORT MUST CONTAIN THE WORKER'S HALF ─────────────────────────────────────────────
+   *  On 2026-09-03 an operator exported a run's log from the review page and got 36 browser clicks
+   *  and not one of the 2,119 worker lines on file: the saved log had not been auto-loaded (the
+   *  page's status was `archived`, which the terminal list did not include) and the export took
+   *  whatever was in memory. An export with no worker entries is not a run log. If nothing from the
+   *  worker is present and a loader exists, this fetches it first. */
+  const handleCopyAllLogs = useCallback(async () => {
+    let exportLog = log;
+    const hasWorkerHalf = (exportLog ?? []).some((e) => e.layer !== BROWSER_LAYER);
+    if (!hasWorkerHalf && !loadedLog && onLoadLogs) {
+      const loaded = await onLoadLogs().catch(() => null);
+      if (loaded && loaded.length > 0) {
+        setLoadedLog(loaded);
+        exportLog = mergeLogEntries(mergeLogEntries(logProp, loaded), browserLog) ?? loaded;
+      }
+    }
+    if (!exportLog || exportLog.length === 0) return;
+    const errors = exportLog.filter((e) => e.status === 'fail' || e.source === 'error').length;
+    const warnings = exportLog.filter((e) => e.status === 'fail' || e.status === 'warn' || e.source === 'warn' || e.source === 'error').length;
+    const workerEntries = exportLog.filter((e) => e.layer !== BROWSER_LAYER).length;
     const ts  = new Date().toLocaleString();
     const sep = '═'.repeat(60);
-    const filterNote = logFilter !== 'all' ? ` — filter: ${logFilter} (${filteredLog?.length ?? 0} of ${log.length} entries shown)` : '';
+    const filterNote = logFilter !== 'all' ? ` — filter: ${logFilter} (${filteredLog?.length ?? 0} of ${exportLog.length} entries shown)` : '';
     const combined =
       `${sep}\n` +
       `STARR RECON — Full Run Log\n` +
-      `Exported: ${ts}   Entries: ${log.length}${filterNote}\n` +
-      `Errors: ${errorCount}   Warnings: ${warningCount}\n` +
+      `Exported: ${ts}   Entries: ${exportLog.length} (${workerEntries} worker, ${exportLog.length - workerEntries} browser)${filterNote}\n` +
+      `Errors: ${errors}   Warnings: ${warnings}\n` +
+      (workerEntries === 0 ? 'NOTE: no worker entries were available for this run — this export is the browser half only.\n' : '') +
       `${sep}\n\n` +
       `── SUMMARY (one line per entry) ──────────────────────────\n` +
-      formatLogAsText(log) + '\n\n' +
+      formatLogAsText(exportLog) + '\n\n' +
       `── DETAILED DIAGNOSTIC (inputs · steps · errors) ─────────\n` +
-      formatDetailedLogAsText(log);
+      formatDetailedLogAsText(exportLog);
     copyToClipboard(combined, () => {
       setAllCopied(true);
       setTimeout(() => setAllCopied(false), 2000);
     });
-  }, [log, filteredLog, logFilter, errorCount, warningCount, copyToClipboard]);
+  }, [log, loadedLog, logProp, browserLog, onLoadLogs, filteredLog, logFilter, copyToClipboard]);
 
   /** Render the appropriate placeholder content when no log entries exist yet. */
   function renderLogEmpty() {
