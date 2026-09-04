@@ -39,7 +39,9 @@ export interface BudgetLimits {
 }
 
 export const DEFAULT_LIMITS: BudgetLimits = {
-  maxWallClockMs: 25 * 60_000,
+  // 30 minutes: the owner's chosen default (2026-09-04) and what the app already sends
+  // (RUN_MINUTES.default). A bare trigger that names no time now matches it instead of 25.
+  maxWallClockMs: 30 * 60_000,
   maxCostUsd: 2.0,
   maxPaidPages: 20,
 };
