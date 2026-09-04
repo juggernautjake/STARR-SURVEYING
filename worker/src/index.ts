@@ -1783,15 +1783,32 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // gate, read nothing: 60 documents on file, none summarised. The reading pass has its own
       // allowance (a slice of the ceiling) so it cannot itself run without end.
       try {
-        const limitMs = checkBudget(projectId, spendForRun(projectId)).limitMs;
+        const status0 = checkBudget(projectId, spendForRun(projectId));
+        const limitMs = status0.limitMs;
         const { readingAllowanceMs } = await import('./research/reading-pass.js');
-        const allowanceMs = readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null);
+        // ── THE READING FITS INSIDE THE RUN, IT IS NOT ADDED ON TOP ──────────────────────────────
+        //
+        // Run 9 (2026-09-04) ran to 36:25 on a 30-minute ceiling and $2.92 on a $2 one, because the
+        // reading got its OWN 8-minute window regardless of how much of the ceiling the search had
+        // already used — 28 min of search + 8 of reading = 36. That is not a reasonable run time.
+        // The reading still happens (documents already fetched must be read), but it now fits inside
+        // the ceiling: its window is the wall-clock time LEFT plus a small hard grace, and the whole
+        // run — reading included — hard-stops once it is more than that grace past the ceiling. So a
+        // 30-minute run stops by ~33 minutes whether the search finished early or ran to the wire.
+        const HARD_GRACE_MS = 3 * 60_000;
+        const remainingWallMs = Number.isFinite(status0.remainingMs) ? Math.max(0, status0.remainingMs) : Infinity;
+        const allowanceMs = Math.min(
+          readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null),
+          remainingWallMs + HARD_GRACE_MS,
+        );
         const readStartedAt = Date.now();
         const mayRead = () => {
           if (Date.now() - readStartedAt > allowanceMs) return false; // the reading pass's own clock
+          // HARD wall-clock cap: reading included, the run stops within the grace of its ceiling.
+          const status = checkBudget(projectId, spendForRun(projectId));
+          if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;
           if (tailSignal?.aborted && Date.now() - readStartedAt > 45_000) return false;
-          const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
-          return ex !== 'cost' && ex !== 'paid_pages'; // cost stops it; the wall clock does not
+          return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';
         };
         const report = await withRunContext(projectId, () =>
           reanalyseProjectDocuments(projectId, (line) => console.log(`[Reading] ${projectId}: ${line}`), mayRead));

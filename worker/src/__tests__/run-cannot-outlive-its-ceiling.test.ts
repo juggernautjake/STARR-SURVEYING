@@ -64,10 +64,13 @@ describe('the tail', () => {
     const guarded = (tail.match(/if \(!ceilingHit\) \{/g) ?? []).length;
     expect(guarded).toBe(1);
     expect(tail).toMatch(/withStepDeadline\(projectId, 'imagery capture'/);
-    // The reading pass reads what the search already bought — since 2026-09-04 it is NOT gated on
-    // the ceiling (runs 4-6 read nothing under the old gate); it has its own allowance timer and
-    // a cost-only budget instead.
-    expect(tail).toContain("return ex !== 'cost' && ex !== 'paid_pages'; // cost stops it; the wall clock does not");
+    // The reading pass reads what the search already bought (runs 4-6 read nothing under the old
+    // `!ceilingHit` gate). But it FITS INSIDE the run: since run 9 (36:25 on a 30-min ceiling) its
+    // window is the wall-clock time left plus a hard grace, and it hard-stops more than that grace
+    // past the ceiling — cost still stops it too. So a run cannot run half again over its ceiling.
+    expect(tail).toContain("return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';");
+    expect(tail).toContain('if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;');
+    expect(tail).toContain('remainingWallMs + HARD_GRACE_MS');
     expect(tail).toContain('if (Date.now() - readStartedAt > allowanceMs) return false;');
     expect(tail).not.toContain("withStepDeadline(projectId, 'document re-read'");
   });
@@ -109,7 +112,8 @@ describe('the tail', () => {
     expect((orch.match(/signal: \w+Abort\.signal/g) ?? []).length).toBe(calls);
   });
   it('the reading pass still cannot outlive the run: its own clock and a cost ceiling bound it', () => {
-    expect(tail).toContain('const allowanceMs = readingAllowanceMs(');
+    expect(tail).toContain('const allowanceMs = Math.min(');
+    expect(tail).toContain('readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null),');
     expect(tail).toContain('withRunContext(projectId, () =>');
     // an operator abort still stops it within 45 s
     expect(tail).toContain('if (tailSignal?.aborted && Date.now() - readStartedAt > 45_000) return false;');

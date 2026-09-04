@@ -95,9 +95,13 @@ describe('the property summary is built from the library', () => {
 
 describe('the run wires it in — not gated on the ceiling, and the summary written every run', () => {
   const index = read('index.ts');
-  it('the reading pass runs under a cost budget, not the wall clock', () => {
+  it('the reading pass runs under a cost budget AND a hard wall-clock grace (run 9 fix)', () => {
     expect(index).toContain("if (Date.now() - readStartedAt > allowanceMs) return false;");
-    expect(index).toContain("return ex !== 'cost' && ex !== 'paid_pages'; // cost stops it; the wall clock does not");
+    expect(index).toContain("return status.exceeded !== 'cost' && status.exceeded !== 'paid_pages';");
+    // the reading fits INSIDE the run: its window is the wall-clock time left plus a hard grace,
+    // and it hard-stops once more than that grace past the ceiling — so a run cannot run to 36 min.
+    expect(index).toContain('remainingWallMs + HARD_GRACE_MS');
+    expect(index).toContain('if (Number.isFinite(status.remainingMs) && status.remainingMs < -HARD_GRACE_MS) return false;');
     // it is NOT inside an `if (!ceilingHit)` block any more
     expect(index).not.toContain('withStepDeadline(projectId, \'document re-read\'');
   });
