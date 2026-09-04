@@ -131,11 +131,11 @@ describe('writing the answer back', () => {
 
   it('the summary states what was SKIPPED as well as what was done', () => {
     // A pass that reports only its successes reads like a pass that had nothing to skip.
-    const line = describeReanalysis({ considered: 10, reanalysed: 3, skipped: 6, failed: 1, leftUnread: 0, lines: [] });
+    const line = describeReanalysis({ considered: 10, reanalysed: 3, skipped: 6, failed: 1, leftUnread: 0, leftUnreadIds: [], lines: [] });
     expect(line).toContain('3 document(s) read');
     expect(line).toContain('6 already had text we can weigh');
     // And a ceiling reached mid-pass is its own sentence, not folded into failures.
-    expect(describeReanalysis({ considered: 4, reanalysed: 2, skipped: 0, failed: 0, leftUnread: 2, lines: [] }))
+    expect(describeReanalysis({ considered: 4, reanalysed: 2, skipped: 0, failed: 0, leftUnread: 2, leftUnreadIds: [], lines: [] }))
       .toContain('2 left unread because the run reached its ceiling');
     expect(line).toContain('the pages are still on file');
   });
@@ -168,8 +168,11 @@ describe('the run calls it — assert the CALLER', () => {
     expect(src).toContain("Could not list this project's documents, so none were re-read");
   });
 
-  it('the page cap is stated rather than silent', () => {
-    expect(code).toContain('pageUrls.slice(0, 5)');
-    expect(src).toContain('the cap is stated rather');
+  it('reads EVERY page — the cost budget bounds a long document, not a fixed cap (2026-09-04)', () => {
+    // The owner asked that the tiled reader see each page of each document. The five-page cap is
+    // gone; the between-pages budget check is what stops a forty-page instrument.
+    expect(code).toContain('for (const url of pageUrls) {');
+    expect(code).not.toContain('pageUrls.slice(0, 5)');
+    expect(code).toContain('if (!mayContinue()) break;');
   });
 });

@@ -146,6 +146,8 @@ export interface ReanalysisReport {
   /** Documents not read because the run reached a limit mid-pass. Not failures: the pages are on
    *  file and the next run will read them. Distinct so a ceiling never reads as a broken document. */
   leftUnread: number;
+  /** The ids of the left-unread documents, so the caller can mark them queued for the next run. */
+  leftUnreadIds: string[];
   /** One line per document, so a run says what it did rather than only how many. */
   lines: string[];
 }
@@ -168,13 +170,17 @@ export async function reanalyseFiledDocuments(
    *  left unread and said so. Absent means "read everything" — the pre-2026-09-03 behaviour that
    *  kept a 30-minute run alive for 2 h 46 m after its ceiling. */
   mayContinue: () => boolean = () => true,
+  /** Called after a document's text is written, so the caller can summarise it in the same pass —
+   *  the owner's "OCR then produce the summary and results … for every single file". */
+  onRead: (doc: FiledDocument, result: ReadResult) => Promise<void> = async () => {},
 ): Promise<ReanalysisReport> {
-  const report: ReanalysisReport = { considered: docs.length, reanalysed: 0, skipped: 0, failed: 0, leftUnread: 0, lines: [] };
+  const report: ReanalysisReport = { considered: docs.length, reanalysed: 0, skipped: 0, failed: 0, leftUnread: 0, leftUnreadIds: [], lines: [] };
 
   for (const doc of docs) {
     const decision = decideReanalysis(doc);
     if (decision.reanalyse && !mayContinue()) {
       report.leftUnread++;
+      report.leftUnreadIds.push(doc.id);
       const line = `… ${decision.label}: left unread — the run reached a limit you set. The pages are on file.`;
       report.lines.push(line);
       log(line);
@@ -238,6 +244,9 @@ export async function reanalyseFiledDocuments(
       + `(${quality.readability}). ${decision.reason}`;
     report.lines.push(line);
     log(line);
+    // Summarise in the same pass, from the text just written. Never fatal: the read is recorded
+    // whether or not the summary lands.
+    try { await onRead(doc, result); } catch { /* onRead logs its own failure */ }
   }
 
   return report;

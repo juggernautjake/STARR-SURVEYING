@@ -1655,7 +1655,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const ceilingHit = Boolean(finalBudget.exceeded) || Boolean(tailSignal?.aborted);
       const tailLog = (m: string) => handshakeLogger.attempt('[Budget]', 'info', 'Tail', m).warn(m);
       if (ceilingHit) {
-        tailLog('Imagery capture and the document re-read were not attempted — the run reached its ceiling.');
+        // Imagery capture is skipped at the ceiling; the READING pass is NOT — it reads what the
+        // search already bought, bounded by cost rather than the clock. See below.
+        tailLog('Imagery capture was not attempted — the run reached its wall-clock ceiling. The reading of documents already found still runs, under the cost budget.');
       }
 
       // ── IMAGERY, CAD GIS AND DRAWINGS (plan F1–F7) ──────────────────────────────────────
@@ -1715,18 +1717,34 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // bounded by the time the run has left; and it asks the budget between documents and
       // between pages, so a ceiling reached mid-read stops the read rather than the read
       // outliving the run.
-      if (!ceilingHit) {
-        try {
-          const mayContinue = () =>
-            !checkBudget(projectId, spendForRun(projectId)).exceeded && !tailSignal?.aborted;
-          await withRunContext(projectId, () =>
-            withStepDeadline(projectId, 'document re-read', () =>
-              reanalyseProjectDocuments(projectId, (line) => {
-                console.log(`[Re-analysis] ${projectId}: ${line}`);
-              }, mayContinue), undefined, tailLog));
-        } catch (e) {
-          console.warn(`[Re-analysis] ${projectId}: pass threw — ${String(e)}`);
+      // NOT gated on the ceiling. The wall-clock ceiling bounds the SEARCH; it does not cancel the
+      // reading of what the search found. Those pages are bought and stored, and the run's COST
+      // limit — asked between documents and between pages — is what bounds the reading. Runs 4, 5
+      // and 6 (2026-09-04) each hit the ceiling inside Phase 2 and, under the old `!ceilingHit`
+      // gate, read nothing: 60 documents on file, none summarised. The reading pass has its own
+      // allowance (a slice of the ceiling) so it cannot itself run without end.
+      try {
+        const limitMs = checkBudget(projectId, spendForRun(projectId)).limitMs;
+        const { readingAllowanceMs } = await import('./research/reading-pass.js');
+        const allowanceMs = readingAllowanceMs(Number.isFinite(limitMs) ? limitMs : null);
+        const readStartedAt = Date.now();
+        const mayRead = () => {
+          if (Date.now() - readStartedAt > allowanceMs) return false; // the reading pass's own clock
+          if (tailSignal?.aborted && Date.now() - readStartedAt > 45_000) return false;
+          const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
+          return ex !== 'cost' && ex !== 'paid_pages'; // cost stops it; the wall clock does not
+        };
+        const report = await withRunContext(projectId, () =>
+          reanalyseProjectDocuments(projectId, (line) => console.log(`[Reading] ${projectId}: ${line}`), mayRead));
+        if (report) {
+          tailLog(
+            `Reading pass: ${report.reanalysed} document(s) read with the tiled reader` +
+            (report.leftUnread ? `, ${report.leftUnread} queued for the next run` : '') +
+            (report.failed ? `, ${report.failed} could not be read` : '') +
+            ` of ${report.considered} on file.`);
         }
+      } catch (e) {
+        console.warn(`[Reading] ${projectId}: pass threw — ${String(e)}`);
       }
 
       resetFlushClock(projectId);
@@ -2227,6 +2245,25 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
               console.warn(`[Worker] ${projectId}: failed to save analysis_metadata: ${metaErr.message}`);
             } else {
               console.log(`[Worker] ${projectId}: saved analysis_metadata to Supabase`);
+            }
+
+            // ── THE PROPERTY SUMMARY, ON EVERY RUN ─────────────────────────────────────────
+            //
+            // Written AFTER the meta above (which the run's own summary, if any, lands in), so a
+            // richer run-written summary is kept and only a run that produced none gets one built
+            // from the library — every document with text, cited. The owner: "build the analysis
+            // and review and summary builder into the platform so that it will always happen on
+            // any given run." Never fatal.
+            try {
+              const summaryKey = process.env.ANTHROPIC_API_KEY ?? '';
+              if (summaryKey) {
+                const { writeRunSummaryFromLibrary } = await import('./research/reading-pass.js');
+                await withRunContext(projectId, () =>
+                  writeRunSummaryFromLibrary(supabase as never, projectId, summaryKey,
+                    (line) => console.log(`[Summary] ${projectId}: ${line}`)));
+              }
+            } catch (e) {
+              console.warn(`[Summary] ${projectId}: write threw — ${String(e)}`);
             }
           })
           .catch((err: unknown) => {
@@ -4372,11 +4409,11 @@ async function reanalyseProjectDocuments(
   log: (line: string) => void,
   /** The run's budget, asked between documents and between pages. See the tail in property-lookup. */
   mayContinue: () => boolean = () => true,
-): Promise<void> {
+): Promise<import('./research/reanalyze-documents.js').ReanalysisReport | null> {
   const supabase = await getSupabase();
   if (!supabase) {
     log('No Supabase client — nothing could be read back.');
-    return;
+    return null;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
@@ -4387,10 +4424,14 @@ async function reanalyseProjectDocuments(
   if (error) {
     // A failed read is not "nothing to do". Said out loud rather than reported as a clean pass.
     log(`Could not list this project's documents, so none were re-read: ${error.message}`);
-    return;
+    return null;
   }
 
-  const docs = (data ?? []) as FiledDocument[];
+  // Read in a surveyor's order — the subject's deeds, then plats, then easements/restrictions,
+  // then the rest — so a run that runs out of allowance has read what matters most, not whatever
+  // the database returned first.
+  const { orderForReading } = await import('./research/reading-pass.js');
+  const docs = orderForReading((data ?? []) as FiledDocument[]);
   const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
   const { PipelineLogger } = await import('./lib/logger.js');
   const logger = new PipelineLogger(projectId);
@@ -4406,10 +4447,9 @@ async function reanalyseProjectDocuments(
       let confidenceCount = 0;
       const segments: unknown[] = [];
 
-      // Capped at five pages, the same cap the first-pass deed analyser uses. A forty-page
-      // instrument re-read in full would be a surprise on the bill, and the cap is stated rather
-      // than silent.
-      for (const url of pageUrls.slice(0, 5)) {
+      // Every page. The owner asked that the tiled reader see each page of each document; the
+      // cost budget (asked between pages) is what bounds a forty-page instrument, not a fixed cap.
+      for (const url of pageUrls) {
         // Between pages too: one deed page is four-plus Vision calls, and a ceiling reached on
         // page two must not buy pages three, four and five.
         if (!mayContinue()) break;
@@ -4437,9 +4477,25 @@ async function reanalyseProjectDocuments(
     },
     log,
     mayContinue,
+    // Summarise each document from the text just read — the summary and the read are one pass.
+    async (doc, result) => {
+      if (!apiKey) return;
+      const { summariseDocumentText } = await import('./research/reading-pass.js');
+      const summary = await summariseDocumentText(doc, result.text, apiKey).catch(() => null);
+      if (!summary) return;
+      const { error: upErr } = await (supabase as any).from('research_documents')
+        .update({ analysis_metadata: { aiSummary: summary, summarisedAt: new Date().toISOString() }, processing_status: 'analyzed', updated_at: new Date().toISOString() })
+        .eq('id', doc.id);
+      if (upErr) log(`  summary for ${doc.document_label ?? doc.id} not saved: ${upErr.message}`);
+    },
   );
 
   log(describeReanalysis(report));
+  // Mark whatever the allowance did not reach as queued, so the next run reads it first.
+  for (const id of report.leftUnreadIds) {
+    await (supabase as any).from('research_documents').update({ processing_status: 'queued', updated_at: new Date().toISOString() }).eq('id', id).then(() => {}, () => {});
+  }
+  return report;
 }
 
 /** The county's GIS viewer URL, from the registry that already knows it.
