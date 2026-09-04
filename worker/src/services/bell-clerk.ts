@@ -3509,6 +3509,14 @@ export async function searchBellClerkOwnerForPlatDeed(
     await politeGoto(page, searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+    // ...and sometimes longer. On run 4 (2026-09-04) this search for "MILL CREEK SECTION" read
+    // 0 results while the page still said "Loading Results", and the identical search 90 s later
+    // read 48. A fixed wait is a guess; the page says when it is done. Up to 30 s more.
+    for (let waited = 0; waited < 30_000; waited += 1_000) {
+      const stillLoading = await page.evaluate(() => /loading results/i.test(document.body?.innerText ?? '')).catch(() => false);
+      if (!stillLoading) break;
+      await page.waitForTimeout(1_000);
+    }
 
     // Accept any disclaimer dialogs
     try {

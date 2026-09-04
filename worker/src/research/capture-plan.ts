@@ -289,6 +289,10 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
       // Google overlays road and place labels that place the image — cheap to read, and it makes
       // the capture searchable. Worth most on the wide view, where the road names are.
       ocr: band.kind === 'aerial_wide',
+      // So a rendered aerial (imagery tiles + the parcel layer) can outline and name the subject.
+      parcelId: input.parcelId ?? null,
+      acreage: input.acreage ?? null,
+      parcelLayerUrl: (input.parcelLayerUrl ?? '').trim() || undefined,
     });
   }
 

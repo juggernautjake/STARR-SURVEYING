@@ -33,7 +33,7 @@ import type {
 
 import { scrapeBellCad } from './scrapers/cad-scraper.js';
 import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
-import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
+import { scrapeBellClerk, type ClerkDocument as ClerkScrapedDocument } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
 import { assessDegradation } from '../../research/run-degradation.js';
@@ -60,7 +60,7 @@ import { correlateTargetLot, type LotCorrelationInput } from './analyzers/lot-co
 import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
 import { TIMEOUTS } from './config/endpoints.js';
-import { resolveAddressToLot, validateAddressParcelMatch } from '../../services/address-lot-resolver.js';
+import { resolveAddressToLot, validateAddressParcelMatch, preferBetterSitusMatch } from '../../services/address-lot-resolver.js';
 import { getSupabase } from '../../services/pipeline.js';
 import { uploadDocumentIncremental, uploadScreenshotsIncremental, type ArtifactPageImage, type ArtifactScreenshot } from '../../services/artifact-uploader.js';
 import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
@@ -548,6 +548,46 @@ export async function orchestrateBellResearch(
     recordError('Phase 1', 'AddressValidation', w, false);
   }
 
+  // ── ACT ON THE VERDICT ────────────────────────────────────────────────────────────────────
+  //
+  // Run 4 (2026-09-04): the appraisal fallback picked 118937 (1401 Chisholm) from a geocode 170 m
+  // off; GIS matched 9158 (1512 Chisholm) on the address; the validator called the mismatch fatal
+  // twice; and the run researched the neighbour anyway — the neighbour's owner, deed and maps.
+  // When exactly one GIS parcel carries the input's street number and the resolved one does not,
+  // that parcel is the property. Fields that came from the other parcel's appraisal record (lot,
+  // block, legal) are not carried over — they were true of the neighbour.
+  const better = preferBetterSitusMatch(
+    input.address ?? undefined,
+    { propertyId: property.propertyId, situsAddress: property.situsAddress },
+    gisFeatsForMatching,
+  );
+  if (better) {
+    const was = `${property.propertyId || '(none)'} "${property.situsAddress || ''}" ${property.ownerName || ''}`.trim();
+    const f = better.feature;
+    property.propertyId = f.propertyId ?? property.propertyId;
+    property.ownerName = f.ownerName ?? '';
+    property.situsAddress = f.situsAddress ?? property.situsAddress;
+    property.acreage = f.acreage ?? null;
+    property.legalDescription = f.legalDescription ?? '';
+    const lb = parseLotBlock(property.legalDescription);
+    property.lotNumber = lb.lotNumber;
+    property.blockNumber = lb.blockNumber;
+    property.propertyType = undefined;
+    property.mailingAddress = undefined;
+    if (f.propertyId) knownIds.propertyIds.add(f.propertyId);
+    if (f.ownerName) {
+      // The switched-to owner leads the clerk search; the other parcel's owner stays as a lead.
+      const reordered = [f.ownerName, ...knownIds.ownerNames].filter((o, i, a) => a.indexOf(o) === i);
+      knownIds.ownerNames.clear();
+      for (const o of reordered) knownIds.ownerNames.add(o);
+    }
+    knownIds.lotNumber = lb.lotNumber;
+    knownIds.blockNumber = lb.blockNumber;
+    progress('Phase 1',
+      `↪ Switched to parcel ${property.propertyId} "${property.situsAddress}" (${property.ownerName || 'owner unknown'}) — was ${was}. ${better.reason}`, 14);
+    recordError('Phase 1', 'AddressValidation', `Parcel switched to ${property.propertyId} on the address match: ${better.reason}`, true);
+  }
+
   if (!property.propertyId && !property.ownerName) {
     progress('Phase 1', '⚠ WARNING: Could not identify property from CAD or GIS — continuing with limited data', 10);
     progress('Phase 1', '  Possible causes: property not yet in CAD, rural acreage with no situs address, FM road variant mismatch');
@@ -734,6 +774,15 @@ export async function orchestrateBellResearch(
   // A1 — the step that spent 163 minutes and $29.19 on 2026-09-03 with no ceiling consulted.
   const mayClerk = mayStep('clerk deed search');
   let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
+  // ── WHAT THE CLERK STEP CAPTURES IS KEPT EVEN IF THE STEP DOES NOT FINISH ─────────────────
+  //
+  // `withStepDeadline` drops the step's eventual result when the run's time runs out. On run 4
+  // (2026-09-04) that was six plats and five deeds, 48 pages captured and thrown away, while the
+  // scraper's browsers kept downloading for five more minutes with nobody listening. Every
+  // captured document now lands in this sink the moment it exists, and the abort tells the
+  // scraper to start no further captures once the deadline has passed.
+  const clerkAbort = new AbortController();
+  const clerkSink = new Map<string, ClerkScrapedDocument>();
   if (mayClerk) try {
     // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
     // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
@@ -744,6 +793,8 @@ export async function orchestrateBellResearch(
         subdivisionName: uniqueSubdivisions[0] ?? undefined,
         volumePages: uniqueVolPages,
         projectId: input.projectId,
+        signal: clerkAbort.signal,
+        onDocument: (d) => { clerkSink.set(d.instrumentNumber ?? `${d.documentType}:${clerkSink.size}`, d); },
         propertyIdentifiers: {
           abstractNumber: earlyAbstractNumber,
           surveyName: earlySurveyName,
@@ -759,6 +810,30 @@ export async function orchestrateBellResearch(
 
     // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
     // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.
+    if (!clerk) {
+      // The deadline passed: stop the scraper starting anything new, and keep what it captured.
+      clerkAbort.abort();
+      if (clerkSink.size > 0) {
+        const docs = [...clerkSink.values()];
+        const isPlat = (d: ClerkScrapedDocument) => /plat/i.test(d.documentType ?? '');
+        const isDeed = (d: ClerkScrapedDocument) => /deed/i.test(d.documentType ?? '');
+        clerk = {
+          documents: docs,
+          screenshots: [],
+          urlsVisited: [],
+          stats: {
+            instrumentsFound: docs.length,
+            deedsFound: docs.filter(isDeed).length,
+            platsFound: docs.filter(isPlat).length,
+            imagesCaptured: docs.reduce((n, d) => n + d.pageImages.length, 0),
+            searchPaths: ['partial — stopped at the run ceiling'],
+          },
+        };
+        progress('Phase 2',
+          `2A stopped at the run's ceiling with ${docs.length} document(s) already captured ` +
+          `(${clerk.stats.platsFound} plat(s), ${clerk.stats.deedsFound} deed(s), ${clerk.stats.imagesCaptured} page(s)) — kept, not discarded.`, 42);
+      }
+    }
     if (!clerk) {
       progress('Phase 2', '2A produced no result — the clerk search did not finish in the time the run had left.', 42);
     } else {
@@ -2155,6 +2230,20 @@ async function geocodeAddress(
 }
 
 // ── Internal: Property Resolution ────────────────────────────────────
+
+/** Lot and block out of a legal description, in the three forms the appraisal district writes. */
+export function parseLotBlock(legalDesc: string | null | undefined): { lotNumber: string | null; blockNumber: string | null } {
+  const desc = (legalDesc ?? '').toUpperCase();
+  if (!desc) return { lotNumber: null, blockNumber: null };
+  const blockFirst = desc.match(/BLOCK\s+([\dA-Z]+)[,\s]+LOT\s+([\dA-Z]+)/);
+  if (blockFirst) return { blockNumber: blockFirst[1], lotNumber: blockFirst[2] };
+  const lotFirst = desc.match(/LOT\s+([\dA-Z]+)[,\s]+(?:BLK|BLOCK)\s+([\dA-Z]+)/);
+  if (lotFirst) return { lotNumber: lotFirst[1], blockNumber: lotFirst[2] };
+  return {
+    lotNumber: desc.match(/\bLOT\s+([\dA-Z]+)/)?.[1] ?? null,
+    blockNumber: desc.match(/\bBLOCK\s+([\dA-Z]+)/)?.[1] ?? null,
+  };
+}
 
 function resolveProperty(
   cad: Awaited<ReturnType<typeof scrapeBellCad>> | null,

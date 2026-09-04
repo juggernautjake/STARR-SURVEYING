@@ -136,6 +136,12 @@ export interface ClerkSearchInput {
    * when we only need to fetch specific instrument numbers.
    */
   skipOwnerSearch?: boolean;
+  /** Aborted by the caller when the run's time is up: no further page captures are started.
+   *  Run 4 (2026-09-04) kept launching browsers for five minutes after the run had ended. */
+  signal?: AbortSignal;
+  /** Called the moment a document is captured, so a caller whose deadline expires mid-search
+   *  keeps what was captured (six plats and five deeds were discarded at the ceiling on run 4). */
+  onDocument?: (doc: ClerkDocument) => void;
 }
 
 export interface ClerkScraperProgress {
@@ -181,6 +187,7 @@ export async function scrapeBellClerk(
     );
     if (!existing) {
       documents.push(doc);
+      input.onDocument?.(doc);
       return true;
     }
     // Merge: append any page images not already present in the existing record
@@ -284,6 +291,7 @@ export async function scrapeBellClerk(
       urlsVisited,
       progress,
       input.projectId,
+      { signal: input.signal, onDocument: input.onDocument },
     );
 
     let newCount = 0;
@@ -650,8 +658,15 @@ async function searchClerkBySubdivision(
   urlsVisited: string[],
   progress: (msg: string) => void,
   projectId?: string,
+  opts: { signal?: AbortSignal; onDocument?: (doc: ClerkDocument) => void } = {},
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
+  /** Push AND hand to the caller now — the caller's deadline may expire before this returns. */
+  const file = (doc: ClerkDocument) => { documents.push(doc); opts.onDocument?.(doc); };
+  /** Before every page capture: the run's time may have run out while the previous one ran. */
+  const stillAllowed = (what: string) => {
+    if (opts.signal?.aborted) throw new Error(`${what} not started — the run's time ran out`);
+  };
 
   progress(`  [subdivSearch] Starting subdivision search for "${subdivisionName}"`);
   console.log(`[ClerkScraper] searchClerkBySubdivision: subdiv="${subdivisionName}"`);
@@ -704,6 +719,7 @@ async function searchClerkBySubdivision(
     const platCaptures = await captureInstruments(
       captureImages ? platInstruments : [],
       async (instrNum) => {
+        stillAllowed(`plat ${instrNum}`);
         progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
         const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
@@ -722,7 +738,7 @@ async function searchClerkBySubdivision(
       }
       // Get metadata from allDocuments if available
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
-      documents.push({
+      file({
         instrumentNumber: instrNum,
         volume: ref?.volume ?? null,
         page: ref?.page ?? null,
@@ -755,6 +771,7 @@ async function searchClerkBySubdivision(
     const deedCaptures = await captureInstruments(
       captureImages ? deedInstruments : [],
       async (instrNum) => {
+        stillAllowed(`deed ${instrNum}`);
         progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
         const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
@@ -772,7 +789,7 @@ async function searchClerkBySubdivision(
         console.error(`[ClerkScraper] Subdivision deed ${instrNum}: image error: ${capErr}`);
       }
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
-      documents.push({
+      file({
         instrumentNumber: instrNum,
         volume: ref?.volume ?? null,
         page: ref?.page ?? null,
@@ -802,9 +819,33 @@ async function searchClerkBySubdivision(
     // Errors stay per-document: a failure is recorded against its instrument and the other
     // captures continue, exactly as the per-item try/catch did before. Promise.all would have
     // turned one unreachable document into zero documents.
+    // ── ONLY THE "OTHER" DOCUMENTS THAT ARE ABOUT THE LAND ─────────────────────────────────
+    //
+    // A subdivision search returns everything ever filed against the subdivision's name. On run 4
+    // that was 37 "other" documents — mechanic's liens, releases, partial releases — for a whole
+    // neighbourhood, downloaded at 30–80 s each ahead of the subject's own deed search, until the
+    // ceiling fell. A lien is about money owed on someone else's lot; it cannot move a boundary.
+    // Easements, rights of way, restrictions, dedications, replats and amendments can, and those
+    // are kept. What is skipped is named in the log, so nobody mistakes "not downloaded" for
+    // "not on record".
+    const isAboutTheLand = (type: string) =>
+      /EASEMENT|RIGHT[\s-]*OF[\s-]*WAY|R\.?O\.?W\.?|RESTRICT|COVENANT|DEDICAT|REPLAT|PLAT|VACAT|AMEND|BOUNDARY|SURVEY|AGREEMENT|ABANDON/i.test(type) &&
+      !/LIEN|RELEASE|DEED OF TRUST|ASSIGNMENT|UCC|MECHANIC/i.test(type);
+    const typeOf = (instrNum: string) => allDocuments.find(d => d.instrumentNumber === instrNum)?.documentType ?? 'OTHER';
+    const landOthers = otherInstruments.filter((n) => isAboutTheLand(typeOf(n))).slice(0, 8);
+    const skippedOthers = otherInstruments.filter((n) => !landOthers.includes(n));
+    if (skippedOthers.length > 0) {
+      const byType = new Map<string, number>();
+      for (const n of skippedOthers) byType.set(typeOf(n), (byType.get(typeOf(n)) ?? 0) + 1);
+      progress(
+        `  [subdivSearch] ${skippedOthers.length} subdivision document(s) indexed but not downloaded — ` +
+        `about money or another lot, not the land: ${[...byType].map(([t, c]) => `${t} ×${c}`).join(', ')}`,
+      );
+    }
     const otherCaptures = await captureInstruments(
-      captureImages ? otherInstruments : [],
+      captureImages ? landOthers : [],
       async (instrNum) => {
+        stillAllowed(`document ${instrNum}`);
         const oref = allDocuments.find(d => d.instrumentNumber === instrNum);
         const otherDocType = oref?.documentType ?? 'Other Document';
         progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
@@ -816,7 +857,7 @@ async function searchClerkBySubdivision(
       },
     );
 
-    for (const [idx, instrNum] of otherInstruments.entries()) {
+    for (const [idx, instrNum] of landOthers.entries()) {
       const pageImages = captureImages ? (otherCaptures.images[idx] ?? []) : [];
       const capErr = otherCaptures.errors[idx];
       if (capErr) {
@@ -824,7 +865,7 @@ async function searchClerkBySubdivision(
         console.error(`[ClerkScraper] Subdivision other ${instrNum}: image error: ${capErr}`);
       }
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
-      documents.push({
+      file({
         instrumentNumber: instrNum,
         volume: ref?.volume ?? null,
         page: ref?.page ?? null,

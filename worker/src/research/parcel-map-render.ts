@@ -41,8 +41,16 @@ export interface RenderParcelMapInput {
   parcelId: string | null;
   centre: LonLat;
   acreage?: number | null;
-  /** ArcGIS FeatureServer/MapServer LAYER url, e.g. …/BellCADWebService/FeatureServer/0 */
-  parcelLayerUrl: string;
+  /** ArcGIS FeatureServer/MapServer LAYER url, e.g. …/BellCADWebService/FeatureServer/0.
+   *  Optional: without it the map is imagery only (an aerial for a county with no layer). */
+  parcelLayerUrl?: string | null;
+  /** Frame the map to this half-width in metres around the centre instead of around the subject
+   *  polygon — how the three aerial bands (wide / subject / close) ask for their scale. */
+  halfWidthMetres?: number;
+  /** Title strip override, e.g. "Aerial — wide, parcel in context". */
+  title?: string;
+  /** Label the neighbours too (default true). Off for a wide aerial, where labels would carpet it. */
+  labelNeighbours?: boolean;
   /** Output edge, px. Square. 2048 keeps Esri's export inside its 4096 ceiling with room. */
   sizePx?: number;
   fetchImpl?: typeof fetch;
@@ -93,6 +101,13 @@ export interface Frame {
 /** The subject fills roughly 45% of the frame; the rest is the neighbours a boundary question
  *  is about. Square, north-up, never smaller than 120 m across — a quarter-acre lot at less than
  *  that is a photo of a roof. */
+/** A frame of a given half-width around a centre — the aerial bands' way of asking for a scale. */
+export function frameFromHalfWidth(centre: LonLat, halfWidthMetres: number, sizePx: number): Frame {
+  const m = toMercator(centre);
+  const half = Math.max(60, halfWidthMetres);
+  return { xmin: m.x - half, ymin: m.y - half, xmax: m.x + half, ymax: m.y + half, sizePx, metresPerPixel: (half * 2) / sizePx };
+}
+
 export function frameFor(subjectRings: number[][][] | null, centre: LonLat, acreage: number | null | undefined, sizePx: number): Frame {
   let cx: number, cy: number, half: number;
   if (subjectRings && subjectRings.length > 0 && subjectRings[0].length >= 3) {
@@ -323,7 +338,9 @@ export function renderOverlaySvg(
   subjectId: string | null,
   title: string,
   attribution: string,
+  opts: { labelNeighbours?: boolean } = {},
 ): string {
+  const labelNeighbours = opts.labelNeighbours !== false;
   const S = f.sizePx;
   const font = Math.max(14, Math.round(S / 90));
   const parts: string[] = [];
@@ -346,6 +363,7 @@ export function renderOverlaySvg(
     const c = centroid(p.rings[0]);
     const { px, py } = toPixel(f, c.lon, c.lat);
     if (px < 0 || py < 0 || px > S || py > S) continue;
+    if (!subject && !labelNeighbours) continue;
     const line1 = p.propId ? `#${p.propId}` : '';
     const line2 = p.situs ?? (p.owner ? p.owner.split(',')[0] : '');
     const size = subject ? font * 1.35 : font;
@@ -403,19 +421,26 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
   const sizePx = input.sizePx ?? 2048;
   const now = input.now ?? new Date();
 
+  const layer = (input.parcelLayerUrl ?? '').trim() || null;
+  const fixedFrame = input.halfWidthMetres != null ? frameFromHalfWidth(input.centre, input.halfWidthMetres, sizePx) : null;
+
   // Pass 1: a frame from what we know, to find the subject polygon.
-  const seed = frameFor(null, input.centre, input.acreage ?? null, sizePx);
-  const seedQuery = parcelQueryUrl(input.parcelLayerUrl, seed);
-  const seedRes = await doFetch(seedQuery, { signal: AbortSignal.timeout(25_000) });
-  if (!seedRes.ok) throw new Error(`parcel layer answered HTTP ${seedRes.status}`);
-  let parcels = parseParcelFeatures(await seedRes.json());
+  const seed = fixedFrame ?? frameFor(null, input.centre, input.acreage ?? null, sizePx);
+  let parcels: ParcelFeature[] = [];
+  let queryUrl = '';
+  if (layer) {
+    queryUrl = parcelQueryUrl(layer, seed);
+    const seedRes = await doFetch(queryUrl, { signal: AbortSignal.timeout(25_000) });
+    if (!seedRes.ok) throw new Error(`parcel layer answered HTTP ${seedRes.status}`);
+    parcels = parseParcelFeatures(await seedRes.json());
+  }
   const subject = input.parcelId ? parcels.find((p) => p.propId != null && String(p.propId) === String(input.parcelId)) ?? null : null;
 
-  // Pass 2: reframe on the subject polygon and fetch what that frame holds.
-  const frame = frameFor(subject?.rings ?? null, input.centre, input.acreage ?? null, sizePx);
-  let queryUrl = seedQuery;
-  if (subject) {
-    queryUrl = parcelQueryUrl(input.parcelLayerUrl, frame);
+  // Pass 2: reframe on the subject polygon (unless the caller fixed the frame) and fetch what
+  // that frame holds.
+  const frame = fixedFrame ?? frameFor(subject?.rings ?? null, input.centre, input.acreage ?? null, sizePx);
+  if (layer && subject && !fixedFrame) {
+    queryUrl = parcelQueryUrl(layer, frame);
     const res = await doFetch(queryUrl, { signal: AbortSignal.timeout(25_000) });
     if (res.ok) parcels = parseParcelFeatures(await res.json());
   }
@@ -427,9 +452,9 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
   const subjectLabel = subject
     ? `#${subject.propId}${subject.situs ? ` · ${subject.situs}` : ''}${subject.acreage != null ? ` · ${subject.acreage} ac` : ''}`
     : `#${input.parcelId ?? '?'} (polygon not matched — centred on run coordinates)`;
-  const title = `${input.county} CAD parcels — ${subjectLabel}`;
-  const attribution = `Parcels: county appraisal district GIS layer · Imagery: Esri World Imagery · rendered ${now.toISOString().slice(0, 16).replace('T', ' ')}Z · ${frame.metresPerPixel.toFixed(2)} m/px`;
-  const svg = renderOverlaySvg(frame, parcels, input.parcelId, title, attribution);
+  const title = input.title ?? `${input.county} CAD parcels — ${subjectLabel}`;
+  const attribution = `${layer ? 'Parcels: county appraisal district GIS layer · ' : ''}Imagery: Esri World Imagery · rendered ${now.toISOString().slice(0, 16).replace('T', ' ')}Z · ${frame.metresPerPixel.toFixed(2)} m/px`;
+  const svg = renderOverlaySvg(frame, parcels, input.parcelId, title, attribution, { labelNeighbours: input.labelNeighbours !== false });
 
   const { default: sharp } = await import('sharp');
   const png = await sharp(basemap)

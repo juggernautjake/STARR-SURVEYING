@@ -4048,6 +4048,7 @@ async function runCapturePlan(
   const supabase = await getSupabase();
   if (!supabase) return;
   const county = activePipelines.get(projectId)?.county ?? '';
+  const capLog = await captureLoggerFor(projectId);
   const report = await runCaptures(plan, {
     // Playwright, through the same browser factory every scraper uses — so a capture inherits the
     // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
@@ -4067,18 +4068,46 @@ async function runCapturePlan(
             county, parcelId: item.parcelId ?? null, centre: item.centre,
             acreage: item.acreage ?? null, parcelLayerUrl: item.parcelLayerUrl,
           });
-          console.log(
-            `[Capture] ${projectId}: CAD map rendered from the parcel layer — ${map.parcelCount} parcel(s), ` +
+          capLog('info',
+            `${item.label}: rendered from the parcel layer — ${map.parcelCount} parcel(s), ` +
             `subject ${map.subjectFound ? 'matched' : 'NOT matched'}, ${map.metresPerPixel.toFixed(2)} m/px`,
           );
           return { bytes: map.png, width: map.width, height: map.height, text: map.text };
         } catch (e) {
-          console.warn(`[Capture] ${projectId}: CAD map render failed (${String(e)}) — falling back to the viewer screenshot.`);
+          capLog('warn', `${item.label}: render from the parcel layer failed (${String(e)}) — falling back to the viewer screenshot.`);
         }
+      }
+      // ── THE AERIALS ARE RENDERED TOO ──────────────────────────────────────────────────────
+      //
+      // This project holds two captured images after four runs, both the GIS map: not one
+      // aerial was ever filed, and no line in the run log said why — the Google Maps screenshot
+      // path failed silently. Esri's imagery tiles are the same satellite photography without a
+      // consent page, a viewport of chrome or a selector, so the wide, subject and adjoiner bands
+      // are rendered from them with the parcel outline drawn on. The close band wants finer
+      // pixels than the tile cache serves here (~0.26 m/px), so it still tries Google first and
+      // falls back to tiles rather than to nothing.
+      const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_neighbours']);
+      const renderAerial = async (why: string) => {
+        const { renderParcelMap } = await import('./research/parcel-map-render.js');
+        const sizePx = 1600;
+        const mpp = item.metresPerPixel ?? 0.3;
+        const map = await renderParcelMap({
+          county, parcelId: item.parcelId ?? null, centre: item.centre!,
+          parcelLayerUrl: item.parcelLayerUrl ?? parcelLayerUrlFor(county), halfWidthMetres: (mpp * sizePx) / 2, sizePx,
+          title: item.label, labelNeighbours: item.kind !== 'aerial_wide',
+        });
+        capLog('info', `${item.label}: rendered from imagery tiles (${why}) — ${map.metresPerPixel.toFixed(2)} m/px, ${map.parcelCount} parcel outline(s)`);
+        return { bytes: map.png, width: map.width, height: map.height, text: map.text };
+      };
+      const tilesAreSharpEnough = (item.metresPerPixel ?? 0) >= 0.2;
+      if (AERIAL.has(item.kind) && item.centre && tilesAreSharpEnough) {
+        try { return await renderAerial('tile cache is at least this sharp'); }
+        catch (e) { capLog('warn', `${item.label}: tile render failed (${String(e)}) — trying the map provider.`); }
       }
       if (!item.url) return null;
       const { withBrowser } = await import('./lib/browser-factory.js');
-      return withBrowser({ adapterId: 'cad' }, async (session) => {
+      try {
+      return await withBrowser({ adapterId: 'cad' }, async (session) => {
         // `browser`, not `context`: BrowserSession hands back the Playwright Browser and leaves
         // context creation to the caller, so a capture gets its own isolated context rather than
         // inheriting cookies from whatever scraper ran last. deviceScaleFactor 2: the labels on a
@@ -4090,12 +4119,11 @@ async function runCapturePlan(
           // Map tiles load after networkidle fires. A fixed settle beats a selector here because
           // the providers differ and a missing selector would silently produce a grey square.
           await page.waitForTimeout(4_000);
-          if (item.kind === 'cad_gis') {
-            // The disclaimer modal was IN the screenshot before. Same dismisser the guided flow uses.
-            const { dismissDialogs } = await import('./counties/bell/scrapers/map-screenshot-capture.js');
-            await dismissDialogs(page).catch(() => {});
-            await page.waitForTimeout(1_500);
-          }
+          // The disclaimer modal was IN the GIS screenshot before, and Google's consent page is
+          // the same failure. Same dismisser the guided flow uses, for every provider.
+          const { dismissDialogs } = await import('./counties/bell/scrapers/map-screenshot-capture.js');
+          await dismissDialogs(page).catch(() => {});
+          await page.waitForTimeout(1_500);
           const bytes = await page.screenshot({ type: 'png' });
           return { bytes: Buffer.from(bytes) };
         } finally {
@@ -4103,6 +4131,14 @@ async function runCapturePlan(
           await context.close().catch(() => {});
         }
       });
+      } catch (e) {
+        capLog('warn', `${item.label}: the map provider could not be captured (${String(e)})`);
+        if (AERIAL.has(item.kind) && item.centre) {
+          try { return await renderAerial('provider failed'); }
+          catch (e2) { capLog('warn', `${item.label}: tile render failed too (${String(e2)})`); }
+        }
+        return null;
+      }
     },
     // A lot number, a scale bar or a subdivision name inside a map image is TEXT. Left as pixels
     // it is invisible to every search and every later question.
@@ -4125,13 +4161,28 @@ async function runCapturePlan(
     },
     store: (item, bytes) => storeCaptureImage(supabase as never, projectId, item.key, bytes),
     file: (row) => fileCaptureRow(supabase as never, projectId, row),
-    log: (level, message) => (level === 'warn' ? console.warn(message) : console.log(message)),
+    log: capLog,
   }, { projectId, runId: activePipelines.get(projectId)?.runId ?? null, county });
 
-  console.log(`[Capture] ${projectId}: ${report.summary}`);
+  capLog('info', report.summary);
   for (const o of report.outcomes) {
-    if (o.status !== 'filed') console.log(`[Capture] ${projectId}: ${o.label} — ${o.status}: ${o.detail}`);
+    capLog(o.status === 'filed' || o.status === 'already-held' ? 'info' : 'warn', `${o.label} — ${o.status}: ${o.detail}`);
   }
+}
+
+/** The capture stage's log line goes to the console AND the run's own log. Four runs of captures
+ *  left no trace in the run log because these went to the console only, so "no aerial was ever
+ *  filed" had to be discovered from the library instead of read from the run. */
+async function captureLoggerFor(projectId: string): Promise<(level: 'info' | 'warn', message: string) => void> {
+  const { PipelineLogger } = await import('./lib/logger.js');
+  const runLog = new PipelineLogger(projectId);
+  return (level, message) => {
+    const line = `[Capture] ${projectId}: ${message}`;
+    if (level === 'warn') console.warn(line); else console.log(line);
+    try {
+      if (level === 'warn') runLog.warn('Capture', message); else runLog.info('Capture', message);
+    } catch { /* the run log is a courtesy; the capture is the work */ }
+  };
 }
 
 /** Every document a run retrieved, in the one shape the drawing hunt needs.

@@ -455,3 +455,51 @@ export function validateAddressParcelMatch(
 
   return warnings;
 }
+
+// ── ACTING ON THE VERDICT ───────────────────────────────────────────────────────────────────────
+//
+// `validateAddressParcelMatch` has said, run after run, "GIS feature 9158 has situs '1512
+// CHISHOLM' which matches the input street number better than the resolved property" — and the
+// orchestrator logged it as a fatal validation error and researched the other parcel anyway. On
+// 2026-09-04 run 4 identified 118937 (1401 Chisholm, the neighbour), searched the neighbour's
+// owner, captured the neighbour's deed, and centred every map on it. A verdict nobody acts on is
+// a comment.
+//
+// This is the decision the verdict implies, as a pure function the orchestrator applies: when the
+// resolved situs does not match the input (or is absent) and EXACTLY ONE GIS feature carries the
+// input's street number, that feature is the parcel. Two features with the number (a duplex, a
+// split lot) is a question for a person, not a coin flip, so it returns null and the warning stands.
+
+export interface BetterSitusMatch {
+  feature: GisFeatureForMatching;
+  reason: string;
+}
+
+export function preferBetterSitusMatch(
+  inputAddress: string | undefined,
+  resolved: { propertyId: string | null | undefined; situsAddress: string | null | undefined },
+  gisFeatures: GisFeatureForMatching[],
+): BetterSitusMatch | null {
+  if (!inputAddress) return null;
+  const inputNum = extractStreetNumber(inputAddress);
+  if (!inputNum) return null;
+
+  const resolvedScore = resolved.situsAddress ? scoreAddressMatch(inputAddress, resolved.situsAddress) : 0;
+  if (resolvedScore >= 50) return null; // the resolved parcel already matches the address
+
+  const candidates = gisFeatures.filter((f) => {
+    if (!f.propertyId || !f.situsAddress) return false;
+    if (f.propertyId === resolved.propertyId) return false;
+    return extractStreetNumber(f.situsAddress) === inputNum;
+  });
+  if (candidates.length !== 1) return null;
+
+  const feature = candidates[0];
+  return {
+    feature,
+    reason:
+      `Resolved parcel ${resolved.propertyId ?? '(none)'} has situs "${resolved.situsAddress ?? '(none)'}" ` +
+      `(match ${resolvedScore}/100 against "${inputAddress}"); GIS parcel ${feature.propertyId} has situs ` +
+      `"${feature.situsAddress}" with the input's street number ${inputNum} and is the only parcel that does.`,
+  };
+}

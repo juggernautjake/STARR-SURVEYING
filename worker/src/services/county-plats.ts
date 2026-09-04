@@ -71,6 +71,40 @@ export interface PlatRepoConfig {
 /** Shared browser User-Agent used for all plat repository HTTP requests. */
 const PLAT_BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
 
+// ── A HOST THAT REFUSES THIS SERVER IS ASKED ONCE ───────────────────────────────────────────────
+//
+// bellcountytx.com answers HTTP 403 to EVERY request from the worker's address (152.53.48.240 on
+// 2026-09-04: the index page, every PDF path, with or without a browser User-Agent), while the
+// same URLs answer 302/200 from an office connection. That is an IP block, not a missing file. Run
+// 4 asked six times (five name variants and the index) and recorded six errors. Now the first 403
+// marks the host refused for the rest of the hour and the rest of the layers say so in one line.
+// The clerk's own plat search is unaffected and remains the primary road to the plat.
+
+const HOST_REFUSED_FOR_MS = 60 * 60 * 1000;
+const refusedHosts = new Map<string, number>();
+
+export function noteHostRefused(url: string, displayName: string, now = Date.now()): void {
+  try {
+    const host = new URL(url).host;
+    if (!refusedHosts.has(host)) {
+      console.warn(`[county-plats] ${displayName} (${host}) refuses this server — HTTP 403. Not asked again for an hour; the clerk's plat search still runs.`);
+    }
+    refusedHosts.set(host, now + HOST_REFUSED_FOR_MS);
+  } catch { /* not a URL */ }
+}
+
+export function hostRefused(url: string, now = Date.now()): boolean {
+  try {
+    const until = refusedHosts.get(new URL(url).host);
+    if (until == null) return false;
+    if (until <= now) { refusedHosts.delete(new URL(url).host); return false; }
+    return true;
+  } catch { return false; }
+}
+
+/** For tests. */
+export function _resetRefusedHosts(): void { refusedHosts.clear(); }
+
 /**
  * Registry of counties that host a free plat file repository.
  * Key: lowercase county name (matches pipeline input.county).
@@ -305,12 +339,17 @@ async function fetchPlatIndex(
       'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
       ...config.indexHeaders,
     };
+    if (hostRefused(url)) {
+      tracker({ status: 'fail', error: 'skipped — the repository refused this server (HTTP 403) earlier this hour' });
+      return null;
+    }
     const response = await fetch(url, {
       headers,
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
-      tracker({ status: 'fail', error: `HTTP ${response.status}` });
+      if (response.status === 403) noteHostRefused(url, config.countyDisplayName);
+      tracker({ status: 'fail', error: response.status === 403 ? 'HTTP 403 — the repository refuses this server' : `HTTP ${response.status}` });
       return null;
     }
     const html = await response.text();
@@ -835,12 +874,17 @@ async function downloadPlatFile(
       'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
       ...config.fileHeaders,
     };
+    if (hostRefused(fileUrl)) {
+      tracker({ status: 'fail', error: 'skipped — the repository refused this server (HTTP 403) earlier this hour' });
+      return null;
+    }
     const response = await fetch(fileUrl, {
       headers,
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      tracker({ status: 'fail', error: `HTTP ${response.status}` });
+      if (response.status === 403) noteHostRefused(fileUrl, config.countyDisplayName);
+      tracker({ status: 'fail', error: response.status === 403 ? 'HTTP 403 — the repository refuses this server' : `HTTP ${response.status}` });
       return null;
     }
     const buffer = await response.arrayBuffer();
