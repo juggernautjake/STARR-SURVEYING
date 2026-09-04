@@ -18,6 +18,7 @@
 
 import type { PipelineLogger } from '../lib/logger.js';
 import { lookupByCounty } from '../research/county-key.js';
+import { detectCaptcha, describeCaptcha } from '../research/captcha-signatures.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -459,6 +460,13 @@ async function fetchPlatIndex(
       });
       if (response.ok) {
         const html = await response.text();
+        // B6: a captcha page answers 200 with real HTML and then parses to zero links — say so.
+        const captcha = detectCaptcha(html);
+        if (captcha.present) {
+          logger.warn('Stage2A', `${config.countyDisplayName} index /${letter}: ${describeCaptcha(captcha)}`);
+          tracker({ status: 'fail', error: `captcha in the way — ${captcha.kind}` });
+          return null;
+        }
         tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes` });
         return html;
       }
@@ -473,6 +481,12 @@ async function fetchPlatIndex(
     const alt = await fetchThroughBrowser(url, headers);
     if (alt && alt.status < 400) {
       const html = alt.body.toString('utf8');
+      const captcha = detectCaptcha(html);
+      if (captcha.present) {
+        logger.warn('Stage2A', `${config.countyDisplayName} index /${letter} (browser route): ${describeCaptcha(captcha)}`);
+        tracker({ status: 'fail', error: `captcha in the way via the browser route — ${captcha.kind}` });
+        return null;
+      }
       tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes via browser route` });
       return html;
     }
