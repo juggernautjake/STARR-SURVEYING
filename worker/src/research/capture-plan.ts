@@ -92,8 +92,13 @@ export interface PlannedCaptureItem {
   /** For a historical aerial. */
   targetYear?: number;
   /** True when the capture should be OCR'd after it is taken — a legend, a scale bar or a lot
-   *  number inside a map image is text, and leaving it as pixels makes it unsearchable. */
+   *  number inside a map image is text, and leaving it as pixels makes it unsearchable. A capture
+   *  that supplies its own text (a rendered parcel map) is not OCR'd even when this is true. */
   ocr: boolean;
+  /** For `cad_gis`: the parcel layer to render from, and the parcel to frame on. */
+  parcelLayerUrl?: string;
+  parcelId?: string | null;
+  acreage?: number | null;
 }
 
 export interface SkippedCaptureItem {
@@ -122,6 +127,10 @@ export interface CapturePlanInput {
   parcelId?: string | null;
   /** The county's GIS viewer, from `BIS_CONFIGS[county].gisBaseUrl`. 19 counties have one. */
   gisBaseUrl?: string | null;
+  /** The county's parcel FeatureServer layer, from `BIS_CONFIGS[county].gisParcelLayerUrls[0]`.
+   *  When present the CAD map is RENDERED from it (see research/parcel-map-render.ts) rather than
+   *  screenshotted from the viewer — no popup, no captcha, no selector, and the labels are ours. */
+  parcelLayerUrl?: string | null;
   /** Date of the deed being retraced, for choosing a historical aerial. */
   controllingDeedDate?: string | null;
   frontages?: RoadFrontage[];
@@ -420,13 +429,14 @@ function planCadGis(
   refresh: boolean,
 ): { capture?: PlannedCaptureItem; skip?: SkippedCaptureItem } {
   const base = (input.gisBaseUrl ?? '').trim();
-  if (!base) {
+  const layer = (input.parcelLayerUrl ?? '').trim();
+  if (!base && !layer) {
     return {
       skip: {
         kind: 'cad_gis',
         reason:
-          `No GIS viewer URL is registered for ${input.county || 'this county'}, so its CAD map ` +
-          'was not captured. 19 counties carry one in BIS_CONFIGS; adding this county there is all ' +
+          `No GIS viewer URL or parcel layer is registered for ${input.county || 'this county'}, so its CAD map ` +
+          'was not captured. 19 counties carry a viewer in BIS_CONFIGS; adding this county there is all ' +
           'that is required. This is a coverage gap in our registry, not a county without a map.',
       },
     };
@@ -454,13 +464,23 @@ function planCadGis(
         'The parcel as the appraisal district itself draws it, with its lot lines, dimensions and ' +
         'labels. This is the map a reviewer compares a survey against.',
       // The viewer takes a property id in its query string; without one it still opens on the
-      // county, which is worth having and is stated as such rather than skipped.
-      url: input.parcelId
-        ? `${stripTrailingSlash(base)}/?PropertyID=${encodeURIComponent(input.parcelId)}`
-        : stripTrailingSlash(base),
+      // county, which is worth having and is stated as such rather than skipped. Absent when the
+      // county has a parcel layer but no viewer — the map is rendered, not photographed.
+      url: base
+        ? (input.parcelId
+          ? `${stripTrailingSlash(base)}/?PropertyID=${encodeURIComponent(input.parcelId)}`
+          : stripTrailingSlash(base))
+        : undefined,
       // The whole point of this capture is the text on it — lot numbers, dimensions, a scale bar.
       // Leaving that as pixels makes the one searchable thing in the packet unsearchable.
       ocr: true,
+      // What the renderer needs. The runner tries the render first and falls back to the viewer.
+      parcelLayerUrl: layer || undefined,
+      parcelId: input.parcelId ?? null,
+      acreage: input.acreage ?? null,
+      centre: Number.isFinite(Number(input.latitude)) && Number.isFinite(Number(input.longitude))
+        ? { lat: Number(input.latitude), lon: Number(input.longitude) }
+        : undefined,
     },
   };
 }

@@ -4052,19 +4052,50 @@ async function runCapturePlan(
     // Playwright, through the same browser factory every scraper uses — so a capture inherits the
     // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
     screenshot: async (item) => {
+      // ── THE CAD MAP IS DRAWN, NOT PHOTOGRAPHED ─────────────────────────────────────────────
+      //
+      // The viewer screenshot below was the whole of the "County GIS map" capture: a bare goto,
+      // a four-second wait, 1440×900 with the disclaimer modal in it and 6 px labels that every
+      // OCR grid option called TOO SMALL (run 4, 2026-09-04, 20 Vision calls for nothing). When
+      // the county has a parcel layer, the map is rendered from it and from Esri imagery for the
+      // same box, with labels we typed — so the row gets its text without OCR and no popup,
+      // captcha or selector can stand in the way. The viewer remains the fallback.
+      if (item.kind === 'cad_gis' && item.parcelLayerUrl && item.centre) {
+        try {
+          const { renderParcelMap } = await import('./research/parcel-map-render.js');
+          const map = await renderParcelMap({
+            county, parcelId: item.parcelId ?? null, centre: item.centre,
+            acreage: item.acreage ?? null, parcelLayerUrl: item.parcelLayerUrl,
+          });
+          console.log(
+            `[Capture] ${projectId}: CAD map rendered from the parcel layer — ${map.parcelCount} parcel(s), ` +
+            `subject ${map.subjectFound ? 'matched' : 'NOT matched'}, ${map.metresPerPixel.toFixed(2)} m/px`,
+          );
+          return { bytes: map.png, width: map.width, height: map.height, text: map.text };
+        } catch (e) {
+          console.warn(`[Capture] ${projectId}: CAD map render failed (${String(e)}) — falling back to the viewer screenshot.`);
+        }
+      }
       if (!item.url) return null;
       const { withBrowser } = await import('./lib/browser-factory.js');
       return withBrowser({ adapterId: 'cad' }, async (session) => {
         // `browser`, not `context`: BrowserSession hands back the Playwright Browser and leaves
         // context creation to the caller, so a capture gets its own isolated context rather than
-        // inheriting cookies from whatever scraper ran last.
-        const context = await session.browser.newContext({ viewport: { width: 1440, height: 900 } });
+        // inheriting cookies from whatever scraper ran last. deviceScaleFactor 2: the labels on a
+        // 1440×900 viewer were 6 px; doubled they are legible.
+        const context = await session.browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
         const page = await context.newPage();
         try {
           await page.goto(item.url!, { waitUntil: 'networkidle', timeout: 45_000 });
           // Map tiles load after networkidle fires. A fixed settle beats a selector here because
           // the providers differ and a missing selector would silently produce a grey square.
           await page.waitForTimeout(4_000);
+          if (item.kind === 'cad_gis') {
+            // The disclaimer modal was IN the screenshot before. Same dismisser the guided flow uses.
+            const { dismissDialogs } = await import('./counties/bell/scrapers/map-screenshot-capture.js');
+            await dismissDialogs(page).catch(() => {});
+            await page.waitForTimeout(1_500);
+          }
           const bytes = await page.screenshot({ type: 'png' });
           return { bytes: Buffer.from(bytes) };
         } finally {
@@ -4160,6 +4191,7 @@ function capturePlanInputFromIdentified(
     acreage: p.acreage,
     parcelId: p.propertyId,
     gisBaseUrl: gisBaseUrlFor(county),
+    parcelLayerUrl: parcelLayerUrlFor(county),
     controllingDeedDate: p.controllingDeedDate,
     neighbours: p.neighbours,
     obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
@@ -4232,6 +4264,7 @@ function capturePlanInputFor(
     // The 19 counties that carry a GIS viewer. This is the line that generalises CAD GIS capture
     // past Bell — the data was already there, addressed by county key.
     gisBaseUrl: gisBaseUrlFor(county),
+    parcelLayerUrl: parcelLayerUrlFor(county),
     controllingDeedDate: data.deedsAndRecords?.records?.[0]?.recordingDate ?? null,
     neighbours,
     // Bird's-eye is licensed, not free. Absent env, the plan records a configuration gap in those
@@ -4344,6 +4377,13 @@ async function reanalyseProjectDocuments(
 function gisBaseUrlFor(county: string): string | null {
   const cfg = lookupByCounty(BIS_CONFIGS, county) as { gisBaseUrl?: string } | undefined;
   return cfg?.gisBaseUrl ?? null;
+}
+
+/** The county's parcel FeatureServer layer, when the registry knows one. Bell's is the layer the
+ *  run already uses to find the parcel; the CAD map is rendered from it. */
+function parcelLayerUrlFor(county: string): string | null {
+  const cfg = lookupByCounty(BIS_CONFIGS, county) as { gisParcelLayerUrls?: string[] } | undefined;
+  return cfg?.gisParcelLayerUrls?.[0] ?? null;
 }
 
 /** How long a finished run will wait for its own documents to finish uploading. */

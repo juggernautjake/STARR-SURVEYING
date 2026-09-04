@@ -39,7 +39,13 @@ import { contentHash } from './project-library.js';
 /** Take a picture of a URL. Injected so the plan can be executed in a test without a browser. */
 export type ScreenshotFn = (
   item: PlannedCaptureItem,
-) => Promise<{ bytes: Buffer; width?: number; height?: number } | null>;
+) => Promise<{
+  bytes: Buffer; width?: number; height?: number;
+  /** The image's own text, when the capture knows it (a rendered map whose labels we typed).
+   *  Supplied text replaces OCR: sending a map we drew to Vision to read our own labels back is
+   *  twenty model calls for nothing (run 4, 2026-09-04). */
+  text?: string | null;
+} | null>;
 
 /** Read the text in an image. Returns null when nothing could be read — which is not an error. */
 export type OcrFn = (bytes: Buffer, item: PlannedCaptureItem) => Promise<string | null>;
@@ -101,7 +107,7 @@ export async function runCaptures(
   const log = deps.log ?? (() => {});
 
   for (const item of plan.captures) {
-    let shot: { bytes: Buffer; width?: number; height?: number } | null = null;
+    let shot: Awaited<ReturnType<ScreenshotFn>> = null;
     try {
       shot = await deps.screenshot(item);
     } catch (e) {
@@ -122,7 +128,11 @@ export async function runCaptures(
 
     // ── OCR ────────────────────────────────────────────────────────────────────────────────────
     let ocrText: string | null = null;
-    if (item.ocr && deps.ocr) {
+    if (shot.text && shot.text.trim()) {
+      // The capture knows its own text (a rendered map). Reading our labels back off the pixels
+      // was twenty Vision calls for nothing.
+      ocrText = shot.text;
+    } else if (item.ocr && deps.ocr) {
       try {
         ocrText = await deps.ocr(shot.bytes, item);
       } catch (e) {

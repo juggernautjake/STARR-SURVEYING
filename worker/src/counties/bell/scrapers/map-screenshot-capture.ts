@@ -790,7 +790,7 @@ async function captureGoogleMapsPlace(
  * Only targets actual modal dialogs — NOT side panels or search dropdowns,
  * which are handled separately after interaction.
  */
-async function dismissDialogs(page: any): Promise<void> {
+export async function dismissDialogs(page: any): Promise<void> {
   const selectors = [
     // Modal dialog confirmation buttons
     'button:has-text("OK")',
