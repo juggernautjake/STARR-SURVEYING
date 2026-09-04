@@ -22,6 +22,7 @@ import { reanalyseFiledDocuments, type FiledDocument } from '../research/reanaly
 
 const SRC = path.resolve(process.cwd(), 'src');
 const strip = (s: string) => s.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '').replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
+const read = (rel: string) => strip(fs.readFileSync(path.join(SRC, rel), 'utf8'));
 const index = strip(fs.readFileSync(path.join(SRC, 'index.ts'), 'utf8'));
 
 describe('the watchdog', () => {
@@ -71,6 +72,19 @@ describe('the tail', () => {
     expect(tail).not.toContain("withStepDeadline(projectId, 'document re-read'");
   });
 
+  it('the deadline ABORTS the step, not just stops waiting for it (run 7, 2026-09-04)', () => {
+    // withStepDeadline racing fn() against a timer left the clerk scraper orphaned, driving a
+    // browser nine minutes past the ceiling. It now aborts a controller the caller passes.
+    const gate = read('research/budget-gate.ts');
+    expect(gate).toContain('opts.abortController?.abort();');
+    expect(gate).toContain('abortController?: AbortController');
+    const orch = read('counties/bell/orchestrator.ts');
+    expect(orch).toContain('abortController: clerkAbort');
+    const clerk = read('counties/bell/scrapers/clerk-scraper.ts');
+    // Path A and Path D both break on the run signal; the subdivision sweep checks opts.signal.
+    expect(clerk.split('input.signal?.aborted').length - 1).toBeGreaterThanOrEqual(2);
+    expect(clerk).toContain('opts.signal?.aborted');
+  });
   it('the reading pass still cannot outlive the run: its own clock and a cost ceiling bound it', () => {
     expect(tail).toContain('const allowanceMs = readingAllowanceMs(');
     expect(tail).toContain('withRunContext(projectId, () =>');

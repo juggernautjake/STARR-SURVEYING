@@ -220,6 +220,7 @@ export async function scrapeBellClerk(
     const skippedInstruments: string[] = [];
     for (const instrNum of unique) {
       if (documents.length >= maxDocs) break;
+      if (input.signal?.aborted) { progress(`  Path A stopped — the run's time ran out before every instrument was looked up.`); break; }
 
       progress(`  Fetching instrument: ${instrNum}`);
       const doc = await fetchInstrumentDocument(
@@ -315,6 +316,7 @@ export async function scrapeBellClerk(
 
     for (const vp of input.volumePages) {
       if (documents.length >= maxDocs) break;
+      if (input.signal?.aborted) { progress('  Path D stopped — the run\'s time ran out before every volume/page was looked up.'); break; }
       progress(`  Vol ${vp.volume} Pg ${vp.page}`);
       const doc = await fetchByVolumePage(vp.volume, vp.page, captureImages, screenshots, urlsVisited, progress, input.projectId);
       if (doc) {

@@ -51,6 +51,12 @@ export const KNOWN_ADAPTER_IDS = [
   'texasfile',
   'countyfusion',
   'cad',
+  // A residential-IP fetch for county plat repositories that block the worker's datacentre address
+  // (bellcountytx.com answers 403 to the worker and to Browserbase's datacentre IPs alike; a
+  // residential session is the road around it). Used by county-plats.ts fetchThroughBrowser; only
+  // active when the operator names it in BROWSERBASE_ENABLED_ADAPTERS. On 2026-09-04 the run log
+  // said "unknown adapter id plat-repo — ignoring" because it was missing from this list.
+  'plat-repo',
   // Purchase / pay adapters (separate folder)
   'fidlar-pay',
   'tyler-pay',

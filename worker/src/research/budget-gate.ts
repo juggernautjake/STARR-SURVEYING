@@ -133,7 +133,7 @@ export async function withStepDeadline<T>(
   fn: () => Promise<T>,
   fallback: T,
   onTimeout?: (msg: string) => void,
-  opts: { reserveMs?: number } = {},
+  opts: { reserveMs?: number; abortController?: AbortController } = {},
 ): Promise<T> {
   const status = checkBudget(projectId, spendForRun(projectId));
 
@@ -169,9 +169,17 @@ export async function withStepDeadline<T>(
     if (raced === TIMED_OUT) {
       const mins = Math.max(1, Math.round(deadlineMs / 60_000));
       recordSkipped(projectId, step, `it did not finish within the ${mins} minute(s) the run had left`);
+      // ── STOP THE STEP, DO NOT JUST STOP WAITING FOR IT ──────────────────────────────────────
+      //
+      // Racing `fn()` against a timer resolves the race — but `fn()` keeps running, orphaned.
+      // On 2026-09-04 run 7 the clerk scraper was left driving a browser for nine minutes past
+      // the ceiling this way, one instrument at a time, holding the event loop so the run could
+      // not finish. When the caller passes an AbortController, the deadline aborts it, and a step
+      // that honours the signal stops itself on its next check instead of running to completion.
+      opts.abortController?.abort();
       onTimeout?.(
         `⚠ ${step} was still running when the run's time ran out (${mins} minute(s) were left when ` +
-        `it started). The run stopped waiting for it; the report will say this step did not finish.`,
+        `it started). The run stopped it; the report will say this step did not finish.`,
       );
       return fallback;
     }

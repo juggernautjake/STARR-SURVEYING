@@ -812,7 +812,7 @@ export async function orchestrateBellResearch(
         },
       },
       (p) => progress('Phase 2', `Clerk: ${p.message}`, 38),
-    ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve });
+    ), null, (m) => progress('Budget', m), { reserveMs: analysisReserve, abortController: clerkAbort });
 
     // `withStepDeadline` returns null when the run ran out of time mid-step. Everything below reads
     // `clerk.*`, so that is now a real state and not an impossible one. Reported, not silent.

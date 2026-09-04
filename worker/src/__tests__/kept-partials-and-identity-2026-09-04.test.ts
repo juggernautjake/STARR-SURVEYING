@@ -126,6 +126,6 @@ describe('the scraping steps leave time for the reading (analysis reserve)', () 
   it('both Bell scraping steps carry the reserve', () => {
     const orch = read('counties/bell/orchestrator.ts');
     expect(orch).toContain('const analysisReserve = analysisReserveMs(input.projectId);');
-    expect((orch.match(/\{ reserveMs: analysisReserve \}/g) ?? []).length).toBe(2);
+    expect(orch.split('reserveMs: analysisReserve').length - 1).toBe(2);
   });
 });
