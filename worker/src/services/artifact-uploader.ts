@@ -326,6 +326,29 @@ export interface ArtifactUploadResult {
   errors: string[];
 }
 
+// ── E4: OCR segments travel per page, not first-page-only ─────────────────────
+//
+// The row stored `firstPage.ocrSegments` and dropped pages 2..N. A document re-read by the
+// reading pass has its segments overwritten with a per-page set — but a document read cleanly at
+// filing is never re-read, so its `ocr_segments` stayed page-1-only forever. This merges every
+// page's segments into one array, each entry tagged with its page number so a reader can tell page
+// 3's regions from page 1's. Non-array per-page payloads (the re-read's per-page summary shape) are
+// kept whole under the page tag rather than dropped.
+export function mergePageSegments(pages: ArtifactPageImage[]): unknown[] | null {
+  const merged: unknown[] = [];
+  for (const p of pages) {
+    const segs = p.ocrSegments;
+    if (Array.isArray(segs)) {
+      for (const s of segs) {
+        merged.push(s && typeof s === 'object' ? { ...(s as object), page: p.pageNumber } : { value: s, page: p.pageNumber });
+      }
+    } else if (segs != null) {
+      merged.push({ page: p.pageNumber, segments: segs });
+    }
+  }
+  return merged.length > 0 ? merged : null;
+}
+
 // ── Main Upload Function ──────────────────────────────────────────────────────
 
 /**
@@ -737,7 +760,7 @@ export async function uploadPipelineArtifacts(
         // combination; the insert now supplies it rather than relying on the refusal.
         extracted_text_method: firstPage.extractedTextMethod ?? null,
         ocr_confidence: firstPage.ocrConfidence ?? null,
-        ocr_segments: firstPage.ocrSegments ?? null,
+        ocr_segments: mergePageSegments(pages),   // E4: every page's segments, tagged by page
         // What the AI concluded, kept where it cannot be mistaken for what was read.
         analysis_metadata: firstPage.aiSummary ? { aiSummary: firstPage.aiSummary } : null,
         recording_info: firstPage.recordingInfo || null,
@@ -985,7 +1008,7 @@ export async function uploadDocumentIncremental(
       // combination; the insert now supplies it rather than relying on the refusal.
       extracted_text_method: firstPage.extractedTextMethod ?? null,
       ocr_confidence: firstPage.ocrConfidence ?? null,
-      ocr_segments: firstPage.ocrSegments ?? null,
+      ocr_segments: mergePageSegments(sorted),   // E4: every page's segments, tagged by page
       // What the AI concluded, kept where it cannot be mistaken for what was read.
       analysis_metadata: firstPage.aiSummary ? { aiSummary: firstPage.aiSummary } : null,
       recording_info: firstPage.recordingInfo || null,
