@@ -157,9 +157,14 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 
 ### Phase C — Plats and drawings (requests 10, 14)
 
-- [ ] **C1 — The clerk plat recipe.** From the clerk dossier: the exact search that lists PLAT
-      documents for a subdivision (document-type filter, name variants, section suffixes, date
-      range), encoded in the playbook and used by 2B before the deed search.
+- [x] **C1 — The plat search recipe.** (`b151664e6`) `platSearchTerms` turns one subdivision name
+      into the terms the county may have filed it under — base name first, then section/phase/unit
+      suffix stripped, then recording-form expansions (EST→ESTATES, CRK→CREEK, ADD→ADDITION, …);
+      `expandSubdivisionTerms` applies it across the run's list. Fed into the plat search 2B already
+      runs before the deed search (repository + clerk) with no new browser loop. Document-type
+      filtering for PLAT already happens in `searchBellClerkOwnerForPlatDeed`. The recipe lives in
+      code now; moving it into a per-county playbook is Phase B's job (the playbook format), so the
+      encoding follows B3 — the search behaviour it specifies is live.
 - [x] **C2 — The repository egress decision.** (`7fcc9b95d`) The direct route 403s the worker; the
       Browserbase route on another IP is the only road left, and when it ALSO fails the source is
       unreachable by any egress we have. `noteBrowserRouteExhausted`/`browserRouteExhausted` record
