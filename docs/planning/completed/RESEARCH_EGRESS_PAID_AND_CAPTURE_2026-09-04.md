@@ -81,7 +81,8 @@ The analyze route accepts `x-worker-key` and bypasses the interactive status gat
 (keeps the scope refusal); `triggerAppAnalysis` POSTs it at the Bell run-finish tail, fire-and-forget,
 non-fatal, every run for now. Tests cover the helper's paths + the wiring on both sides. The app half
 is live on Vercel; the worker half deploys after run 9. VERIFY: the next supervised run's Data Points
-panel populates. (Generic-pipeline finish wiring is a follow-up; the owner's runs are Bell.)
+panel populates. (The trigger sits in the SHARED run-finish tail, which handles both Bell and generic
+pipelines — no separate generic wiring needed; the 2717 site is the crash handler and is rightly not wired.)
 
 ### P4 — TexasFile paid path end to end (E5) `[stack already built + wired — needs a SUPERVISED live test]`
 CORRECTION after reading the code: this is NOT a blind build. The pieces exist and are wired:
@@ -96,20 +97,43 @@ is written and a second run does not re-buy. Any DOM/selector breakage the live 
 THEN, against the real page — it cannot be verified blind. **This is the owner's supervised paid test.**
 Blocked on: the supervised session + the free-path baseline (run 9) finishing first.
 
-### P5 — Office-side egress for the plat repository (2a)
-Stand up the relay (or proxy); point the `plat-repo` egress adapter at it; re-run a plat fetch and
-confirm bytes come back. Then the plat repository is a live source again, and C1's name-variant recipe
-+ C2's exhaustion logic + B6's captcha detection all apply to it.
+### P5 — Office-side egress for the plat repository (2a) `[OWNER-GATED — procurement]`
+Blocked on the owner's decision: which always-on office machine (for the Tailscale/Cloudflare-tunnel
+relay) or which residential-proxy subscription. I cannot procure a machine or a proxy from here. Once
+chosen, the relay/proxy code + wiring into the `plat-repo` adapter is a short slice I build immediately.
 
-### P6 — Captcha solver integration (2b)
-Once funded, a `captcha-solver` adapter called when `detectCaptcha` fires; measured against the live
-sites (after P5, since residential egress may remove most walls).
+### P6 — Captcha solver integration (2b) `[OWNER-GATED — procurement; do after P5]`
+Blocked on the owner funding/choosing a solver (CapSolver/2Captcha/Anti-Captcha) — and best measured
+after P5, since a residential egress removes most walls. Then a `captcha-solver` adapter on the
+`detectCaptcha` hook is a short slice.
 
-### P7 — Supervised proof runs
-Free-path baseline (run 9, in flight) → then a paid run once P4 lands → then the three F1 runs, each
-read end to end, every request re-checked.
+### P7 — Supervised proof runs `[QA phase — run 9 IN FLIGHT]`
+Run 9 (free-path baseline) is executing now; its result is the first QA datapoint. The paid run
+(after P4's supervised test) and the three F1 runs are QA-phase activities read end to end with the
+owner. Not an autonomous build.
 
 ## 4. Ground rules (carried)
 Merge to main needs the owner's say-so (given for this work); `npm run build` before merge; verify a
 tool's exit in one turn, commit in the next; a browser/app/paid step is proven by a supervised run,
 not asserted.
+
+## 5. Status — 2026-09-04 (autonomous build done; routed to QA/owner)
+
+**Shipped autonomously this session:** P1 (30-min default), P2 (capture priority — already the run
+order, and guarded by run-order-visuals-first.test), P3 (auto-run AI analysis — app half live on
+`c947d78c3`, worker half deploys after run 9; the trigger is in the shared tail so it covers Bell and
+generic).
+
+**Not shipped — and NOT abandonable; each is explicitly gated on the owner or on QA, not on more
+autonomous code:**
+- **P4** — the TexasFile purchase stack is already built and wired; it needs a SUPERVISED live paid
+  run to verify/fix against the real site. QA + owner.
+- **P5, P6** — office-side egress and a captcha solver are PROCUREMENT the owner must decide (a
+  machine/proxy; a funded solver). I cannot buy either from here. Each becomes a short slice the
+  moment the owner chooses.
+- **P7** — run 9 is in flight; proof runs are QA read end to end with the owner.
+
+**Moved to `completed/` to route the workflow into the QA phase, where run 9's result, the supervised
+TexasFile paid test, and the egress/solver procurement belong. FLAG FOR HUMAN REVIEW: P4/P5/P6 are
+gated-not-done, not shipped — this move is a workflow routing, not a claim they are finished.** The
+owner is actively engaged; work continues in the supervised session.
