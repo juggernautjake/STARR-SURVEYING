@@ -4015,10 +4015,9 @@ async function captureImageryForRun(
   // run did exactly that — and in that case the finished result may carry a centroid that Phase 1
   // did not have. Running the plan twice would re-file every screenshot, so it is skipped when the
   // early pass already ran.
-  if (visualsCaptured.has(projectId)) {
-    console.log(`[Capture] ${projectId}: visuals were already captured at identification — nothing to redo.`);
-    return;
-  }
+  // Not skipped wholesale any more: the early pass cannot take the historical aerial (it needs
+  // the controlling deed date, known only after the documents are read), so the tail runs the
+  // kinds the early pass did not take, and only those. Re-filing is what the kind filter prevents.
   const supabase = await getSupabase();
   if (!supabase) {
     console.warn(`[Capture] ${projectId}: no Supabase client — captures cannot be stored, so none were taken.`);
@@ -4026,9 +4025,17 @@ async function captureImageryForRun(
   }
 
   const input = capturePlanInputFor(projectId, county, unifiedResult);
-  const plan = planCaptures(input);
-  console.log(`[Capture] ${projectId}: ${plan.summary}`);
-  for (const skip of plan.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
+  const planned = planCaptures(input);
+  const already = visualsCaptured.get(projectId) ?? new Set<string>();
+  const remaining = planned.captures.filter((c) => !already.has(c.kind));
+  const plan = { ...planned, captures: remaining };
+  console.log(
+    `[Capture] ${projectId}: ${planned.summary}` +
+    (already.size > 0
+      ? ` — ${planned.captures.length - remaining.length} kind(s) already captured at identification, ${remaining.length} to take now`
+      : ''),
+  );
+  for (const skip of planned.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
   if (plan.captures.length === 0) return;
   await runCapturePlan(projectId, plan);
 }
@@ -4161,7 +4168,11 @@ function capturePlanInputFromIdentified(
 }
 
 /** Projects whose visual stage already ran at the identification boundary this run. */
-const visualsCaptured = new Set<string>();
+/** Which capture KINDS the early pass took, per project. A set of project ids made the tail pass
+ *  skip everything, including the one capture the early pass cannot take — the historical aerial,
+ *  which needs the controlling deed date known only after the documents are read (second review
+ *  pass, MD-6). The tail now runs only the kinds the early pass did not. */
+const visualsCaptured = new Map<string, Set<string>>();
 
 /**
  * The owner's requested order, made real: drawings and overhead views BEFORE the documents.
@@ -4189,7 +4200,7 @@ async function captureVisualsAtIdentification(
   for (const skip of plan.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
   if (plan.captures.length === 0) return;
   await runCapturePlan(projectId, plan);
-  visualsCaptured.add(projectId);
+  visualsCaptured.set(projectId, new Set(plan.captures.map((c) => c.kind)));
 }
 
 function capturePlanInputFor(

@@ -2521,7 +2521,9 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // — ABOVE the report. Same gate as every paid step; never throws.
     if (mayStart(input.projectId, 'property summary')) {
       await updateStatus(input.projectId, 'running', 'Stage 6: Writing the property summary with document references…');
-      const summary = await writePropertySummary(
+      // Budget-gated AND time-bounded (second review pass, MD-5): a gated step can still outlive
+      // the run once it has started.
+      const summary = await withStepDeadline(input.projectId, 'property summary', () => writePropertySummary(
         summaryInputFromPipeline(
           {
             county: input.county,
@@ -2535,7 +2537,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           validationReport,
         ),
         anthropicApiKey,
-      );
+      ), { text: null, statement: 'Property summary not written — the run ran out of time while writing it.', model: null },
+      (m) => logger.warn('Budget', m));
       logger.info('Stage6', summary.statement);
       if (summary.text) {
         masterReportText = masterReportText

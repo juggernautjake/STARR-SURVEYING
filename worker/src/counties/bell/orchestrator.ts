@@ -1120,15 +1120,21 @@ export async function orchestrateBellResearch(
     const fips = BELL_ENDPOINTS.clerk.fipsCode;
     const cadHost = BELL_ENDPOINTS.cad.home;
     const cadGate = hostGate(cadHost);
+    // A scrape that THREW is an error about the adapter, not a parcel with no record. Phase 1 ran
+    // the CAD and GIS scrapes with allSettled; a rejection used to fall through to `empty`, which
+    // the ratchet ignores by design (second review pass, MD-3).
+    const cadThrew = cadResult.status === 'rejected';
     sourceOutcomes.push({
       siteId: `cad-${fips}-bis`, vendor: 'bis', name: 'Bell CAD eSearch', url: cadHost,
       projectId: input.projectId, durationMs: 0,
-      outcome: cad ? 'found' : cadGate.blocked ? 'unreachable' : 'empty',
+      outcome: cad ? 'found' : cadThrew ? 'error' : cadGate.blocked ? 'unreachable' : 'empty',
       detail: cad
         ? `Appraisal record found for property ${cad.propertyId} (via ${cad.source}).`
-        : cadGate.blocked
-          ? `The appraisal site did not answer: ${cadGate.reason ?? 'host marked dead'}.`
-          : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
+        : cadThrew
+          ? `The appraisal scrape threw: ${cadResult.reason instanceof Error ? cadResult.reason.message : String(cadResult.reason)}`
+          : cadGate.blocked
+            ? `The appraisal site did not answer: ${cadGate.reason ?? 'host marked dead'}.`
+            : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
     });
     if (mayClerk && clerk) {
       const clerkHost = BELL_ENDPOINTS.clerk.home;
@@ -2021,7 +2027,12 @@ export async function orchestrateBellResearch(
   // off-budget. `writePropertySummary` never throws.
   if (mayStep('property summary')) {
     progress('Phase 4', 'Writing the property summary with document references...');
-    const summary = await writePropertySummary(summaryInputFromBell(result), anthropicApiKey);
+    // Budget-gated AND time-bounded: a step that is only gated can still outlive the run once it
+    // has started (second review pass, merge-diff MD-5).
+    const summary = await withStepDeadline(input.projectId, 'property summary',
+      () => writePropertySummary(summaryInputFromBell(result), anthropicApiKey),
+      { text: null, statement: 'Property summary not written — the run ran out of time while writing it.', model: null },
+      (m) => progress('Budget', m));
     progress('Phase 4', `  ${summary.statement}`);
     result.propertySummary = summary.text;
   }

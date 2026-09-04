@@ -76,8 +76,29 @@ export async function fileResearchDocument(
   // ── MERGED ────────────────────────────────────────────────────────────────────────────────────
   if (verdict.kind === 'already-held' || verdict.kind === 'same-bytes') {
     const existingId = verdict.existingId;
+    // ── A RE-FILED DOCUMENT KEEPS WHAT WAS READ FROM IT ────────────────────────────────────────
+    //
+    // A Bell deed is filed twice: once by the incremental upload in Phase 2 (pages only, no
+    // text) and once at persist time with the analyzer's text and summary. The second filing
+    // lands here as `already-held`, and this update touched lineage columns only — so the text
+    // the run had paid to read never reached the row, and the post-run re-read then paid to
+    // read it again. Every county, every run. Found by the second review pass (MD-2 correction).
+    // Carried only when a method travels with it, which is the rule `patchDocument` holds.
+    const rowText = typeof input.row.extracted_text === 'string' ? input.row.extracted_text.trim() : '';
+    const rowMethod = typeof input.row.extracted_text_method === 'string' ? input.row.extracted_text_method : null;
+    const textPatch = rowText && rowMethod
+      ? {
+          extracted_text: rowText,
+          extracted_text_method: rowMethod,
+          ...(input.row.ocr_confidence != null ? { ocr_confidence: input.row.ocr_confidence } : {}),
+          ...(input.row.ocr_segments != null ? { ocr_segments: input.row.ocr_segments } : {}),
+          ...(input.row.analysis_metadata != null ? { analysis_metadata: input.row.analysis_metadata } : {}),
+          ...(typeof input.row.processing_status === 'string' ? { processing_status: input.row.processing_status } : {}),
+        }
+      : {};
     try {
       const { error } = await db.from('research_documents').update({
+        ...textPatch,
         last_seen_run_id: input.runId,
         // Read-modify-write would need the current value and a round trip; the count is a display
         // figure, and the write below is one statement. Supabase-js has no atomic increment, so the
