@@ -65,10 +65,28 @@ Shipped and merged since this document was written (worker + Vercel deployed on 
   parcel-boundary-persisted-2026-09-04.test.ts.
 - Earlier the same day (part-1 close): centring on the polygon, the lines-only drawing, the
   library seeing marked duplicates, kept-partial wording, year-stamped instrument identity.
+- **A5 sweep actually shipped** (`1ee2771d1`): the summary sweep's caller was committed in the
+  runaway commit while the function itself sat uncommitted in the working tree — the deployed
+  `summariseUnsummarisedDocuments` import resolved to undefined and the sweep threw silently, so
+  runs read documents but wrote no per-document summaries. Committed the function; added a callee
+  guard to reading-pass-always-runs (imports the symbol, so a missing export fails the run). This
+  is the "verify the callee exists, not just the caller string" instance of the wiring pattern.
+- **The runaway, fully closed** (`8382b640f`): run 8 proved `39d38c172` was half a fix. The MAIN
+  clerk search stopped at the ceiling exactly as designed (629s) — then the run drove the browser
+  EIGHT more minutes in the 2B½ deed-chain fetch, because that `scrapeBellClerk` call (and the
+  Phase 3B historical one) had neither a deadline nor an abort signal; only the main call did.
+  Both are now wrapped in `withStepDeadline` with their own `AbortController` and pass the signal
+  into the scraper; a guard counts the three browser-driving clerk calls and asserts every one is
+  bounded. Run 8 (28 min, 13 past its ceiling) was stopped by deploying this and marked interrupted;
+  its 18 documents are kept. Lesson: fixing the obvious call site is not fixing the defect — every
+  call site of a browser-driving function needs the ceiling, and a count-the-call-sites guard is
+  what proves it.
 
 Still open and worth doing: A1 (persisted reading_priority — read-time ordering covers the intent
-for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run, all of
-Phase B (site atlas + playbooks), Phase C (plat recipe + repository egress), D2–D4, E2–E5, F.
+for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run (a clean run
+now that the runaway is closed and the sweep ships — verify deed chain stops at ceiling, tail runs,
+summaries written, polygon persisted), all of Phase B (site atlas + playbooks), Phase C (plat
+recipe + repository egress), D2–D4, E2–E5, F.
 
 ## 3. Phases
 
