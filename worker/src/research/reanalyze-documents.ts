@@ -143,6 +143,9 @@ export interface ReanalysisReport {
   reanalysed: number;
   skipped: number;
   failed: number;
+  /** Documents not read because the run reached a limit mid-pass. Not failures: the pages are on
+   *  file and the next run will read them. Distinct so a ceiling never reads as a broken document. */
+  leftUnread: number;
   /** One line per document, so a run says what it did rather than only how many. */
   lines: string[];
 }
@@ -161,11 +164,22 @@ export async function reanalyseFiledDocuments(
   docs: FiledDocument[],
   read: (doc: FiledDocument, pageUrls: string[]) => Promise<ReadResult | null>,
   log: (line: string) => void = () => {},
+  /** Asked before every read. `false` means the run has reached a limit: the document is counted as
+   *  left unread and said so. Absent means "read everything" — the pre-2026-09-03 behaviour that
+   *  kept a 30-minute run alive for 2 h 46 m after its ceiling. */
+  mayContinue: () => boolean = () => true,
 ): Promise<ReanalysisReport> {
-  const report: ReanalysisReport = { considered: docs.length, reanalysed: 0, skipped: 0, failed: 0, lines: [] };
+  const report: ReanalysisReport = { considered: docs.length, reanalysed: 0, skipped: 0, failed: 0, leftUnread: 0, lines: [] };
 
   for (const doc of docs) {
     const decision = decideReanalysis(doc);
+    if (decision.reanalyse && !mayContinue()) {
+      report.leftUnread++;
+      const line = `… ${decision.label}: left unread — the run reached a limit you set. The pages are on file.`;
+      report.lines.push(line);
+      log(line);
+      continue;
+    }
     if (!decision.reanalyse) {
       report.skipped++;
       const line = `— ${decision.label}: ${decision.reason}`;
@@ -235,5 +249,6 @@ export function describeReanalysis(r: ReanalysisReport): string {
   const bits = [`${r.reanalysed} document(s) read`];
   if (r.skipped > 0) bits.push(`${r.skipped} already had text we can weigh`);
   if (r.failed > 0) bits.push(`${r.failed} could not be read — the pages are still on file`);
+  if (r.leftUnread > 0) bits.push(`${r.leftUnread} left unread because the run reached its ceiling`);
   return `[Re-analysis] ${bits.join(', ')}.`;
 }

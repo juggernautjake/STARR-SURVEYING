@@ -521,6 +521,9 @@ export interface ActivePipeline {
   lastUpdate?: string;
   /** AbortController to cancel the running pipeline */
   abortController?: AbortController;
+  /** The wall-clock watchdog armed at start. Fires the budget abort itself when the ceiling passes
+   *  and no phase has reported since — a step that emits no progress was otherwise unstoppable. */
+  watchdog?: ReturnType<typeof setTimeout>;
 
   /** The `research_runs` row this pipeline is writing to, and its ordinal within the project.
    *

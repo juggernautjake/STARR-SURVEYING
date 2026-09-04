@@ -131,9 +131,12 @@ describe('writing the answer back', () => {
 
   it('the summary states what was SKIPPED as well as what was done', () => {
     // A pass that reports only its successes reads like a pass that had nothing to skip.
-    const line = describeReanalysis({ considered: 10, reanalysed: 3, skipped: 6, failed: 1, lines: [] });
+    const line = describeReanalysis({ considered: 10, reanalysed: 3, skipped: 6, failed: 1, leftUnread: 0, lines: [] });
     expect(line).toContain('3 document(s) read');
     expect(line).toContain('6 already had text we can weigh');
+    // And a ceiling reached mid-pass is its own sentence, not folded into failures.
+    expect(describeReanalysis({ considered: 4, reanalysed: 2, skipped: 0, failed: 0, leftUnread: 2, lines: [] }))
+      .toContain('2 left unread because the run reached its ceiling');
     expect(line).toContain('the pages are still on file');
   });
 });
@@ -147,7 +150,9 @@ describe('the run calls it — assert the CALLER', () => {
   });
 
   it('the pass runs before the run reports', () => {
-    const at = code.indexOf('await reanalyseProjectDocuments(projectId');
+    // Since 2026-09-03 the call sits inside `withRunContext(... withStepDeadline(...))`, so the
+    // `await` is on the wrapper; the probe looks for the call itself.
+    const at = code.indexOf('reanalyseProjectDocuments(projectId, (line)');
     const filing = code.indexOf('const filing = endFiling(projectId)');
     expect(at).toBeGreaterThan(-1);
     expect(at).toBeLessThan(filing);

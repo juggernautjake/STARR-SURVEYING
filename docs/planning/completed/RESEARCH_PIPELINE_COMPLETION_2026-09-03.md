@@ -12,6 +12,19 @@ never-instantiated clerk adapters, the Bell abort path discarding its accumulate
 plat escalation, the multi-page OCR segments) are listed in the closing overview the owner
 received, not here. Moved to `completed/` per the README rubric.
 
+**Post-close, same night (A6 — the watchdog).** Run 3 on 1512 Chisholm Trail: a 30-minute
+ceiling, "2:46:18 / 30:00" on the screen, the status poll saying "aborted (budget)" throughout.
+Two causes, both fixed and guarded by `run-cannot-outlive-its-ceiling.test.ts`: (1) the budget was
+checked only inside the progress callback, so a step that emitted no progress was unstoppable — a
+wall-clock watchdog is now armed at run start and fires the same `BudgetAbort` itself; (2) the
+post-run tail (imagery, drawing hunt, document re-read) ran after the pipeline returned with no
+budget check, no deadline and outside the run context, so its Vision spend was neither bounded nor
+attributed — the tail is skipped when the ceiling was hit, bounded by `withStepDeadline` otherwise,
+runs inside `withRunContext`, and the re-read asks the budget between documents and pages
+(`leftUnread`, never `failed`). Also seed **631**: the E3 relevance mark wrote columns
+`research_documents` did not have (seed 373 put them on `extracted_data_points`); added and applied.
+Found by the second review pass (merge-diff MD-1/MD-2) and the owner's screenshot.
+
 Everything the owner asked for on 2026-09-03, measured against what the code actually does, and
 sliced so each piece ships on its own.
 

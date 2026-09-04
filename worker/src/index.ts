@@ -92,6 +92,8 @@ import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults, persistRunOutcomes } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
+import { withStepDeadline } from './research/budget-gate.js';
+import { withRunContext } from './infra/run-context.js';
 import {
   persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
 } from './research/persist-run-logs.js';
@@ -1322,6 +1324,32 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     stopReason: null,
     settings: runSettings as unknown as Record<string, unknown>,
   });
+
+  // ── THE WATCHDOG — a ceiling nobody checks is not a ceiling ────────────────────────────────
+  //
+  // The budget was tested only inside the progress callback. A step that emits no progress —
+  // a long owner search, the post-run document re-read — was therefore unstoppable: on
+  // 2026-09-03 a 30-minute run showed "2:46:18 / 30:00" on the screen while the status poll
+  // said "aborted (budget)", because the abort had fired and nothing running was listening.
+  // This timer does not rely on anyone reporting. When the ceiling passes it sets the same stop
+  // reason and fires the same abort the progress path would have, and the tail below honours it.
+  if (Number.isFinite(budgetLimits.maxWallClockMs) && budgetLimits.maxWallClockMs > 0) {
+    const graceMs = 30_000;
+    const watchdog = setTimeout(() => {
+      const active = activePipelines.get(projectId);
+      if (!active || active.abortController?.signal.aborted) return;
+      const minutes = Math.round(budgetLimits.maxWallClockMs / 60_000);
+      const message =
+        `Finished early because this run reached its ${minutes}-minute time limit while a step ` +
+        'was still running. The step was stopped; what it had produced is kept.';
+      active.stopReason = { kind: 'budget', message };
+      active.abortController?.abort(new BudgetAbort(message));
+      console.warn(`[budget] ${projectId}: watchdog fired at ${minutes} min — ${message}`);
+    }, budgetLimits.maxWallClockMs + graceMs);
+    watchdog.unref?.();
+    const active = activePipelines.get(projectId);
+    if (active) active.watchdog = watchdog;
+  }
   // The bar paces itself to the length this run was given (15–60 min, 30 default). The SHARES
   // are unchanged — retrieval is the same proportion of a short run as of a long one, because it
   // is the same work — so only the speed differs. Without this the bar is calibrated to one
@@ -1615,6 +1643,21 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // What the cross-run duplicate check actually did, said out loud. The owner asked for "a very
       // clear and detailed check"; a check whose result is never reported is indistinguishable from
       // no check at all.
+      // ── THE TAIL RUNS INSIDE THE CEILING OR NOT AT ALL ─────────────────────────────────
+      //
+      // Everything below this line (imagery, the drawing hunt, the document re-read) ran AFTER
+      // the pipeline returned, with no budget check, no deadline, and outside the run context —
+      // so its model spend was not even attributed to the run. On 2026-09-03 the re-read kept a
+      // 30-minute run alive for 2 h 46 m, at four-plus Vision calls a page, while the status poll
+      // said "aborted (budget)". A run that has hit its ceiling now skips the tail and says so;
+      // a run that has not is bounded by whatever time it has left, like every other step.
+      const tailSignal = activePipelines.get(projectId)?.abortController?.signal;
+      const ceilingHit = Boolean(finalBudget.exceeded) || Boolean(tailSignal?.aborted);
+      const tailLog = (m: string) => handshakeLogger.attempt('[Budget]', 'info', 'Tail', m).warn(m);
+      if (ceilingHit) {
+        tailLog('Imagery capture and the document re-read were not attempted — the run reached its ceiling.');
+      }
+
       // ── IMAGERY, CAD GIS AND DRAWINGS (plan F1–F7) ──────────────────────────────────────
       //
       // Runs BEFORE endFiling, deliberately: the filing context holds the project library and
@@ -1624,10 +1667,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       //
       // Never allowed to fail the run. The research is the point; imagery is supporting evidence,
       // and losing a completed run because a map server was slow would be a bad trade.
-      try {
-        await captureImageryForRun(projectId, county, unifiedResult);
-      } catch (e) {
-        console.warn(`[Capture] ${projectId}: imagery phase threw — ${String(e)}`);
+      if (!ceilingHit) {
+        try {
+          await withStepDeadline(projectId, 'imagery capture',
+            () => captureImageryForRun(projectId, county, unifiedResult), undefined, tailLog);
+        } catch (e) {
+          console.warn(`[Capture] ${projectId}: imagery phase threw — ${String(e)}`);
+        }
       }
 
       // ── THE DRAWING HUNT (plan F6) ──────────────────────────────────────────────────────
@@ -1664,12 +1710,23 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // Asked here because this is after everything has filed and before the run reports. Never
       // allowed to fail the run: the research is the point, and a re-read that times out must not
       // lose work that succeeded.
-      try {
-        await reanalyseProjectDocuments(projectId, (line) => {
-          console.log(`[Re-analysis] ${projectId}: ${line}`);
-        });
-      } catch (e) {
-        console.warn(`[Re-analysis] ${projectId}: pass threw — ${String(e)}`);
+      //
+      // Inside the run context, so every Vision call it makes is attributed to THIS run's spend;
+      // bounded by the time the run has left; and it asks the budget between documents and
+      // between pages, so a ceiling reached mid-read stops the read rather than the read
+      // outliving the run.
+      if (!ceilingHit) {
+        try {
+          const mayContinue = () =>
+            !checkBudget(projectId, spendForRun(projectId)).exceeded && !tailSignal?.aborted;
+          await withRunContext(projectId, () =>
+            withStepDeadline(projectId, 'document re-read', () =>
+              reanalyseProjectDocuments(projectId, (line) => {
+                console.log(`[Re-analysis] ${projectId}: ${line}`);
+              }, mayContinue), undefined, tailLog));
+        } catch (e) {
+          console.warn(`[Re-analysis] ${projectId}: pass threw — ${String(e)}`);
+        }
       }
 
       resetFlushClock(projectId);
@@ -1700,6 +1757,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         skippedWork: finalBudget.skipped,
         budgetSummary: windDown,
       });
+      clearTimeout(activePipelines.get(projectId)?.watchdog);
       endRun(projectId);
 
       setCompletedResult(projectId, unifiedResult);
@@ -2510,6 +2568,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         budgetSummary: budgetStop ? stop?.message ?? null : null,
         failureReason: budgetStop ? null : errMessage.slice(0, 500),
       });
+      clearTimeout(activePipelines.get(projectId)?.watchdog);
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
@@ -4184,6 +4243,8 @@ function capturePlanInputFor(
 async function reanalyseProjectDocuments(
   projectId: string,
   log: (line: string) => void,
+  /** The run's budget, asked between documents and between pages. See the tail in property-lookup. */
+  mayContinue: () => boolean = () => true,
 ): Promise<void> {
   const supabase = await getSupabase();
   if (!supabase) {
@@ -4222,6 +4283,9 @@ async function reanalyseProjectDocuments(
       // instrument re-read in full would be a surprise on the bill, and the cap is stated rather
       // than silent.
       for (const url of pageUrls.slice(0, 5)) {
+        // Between pages too: one deed page is four-plus Vision calls, and a ceiling reached on
+        // page two must not buy pages three, four and five.
+        if (!mayContinue()) break;
         const resp = await fetch(url).catch(() => null);
         if (!resp?.ok) continue;
         const bytes = Buffer.from(await resp.arrayBuffer());
@@ -4245,6 +4309,7 @@ async function reanalyseProjectDocuments(
       };
     },
     log,
+    mayContinue,
   );
 
   log(describeReanalysis(report));
