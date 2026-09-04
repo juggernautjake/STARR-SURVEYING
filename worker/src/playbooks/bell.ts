@@ -49,4 +49,23 @@ export const BELL_PLAT_REPO: Playbook = {
   captchaSignature: null,
 };
 
-export const BELL_PLAYBOOKS: Playbook[] = [BELL_CLERK, BELL_PLAT_REPO];
+export const BELL_CAD: Playbook = {
+  site: 'bell-cad',
+  county: 'BELL',
+  version: 1,
+  displayName: 'Bell CAD (BIS eSearch appraisal district)',
+  entryUrl: 'https://esearch.bellcad.org/',
+  egress: 'direct',
+  dismissals: [],
+  searchRecipe: {
+    query: 'address (normalised, with FM-road and abbreviation variants), owner name, or property/account id',
+    documentTypes: ['APPRAISAL RECORD'],
+  },
+  // Server-side rendered results grid: ready when the result rows are in the DOM (no SPA spinner).
+  doneSignal: { kind: 'appears', signal: 'table tbody tr, .search-results tr, .result-row, .property-result, .resultsList' },
+  viewerRecipe: 'open a result row to the property detail page (redirectToPropertyDetails / /Property/View)',
+  downloadRecipe: 'the appraisal record is read from the detail page HTML; no file download',
+  captchaSignature: null,
+};
+
+export const BELL_PLAYBOOKS: Playbook[] = [BELL_CLERK, BELL_PLAT_REPO, BELL_CAD];

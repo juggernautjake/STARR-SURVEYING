@@ -25,9 +25,9 @@ describe('the playbook registry is well-formed', () => {
 });
 
 describe('loading by county and site', () => {
-  it('BELL loads the clerk and the plat repository, case-insensitively', () => {
+  it('BELL loads the clerk, plat repository and CAD, case-insensitively', () => {
     const bell = loadPlaybooks('Bell County');
-    expect(bell.map((p) => p.site).sort()).toEqual(['bell-clerk', 'bell-plat-repo']);
+    expect(bell.map((p) => p.site).sort()).toEqual(['bell-cad', 'bell-clerk', 'bell-plat-repo']);
   });
 
   it('an unindexed county loads nothing (and says so)', () => {
@@ -68,5 +68,13 @@ describe('B4 — the clerk scraper reads its done-signal from the playbook', () 
     expect(src).not.toContain('/loading results/i.test');
     // a signal that never clears names the playbook as the drift point
     expect(src).toContain('drifted from the playbook');
+  });
+
+  it('the CAD scraper sources its results selector from the bell-cad playbook', () => {
+    const cad = fs.readFileSync(path.join(SRC, 'services/bis-cad.ts'), 'utf8');
+    expect(cad).toContain("loadPlaybook('bell-cad')?.doneSignal.signal");
+    expect(cad).toContain('page.waitForSelector(CAD_RESULTS_SELECTOR');
+    // no results-row selector literal left inline
+    expect(cad).not.toContain("waitForSelector('table tbody tr");
   });
 });

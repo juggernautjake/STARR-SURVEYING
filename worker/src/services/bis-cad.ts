@@ -11,6 +11,14 @@ import { hostGate, noteHostAnswered, noteHostUnreachable, classifyTransportError
 // Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
 import { modelFor } from '../infra/model-router.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
+import { loadPlaybook } from '../playbooks/index.js';
+
+// B4: the CAD results-ready selector comes from the bell-cad playbook, so a BIS markup change is a
+// one-line playbook edit reviewed in a diff, not a hunt through three wait sites in this file. The
+// fallback matches the literal it replaced, so behaviour is unchanged if the playbook is absent.
+const CAD_RESULTS_SELECTOR =
+  loadPlaybook('bell-cad')?.doneSignal.signal
+  ?? 'table tbody tr, .search-results tr, .result-row, .property-result, .resultsList';
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
@@ -1041,7 +1049,7 @@ async function searchCadPlaywright(
           const raceResult = await Promise.race([
             capturePromise.then(() => 'ajax-captured' as const),
             navigationPromise,
-            page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 15_000 }).then(() => 'dom-found' as const),
+            page.waitForSelector(CAD_RESULTS_SELECTOR, { timeout: 15_000 }).then(() => 'dom-found' as const),
             page.waitForTimeout(15_000).then(() => 'timeout' as const),
           ]);
           finish.step?.(`[runtime] Search wait resolved via: ${raceResult}`);
@@ -1234,7 +1242,7 @@ async function searchCadPlaywright(
           }
 
           await Promise.race([
-            page.waitForSelector('table tbody tr, .search-results tr, .resultsList', { timeout: 10_000 }).then(() => 'dom'),
+            page.waitForSelector(CAD_RESULTS_SELECTOR, { timeout: 10_000 }).then(() => 'dom'),
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
@@ -1332,7 +1340,7 @@ async function searchCadPlaywright(
           }
 
           await Promise.race([
-            page.waitForSelector('table tbody tr, .search-results tr, .resultsList', { timeout: 10_000 }).then(() => 'dom'),
+            page.waitForSelector(CAD_RESULTS_SELECTOR, { timeout: 10_000 }).then(() => 'dom'),
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
