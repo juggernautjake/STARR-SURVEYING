@@ -163,9 +163,12 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 - [ ] **C2 — The repository.** Decide from the dossiers whether any egress reaches
       bellcountytx.com; if none, record the source as unreachable-by-policy and stop asking; if an
       office-side fetch works, a small relay is the slice.
-- [ ] **C3 — Drawing hunt on the read text.** The drawing hunt runs on Phase A's text (survey
-      references, plat cabinet/slide citations, volume/page) and turns each citation into a clerk
-      lookup with a filed result or a stated miss.
+- [~] **C3 — Drawing hunt on the read text (read half shipped).** (`7701ff11d`) `citationsFromText`
+      (pure, tested) reads cabinet/slide, volume/page, and survey-abstract citations out of the
+      reading pass's text; wired into the tail after the reading pass, logged, and attached to the
+      result as `citedDrawings`. The FETCH of each citation into a filed clerk document (or a stated
+      miss) is the remaining half — it needs the clerk plat recipe (C1) and shares the browser
+      budget, so it follows C1.
 - [ ] **C4 — Plat index per county.** The 19 BIS counties' plat sources in the registry with an
       egress note each, so a county without a reachable plat source says so before a run.
 
