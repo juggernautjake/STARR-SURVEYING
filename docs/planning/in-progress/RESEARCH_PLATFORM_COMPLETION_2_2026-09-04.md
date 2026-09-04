@@ -86,7 +86,7 @@ Still open and worth doing: A1 (persisted reading_priority — read-time orderin
 for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run (a clean run
 now that the runaway is closed and the sweep ships — verify deed chain stops at ceiling, tail runs,
 summaries written, polygon persisted), all of Phase B (site atlas + playbooks), Phase C (plat
-recipe + repository egress), D2–D4, E2/E3/E5, F. (E1 and E4 shipped.)
+recipe + repository egress), D2, D3, E2/E3/E5, F. (E1, E4, D4 shipped.)
 
 ## 3. Phases
 
@@ -162,9 +162,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       dark CAD) is skipped by the next run for the marked period, with the reason in the log.
 - [ ] **D3 — Ceiling and reserve tuning from real runs.** Numbers from Phase A6 and three owner
       runs; the 15-minute floor and the 30% reserve revisited with evidence, not taste.
-- [ ] **D4 — Duplicate identity backfill.** Existing rows with null `identity_key` get one from
-      their instrument number; existing duplicate copies are reconciled onto their canonical row
-      with lineage kept (never deleted).
+- [x] **D4 — Duplicate identity backfill.** (`ef1300e6c`) `planIdentityBackfill` (tested) keys a
+      row with the same refFromRow→identityKey the pipeline uses; the partial unique index makes it
+      one operation with duplicate-reconciliation (each key one canonical, the rest duplicate_of it;
+      a row already marked duplicate keeps its lineage). Runner `backfill-identity.mjs` applied live:
+      157 rows keyed, 8 duplicates reconciled (verified clean, no chains), 611 correctly left
+      unkeyable (no instrument number); a re-plan now reports 0 updates. The pre-existing 61
+      storage-path duplicate chains are out of D4's scope (not created here) and left untouched.
 
 ### Phase E — Remaining audit items
 
