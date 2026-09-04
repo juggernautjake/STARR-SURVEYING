@@ -120,6 +120,34 @@ describe('the run wires it in — not gated on the ceiling, and the summary writ
   });
 });
 
+describe('A4 — a run reads its queue first, before searching for more', () => {
+  const index = read('index.ts');
+  it('is gated on documents actually being queued (never on a first run)', () => {
+    expect(index).toContain("'research_documents'");
+    expect(index).toContain(".eq('processing_status', 'queued')");
+    expect(index).toContain('if (queued > 0) {');
+  });
+  it('reads the queue BEFORE the search dispatch', () => {
+    // Anchor on code, not comments — the test reader strips comments. The head read is gated on the
+    // queued count; the dispatch is runCountyResearch. The head block must come first in the file.
+    const headRead = index.indexOf('if (queued > 0) {');
+    const dispatch = index.indexOf('runCountyResearch(');
+    expect(headRead).toBeGreaterThan(-1);
+    expect(dispatch).toBeGreaterThan(headRead); // earlier in the file ⇒ runs first
+    const window = index.slice(headRead, dispatch);
+    expect(window).toContain('reanalyseProjectDocuments(projectId');
+    expect(window).toContain('summariseUnsummarisedDocuments(');
+    expect(window).toContain('withRunContext(projectId');
+  });
+  it('is bounded by its own head allowance and the cost budget, and never fatal', () => {
+    const headRead = index.indexOf('if (queued > 0) {');
+    const window = index.slice(headRead, headRead + 2000);
+    expect(window).toContain('const headCapMs = Math.min(readingAllowanceMs(');
+    expect(window).toContain("return ex !== 'cost' && ex !== 'paid_pages';");
+    expect(index).toContain('head-of-run queue read failed (non-fatal)');
+  });
+});
+
 describe('every file with text gets a summary, even one read on an earlier run', () => {
   // The reader skips a document that already has good text — so its per-document summary would
   // never be written without a sweep. The sweep selects exactly the documents with text and no

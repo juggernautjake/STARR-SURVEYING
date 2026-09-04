@@ -1490,6 +1490,48 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     handshakeLogger.attempt('[Order]', 'info', 'Run order', line).success(0, line);
   }
 
+  // ── A4: read the queue we already paid for, before searching for more ────────────────────────
+  //
+  // A run leaves documents `processing_status = 'queued'` when its reading allowance runs out (see
+  // the tail). Those pages are on file and already bought — so the NEXT run reads them FIRST, and a
+  // backlog is worked down instead of growing while every run searches afresh. Gated on a queue
+  // actually existing (never on a first run) and bounded by its own head allowance and the cost
+  // budget, so the new search still happens. Non-fatal: a failure here never stops the run.
+  try {
+    const supaQueue = await getSupabase();
+    if (supaQueue) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: queuedCount } = await (supaQueue as any)
+        .from('research_documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('research_project_id', projectId)
+        .eq('processing_status', 'queued');
+      const queued = queuedCount ?? 0;
+      if (queued > 0) {
+        handshakeLogger
+          .attempt('[Reading]', 'info', 'Queue', `${queued} document(s) queued by an earlier run — reading them before searching.`)
+          .success(0, `Reading ${queued} queued document(s) first.`);
+        const headStartedAt = Date.now();
+        const { readingAllowanceMs, summariseUnsummarisedDocuments } = await import('./research/reading-pass.js');
+        // A slice of the reading allowance, never more than 4 minutes: the backlog is read first but
+        // must not eat the run whole. The cost budget stops it too.
+        const headCapMs = Math.min(readingAllowanceMs(budgetLimits.maxWallClockMs), 4 * 60_000);
+        const mayReadHead = () => {
+          if (Date.now() - headStartedAt > headCapMs) return false;
+          if (pipelineAbortController.signal.aborted) return false;
+          const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
+          return ex !== 'cost' && ex !== 'paid_pages';
+        };
+        await withRunContext(projectId, async () => {
+          await reanalyseProjectDocuments(projectId, (line) => console.log(`[Reading:queue] ${projectId}: ${line}`), mayReadHead);
+          await summariseUnsummarisedDocuments(supaQueue as never, projectId, process.env.ANTHROPIC_API_KEY ?? '', mayReadHead, (line) => console.log(`[Reading:queue] ${projectId}: ${line}`));
+        });
+      }
+    }
+  } catch (err) {
+    console.warn(`[Worker] ${projectId}: head-of-run queue read failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   // Run research pipeline in background — routes to county-specific or generic
   runCountyResearch(
     researchInput,
