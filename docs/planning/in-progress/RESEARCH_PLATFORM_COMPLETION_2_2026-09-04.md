@@ -160,9 +160,14 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 - [ ] **C1 — The clerk plat recipe.** From the clerk dossier: the exact search that lists PLAT
       documents for a subdivision (document-type filter, name variants, section suffixes, date
       range), encoded in the playbook and used by 2B before the deed search.
-- [ ] **C2 — The repository.** Decide from the dossiers whether any egress reaches
-      bellcountytx.com; if none, record the source as unreachable-by-policy and stop asking; if an
-      office-side fetch works, a small relay is the slice.
+- [x] **C2 — The repository egress decision.** (`7fcc9b95d`) The direct route 403s the worker; the
+      Browserbase route on another IP is the only road left, and when it ALSO fails the source is
+      unreachable by any egress we have. `noteBrowserRouteExhausted`/`browserRouteExhausted` record
+      that per host for the hour; both fetch paths return "unreachable-by-policy" early when a host
+      is exhausted, instead of spending a paid browser session on each of 26 letter pages. The clerk
+      plat search stays the primary road. (The office-side relay is a separate egress the owner would
+      have to stand up; the decision C2 asked for — record and stop asking — is made and enforced.)
+      Unit tests: per-host scope, hourly expiry, reset, and both paths honour it.
 - [~] **C3 — Drawing hunt on the read text (read half shipped).** (`7701ff11d`) `citationsFromText`
       (pure, tested) reads cabinet/slide, volume/page, and survey-abstract citations out of the
       reading pass's text; wired into the tail after the reading pass, logged, and attached to the
