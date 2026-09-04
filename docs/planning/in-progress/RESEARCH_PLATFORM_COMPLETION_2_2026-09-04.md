@@ -83,7 +83,7 @@ Shipped and merged since this document was written (worker + Vercel deployed on 
   what proves it.
 
 Still open and worth doing: A1 (persisted reading_priority — read-time ordering covers the intent
-for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run (a clean run
+for now), A5 data-points half, A6 proof run (a clean run
 now that the runaway is closed and the sweep ships — verify deed chain stops at ceiling, tail runs,
 summaries written, polygon persisted), all of Phase B (site atlas + playbooks), Phase C (plat
 recipe + repository egress), D2, D3, E2/E3/E5, F. (E1, E4, D4 shipped.)
@@ -108,9 +108,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 - [ ] **A3 — Order and budget.** Phase 3 and the tail read in priority order, under the analysis
       reserve, asking the budget between pages; what is left is left `queued`, counted, and named
       in the run summary ("read 14 of 31; 17 queued").
-- [ ] **A4 — Continuation.** A run on a project with a queue reads the queue FIRST (it is already
-      paid for) before searching for more; a "Finish reading" action on the review page runs the
-      reader alone with its own ceiling and cost limit. Both say what they did.
+- [x] **A4 — Continuation (read-first half).** (`d3f4cc42b`) Before the search dispatch a run reads
+      its own project's `queued` documents first — gated on a queue existing (never a first run),
+      bounded by a head allowance (a slice of readingAllowanceMs, ≤4 min) and the cost budget, using
+      the same reader + summary sweep as the tail, inside the run context. Non-fatal. Guard in
+      reading-pass-always-runs. DEFERRED: the review-page "Finish reading" button — it needs an
+      authenticated worker endpoint + app UI (a Phase E/route-auth-adjacent surface), disproportionate
+      to this slice; the read-first path already works the backlog down on every run.
 - [ ] **A5 — Summaries and data points from the same read.** The summary and the extracted data
       points come from the reader's output, not a second pass; the app's `analyzeProject` is
       either called automatically after a worker run when the run's settings allow the spend, or
