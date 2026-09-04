@@ -1,0 +1,148 @@
+# Research platform completion, part 2 — 2026-09-04
+
+The first completion plan (`completed/RESEARCH_PIPELINE_COMPLETION_2026-09-03.md`) closed on the
+night of 2026-09-03. Everything the owner asked for after that — across runs 4, 5 and 6 on
+1512 Chisholm Trail — is accounted for here: what was fulfilled, with the run that proved it, and
+what is still open, as phases and slices the stop hook can work through one at a time.
+
+Main is at `090c2df6e` (worker + Vercel deployed) as this document is written.
+
+## 1. The owner's requests, and where each stands
+
+| # | Request (owner's words, shortened) | Status | Evidence |
+|---|---|---|---|
+| 1 | Full analysis of the research platform: built / necessary / dead; fix; propose a better shape | **Done** | first plan closed; overview artifact; 40+ commits merged |
+| 2 | Keep the stop hook satisfied; ship slices; move the doc when done | **Done** for part 1 | this document continues it |
+| 3 | A full list of everything updated, hooked up, synced, removed, created, fixed | **Done** (twice) | delivered 2026-09-03 and 2026-09-04; overview artifact |
+| 4 | Merge to main so Vercel redeploys | **Done** | every slice merged; worker + Vercel verified on each sha |
+| 5 | Second ultracode evaluation; fix what can be fixed; suggest workflow changes | **Done in part** | 9 reviewers ran; fixers cut off by the spend limit; confirmed findings applied by hand (`8d4392edb`) |
+| 6 | "The run just keeps going" | **Done** | watchdog + bounded tail (`583c586c7`); run 4 ended at exactly 900 s |
+| 7 | Worker and server/client updates; SSH commands to pull the worker | **Done** | commands delivered; auto-updater verified on every merge |
+| 8 | CAD map captures: Playwright + OCR + tools to get past agreement popups and captchas | **Done differently, partly open** | the CAD map is rendered from the parcel layer, so no popup can block it (`76cb555bb`); the viewer fallback dismisses dialogs; no captcha solver is funded (CapSolver rejected) → Phase B |
+| 9 | "Something buggy with the logging" (export had only browser lines) | **Done** | `a146af3f0`; the owner's next export carried 1,181 worker lines |
+| 10 | Retrieve the plats and drawings, the correct CAD map view, the satellite aerial view | **Done for maps and aerials; plats partly** | run 5: 6 plats + deed chain filed, first aerials ever (`230c3358a`); plat repository still blocked (403 from worker AND Browserbase) → Phase C |
+| 11 | Every overhead view centred on the parcel; imagery + at least one lines-only view every run | **Done** | `090c2df6e`: fixed frames centre on the polygon; `cad_parcel_lines` drawn with side lengths in feet |
+| 12 | "A run that finished having skipped the deed chain is not a run that finished" | **Done** | run 6: "Stopped mid-step, work kept: clerk deed search (10 document(s) kept; the subject's deed chain finished; the subdivision sweep was cut short)" (`5d327ddf4`); reserve for reading (`4ab36af8e`) |
+| 13 | OCR on every image and document, tiled and zoomed, full analysis, summary and results for every file in every run | **Open** | library: 60 documents, 10 with text, 0 with a summary, 0 data points → Phase A |
+| 14 | Systematic OCR + DOM atlas of every website; playbooks; navigate perfectly; plats and drawings especially | **Open** | planned below → Phase B and Phase C |
+| 15 | Review all requests; a phased planning doc in in-progress for the stop hook | **Done** | this document |
+
+## 2. Facts the phases are built on (2026-09-04, project 741bbd93, 1512 Chisholm Trail)
+
+- Runs 4, 5, 6 each hit the 15-minute floor inside Phase 2. Phase 3 (the AI reading) never ran.
+  The reserve (`4ab36af8e`) now holds 30% of the ceiling back for it — untested by a run.
+- The tiled, zooming reader exists and works (`adaptive-vision.ts`, used by `ai-extraction.ts`,
+  `ai-plat-analyzer.ts`, the capture runner and the post-run re-read). What is missing is
+  coverage: a durable list of what has not been read, an order, and continuation across runs.
+- The app-side extractor (`analyzeProject`, writes `extracted_data_points`) runs only from the
+  Analyze button or the lite pipeline. It is never triggered by a worker run finishing.
+- Duplicates: the review page's merge marks older copies `duplicate_of`; the worker library now
+  loads those rows too (`090c2df6e`), but the copies already on file (plat 1982002520 ×4, every
+  run-5 deed ×2) remain.
+- bellcountytx.com refuses the worker's address and Browserbase's. The clerk is the plat source of
+  record for Bell; the repository needs an office-side egress or is recorded unreachable.
+- Google Maps times out from the worker; Esri tiles carry the aerials (z19, 0.26 m/px here).
+- `research_document_purchases` is still 0 rows: a paid path has never executed end to end.
+
+## 3. Phases
+
+Each slice ends with: worker/app type-check + lint green, a guard test that asserts the CALLER,
+a commit, and — where the slice changes a run — a bounded live run whose log line proves it.
+Verify in one turn, commit in the next. Build before any merge; merges need the owner's say-so.
+
+### Phase A — Read everything that is found (request 13)
+
+- [ ] **A1 — The reading queue is real.** Every filed document gets `processing_status =
+      'queued'` until read; a `reading_priority` (subject deeds → plats → easements/restrictions
+      → adjoiner deeds → other) is set at filing. `research_documents` gains nothing new if the
+      existing columns carry it; otherwise one seed, applied live, with the CHECK verified.
+- [ ] **A2 — One reader, tiled, for every page.** A single `readDocument(doc)` path (adaptive
+      vision, tiles + zoom escalation, every page) used by Phase 3, the post-run re-read and the
+      backlog job. Writes `extracted_text`, `extracted_text_method`, `ocr_confidence`,
+      `ocr_segments`, `analysis_metadata.aiSummary`, `relevance`, `processing_status`. Nothing
+      else writes text.
+- [ ] **A3 — Order and budget.** Phase 3 and the tail read in priority order, under the analysis
+      reserve, asking the budget between pages; what is left is left `queued`, counted, and named
+      in the run summary ("read 14 of 31; 17 queued").
+- [ ] **A4 — Continuation.** A run on a project with a queue reads the queue FIRST (it is already
+      paid for) before searching for more; a "Finish reading" action on the review page runs the
+      reader alone with its own ceiling and cost limit. Both say what they did.
+- [ ] **A5 — Summaries and data points from the same read.** The summary and the extracted data
+      points come from the reader's output, not a second pass; the app's `analyzeProject` is
+      either called automatically after a worker run when the run's settings allow the spend, or
+      retired in favour of the worker's output — one of the two, decided in the slice, not both.
+- [ ] **A6 — Proof.** A run whose log shows every filed document read or queued with a reason,
+      the library query showing text + summary on each read row, and data points for the project.
+
+### Phase B — Site atlas and navigation playbooks (requests 8, 14)
+
+- [ ] **B1 — The atlas tool.** `worker/src/tools/site-atlas.ts` walks a site's states (entry,
+      search, results, viewer, download) and writes per state: full-page screenshot, DOM outline
+      (every interactive element with a stable selector and text), accessibility tree, data-carrying
+      network calls, and a Vision read ("what is on screen, what blocks the user, what would a
+      person click next"). Output under `docs/research/site-atlas/<site>/`, with an `index.md`.
+- [ ] **B2 — Bell dossiers.** Atlas runs for Bell CAD eSearch, the GIS viewer, the clerk
+      (publicsearch), the plat repository and Google Maps — from the worker AND from an office
+      connection, so a block is a recorded fact with the office view beside it.
+- [ ] **B3 — Playbooks.** `worker/src/playbooks/<site>.json`: entry, dismissals, search recipe,
+      done-signal (an element or text, never a fixed wait), results layout, viewer recipe, download
+      recipe, captcha signature, egress requirement. Reviewed by a person; versioned.
+- [ ] **B4 — Scrapers read playbooks.** Clerk, CAD and GIS scrapers take selectors, waits and
+      done-signals from the playbook and assert the expected state before each step; a mismatch
+      names the playbook line.
+- [ ] **B5 — Drift watch.** A nightly atlas re-walk diffs each site against its dossier and files
+      a health row when a state no longer matches.
+- [ ] **B6 — Popups and captchas.** From the dossiers: every dismissal encoded; captcha presence
+      detected and reported (with a screenshot) rather than silently timed out; a funded solver or
+      an office-side hand-off is the owner's decision, stated in the playbook.
+
+### Phase C — Plats and drawings (requests 10, 14)
+
+- [ ] **C1 — The clerk plat recipe.** From the clerk dossier: the exact search that lists PLAT
+      documents for a subdivision (document-type filter, name variants, section suffixes, date
+      range), encoded in the playbook and used by 2B before the deed search.
+- [ ] **C2 — The repository.** Decide from the dossiers whether any egress reaches
+      bellcountytx.com; if none, record the source as unreachable-by-policy and stop asking; if an
+      office-side fetch works, a small relay is the slice.
+- [ ] **C3 — Drawing hunt on the read text.** The drawing hunt runs on Phase A's text (survey
+      references, plat cabinet/slide citations, volume/page) and turns each citation into a clerk
+      lookup with a filed result or a stated miss.
+- [ ] **C4 — Plat index per county.** The 19 BIS counties' plat sources in the registry with an
+      egress note each, so a county without a reachable plat source says so before a run.
+
+### Phase D — The shape of a run (requests 6, 12)
+
+- [ ] **D1 — Order inside Phase 2.** Subject deed chain (instrument + owner) completes before the
+      subdivision sweep begins; the sweep is what the ceiling cuts, never the chain.
+- [ ] **D2 — Provider health feeds dispatch.** A provider marked down (Google, the repository, a
+      dark CAD) is skipped by the next run for the marked period, with the reason in the log.
+- [ ] **D3 — Ceiling and reserve tuning from real runs.** Numbers from Phase A6 and three owner
+      runs; the 15-minute floor and the 30% reserve revisited with evidence, not taste.
+- [ ] **D4 — Duplicate identity backfill.** Existing rows with null `identity_key` get one from
+      their instrument number; existing duplicate copies are reconciled onto their canonical row
+      with lineage kept (never deleted).
+
+### Phase E — Remaining audit items
+
+- [ ] **E1 — Parcel polygon persisted** on the project so the review page can draw it.
+- [ ] **E2 — Dead surfaces and the Testing Lab** retired through their guards, or wired.
+- [ ] **E3 — Route auth** on the research API routes that lack it.
+- [ ] **E4 — Multi-page OCR segments** carried per page, not first page only.
+- [ ] **E5 — The paid path.** One TexasFile purchase end to end on a document the free path could
+      not read, with the purchase row written and the switch proven to stop a second one.
+
+### Phase F — Proof and close
+
+- [ ] **F1 — Three owner-settings runs** (30 minutes, paid off) on three properties, each log read
+      end to end, each library queried; every request in §1 re-checked against them.
+- [ ] **F2 — Overview artifact and memory updated; this document moved to completed.**
+
+## 4. Ground rules carried from part 1
+
+- "Authored but not wired" is this repo's commonest defect: a wiring test asserts the CALLER.
+- A table at zero rows is usually a write that cannot execute: check the CHECK, the columns and
+  the conflict target before believing a feature works.
+- A verdict nobody acts on is a comment. A ceiling only checked when something reports is not a
+  ceiling. Kept work is not skipped work.
+- Read the tool's exit, not the wrapper's. Run a control before believing a negative.
+- The dossier is the evidence; the playbook is the decision; the scraper is the execution.
