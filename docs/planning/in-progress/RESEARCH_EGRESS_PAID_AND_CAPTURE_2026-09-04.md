@@ -76,11 +76,12 @@ Detection ships (B6 — `detectCaptcha` names the wall instead of parsing it as 
 runs the visual capture BEFORE the Phase 2 document grind. Built for this request in part 1. Run 9's
 log announces the order at start. No change needed; confirmed against the owner's restated priority.
 
-### P3 — Auto-run AI analysis after every run (A5 impl)
-The app's `analyzeProject` writes `extracted_data_points` and works (208 live rows). Wire the worker
-to call it at run finish, every run for now: the app's `/api/admin/research/[projectId]/analyze` route
-accepts `x-worker-key` (as the queue-claim route does); the worker POSTs to it after `recordRunFinish`.
-Non-fatal, logged. Verified end-to-end by the supervised run.
+### P3 — Auto-run AI analysis after every run (A5 impl) `[shipped 3c0a4cd2b; verify on next run]`
+The analyze route accepts `x-worker-key` and bypasses the interactive status gates for a worker call
+(keeps the scope refusal); `triggerAppAnalysis` POSTs it at the Bell run-finish tail, fire-and-forget,
+non-fatal, every run for now. Tests cover the helper's paths + the wiring on both sides. The app half
+is live on Vercel; the worker half deploys after run 9. VERIFY: the next supervised run's Data Points
+panel populates. (Generic-pipeline finish wiring is a follow-up; the owner's runs are Bell.)
 
 ### P4 — TexasFile paid path end to end (E5)
 A Playwright flow, credentials from Doppler/env: sign in → search the document the free path could not
