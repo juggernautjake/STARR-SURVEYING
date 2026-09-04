@@ -14,8 +14,14 @@ function extractProjectId(req: NextRequest): string | null {
 
 /* POST — Start analysis for a project */
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // The worker auto-runs analysis at run finish, authenticating with x-worker-key like the
+  // queue-claim route (a machine, not a session). A worker call skips the session AND the
+  // interactive status gates — a post-run analysis is valid whatever step the project landed on —
+  // but still honours the scope refusal below.
+  const workerKey = req.headers.get('x-worker-key');
+  const isWorker = !!workerKey && !!process.env.WORKER_API_KEY && workerKey === process.env.WORKER_API_KEY;
+  const session = isWorker ? null : await auth();
+  if (!isWorker && !session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const projectId = extractProjectId(req);
   if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
@@ -44,7 +50,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const isResume = config?.resume === true;
 
-  if (project.status === 'analyzing' && !isResume) {
+  if (project.status === 'analyzing' && !isResume && !isWorker) {
     return NextResponse.json({ error: 'Analysis already in progress' }, { status: 409 });
   }
 
@@ -57,7 +63,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
-  if (!isResume && project.status !== 'configure' && project.status !== 'review') {
+  if (!isResume && !isWorker && project.status !== 'configure' && project.status !== 'review') {
     return NextResponse.json({
       error: `Cannot start analysis from "${project.status}" status. Project must be in "configure" or "review" step.`
     }, { status: 400 });

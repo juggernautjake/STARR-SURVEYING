@@ -1878,6 +1878,19 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       clearTimeout(activePipelines.get(projectId)?.watchdog);
       endRun(projectId);
 
+      // P3/A5: auto-run the app's AI data-point analysis after every run (owner's decision
+      // 2026-09-04) so the Data Points / Briefing panels populate without pressing Analyze.
+      // Fire-and-forget and non-fatal — the research is filed regardless.
+      void (async () => {
+        try {
+          const { triggerAppAnalysis } = await import('./research/trigger-app-analysis.js');
+          const r = await triggerAppAnalysis(projectId, { allow: true });
+          tailLog(r.statement);
+        } catch (e) {
+          console.warn(`[Analysis] ${projectId}: auto-run trigger threw — ${String(e)}`);
+        }
+      })();
+
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
       // Clear the running-message cache — the pipeline has finished.
