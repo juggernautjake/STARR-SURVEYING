@@ -63,7 +63,8 @@ describe('the conversion did not change what gets captured', () => {
     // The gate moved from `if (captureImages)` around the try/catch to the argument itself. If it
     // were dropped, every run would capture images whether or not it asked to — slow, and for the
     // metadata-only paths, pointless.
-    expect(SRC.match(/captureImages \? \w+Instruments : \[\]/g)?.length)
+    // "other" became the land-only subset `landOthers` on 2026-09-04 (liens are indexed, not downloaded).
+    expect(SRC.match(/captureImages \? (\w+Instruments|landOthers) : \[\]/g)?.length)
       .toBe(3);
   });
 
@@ -81,7 +82,7 @@ describe('the conversion did not change what gets captured', () => {
     // county page answered first.
     const plat = SRC.indexOf('platInstruments.entries()');
     const deed = SRC.indexOf('deedInstruments.entries()');
-    const other = SRC.indexOf('otherInstruments.entries()');
+    const other = SRC.indexOf('landOthers.entries()');
     expect(plat).toBeGreaterThan(-1);
     expect(deed).toBeGreaterThan(plat);
     expect(other).toBeGreaterThan(deed);

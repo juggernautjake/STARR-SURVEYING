@@ -33,6 +33,7 @@
 // screenshot, and losing the image because the reader had a bad day would be the worse trade.
 
 import type { CapturePlan, PlannedCaptureItem } from './capture-plan.js';
+import type { ImagerySource } from '../services/imagery-plan.js';
 import { provenanceForCapture, captionForCapture } from './capture-plan.js';
 import { contentHash } from './project-library.js';
 
@@ -45,6 +46,11 @@ export type ScreenshotFn = (
    *  Supplied text replaces OCR: sending a map we drew to Vision to read our own labels back is
    *  twenty model calls for nothing (run 4, 2026-09-04). */
   text?: string | null;
+  /** Who supplied the pixels, when it is not the item's planned provider — a render from Esri
+   *  tiles that replaced a Google screenshot is credited to Esri (run 5 filed them as ©Google). */
+  source?: ImagerySource;
+  sourceUrl?: string | null;
+  metresPerPixel?: number;
 } | null>;
 
 /** Read the text in an image. Returns null when nothing could be read — which is not an error. */
@@ -160,7 +166,10 @@ export async function runCaptures(
     }
 
     // ── File ───────────────────────────────────────────────────────────────────────────────────
-    const provenance = provenanceForCapture(item);
+    const effective = shot.source
+      ? { ...item, source: shot.source, url: shot.sourceUrl ?? item.url, metresPerPixel: shot.metresPerPixel ?? item.metresPerPixel }
+      : item;
+    const provenance = provenanceForCapture(effective);
     const row = buildCaptureRow(item, ctx, stored, shot.bytes, ocrText, provenance);
 
     let result: Awaited<ReturnType<FileFn>>;

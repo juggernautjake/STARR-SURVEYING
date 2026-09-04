@@ -153,6 +153,34 @@ describe('the aerials are rendered from imagery tiles with the parcel drawn on',
     expect(out.text).toContain('was NOT among the 0 parcel(s)');
   });
 
+  it('a render finer than the tile cache says it was enlarged; one at cache scale does not', async () => {
+    // A flat-colour PNG is ~300 bytes and reads as a placeholder tile, which makes the fetch step
+    // down to the floor zoom — the real cache's placeholders are what that check is for. Noise
+    // makes a tile the size of real imagery.
+    const noise = Buffer.alloc(256 * 256 * 3);
+    for (let i = 0; i < noise.length; i++) noise[i] = (i * 2654435761) >>> 24;
+    const tile = await sharp(noise, { raw: { width: 256, height: 256, channels: 3 } }).png().toBuffer();
+    expect(tile.length).toBeGreaterThan(4_000);
+    const fetchImpl = (async (url: string) =>
+      url.includes('World_Imagery/MapServer/tile/') ? new Response(new Uint8Array(tile), { status: 200 }) : new Response('nope', { status: 404 })
+    ) as unknown as typeof fetch;
+    const fine = await renderParcelMap({ county: 'Bell', parcelId: null, centre: { lat: 30.9586, lon: -97.5249 }, parcelLayerUrl: null, halfWidthMetres: 60, sizePx: 1024, fetchImpl });
+    expect(fine.text).toMatch(/Imagery enlarged \d+(\.\d+)?× from the/);
+    const coarse = await renderParcelMap({ county: 'Bell', parcelId: null, centre: { lat: 30.9586, lon: -97.5249 }, parcelLayerUrl: null, halfWidthMetres: 400, sizePx: 256, fetchImpl });
+    expect(coarse.text).not.toMatch(/Imagery enlarged/);
+  });
+
+  it('a render credits Esri, not the provider it replaced, and one provider timeout is enough for the run', () => {
+    const index = read('index.ts');
+    expect((index.match(/source: 'esri_world_imagery' as const, sourceUrl: map\.sources\./g) ?? []).length).toBe(2);
+    expect(index).toContain('let providerDown = false;');
+    expect(index).toContain('if (/Timeout|net::ERR|ERR_|ECONN|blocked/i.test(String(e))) providerDown = true;');
+    expect(index).toContain('(tilesAreSharpEnough || providerDown)');
+    const runner = read('research/capture-runner.ts');
+    expect(runner).toContain('const effective = shot.source');
+    expect(runner).toContain('const provenance = provenanceForCapture(effective);');
+  });
+
   it('the planner puts the parcel on every aerial band so the render can outline it', () => {
     const plan = planCaptures({
       projectId: 'p', county: 'Bell', latitude: 30.9586, longitude: -97.5249, acreage: 0.3857, parcelId: '9158',
@@ -171,7 +199,7 @@ describe('the aerials are rendered from imagery tiles with the parcel drawn on',
     const index = read('index.ts');
     expect(index).toContain("const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_neighbours']);");
     expect(index).toContain('const tilesAreSharpEnough = (item.metresPerPixel ?? 0) >= 0.2;');
-    expect(index).toContain("return await renderAerial('tile cache is at least this sharp');");
+    expect(index).toContain("return await renderAerial(providerDown ? 'map provider is down this run' : 'tile cache is at least this sharp');");
     expect(index).toContain("return await renderAerial('provider failed');");
     // The dismisser runs for every provider now, not only the GIS viewer.
     expect(index).not.toContain("if (item.kind === 'cad_gis') {\n            const { dismissDialogs }");

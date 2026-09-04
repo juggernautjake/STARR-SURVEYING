@@ -463,11 +463,16 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
     .toBuffer();
 
   const sources = { parcelQueryUrl: queryUrl, basemapUrl: bm };
+  // An honest word about sharpness: the close band asks for 0.07 m/px and the cache here stops
+  // at 0.26. The frame is right; the pixels are enlarged, and the text says so.
+  const upscaled = frame.metresPerPixel < plan.metresPerPixel * 0.95
+    ? `\nImagery enlarged ${(plan.metresPerPixel / frame.metresPerPixel).toFixed(1)}× from the ${plan.metresPerPixel.toFixed(2)} m/px tile cache (zoom ${plan.z}); parcel lines are exact, photo detail is not finer than the cache.`
+    : '';
   return {
     png, width: sizePx, height: sizePx,
     bbox: frameBboxLonLat(frame),
     metresPerPixel: frame.metresPerPixel,
-    text: describeParcelMap(input.county, input.parcelId, parcels, frame, sources, now),
+    text: describeParcelMap(input.county, input.parcelId, parcels, frame, sources, now) + upscaled,
     subjectFound: Boolean(subject),
     parcelCount: parcels.length,
     sources,

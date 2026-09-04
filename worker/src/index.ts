@@ -4049,6 +4049,10 @@ async function runCapturePlan(
   if (!supabase) return;
   const county = activePipelines.get(projectId)?.county ?? '';
   const capLog = await captureLoggerFor(projectId);
+  // Google Maps timed out at 45 s for the subject band AND again for the close band on run 5
+  // (2026-09-04) — 90 s of a 15-minute run spent learning the same thing twice. One timeout
+  // marks the provider down for the rest of this plan; later bands go straight to the tiles.
+  let providerDown = false;
   const report = await runCaptures(plan, {
     // Playwright, through the same browser factory every scraper uses — so a capture inherits the
     // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
@@ -4072,7 +4076,10 @@ async function runCapturePlan(
             `${item.label}: rendered from the parcel layer — ${map.parcelCount} parcel(s), ` +
             `subject ${map.subjectFound ? 'matched' : 'NOT matched'}, ${map.metresPerPixel.toFixed(2)} m/px`,
           );
-          return { bytes: map.png, width: map.width, height: map.height, text: map.text };
+          return {
+            bytes: map.png, width: map.width, height: map.height, text: map.text,
+            source: 'esri_world_imagery' as const, sourceUrl: map.sources.parcelQueryUrl || map.sources.basemapUrl, metresPerPixel: map.metresPerPixel,
+          };
         } catch (e) {
           capLog('warn', `${item.label}: render from the parcel layer failed (${String(e)}) — falling back to the viewer screenshot.`);
         }
@@ -4097,11 +4104,15 @@ async function runCapturePlan(
           title: item.label, labelNeighbours: item.kind !== 'aerial_wide',
         });
         capLog('info', `${item.label}: rendered from imagery tiles (${why}) — ${map.metresPerPixel.toFixed(2)} m/px, ${map.parcelCount} parcel outline(s)`);
-        return { bytes: map.png, width: map.width, height: map.height, text: map.text };
+        return {
+          bytes: map.png, width: map.width, height: map.height, text: map.text,
+          // The caption credits who supplied the pixels. Run 5 filed tile renders as "©Google".
+          source: 'esri_world_imagery' as const, sourceUrl: map.sources.basemapUrl, metresPerPixel: map.metresPerPixel,
+        };
       };
       const tilesAreSharpEnough = (item.metresPerPixel ?? 0) >= 0.2;
-      if (AERIAL.has(item.kind) && item.centre && tilesAreSharpEnough) {
-        try { return await renderAerial('tile cache is at least this sharp'); }
+      if (AERIAL.has(item.kind) && item.centre && (tilesAreSharpEnough || providerDown)) {
+        try { return await renderAerial(providerDown ? 'map provider is down this run' : 'tile cache is at least this sharp'); }
         catch (e) { capLog('warn', `${item.label}: tile render failed (${String(e)}) — trying the map provider.`); }
       }
       if (!item.url) return null;
@@ -4132,7 +4143,8 @@ async function runCapturePlan(
         }
       });
       } catch (e) {
-        capLog('warn', `${item.label}: the map provider could not be captured (${String(e)})`);
+        capLog('warn', `${item.label}: the map provider could not be captured (${String(e).split('\n')[0]})`);
+        if (/Timeout|net::ERR|ERR_|ECONN|blocked/i.test(String(e))) providerDown = true;
         if (AERIAL.has(item.kind) && item.centre) {
           try { return await renderAerial('provider failed'); }
           catch (e2) { capLog('warn', `${item.label}: tile render failed too (${String(e2)})`); }
