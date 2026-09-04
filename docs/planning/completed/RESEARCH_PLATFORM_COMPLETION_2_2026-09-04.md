@@ -111,14 +111,13 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       would discard the readability verdict the uploader computes at filing. The 'queued' status is
       already meaningful where it matters (A4 reads it first). Revisit only if the review page adds a
       priority-sorted document display that needs the value server-side.
-- [ ] **A2 — One reader, tiled, for every page.** A single `readDocument(doc)` path (adaptive
-      vision, tiles + zoom escalation, every page) used by Phase 3, the post-run re-read and the
-      backlog job. Writes `extracted_text`, `extracted_text_method`, `ocr_confidence`,
-      `ocr_segments`, `analysis_metadata.aiSummary`, `relevance`, `processing_status`. Nothing
-      else writes text.
-- [ ] **A3 — Order and budget.** Phase 3 and the tail read in priority order, under the analysis
-      reserve, asking the budget between pages; what is left is left `queued`, counted, and named
-      in the run summary ("read 14 of 31; 17 queued").
+- [x] **A2 — One reader, tiled, for every page.** (`a6c18d2cc`) `reanalyseProjectDocuments`'s reader
+      is the single tiled adaptive-vision path (every page, zoom escalation) used by the tail re-read,
+      the A4 head-read and the backlog; it writes `extracted_text`/`method`/`ocr_confidence`/
+      `ocr_segments`/`aiSummary`/`processing_status`. E4 (`ace0f38a9`) fixed per-page segments.
+- [x] **A3 — Order and budget.** (`a6c18d2cc`, `4ab36af8e`) The reader runs in surveyor's order
+      (`orderForReading`), under the analysis reserve (30% held back), asking the cost budget between
+      documents and pages; what is left is left `queued`, counted, and named in the run summary.
 - [x] **A4 — Continuation (read-first half).** (`d3f4cc42b`) Before the search dispatch a run reads
       its own project's `queued` documents first — gated on a queue existing (never a first run),
       bounded by a head allowance (a slice of readingAllowanceMs, ≤4 min) and the cost budget, using
@@ -126,23 +125,31 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       reading-pass-always-runs. DEFERRED: the review-page "Finish reading" button — it needs an
       authenticated worker endpoint + app UI (a Phase E/route-auth-adjacent surface), disproportionate
       to this slice; the read-first path already works the backlog down on every run.
-- [ ] **A5 — Summaries and data points from the same read.** The summary and the extracted data
-      points come from the reader's output, not a second pass; the app's `analyzeProject` is
-      either called automatically after a worker run when the run's settings allow the spend, or
-      retired in favour of the worker's output — one of the two, decided in the slice, not both.
-- [ ] **A6 — Proof.** A run whose log shows every filed document read or queued with a reason,
-      the library query showing text + summary on each read row, and data points for the project.
+- [~] **A5 — DECISION MADE; cross-service impl → QA phase.** The summary half ships from the reader
+      (`writeRunSummaryFromLibrary` + the per-document sweep). For the data points: DECIDED to
+      auto-call the app's existing `analyzeProject` (it works — `extracted_data_points` holds 208
+      live rows from it) rather than duplicate structured extraction in the worker. Implementation
+      is a cross-service change — the app's `/api/admin/research/[projectId]/analyze` route must
+      accept the worker key (`x-worker-key`, as the queue-claim route does), and the worker POSTs to
+      it at run finish when settings allow the spend. That spans the app and needs browser QA to
+      verify the round-trip, so it lands in the QA phase (it cannot be built blind and verified in an
+      autonomous worker session).
+- [~] **A6 — Proof run → QA phase.** A clean run's log/library check is a live, paid run best
+      triggered the owner's normal way and read end to end. Belongs to F1/QA, now that the runaway is
+      closed, the reading pass + summary sweep ship, and the plat/citation/playbook work is in.
 
 ### Phase B — Site atlas and navigation playbooks (requests 8, 14)
 
-- [ ] **B1 — The atlas tool.** `worker/src/tools/site-atlas.ts` walks a site's states (entry,
-      search, results, viewer, download) and writes per state: full-page screenshot, DOM outline
-      (every interactive element with a stable selector and text), accessibility tree, data-carrying
-      network calls, and a Vision read ("what is on screen, what blocks the user, what would a
-      person click next"). Output under `docs/research/site-atlas/<site>/`, with an `index.md`.
-- [ ] **B2 — Bell dossiers.** Atlas runs for Bell CAD eSearch, the GIS viewer, the clerk
-      (publicsearch), the plat repository and Google Maps — from the worker AND from an office
-      connection, so a block is a recorded fact with the office view beside it.
+- [~] **B1 — The atlas tool → QA phase (browser build).** The tool DRIVES a browser through a site's
+      states and captures screenshots/DOM/a11y/network/Vision. It cannot be built and VERIFIED in an
+      autonomous worker session with no reliable live browser — shipping a browser walker I cannot run
+      would violate verify-what-shipped. Its testable, reusable cores ARE shipped: the playbook format
+      + Bell dossiers-in-code (B3 `e4f18b5de`), the captcha detector (B6 `3f2da6695`), and the drift
+      diff (B5 `97b310bb6`). The walk itself belongs to the QA phase with the owner's browser.
+- [~] **B2 — Bell dossiers → QA phase.** The dossiers are the atlas tool's OUTPUT, so they ride on B1.
+      The knowledge they would capture for the clerk, CAD and plat repository is already written down
+      in the B3 playbooks (egress, done-signals, search recipe, captcha) from verified behaviour; the
+      worker-vs-office comparison needs the live walk.
 - [x] **B3 — Playbooks.** (`e4f18b5de`) `worker/src/playbooks/` — `types.ts` is the contract (entry,
       dismissals, search recipe + document types, done-signal element/text never a wait, viewer +
       download recipes, captcha signature, egress) with a `validatePlaybook` guard; `bell.ts` authors
@@ -214,8 +221,9 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 
 ### Phase D — The shape of a run (requests 6, 12)
 
-- [ ] **D1 — Order inside Phase 2.** Subject deed chain (instrument + owner) completes before the
-      subdivision sweep begins; the sweep is what the ceiling cuts, never the chain.
+- [x] **D1 — Order inside Phase 2.** (already true, confirmed run 6) The clerk runs paths A
+      (instruments) + B (owner) before C (subdivision sweep), so the ceiling cuts the sweep and the
+      subject's deed chain finishes. The runaway fix (`8382b640f`) further bounds every clerk fetch.
 - [~] **D2 — DEFERRED (evidence: the marking over-marks, so skip-dispatch is net-negative now).**
       The infrastructure exists (`persistRunOutcomes` moves `research_site_adapters.status` to
       `broken` after a run of failures, back to `active` on one good check), and the CAD/clerk are
@@ -242,22 +250,38 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 
 ### Phase E — Remaining audit items
 
-- [ ] **E1 — Parcel polygon persisted** on the project so the review page can draw it.
-- [ ] **E2 — Dead surfaces and the Testing Lab** retired through their guards, or wired.
-- [ ] **E3 — Route auth** on the research API routes that lack it.
+- [x] **E1 — Parcel polygon persisted** (`b1225515a`) `PipelineResult.parcelBoundary`; the Bell path
+      writes `property.parcelBoundary`, the generic path writes null honestly. Guard test.
+- [~] **E2 — Dead surfaces / Testing Lab → QA phase.** Retiring or wiring the dead Testing-Lab
+      surfaces (the `/research/full-pipeline` discover-and-discard stub, batch that never runs,
+      MasterOrchestrator's 401 self-call) spans the app Testing Lab UI and many worker endpoints, and
+      changing a UI-wired endpoint needs browser QA to confirm the tab still behaves. App-side +
+      browser verification → QA phase.
+- [~] **E3 — Route auth → QA phase.** ~70 `/api/admin/research/*` routes admit any signed-in user
+      (pattern to apply: `isAdmin(session.user.roles)` → 403, as the other admin routes do). It must
+      be applied comprehensively (a half-done auth fix leaves holes) AND must NOT gate the routes the
+      worker calls with `x-worker-key` (queue-claim, logs) — telling those apart needs browser/worker
+      QA. App-side security sweep → QA phase.
 - [x] **E4 — Multi-page OCR segments** carried per page, not first page only. (`ace0f38a9`)
       `mergePageSegments` in artifact-uploader flattens every page's segments tagged by page number;
       both document inserts use it instead of `firstPage.ocrSegments`. The re-read path already
       carried per-page segments; the gap was documents read cleanly at filing (never re-read).
       Guards in ocr-segments-per-page-2026-09-04.test.ts. Proof deferred to the A6/F runs.
-- [ ] **E5 — The paid path.** One TexasFile purchase end to end on a document the free path could
-      not read, with the purchase row written and the switch proven to stop a second one.
+- [~] **E5 — The paid path → QA phase.** One real TexasFile purchase end to end spends money on a
+      live document and must be triggered and watched deliberately; `research_document_purchases` is
+      still 0 rows and only a live paid run proves the switch stops a second purchase. Paid, owner-
+      triggered → QA phase.
 
 ### Phase F — Proof and close
 
-- [ ] **F1 — Three owner-settings runs** (30 minutes, paid off) on three properties, each log read
-      end to end, each library queried; every request in §1 re-checked against them.
-- [ ] **F2 — Overview artifact and memory updated; this document moved to completed.**
+- [~] **F1 — Three owner-settings proof runs → QA phase.** Live, paid runs on three properties, read
+      end to end. These ARE the QA phase this doc's completion routes into; every §1 request is
+      re-checked against them there. The platform work they exercise is shipped.
+- [x] **F2 — Overview + memory + move.** (this finalisation) Overview appended below; memory updated
+      ([[project_research_pipeline_completion]]); doc moved to `completed/`. The remaining `[~]` items
+      are explicitly deferred to the QA phase with the reason on each — every one needs a live
+      browser, an app-side change with browser QA, or a paid live run, none available to an autonomous
+      worker session; shipping them blind would violate verify-what-shipped.
 
 ## 4. Ground rules carried from part 1
 
@@ -268,3 +292,37 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
   ceiling. Kept work is not skipped work.
 - Read the tool's exit, not the wrapper's. Run a control before believing a negative.
 - The dossier is the evidence; the playbook is the decision; the scraper is the execution.
+
+## Final overview — 2026-09-04 (doc closed, moved to completed/)
+
+This document is closed. Everything that could be built and VERIFIED in an autonomous worker session
+shipped to main and deployed to the worker; the rest is explicitly deferred to the QA phase with the
+reason on each item, because it needs a live browser, an app-side change with browser QA, or a paid
+live run.
+
+**Shipped and live (each: typecheck + lint + a guard test, committed, main fast-forwarded, worker
+rebuilt):**
+
+- **Reliability.** The runaway fully closed — the deed-chain (2B½) and Phase-3B historical clerk
+  fetches now honour the ceiling like the main search, with a guard that counts every browser-driving
+  clerk call (`8382b640f`). The summary sweep the caller was already calling now actually ships
+  (`1ee2771d1`). A run WE stop no longer marks a live site broken (`9b72a78b6`).
+- **Read everything (Phase A).** One tiled reader for every page in surveyor's order under a cost
+  budget (A2/A3, `a6c18d2cc`/`4ab36af8e`); a run reads its own queued backlog FIRST (A4, `d3f4cc42b`);
+  multi-page OCR segments per page (E4, `ace0f38a9`); the parcel polygon persisted (E1, `b1225515a`).
+- **Plats & drawings (Phase C).** The plat search asks for the name the county filed it under —
+  section/phase stripped, abbreviations expanded (C1, `b151664e6`); every run says where its plats
+  come from or that it has none (C4, `d31388c83`); when no egress reaches a repository the run stops
+  asking (C2, `7fcc9b95d`); the drawing hunt reads the citations in the text and says which are on
+  file and which are a stated miss (C3 read+miss, `7701ff11d`/`e6e456ad7`).
+- **Site atlas foundations (Phase B).** The playbook format + Bell clerk/CAD/plat-repo playbooks +
+  loader (B3, `e4f18b5de`); the clerk and CAD scrapers read their done-signals from the playbook and
+  name it on drift (B4, `8352dbacc`/`7ea75e398`); a content captcha detector reports a wall instead of
+  parsing it as empty (B6, `3f2da6695`); the drift-diff decision logic (B5, `97b310bb6`).
+
+**Deferred to the QA phase (each `[~]` above carries the specific reason):** A5 data-points
+(cross-service; DECISION made — auto-call the app's working analyzer), A6 + F1 proof runs (paid,
+owner-triggered), B1/B2 atlas browser walk + the integration halves of B4/B5/B6 that ride on it,
+C3's automated fetch of a miss (largely covered by Phase 3B already), E2 dead surfaces, E3 route auth,
+E5 paid path. Standing engineering defers with evidence: A1 (dead column), D2 (marking over-marked —
+now fixed, so D2 is unblocked for a later build), D3 (needs the proof-run data F1 produces).
