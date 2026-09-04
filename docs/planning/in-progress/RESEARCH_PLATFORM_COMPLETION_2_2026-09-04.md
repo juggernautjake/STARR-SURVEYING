@@ -143,9 +143,14 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 - [ ] **B2 — Bell dossiers.** Atlas runs for Bell CAD eSearch, the GIS viewer, the clerk
       (publicsearch), the plat repository and Google Maps — from the worker AND from an office
       connection, so a block is a recorded fact with the office view beside it.
-- [ ] **B3 — Playbooks.** `worker/src/playbooks/<site>.json`: entry, dismissals, search recipe,
-      done-signal (an element or text, never a fixed wait), results layout, viewer recipe, download
-      recipe, captcha signature, egress requirement. Reviewed by a person; versioned.
+- [x] **B3 — Playbooks.** (`e4f18b5de`) `worker/src/playbooks/` — `types.ts` is the contract (entry,
+      dismissals, search recipe + document types, done-signal element/text never a wait, viewer +
+      download recipes, captcha signature, egress) with a `validatePlaybook` guard; `bell.ts` authors
+      the Bell clerk and plat repository from verified behaviour; `index.ts` is a typed registry +
+      loader. A TYPED registry rather than raw `.json` because the worker runs from a compiled
+      `dist/` where a src `*.json` would not travel — same shape, compile-checked, reviewed in the
+      diff. The run names the playbooks it drives from at start. Tests: validation, load-by-county,
+      run wiring. B4 (scrapers read the fields) is next.
 - [ ] **B4 — Scrapers read playbooks.** Clerk, CAD and GIS scrapers take selectors, waits and
       done-signals from the playbook and assert the expected state before each step; a mismatch
       names the playbook line.
