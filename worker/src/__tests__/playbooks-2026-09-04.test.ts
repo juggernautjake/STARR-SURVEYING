@@ -58,3 +58,15 @@ describe('the run surfaces the playbooks at start', () => {
     expect(index).toContain("'[Playbooks]', 'info', 'Site playbooks'");
   });
 });
+
+describe('B4 — the clerk scraper reads its done-signal from the playbook', () => {
+  const SRC = path.resolve(process.cwd(), 'src');
+  const src = fs.readFileSync(path.join(SRC, 'services/bell-clerk.ts'), 'utf8');
+  it('the "Loading Results" wait is sourced from the bell-clerk playbook, not a literal regex', () => {
+    expect(src).toContain("loadPlaybook('bell-clerk')?.doneSignal");
+    // the old hard-coded /loading results/i literal is gone
+    expect(src).not.toContain('/loading results/i.test');
+    // a signal that never clears names the playbook as the drift point
+    expect(src).toContain('drifted from the playbook');
+  });
+});

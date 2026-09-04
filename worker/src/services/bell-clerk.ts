@@ -10,6 +10,7 @@ import { PipelineLogger } from '../lib/logger.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import { acquireBrowser, leaseBrowser } from '../lib/browser-factory.js';
 import { withPoliteness } from '../infra/politeness.js';
+import { loadPlaybook } from '../playbooks/index.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
 
@@ -3512,10 +3513,22 @@ export async function searchBellClerkOwnerForPlatDeed(
     // ...and sometimes longer. On run 4 (2026-09-04) this search for "MILL CREEK SECTION" read
     // 0 results while the page still said "Loading Results", and the identical search 90 s later
     // read 48. A fixed wait is a guess; the page says when it is done. Up to 30 s more.
+    //
+    // B4: the done-signal comes from the bell-clerk playbook — the text and whether we wait for it
+    // to appear or disappear — not a literal here. If the grid changes, the playbook line is the one
+    // place to update, and a signal that never clears names that line as drift.
+    const clerkDone = loadPlaybook('bell-clerk')?.doneSignal ?? { kind: 'disappears' as const, signal: 'Loading Results' };
+    const doneSource = clerkDone.signal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let doneSatisfied = false;
     for (let waited = 0; waited < 30_000; waited += 1_000) {
-      const stillLoading = await page.evaluate(() => /loading results/i.test(document.body?.innerText ?? '')).catch(() => false);
-      if (!stillLoading) break;
+      const present = await page
+        .evaluate((src: string) => new RegExp(src, 'i').test(document.body?.innerText ?? ''), doneSource)
+        .catch(() => false);
+      if (clerkDone.kind === 'disappears' ? !present : present) { doneSatisfied = true; break; }
       await page.waitForTimeout(1_000);
+    }
+    if (!doneSatisfied) {
+      logger.warn('Stage2B', `bell-clerk playbook done-signal "${clerkDone.signal}" (${clerkDone.kind}) never satisfied in 30 s — the results grid may have drifted from the playbook.`);
     }
 
     // Accept any disclaimer dialogs
