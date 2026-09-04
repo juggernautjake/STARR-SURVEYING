@@ -127,7 +127,21 @@ describe('the one line an operator actually reads', () => {
       [usage('ai_call', 0.4)], NOW,
     );
     expect(c.headline).toContain('before treating this as complete');
-    expect(c.skipped).toEqual([{ what: 'Deed chain beyond 1974', reason: 'time ceiling reached' }]);
+    expect(c.skipped).toEqual([{ what: 'Deed chain beyond 1974', reason: 'time ceiling reached', partial: null }]);
+  });
+
+  it('a step that stopped at the limit with its work kept is said so, not called skipped (run 5)', () => {
+    const c = buildConsole(
+      run({
+        status: 'complete', finished_at: minsAgo(0),
+        skipped_work: [{ step: 'clerk deed search', reason: 'it did not finish', partial: '10 document(s) kept' }],
+      }),
+      [usage('ai_call', 0.4)], NOW,
+    );
+    expect(c.headline).toContain('stopped mid-way and their work was kept');
+    expect(c.headline).toContain('clerk deed search (10 document(s) kept)');
+    expect(c.headline).not.toContain('were skipped');
+    expect(c.skipped[0].partial).toBe('10 document(s) kept');
   });
 
   it('names the failure reason instead of just "failed"', () => {

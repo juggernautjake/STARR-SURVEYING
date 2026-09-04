@@ -103,7 +103,18 @@ describe('a truncated run must never read as a good one', () => {
 
   it('fills in a missing skip reason rather than showing undefined', () => {
     const c = buildReportCard(run({ skippedWork: [{}] }), content());
-    expect(c.skipped[0]).toEqual({ what: 'unnamed work', reason: 'no reason recorded' });
+    expect(c.skipped[0]).toEqual({ what: 'unnamed work', reason: 'no reason recorded', partial: null });
+  });
+
+  it('a step cut short whose work was kept is not called skipped (run 5, 2026-09-04)', () => {
+    const c = buildReportCard(run({ skippedWork: [{ step: 'clerk deed search', reason: 'it did not finish', partial: "10 document(s) kept; the subject's deed chain finished" }] }), content());
+    expect(c.skipped[0].partial).toContain('10 document(s) kept');
+    expect(c.headline).toContain('Run stopped at its limit');
+    expect(c.headline).toContain('work kept');
+    expect(c.headline).not.toContain('piece(s) of work were skipped');
+    // CONTROL: a genuinely untried step still reads as skipped.
+    const d = buildReportCard(run({ skippedWork: [{ step: 'adjoiner research', reason: 'no time remained' }] }), content());
+    expect(d.headline).toContain('1 piece(s) of work were skipped');
   });
 });
 

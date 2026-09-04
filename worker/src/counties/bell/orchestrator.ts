@@ -36,6 +36,7 @@ import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
 import { scrapeBellClerk, type ClerkDocument as ClerkScrapedDocument } from './scrapers/clerk-scraper.js';
 import { scrapeBellPlats } from './scrapers/plat-scraper.js';
 import { mayStart, withStepDeadline } from '../../research/budget-gate.js';
+import { recordPartial } from '../../infra/run-budget.js';
 import { assessDegradation } from '../../research/run-degradation.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
@@ -783,6 +784,7 @@ export async function orchestrateBellResearch(
   // scraper to start no further captures once the deadline has passed.
   const clerkAbort = new AbortController();
   const clerkSink = new Map<string, ClerkScrapedDocument>();
+  const clerkPaths = new Set<string>();
   if (mayClerk) try {
     // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
     // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
@@ -795,6 +797,7 @@ export async function orchestrateBellResearch(
         projectId: input.projectId,
         signal: clerkAbort.signal,
         onDocument: (d) => { clerkSink.set(d.instrumentNumber ?? `${d.documentType}:${clerkSink.size}`, d); },
+        onPathComplete: (p) => { clerkPaths.add(p); },
         propertyIdentifiers: {
           abstractNumber: earlyAbstractNumber,
           surveyName: earlySurveyName,
@@ -829,6 +832,14 @@ export async function orchestrateBellResearch(
             searchPaths: ['partial — stopped at the run ceiling'],
           },
         };
+        // Say WHICH part did not finish. The subject's deed chain is paths A and B; the
+        // subdivision sweep (C) is supporting material for a whole neighbourhood.
+        const deedChainDone = clerkPaths.has('B') || (clerkPaths.has('A') && !(uniqueOwnerNames[0] ?? property.ownerName));
+        const kept =
+          `${docs.length} document(s) kept` +
+          (deedChainDone ? "; the subject's deed chain finished" : "; the subject's deed chain was cut short") +
+          (clerkPaths.has('C') ? '' : '; the subdivision sweep was cut short');
+        recordPartial(input.projectId, 'clerk deed search', kept);
         progress('Phase 2',
           `2A stopped at the run's ceiling with ${docs.length} document(s) already captured ` +
           `(${clerk.stats.platsFound} plat(s), ${clerk.stats.deedsFound} deed(s), ${clerk.stats.imagesCaptured} page(s)) — kept, not discarded.`, 42);

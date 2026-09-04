@@ -63,6 +63,10 @@ export interface SkippedWork {
   step: string;
   reason: string;
   at: string;
+  /** Set when the step did NOT finish but what it had produced was kept ("10 document(s) kept").
+   *  Run 5 (2026-09-04) kept six plats and four deeds from the clerk step and the summary still
+   *  said "Not attempted: clerk deed search". A kept partial is not a step that was not tried. */
+  partial?: string;
 }
 
 export interface BudgetState {
@@ -201,6 +205,16 @@ export function recordSkipped(projectId: string, step: string, reason: string, n
   state.skipped.push({ step, reason, at: now.toISOString() });
 }
 
+/** The step ran out of time but its partial result was kept. Reclassifies the skip so the
+ *  summary says "stopped mid-step … kept" rather than "not attempted". */
+export function recordPartial(projectId: string, step: string, kept: string, now = new Date()): void {
+  const state = runs.get(projectId);
+  if (!state) return;
+  const existing = state.skipped.find((s) => s.step === step);
+  if (existing) existing.partial = kept;
+  else state.skipped.push({ step, reason: 'it did not finish in the time the run had left', at: now.toISOString(), partial: kept });
+}
+
 export function notePaidPages(projectId: string, pages: number): void {
   const state = runs.get(projectId);
   if (state) state.paidPages += pages;
@@ -252,9 +266,12 @@ export function reasonText(reason: ExceededReason, status: BudgetStatus): string
  *  about it — because "partial" on its own is not actionable. */
 export function windDownSummary(status: BudgetStatus): string | null {
   if (!status.exceeded) return null;
-  const skipped = status.skipped.map((s) => s.step).join(', ');
+  const notAttempted = status.skipped.filter((s) => !s.partial).map((s) => s.step).join(', ');
+  const partial = status.skipped.filter((s) => s.partial).map((s) => `${s.step} (${s.partial})`).join(', ');
   const because = reasonText(status.exceeded, status);
-  return skipped
-    ? `Finished early because ${because}. Not attempted: ${skipped}. Re-run with a higher limit to continue.`
-    : `Finished early because ${because}.`;
+  const parts = [`Finished early because ${because}.`];
+  if (partial) parts.push(`Stopped mid-step, work kept: ${partial}.`);
+  if (notAttempted) parts.push(`Not attempted: ${notAttempted}.`);
+  if (partial || notAttempted) parts.push('Re-run with a higher limit to continue.');
+  return parts.join(' ');
 }

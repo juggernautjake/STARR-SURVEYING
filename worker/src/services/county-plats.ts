@@ -105,6 +105,40 @@ export function hostRefused(url: string, now = Date.now()): boolean {
 /** For tests. */
 export function _resetRefusedHosts(): void { refusedHosts.clear(); }
 
+// ── THE ROAD AROUND THE BLOCK: A BROWSER ON ANOTHER ADDRESS ────────────────────────────────────
+//
+// The block is on the worker's IP, so the fix is a different IP. Browserbase gives the run a
+// browser on a residential address, and a Playwright browser context can make plain requests
+// through that address (`context.request`) — no page, no rendering, the bytes come back. It is
+// paid per session, so it is only taken when the plain route has been refused, and only when the
+// operator has named `plat-repo` in BROWSERBASE_ENABLED_ADAPTERS on the host.
+
+export function platBrowserRouteEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').split(',').map((s) => s.trim()).includes('plat-repo');
+}
+
+async function fetchThroughBrowser(
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ status: number; body: Buffer; finalUrl: string } | null> {
+  if (!platBrowserRouteEnabled()) return null;
+  const { withBrowser } = await import('../lib/browser-factory.js');
+  try {
+    return await withBrowser({ adapterId: 'plat-repo' }, async (session) => {
+      const context = await session.browser.newContext({ userAgent: headers['User-Agent'] });
+      try {
+        const res = await context.request.get(url, { headers, timeout: 30_000, maxRedirects: 5 });
+        return { status: res.status(), body: Buffer.from(await res.body()), finalUrl: res.url() };
+      } finally {
+        await context.close().catch(() => {});
+      }
+    });
+  } catch (err) {
+    console.warn(`[county-plats] browser route to ${url} failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 /**
  * Registry of counties that host a free plat file repository.
  * Key: lowercase county name (matches pipeline input.county).
@@ -339,22 +373,40 @@ async function fetchPlatIndex(
       'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
       ...config.indexHeaders,
     };
-    if (hostRefused(url)) {
-      tracker({ status: 'fail', error: 'skipped — the repository refused this server (HTTP 403) earlier this hour' });
-      return null;
+    let refused = hostRefused(url);
+    if (!refused) {
+      const response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.ok) {
+        const html = await response.text();
+        tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes` });
+        return html;
+      }
+      if (response.status !== 403) {
+        tracker({ status: 'fail', error: `HTTP ${response.status}` });
+        return null;
+      }
+      noteHostRefused(url, config.countyDisplayName);
+      refused = true;
     }
-    const response = await fetch(url, {
-      headers,
-      signal: AbortSignal.timeout(15_000),
+    // Refused on this address: once through a browser on another, if the operator enabled it.
+    const alt = await fetchThroughBrowser(url, headers);
+    if (alt && alt.status < 400) {
+      const html = alt.body.toString('utf8');
+      tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes via browser route` });
+      return html;
+    }
+    tracker({
+      status: 'fail',
+      error: alt
+        ? `HTTP ${alt.status} via the browser route too`
+        : platBrowserRouteEnabled()
+          ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer'
+          : 'HTTP 403 — the repository refuses this server (plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried)',
     });
-    if (!response.ok) {
-      if (response.status === 403) noteHostRefused(url, config.countyDisplayName);
-      tracker({ status: 'fail', error: response.status === 403 ? 'HTTP 403 — the repository refuses this server' : `HTTP ${response.status}` });
-      return null;
-    }
-    const html = await response.text();
-    tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes` });
-    return html;
+    return null;
   } catch (err) {
     tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
     return null;
@@ -874,20 +926,40 @@ async function downloadPlatFile(
       'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
       ...config.fileHeaders,
     };
-    if (hostRefused(fileUrl)) {
-      tracker({ status: 'fail', error: 'skipped — the repository refused this server (HTTP 403) earlier this hour' });
-      return null;
+    let buffer: ArrayBuffer | null = null;
+    let refused = hostRefused(fileUrl);
+    if (!refused) {
+      const response = await fetch(fileUrl, {
+        headers,
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (response.ok) {
+        buffer = await response.arrayBuffer();
+      } else if (response.status !== 403) {
+        tracker({ status: 'fail', error: `HTTP ${response.status}` });
+        return null;
+      } else {
+        noteHostRefused(fileUrl, config.countyDisplayName);
+        refused = true;
+      }
     }
-    const response = await fetch(fileUrl, {
-      headers,
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      if (response.status === 403) noteHostRefused(fileUrl, config.countyDisplayName);
-      tracker({ status: 'fail', error: response.status === 403 ? 'HTTP 403 — the repository refuses this server' : `HTTP ${response.status}` });
-      return null;
+    if (refused) {
+      // Refused on this address: once through a browser on another, if the operator enabled it.
+      const alt = await fetchThroughBrowser(fileUrl, headers);
+      if (!alt || alt.status >= 400) {
+        tracker({
+          status: 'fail',
+          error: alt
+            ? `HTTP ${alt.status} via the browser route too`
+            : platBrowserRouteEnabled()
+              ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer'
+              : 'HTTP 403 — the repository refuses this server (plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried)',
+        });
+        return null;
+      }
+      buffer = alt.body.buffer.slice(alt.body.byteOffset, alt.body.byteOffset + alt.body.byteLength) as ArrayBuffer;
     }
-    const buffer = await response.arrayBuffer();
+    if (!buffer) { tracker({ status: 'fail', error: 'no bytes' }); return null; }
 
     if (isTif) {
       // Convert TIF → PNG using sharp (Claude Vision only accepts PNG/JPEG/GIF/WEBP)

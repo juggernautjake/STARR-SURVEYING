@@ -45,7 +45,7 @@ export interface RunFacts {
     maxMinutes?: number;
     maxUsd?: number;
   } | null;
-  skippedWork: Array<{ step?: string; what?: string; reason?: string }>;
+  skippedWork: Array<{ step?: string; what?: string; reason?: string; partial?: string | null }>;
   budgetSummary: string | null;
 }
 
@@ -80,7 +80,7 @@ export interface ReportCard {
   reviewRate: number | null;
   facts: number;
   conflicts: number;
-  skipped: Array<{ what: string; reason: string }>;
+  skipped: Array<{ what: string; reason: string; partial: string | null }>;
   /** Everything this card deliberately does NOT claim. */
   notMeasured: string[];
   headline: string;
@@ -100,7 +100,10 @@ export function buildReportCard(run: RunFacts, content: RunContent): ReportCard 
   const skipped = (run.skippedWork ?? []).map((s) => ({
     what: s.step ?? s.what ?? 'unnamed work',
     reason: s.reason ?? 'no reason recorded',
+    partial: s.partial ?? null,
   }));
+  const notAttempted = skipped.filter((s) => !s.partial);
+  const cutShort = skipped.filter((s) => s.partial);
 
   const truncated = skipped.length > 0 || !!run.budgetSummary || run.status === 'interrupted';
 
@@ -127,7 +130,9 @@ export function buildReportCard(run: RunFacts, content: RunContent): ReportCard 
   }
 
   const headline = truncated
-    ? `Run stopped short: ${skipped.length} piece(s) of work were skipped` +
+    ? (notAttempted.length > 0
+        ? `Run stopped short: ${notAttempted.length} piece(s) of work were skipped`
+        : `Run stopped at its limit: ${cutShort.length} step(s) cut short with their work kept (${cutShort.map((s) => `${s.what}: ${s.partial}`).join('; ')})`) +
       (run.budgetSummary ? ` (${run.budgetSummary})` : '') +
       `. ${content.facts} fact(s) for $${run.costUsd.toFixed(2)} — do not read this as a complete run.`
     : `${content.facts} fact(s) and ${content.conflicts} conflict(s) from ${content.sourcesReached} source(s) ` +

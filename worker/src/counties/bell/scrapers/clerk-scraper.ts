@@ -142,6 +142,10 @@ export interface ClerkSearchInput {
   /** Called the moment a document is captured, so a caller whose deadline expires mid-search
    *  keeps what was captured (six plats and five deeds were discarded at the ceiling on run 4). */
   onDocument?: (doc: ClerkDocument) => void;
+  /** Called as each search path finishes (A instruments, B owner, C subdivision, D volume/page),
+   *  so a caller whose deadline cuts the step short can say WHICH part did not finish. On run 5
+   *  the subject's own deed chain (A + B) had finished; only the subdivision sweep was cut. */
+  onPathComplete?: (path: 'A' | 'B' | 'C' | 'D') => void;
 }
 
 export interface ClerkScraperProgress {
@@ -250,6 +254,7 @@ export async function scrapeBellClerk(
     } else {
       progress(`Path A complete: ${documents.length} document(s) found — all matched target owner`);
     }
+    input.onPathComplete?.('A');
   }
 
   // ── Path B: Owner Name SPA Search ──────────────────────────────────
@@ -275,6 +280,7 @@ export async function scrapeBellClerk(
       if (addDocument(doc)) newCount++;
     }
     progress(`Path B complete: ${newCount} new document(s) found (${ownerDocs.length} total from owner search)`);
+    input.onPathComplete?.('B');
   }
 
   // ── Path C: Subdivision / Plat Search ─────────────────────────────
@@ -299,6 +305,7 @@ export async function scrapeBellClerk(
       if (addDocument(doc)) newCount++;
     }
     progress(`Path C complete: ${newCount} new document(s) found for subdivision`);
+    input.onPathComplete?.('C');
   }
 
   // ── Path D: Volume/Page Lookup ─────────────────────────────────────

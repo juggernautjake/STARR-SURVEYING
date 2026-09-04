@@ -74,7 +74,7 @@ export default function ReportCardPanel({ projectId }: { projectId: string }) {
       {c.skipped.length > 0 && (
         <details className="report-card__skipped">
           <summary>{c.skipped.length} piece(s) of work were skipped</summary>
-          <ul>{c.skipped.map((s, i) => <li key={i}><strong>{s.what}</strong> — {s.reason}</li>)}</ul>
+          <ul>{c.skipped.map((s, i) => <li key={i}><strong>{s.what}</strong> — {s.partial ? <>stopped mid-way, work kept: {s.partial}</> : s.reason}</li>)}</ul>
         </details>
       )}
 

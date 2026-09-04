@@ -369,7 +369,7 @@ export interface ConsolePayload {
     looksStalled: boolean;
     headline: string;
   } | null;
-  skipped?: Array<{ what: string; reason: string }> | null;
+  skipped?: Array<{ what: string; reason: string; partial?: string | null }> | null;
   budgetSummary?: string | null;
 }
 
@@ -407,7 +407,7 @@ export interface RunState {
    * retired, so the answer to "why did TexasFile return nothing?" stopped reaching the screen.
    */
   paidDocumentsNotice: string | null;
-  skipped: Array<{ what: string; reason: string }>;
+  skipped: Array<{ what: string; reason: string; partial?: string | null }>;
   /** A `running` row nobody has heard from for ten minutes. */
   looksStalled: boolean;
   canCancel: boolean;

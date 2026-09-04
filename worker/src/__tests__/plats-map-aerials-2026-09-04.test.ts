@@ -115,10 +115,10 @@ describe('the plat repository is asked once when it refuses this server', () => 
   });
   it('both fetch layers consult the mark before asking and set it on 403', () => {
     const src = read('services/county-plats.ts');
-    expect(src).toContain('if (hostRefused(url)) {');
-    expect(src).toContain('if (hostRefused(fileUrl)) {');
-    expect(src).toContain('if (response.status === 403) noteHostRefused(url, config.countyDisplayName);');
-    expect(src).toContain('if (response.status === 403) noteHostRefused(fileUrl, config.countyDisplayName);');
+    expect(src).toContain('let refused = hostRefused(url);');
+    expect(src).toContain('let refused = hostRefused(fileUrl);');
+    expect(src).toContain('noteHostRefused(url, config.countyDisplayName);');
+    expect(src).toContain('noteHostRefused(fileUrl, config.countyDisplayName);');
   });
 });
 

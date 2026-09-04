@@ -49,7 +49,7 @@ export interface RunRow {
     maxMinutes?: number;
     maxUsd?: number;
   } | null;
-  skipped_work: Array<{ step?: string; what?: string; reason?: string }> | null;
+  skipped_work: Array<{ step?: string; what?: string; reason?: string; partial?: string | null }> | null;
   budget_summary: string | null;
   failure_reason: string | null;
 }
@@ -145,7 +145,7 @@ export interface RunConsole {
   time: TimeStatus;
   /** Work a ceiling caused the run to drop. Shown because a run that finished "successfully" having
    *  skipped the deed chain is not a run that finished. */
-  skipped: Array<{ what: string; reason: string }>;
+  skipped: Array<{ what: string; reason: string; partial: string | null }>;
   budgetSummary: string | null;
   canCancel: boolean;
   headline: string;
@@ -158,7 +158,12 @@ export function buildConsole(run: RunRow, events: UsageRow[], now: number): RunC
   const skipped = (run.skipped_work ?? []).map((s) => ({
     what: s.step ?? s.what ?? 'unnamed work',
     reason: s.reason ?? 'no reason recorded',
+    // Set when the step ran out of time but its work was kept (run 5: the clerk step kept ten
+    // documents and this page still called it skipped). Kept work is not skipped work.
+    partial: s.partial ?? null,
   }));
+  const notAttempted = skipped.filter((s) => !s.partial);
+  const cutShort = skipped.filter((s) => s.partial);
 
   const phase = run.phase ?? 'starting';
   const activity = run.message ?? (run.status === 'running' ? 'Working…' : '');
@@ -174,8 +179,10 @@ export function buildConsole(run: RunRow, events: UsageRow[], now: number): RunC
         : run.status === 'failed'
           ? `Failed: ${run.failure_reason ?? 'no reason recorded'}`
           : run.status === 'complete'
-            ? skipped.length > 0
-              ? `Finished, but ${skipped.length} piece(s) of work were skipped to stay inside the budget — see below before treating this as complete.`
+            ? notAttempted.length > 0
+              ? `Finished, but ${notAttempted.length} piece(s) of work were skipped to stay inside the budget — see below before treating this as complete.`
+              : cutShort.length > 0
+                ? `Finished at its limit. ${cutShort.length} step(s) stopped mid-way and their work was kept: ${cutShort.map((s) => `${s.what} (${s.partial})`).join('; ')}.`
               : `Finished in ${Math.round(time.elapsedMs / 60_000)} minutes for $${spend.totalUsd.toFixed(2)}.`
             : `${phase} — ${time.headline} ${spend.headline}`;
 

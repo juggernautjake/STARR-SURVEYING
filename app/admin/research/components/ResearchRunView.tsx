@@ -661,21 +661,38 @@ export function RunNotices({ state }: { state: RunState }) {
           </div>
         )}
 
-        {state.skipped.length > 0 && (
-          <div className="rrv__note rrv__note--warn">
-            <AlertTriangle size={14} aria-hidden />
-            <div>
-              <strong>{state.skipped.length} piece(s) of work were skipped to stay inside the
-              budget.</strong> A run that finished having skipped the deed chain is not a run that
-              finished.
-              <ul className="rrv__skipped">
-                {state.skipped.map((s, i) => (
-                  <li key={i}><strong>{s.what}</strong> — {s.reason}</li>
-                ))}
-              </ul>
+        {state.skipped.length > 0 && (() => {
+          // A step that ran out of time but whose work was KEPT is not skipped work. Run 5 kept
+          // ten documents (the subject's whole deed chain) and this note still said "skipped".
+          const notAttempted = state.skipped.filter((s) => !s.partial);
+          const cutShort = state.skipped.filter((s) => s.partial);
+          return (
+            <div className="rrv__note rrv__note--warn">
+              <AlertTriangle size={14} aria-hidden />
+              <div>
+                {notAttempted.length > 0 ? (
+                  <>
+                    <strong>{notAttempted.length} piece(s) of work were skipped to stay inside the
+                    budget.</strong> A run that finished having skipped the deed chain is not a run that
+                    finished.
+                  </>
+                ) : (
+                  <>
+                    <strong>{cutShort.length} step(s) stopped at the run&apos;s limit; what they had
+                    produced was kept.</strong> Re-run with a higher limit to finish them.
+                  </>
+                )}
+                <ul className="rrv__skipped">
+                  {state.skipped.map((s, i) => (
+                    <li key={i}>
+                      <strong>{s.what}</strong> — {s.partial ? <>stopped mid-way, work kept: {s.partial}</> : s.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
     </>
   );
 }

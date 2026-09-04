@@ -65,6 +65,12 @@ export function normaliseInstrument(raw: string | undefined): string {
   return segments.map((s) => s.replace(/^0+(?=.)/, '')).join('');
 }
 
+/** Instrument numbers of the form YYYYNNNNNN carry their filing year. Nine digits or more after a
+ *  plausible year: 1982002520 (10), 201600013474 (12). Anything shorter may repeat across years. */
+export function yearStamped(instrument: string): boolean {
+  return /^(19|20)\d{2}\d{5,}$/.test(instrument);
+}
+
 /** Normalise a book/page citation into `BOOK-PAGE`, dropping display padding.
  *
  *  Volumes can be LETTERED — Robertson's 19th-century volumes are `0000U`, `0000R` — so this stays
@@ -106,6 +112,15 @@ export function identityKey(ref: DocumentRef): string | null {
   // Instrument number is the strongest identifier. Date is part of the key because instrument
   // numbers RESTART in some counties — a 1994 and a 2011 document can share a number, and merging
   // them would produce one document with both sets of parties.
+  // ── A YEAR-STAMPED INSTRUMENT NUMBER IS ITS OWN DATE ───────────────────────────────────────
+  //
+  // Bell (and every Tyler/Kofile county) numbers instruments YYYYNNNNNN: 1982002520 is the
+  // 2,520th filing of 1982, 2024039298 the 39,298th of 2024. The year the date was guarding
+  // against is inside the number, so the number alone is the identity — and it must be the SAME
+  // key whether or not this filing carried a recording date, or the two roads a plat arrives by
+  // (the plat upload without a date, the clerk sink with one) file it twice. On 2026-09-04 plat
+  // 1982002520 was on file three times, every row with a null key.
+  if (instrument && yearStamped(instrument)) return `${county}|I:${instrument}`;
   if (instrument && date) return `${county}|I:${instrument}|${date}`;
   if (citation && date) return `${county}|B:${citation}|${date}`;
 
