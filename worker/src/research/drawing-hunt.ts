@@ -236,7 +236,7 @@ export interface DrawingCitation {
 }
 
 /** A stable key so the same citation written twice (or in two documents) is listed once. */
-function citationKey(c: DrawingCitation): string {
+export function citationKey(c: DrawingCitation): string {
   if (c.kind === 'cabinet-slide') return `cs|${(c.cabinet ?? '').toUpperCase()}|${c.slide}`;
   if (c.kind === 'volume-page') return `vp|${c.volume}|${c.page}`;
   return `sa|${c.abstract}`;
@@ -273,6 +273,38 @@ export function citationsFromText(...texts: Array<string | null | undefined>): D
   }
 
   return [...out.values()];
+}
+
+// ── C3 (miss half): a citation is either already on file, or a stated miss ────────────────────────
+//
+// Reading a citation out of a deed is only useful if the run then says whether it HAS that drawing.
+// A referenced citation is "held" when a document we already filed IS that drawing — matched by the
+// citation the document's own recording info/label carries, not its body text. What is left is a
+// stated miss: named, so a surveyor knows exactly what to pull, even before the fetch is automated.
+export interface CitationStatus {
+  citation: DrawingCitation;
+  held: boolean;
+}
+
+/** Mark each referenced citation held (a filed document already IS it) or a miss. Pure. */
+export function reconcileCitations(referenced: DrawingCitation[], held: DrawingCitation[]): CitationStatus[] {
+  const heldKeys = new Set(held.map(citationKey));
+  return referenced.map((c) => ({ citation: c, held: heldKeys.has(citationKey(c)) }));
+}
+
+/** One line: how many referenced drawings are on file, and which are stated misses. */
+export function describeReconciliation(statuses: CitationStatus[]): string {
+  if (statuses.length === 0) return 'No plat, map-record or survey-abstract citation was found in the read text.';
+  const misses = statuses.filter((s) => !s.held);
+  const onFile = statuses.length - misses.length;
+  const say = (c: DrawingCitation) =>
+    c.kind === 'cabinet-slide' ? `Cabinet ${c.cabinet}, Slide ${c.slide}`
+    : c.kind === 'volume-page' ? `Volume ${c.volume}, Page ${c.page}`
+    : `Abstract No. ${c.abstract}`;
+  const missNote = misses.length > 0
+    ? ` Not yet retrieved (stated miss): ${misses.map((s) => say(s.citation)).join('; ')}.`
+    : ' All are already on file.';
+  return `${statuses.length} drawing citation(s) referenced in the text; ${onFile} already on file.${missNote}`;
 }
 
 /** One line naming what the text pointed at, for the run log and the hunt report. */

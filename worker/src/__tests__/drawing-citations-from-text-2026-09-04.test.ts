@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { citationsFromText, describeCitations } from '../research/drawing-hunt.js';
+import { citationsFromText, describeCitations, reconcileCitations, describeReconciliation } from '../research/drawing-hunt.js';
 
 // ── C3: the drawing hunt reads the citations a document points at, out of its own text ────────────
 //
@@ -47,12 +47,41 @@ describe('describeCitations', () => {
   });
 });
 
+describe('reconcileCitations — held vs stated miss (C3 miss half)', () => {
+  it('marks a referenced citation held when a filed document IS that drawing', () => {
+    const referenced = citationsFromText('being Lot 3 of Cabinet A, Slide 312, and Volume 10, Page 20');
+    // We hold the plat filed as Cabinet A Slide 312, but NOT the Volume 10 Page 20 record.
+    const held = citationsFromText('Cabinet A, Slide 312');
+    const statuses = reconcileCitations(referenced, held);
+    const cs = statuses.find((s) => s.citation.kind === 'cabinet-slide')!;
+    const vp = statuses.find((s) => s.citation.kind === 'volume-page')!;
+    expect(cs.held).toBe(true);
+    expect(vp.held).toBe(false);
+  });
+
+  it('describeReconciliation names the stated misses', () => {
+    const referenced = citationsFromText('Cabinet A, Slide 312 and Volume 10, Page 20');
+    const held = citationsFromText('Cabinet A, Slide 312');
+    const line = describeReconciliation(reconcileCitations(referenced, held));
+    expect(line).toContain('1 already on file');
+    expect(line).toContain('stated miss');
+    expect(line).toContain('Volume 10, Page 20');
+  });
+
+  it('says all on file when nothing is missing', () => {
+    const referenced = citationsFromText('Cabinet A, Slide 312');
+    const line = describeReconciliation(reconcileCitations(referenced, referenced));
+    expect(line).toContain('All are already on file');
+  });
+});
+
 describe('C3 is wired into the tail, after the reading pass', () => {
   const SRC = path.resolve(process.cwd(), 'src');
   const strip = (s: string) => s.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '').replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
   const index = strip(fs.readFileSync(path.join(SRC, 'index.ts'), 'utf8'));
-  it('the run scans the read text for citations and attaches them to the result', () => {
-    expect(index).toContain('citationsFromText(');
-    expect(index).toContain('citedDrawings');
+  it('the run reconciles referenced citations against what is on file and attaches the result', () => {
+    expect(index).toContain('reconcileCitations(referenced, held)');
+    expect(index).toContain('describeReconciliation(statuses)');
+    expect(index).toContain('citedDrawings = statuses');
   });
 });

@@ -1821,14 +1821,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: textRows } = await (supaCite as any)
               .from('research_documents')
-              .select('extracted_text')
+              .select('extracted_text, recording_info, document_label')
               .eq('research_project_id', projectId);
-            const { citationsFromText, describeCitations } = await import('./research/drawing-hunt.js');
-            const cites = citationsFromText(
-              ...((textRows ?? []) as Array<{ extracted_text: string | null }>).map((r) => r.extracted_text),
-            );
-            tailLog(describeCitations(cites));
-            (unifiedResult as unknown as Record<string, unknown>).citedDrawings = cites;
+            const rows = (textRows ?? []) as Array<{ extracted_text: string | null; recording_info: string | null; document_label: string | null }>;
+            const { citationsFromText, reconcileCitations, describeReconciliation } = await import('./research/drawing-hunt.js');
+            // Referenced in the read text; held = the drawings we already filed (by their own
+            // recording info / label). What is left is a stated miss (C3).
+            const referenced = citationsFromText(...rows.map((r) => r.extracted_text));
+            const held = citationsFromText(...rows.map((r) => `${r.recording_info ?? ''} ${r.document_label ?? ''}`));
+            const statuses = reconcileCitations(referenced, held);
+            tailLog(describeReconciliation(statuses));
+            (unifiedResult as unknown as Record<string, unknown>).citedDrawings = statuses;
           }
         } catch (e) {
           console.warn(`[Drawings] ${projectId}: citation scan threw — ${String(e)}`);
