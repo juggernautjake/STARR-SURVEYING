@@ -86,7 +86,7 @@ Still open and worth doing: A1 (persisted reading_priority — read-time orderin
 for now), A4 (read the queue FIRST on the next run), A5 data-points half, A6 proof run (a clean run
 now that the runaway is closed and the sweep ships — verify deed chain stops at ceiling, tail runs,
 summaries written, polygon persisted), all of Phase B (site atlas + playbooks), Phase C (plat
-recipe + repository egress), D2–D4, E2–E5, F.
+recipe + repository egress), D2–D4, E2/E3/E5, F. (E1 and E4 shipped.)
 
 ## 3. Phases
 
@@ -171,7 +171,11 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
 - [ ] **E1 — Parcel polygon persisted** on the project so the review page can draw it.
 - [ ] **E2 — Dead surfaces and the Testing Lab** retired through their guards, or wired.
 - [ ] **E3 — Route auth** on the research API routes that lack it.
-- [ ] **E4 — Multi-page OCR segments** carried per page, not first page only.
+- [x] **E4 — Multi-page OCR segments** carried per page, not first page only. (`ace0f38a9`)
+      `mergePageSegments` in artifact-uploader flattens every page's segments tagged by page number;
+      both document inserts use it instead of `firstPage.ocrSegments`. The re-read path already
+      carried per-page segments; the gap was documents read cleanly at filing (never re-read).
+      Guards in ocr-segments-per-page-2026-09-04.test.ts. Proof deferred to the A6/F runs.
 - [ ] **E5 — The paid path.** One TexasFile purchase end to end on a document the free path could
       not read, with the purchase row written and the switch proven to stop a second one.
 
