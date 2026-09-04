@@ -169,8 +169,15 @@ Verify in one turn, commit in the next. Build before any merge; merges need the 
       result as `citedDrawings`. The FETCH of each citation into a filed clerk document (or a stated
       miss) is the remaining half — it needs the clerk plat recipe (C1) and shares the browser
       budget, so it follows C1.
-- [ ] **C4 — Plat index per county.** The 19 BIS counties' plat sources in the registry with an
-      egress note each, so a county without a reachable plat source says so before a run.
+- [x] **C4 — Plat index per county (mechanism + honest default).** (`d31388c83`) `PlatRepoConfig`
+      gains an `egress` note (Bell `browser-route` — 403s the worker IP; Hays `direct`);
+      `platSourceStatement(county)` reports reachability, and the run announces it at start before
+      searching. A county with no registry entry now says "No free plat repository is indexed for
+      <county> — plats must come from the clerk index or an office fetch" instead of searching in
+      silence; a source marked `blocked` reads unreachable-by-policy. Unit tests + run-wiring guard.
+      The remaining work — verifying and adding each of the other 17 BIS counties' real plat sources
+      — is incremental data-gathering (one registry entry per verified county, no code change), not a
+      code slice; it lands as counties are checked. The mechanism and the honest default are done.
 
 ### Phase D — The shape of a run (requests 6, 12)
 
