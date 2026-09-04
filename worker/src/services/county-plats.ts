@@ -113,8 +113,38 @@ export function hostRefused(url: string, now = Date.now()): boolean {
   } catch { return false; }
 }
 
+// ── C2: WHEN EVERY EGRESS WE HAVE IS REFUSED, STOP ASKING ────────────────────────────────────────
+//
+// The direct route is refused above; the browser route (Browserbase, another IP) is the only road
+// left. When THAT is also refused or does not answer, the repository is unreachable by any egress we
+// have — recording it and moving on is the whole point of the browser fallback. Until now each of a
+// county's 26 letter pages retried the paid browser route from scratch, so an unreachable repository
+// cost 26 browser sessions per run. Once both egresses have failed for a host, the rest of that
+// run's letters are told so in one line and neither road is taken again for the hour.
+const browserExhaustedHosts = new Map<string, number>();
+
+export function noteBrowserRouteExhausted(url: string, displayName: string, now = Date.now()): void {
+  try {
+    const host = new URL(url).host;
+    if (!browserExhaustedHosts.has(host)) {
+      console.warn(`[county-plats] ${displayName} (${host}) is unreachable by policy — HTTP 403 direct AND the browser route did not answer. Not asked again for an hour.`);
+    }
+    browserExhaustedHosts.set(host, now + HOST_REFUSED_FOR_MS);
+  } catch { /* not a URL */ }
+}
+
+/** True when BOTH egresses (direct and the browser route) have already failed for this host. */
+export function browserRouteExhausted(url: string, now = Date.now()): boolean {
+  try {
+    const until = browserExhaustedHosts.get(new URL(url).host);
+    if (until == null) return false;
+    if (until <= now) { browserExhaustedHosts.delete(new URL(url).host); return false; }
+    return true;
+  } catch { return false; }
+}
+
 /** For tests. */
-export function _resetRefusedHosts(): void { refusedHosts.clear(); }
+export function _resetRefusedHosts(): void { refusedHosts.clear(); browserExhaustedHosts.clear(); }
 
 // ── THE ROAD AROUND THE BLOCK: A BROWSER ON ANOTHER ADDRESS ────────────────────────────────────
 //
@@ -416,6 +446,11 @@ async function fetchPlatIndex(
       'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
       ...config.indexHeaders,
     };
+    // C2: both egresses already failed for this host — don't spend another (paid) browser session.
+    if (browserRouteExhausted(url)) {
+      tracker({ status: 'fail', error: 'unreachable-by-policy — direct 403 and the browser route already failed this run' });
+      return null;
+    }
     let refused = hostRefused(url);
     if (!refused) {
       const response = await fetch(url, {
@@ -441,12 +476,14 @@ async function fetchPlatIndex(
       tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes via browser route` });
       return html;
     }
+    // Both egresses have now failed — record it so the run's remaining letters stop asking (C2).
+    if (platBrowserRouteEnabled()) noteBrowserRouteExhausted(url, config.countyDisplayName);
     tracker({
       status: 'fail',
       error: alt
-        ? `HTTP ${alt.status} via the browser route too`
+        ? `HTTP ${alt.status} via the browser route too — unreachable-by-policy`
         : platBrowserRouteEnabled()
-          ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer'
+          ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer — unreachable-by-policy'
           : 'HTTP 403 — the repository refuses this server (plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried)',
     });
     return null;
@@ -970,6 +1007,11 @@ async function downloadPlatFile(
       ...config.fileHeaders,
     };
     let buffer: ArrayBuffer | null = null;
+    // C2: both egresses already failed for this host — don't spend another browser session.
+    if (browserRouteExhausted(fileUrl)) {
+      tracker({ status: 'fail', error: 'unreachable-by-policy — direct 403 and the browser route already failed this run' });
+      return null;
+    }
     let refused = hostRefused(fileUrl);
     if (!refused) {
       const response = await fetch(fileUrl, {
@@ -990,12 +1032,14 @@ async function downloadPlatFile(
       // Refused on this address: once through a browser on another, if the operator enabled it.
       const alt = await fetchThroughBrowser(fileUrl, headers);
       if (!alt || alt.status >= 400) {
+        // Both egresses have now failed — record it so the run stops asking (C2).
+        if (platBrowserRouteEnabled()) noteBrowserRouteExhausted(fileUrl, config.countyDisplayName);
         tracker({
           status: 'fail',
           error: alt
-            ? `HTTP ${alt.status} via the browser route too`
+            ? `HTTP ${alt.status} via the browser route too — unreachable-by-policy`
             : platBrowserRouteEnabled()
-              ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer'
+              ? 'HTTP 403 — the repository refuses this server, and the browser route did not answer — unreachable-by-policy'
               : 'HTTP 403 — the repository refuses this server (plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried)',
         });
         return null;
