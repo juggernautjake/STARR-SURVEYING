@@ -83,12 +83,18 @@ non-fatal, every run for now. Tests cover the helper's paths + the wiring on bot
 is live on Vercel; the worker half deploys after run 9. VERIFY: the next supervised run's Data Points
 panel populates. (Generic-pipeline finish wiring is a follow-up; the owner's runs are Bell.)
 
-### P4 — TexasFile paid path end to end (E5)
-A Playwright flow, credentials from Doppler/env: sign in → search the document the free path could not
-read → add to cart → pay → download the file(s) → save them to storage as a filed document for review.
-Write the `research_document_purchases` row; prove the identity/dedupe switch stops a second purchase
-of the same instrument. Gated behind `allowPaidDocuments` + a paid-page budget. Encoded as a
-`texasfile` playbook (B3 shape). Proven by a real supervised paid purchase test.
+### P4 — TexasFile paid path end to end (E5) `[stack already built + wired — needs a SUPERVISED live test]`
+CORRECTION after reading the code: this is NOT a blind build. The pieces exist and are wired:
+`adapters/texasfile-adapter.ts` (628 lines, Playwright SPA search), `services/purchase-ledger.ts`
+(`recordPurchase`, `findOwned` — the don't-double-buy guard by county+instrument key,
+`recordSkippedPurchases`), `document-purchase-orchestrator.ts`, `purchase-gate.ts` (`decidePurchase`),
+and the run CALLS `recordSkippedPurchases` (index.ts:2099, 4860). `research_document_purchases` is 0
+rows only because every run so far hit the ceiling in Phase 2 before the purchase phase, with paid
+OFF. So P4 = a SUPERVISED live paid run (paid ON, 30 min, a document the free path could not read):
+confirm the texasfile adapter logs in, searches, pays, downloads, and files the PDF; confirm the row
+is written and a second run does not re-buy. Any DOM/selector breakage the live site shows is fixed
+THEN, against the real page — it cannot be verified blind. **This is the owner's supervised paid test.**
+Blocked on: the supervised session + the free-path baseline (run 9) finishing first.
 
 ### P5 — Office-side egress for the plat repository (2a)
 Stand up the relay (or proxy); point the `plat-repo` egress adapter at it; re-run a plat fetch and
