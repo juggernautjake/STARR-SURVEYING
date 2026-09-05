@@ -56,9 +56,16 @@ purchases). Test the reconciliation.
 > same `research_usage_events` ledger WITHOUT touching the worker map, so the UI's live "SPENT" (worker
 > `spendForRun`) misses app-phase cost. Added `ledgerSpendForRun(projectId, load?)` to `infra/usage.ts`
 > — the TRUE all-phases spend, summed from the ledger (`load` injectable for tests). `ledger-spend.test.ts`
-> (3) incl. the $1.82+$1.31=$3.13 case. Worker tsc green. **REMAINING for F2:** wire the run report /
-> status "spent" to read `ledgerSpendForRun` instead of the in-memory accumulator, and confirm OCR +
-> purchases are recorded through `recordUsage` too.
+> (3) incl. the $1.82+$1.31=$3.13 case. Worker tsc green.
+>
+> **Per-project ledger endpoint SHIPPED 2026-09-05.** `GET /api/admin/research/[projectId]/cost` sums
+> `research_usage_events` for the project (all phases — gather + analyze) and breaks it down by
+> `event_type`, so the true total is queryable rather than the worker-phase-only $1.82. (The global
+> Billing tab already sums the ledger by user; this adds the missing per-project total.)
+> `project-cost-route.test.ts` (3); app tsc green. **REMAINING for F2:** surface this per-project total
+> in the run/project UI (a display slice — folds into Phase U); the live per-run bar rightly stays on
+> the fast in-memory `spendForRun`. The two-run model shows gather + analyze as separate run costs,
+> which is correct; this endpoint is the combined project truth.
 
 ### F3 — The Phase 3 stall + a real stall watchdog
 The run hung in Phase 3 (deed/plat extraction) at 91% with "nothing heard for 10 min", `activePipelines`
