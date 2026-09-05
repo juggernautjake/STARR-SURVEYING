@@ -197,12 +197,27 @@ website, free clerk adapters, image capture — and file whatever they yield int
 for Review at $0. Mark each want satisfied-free vs still-missing. This is the money-saver: TexasFile
 only ever sees the gaps this pass leaves. No AI.
 
+> **Orchestration core SHIPPED 2026-09-05** (shared by G5+G4). `research/gather-orchestrator.ts`:
+> `runGatherAcquisition({ subject, adjoiners, budget, resolveFree, buyFromTexasFile })` builds the
+> want-list (this is G3's `buildWantList` caller), walks it **free-first**, and only falls through to
+> TexasFile where free found nothing. The `resolveFree` and `buyFromTexasFile` side effects are
+> **injected**, so the free-first rule, the $10 gate, the per-buy `maxUsd`, the stop-when-spent, and
+> the refund settlement are all unit-tested with fakes (`gather-orchestrator.test.ts`, 6). Worker tsc
+> green. **REMAINING for G5:** the real `resolveFree` — county-website / free-adapter capture that
+> files what it finds (detail below).
+
 ### G4 — TexasFile gap-fill, then stop
 Only for wants the free pass (G5) did NOT satisfy, and only if TexasFile is toggled on, buy from
 TexasFile in priority order (plats/drawings, then most-recent deeds), each buy gated by the $10
 add-on cap (G2). Stop issuing TexasFile purchases as soon as the want-list is satisfied or the $10 is
 spent. Record charged-vs-refunded (G2 settlement). Guard with a test that free-satisfied wants are
 never bought from TexasFile and that TexasFile is not queried past the stop condition.
+
+> **SHIPPED 2026-09-05** as the orchestration core above. `runGatherAcquisition` never asks TexasFile
+> for a free-satisfied want (tested), stops once the $10 is spent (`skipped_budget`), passes the
+> remaining allowance as each buy's `maxUsd`, and settles charged-vs-refunded. **REMAINING:** the real
+> `buyFromTexasFile` adapter — a thin wrapper mapping a `Want`'s keys onto `buyDocument` (G1) + filing
+> — and the gather-run entrypoint that supplies both effects (with G6).
 
 ### G6 — Make the Gather run carry NO AI analysis
 Gate every analyzer/OCR/vision/summary step out of the gather run: the whole budget is acquisition.
