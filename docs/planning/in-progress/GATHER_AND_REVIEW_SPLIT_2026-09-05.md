@@ -374,6 +374,14 @@ A control in the Review section that starts the analyze run (Phase R) with a use
 then shows the analyze run's progress/cost and, when done, the extracted data + summaries against
 each document.
 
+> **SHIPPED 2026-09-05 (owner browser-QA pending).** `RunAiReviewControl.tsx`: a cost-limit input +
+> "Run AI Review" button that POSTs `analyzeRequestBody(maxCost)` (clamped 0–100) to the analyze
+> route, which enforces the cap (R1) and reports spend-vs-cap (R3). Mounted in the review stage
+> (`page.tsx`, after the nav bar) — the analysis is now a deliberate, separate, operator-started run
+> with its own budget, not an auto-tail. `run-ai-review-control.test.ts` (5) pins the cap payload +
+> the mount wiring; app tsc clean. **Owner to browser-QA the render/flow.** The live progress/cost bar
+> for the running analyze run (reading R3's `analysis_metadata`) folds into U1's two-run layout.
+
 ### U5 — Restyle + reflow for the two-phase system
 Final consistency pass: labels, states, empty states, and the loading/cost bars all speak the
 two-run language (gathering vs analyzing). Drive the browser to verify render before calling it done.
