@@ -2,6 +2,21 @@
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
 
+<!-- HOOK:BLOCKED B1 SHIPPED (parcel sides now labelled with GIS bearing + length; pure geometry
+module + tests; suite 2710 green). PAUSED for the owner during a SUPERVISED session — not because
+work is exhausted. Two reasons: (1) the owner asked, live, whether I should keep building in-session
+or let the loop carry it, and whether to slot the $10 analysis of 2417 Stoneham in now or after the
+paid run works — their answer sets the order. (2) The next major phase, PHASE A (paid = TexasFile
+first), is the critical path but hinges on a design decision I must not guess: there appear to be TWO
+Bell code paths — `worker/src/counties/bell/orchestrator.ts` (orchestrateBellResearch) and Bell
+handling inside `worker/src/services/pipeline.ts` (bell-clerk directly) — and the early purchase must
+land in the one the LIVE run uses, then be validated by a supervised paid run (the only way to confirm
+TexasFile actually buys the plat/deed early within budget). Building A blind risks another
+authored-but-not-wired miss. Safe solo slices remain (B2 structured segments, C surrounding-parcel
+captures, D deep zooms, E shared in-progress viewer) — remove this marker (or say "continue" / name
+the phase to build) to resume the loop on those; Phase A + Phase F (merge, worker redeploy, supervised
+run) need the owner + the live environment. -->
+
 Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
 before each merge to `main`; `npm run build` before a merge; **NEVER rebuild the worker while a run is
