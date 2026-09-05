@@ -55,6 +55,13 @@ describe('the dialog offers every input and setting a run can be given', () => {
     expect(dialog).toMatch(/value=\{form\.operatorNotes\}/);
   });
 
+  it('discloses the $10 refundable TexasFile earmark (U2 — show where the money goes)', () => {
+    // Owner: turning TexasFile on adds a flat $10, refunded if it finds nothing. The operator must
+    // see that cost model at the toggle, not discover it on the invoice.
+    expect(dialog).toMatch(/\$10 earmarked for TexasFile/);
+    expect(dialog).toMatch(/refunded/);
+  });
+
   it('offers the TexasFile switch by name', () => {
     expect(dialog).toMatch(/checked=\{form\.allowPaidDocuments\}/);
     expect(dialog).toMatch(/TexasFile/);

@@ -358,6 +358,9 @@ export default function RerunDialog({
                 <span>
                   <strong>Allow paid documents</strong> (TexasFile and the other paid vendors)
                   <span className="rrd__hint">
+                    On adds a flat <strong>$10 earmarked for TexasFile</strong>, spent only on the
+                    plats/deeds free county sources can&apos;t get. If TexasFile finds nothing the
+                    $10 is <strong>refunded</strong>; if it finds anything, the $10 is charged.
                     Off means the run completes from free county sources only, and the report says
                     anything paid-only was skipped <em>by choice</em> — which is not the same as the
                     county having no such record. This applies to this run alone; the project keeps

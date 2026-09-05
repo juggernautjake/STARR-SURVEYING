@@ -354,6 +354,13 @@ toggle (+$10 earmark, refunded if nothing found) so the user sees where the mone
 > TexasFile toggle showing the +$10 refundable earmark — plus sending `phase:'gather'` and
 > `maxCostUsd = gatherBudget.maxTotal`; UI work best done with browser QA (needs the two-run layout,
 > U1).
+>
+> **TexasFile cost disclosure SHIPPED 2026-09-05.** The paid-documents toggle in `RerunDialog` now
+> states the cost model at the control: on adds a flat **$10 earmarked for TexasFile**, spent only on
+> gaps free sources can't get, **refunded if TexasFile finds nothing**, charged if it finds anything —
+> so the operator sees where the money goes before starting. `rerun-is-editable.test.ts` pins the
+> disclosure (19 pass); app tsc clean. Still remaining: the distinct base-cap input + sending
+> `phase:'gather'` and `maxCostUsd = gatherBudget.maxTotal` (with U1).
 
 ### U3 — Review stage: dedicated document viewer
 A full document/page viewer in Review matching the earlier request: **full-size render on open**;
