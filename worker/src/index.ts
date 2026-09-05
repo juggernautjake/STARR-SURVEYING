@@ -1308,7 +1308,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // cost since it was written; the app never sent either, so every run silently got the defaults
     // whatever the operator chose in the UI.
     maxResearchTimeMinutes: runSettings.maxResearchTimeMinutes ?? researchInput.maxResearchTimeMinutes,
-    maxCostUsd: runSettings.maxCostUsd ?? researchInput.maxCostUsd,
+    // W3 — when the operator set the two dedicated budgets, the run's cost cap (what the cost
+    // watchdog enforces) is their SUM, so a $15 TexasFile + $5 other run is not stopped at $10.
+    // Otherwise the single cost cap applies.
+    maxCostUsd:
+      runSettings.texasfileBudgetUsd != null || runSettings.otherBudgetUsd != null
+        ? (runSettings.texasfileBudgetUsd ?? 0) + (runSettings.otherBudgetUsd ?? 0)
+        : (runSettings.maxCostUsd ?? researchInput.maxCostUsd),
     // A gather run is capped at 25 minutes (B2.3) — it only searches, buys and downloads.
     phase: runSettings.phase,
   });
@@ -2242,7 +2248,11 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 } else {
                   // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
                   // told the operator nothing they could have acted on.
-                  const ceiling = runSettings.maxCostUsd ?? 25;
+                  // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget is the
+                  // dedicated TexasFile budget the operator set ($15 in the run-start UI), floored to
+                  // $10 by gather-budget; the separate other-sources budget covers free capture. Falls
+                  // back to the run's cost cap when no dedicated TexasFile budget was given.
+                  const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
                   handshakeLogger
                     .attempt('[Purchase]', 'info', 'Buying documents',
                       `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)

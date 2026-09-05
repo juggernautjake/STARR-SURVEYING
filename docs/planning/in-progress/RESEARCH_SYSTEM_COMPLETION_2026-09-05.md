@@ -179,6 +179,15 @@ pipeline` from the orphan allowlist as they gain live callers. Caller-asserted.
 > the $15/$5 run):** confirm the checklist plats/deeds actually get bought; W4 adds the subdivision-plat
 > search for `search_required` wants.
 
+> **W3 budget-enforcement SHIPPED 2026-09-05.** The purchase orchestrator now receives the dedicated
+> **TexasFile budget** (`runSettings.texasfileBudgetUsd`, e.g. $15; floored $10 by gather-budget) as its
+> ceiling instead of `maxCostUsd`. The run's cost-watchdog cap is now the **sum** of the two budgets
+> (`texasfileBudgetUsd + otherBudgetUsd`, e.g. $20) so a legit $15/$5 run isn't aborted at $10, and
+> `MAX_COST_CEILING_USD` was raised **$10 → $100** (each budget still clamped to $100 in run-settings,
+> so the combined ceiling is the runaway guard). Tests updated (run-budget, the-run-can-buy-documents);
+> full worker suite green — 2700. **REMAINING for W3:** the estimate-and-warn flow (present the
+> `assessGatherCost` over-budget choice before spending) — a UI slice, folds into U1.
+
 ### W3 — Two budgets enforced independently + estimate-and-warn
 Enforce the TexasFile ($10) and other-sources ($2) budgets separately in the run (today the orchestrator
 uses one `config.budget` + `this.billing` caps at that single number). Before spending, estimate the
