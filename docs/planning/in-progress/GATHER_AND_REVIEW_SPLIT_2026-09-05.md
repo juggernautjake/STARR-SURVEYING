@@ -321,6 +321,15 @@ A full document/page viewer in Review matching the earlier request: **full-size 
 next/previous page navigation; **zoom PERSISTS across page navigation and changes only on manual
 zoom.** Renders every gathered image/file/page.
 
+> **Persistent zoom SHIPPED 2026-09-05.** `SourceDocumentViewer` already renders full-size on open
+> (fit-to-window) with page nav; it was *re-fitting on every page change*, discarding the user's zoom.
+> Fixed: `lib/viewers/viewer-fit.ts` gains `shouldRefitOnPageChange(zoom, fitZoom)` (re-fit only when
+> at fit); the viewer's page-change effect now defers to it, and `onLoad` calls a new `measureFit`
+> (updates the Reset target without touching the user's zoom) when not re-fitting. So once the user
+> zooms in, next/previous keeps that zoom; it changes only on a manual zoom/Reset. `viewer-fit.test.ts`
+> updated (95 pass, incl. the new rule + a caller assertion); app tsc clean. **REMAINING for U3:**
+> surfacing this viewer on the gather-review surface is folded into U1's two-run UI (same component).
+
 ### U4 — "Run AI Review" in Review, with its own cost-limit input
 A control in the Review section that starts the analyze run (Phase R) with a user-set cost limit,
 then shows the analyze run's progress/cost and, when done, the extracted data + summaries against

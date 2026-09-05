@@ -140,6 +140,21 @@ export function isAtFit(zoom: number, fitZoom: number): boolean {
   return Math.abs(zoom - fitZoom) < 0.001;
 }
 
+/**
+ * On a next/previous page change, should the viewer re-fit the new page — or keep the user's zoom?
+ *
+ * Owner: "the images and files render full size when opened, but once the user zooms in while
+ * viewing a file, then if they hit a button to view the next or previous page, it will keep that
+ * same level of zoom. The zoom should only change if the user updates it manually."
+ *
+ * So: re-fit only when the user is currently viewing the whole page (still at fit). Once they have
+ * zoomed in — `zoom` differs from `fitZoom` — that zoom persists across page navigation, and the new
+ * page is shown at the same scale rather than snapping back to fit.
+ */
+export function shouldRefitOnPageChange(zoom: number, fitZoom: number): boolean {
+  return isAtFit(zoom, fitZoom);
+}
+
 /** The zoom bounds the controls clamp to. Exported so the buttons and the wheel agree. */
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 10;
