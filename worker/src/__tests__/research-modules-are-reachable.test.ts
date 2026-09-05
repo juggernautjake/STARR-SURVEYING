@@ -102,7 +102,7 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
   // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
   'worker/src/research/run-gather-pipeline.ts':
-    'G7 Gather entrypoint, built ahead of its HTTP dispatch (the pending gather-wiring slice, which needs live county-capture). Composes the tested gather engine; remove when the phase===gather dispatch is wired.',
+    'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
 
 
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by

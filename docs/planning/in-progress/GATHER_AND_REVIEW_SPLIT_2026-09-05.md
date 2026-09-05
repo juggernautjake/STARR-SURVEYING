@@ -150,6 +150,31 @@ this section is the audit trail so nobody loosens them.
 
 ---
 
+## Architecture finding (2026-09-05): TexasFile-in-gather is already LIVE via the existing pipeline
+
+Verified while wiring the gather dispatch: the `DocumentPurchaseOrchestrator` is **auto-invoked
+inside the main run pipeline** (`index.ts` ~2194), gated by the purchase-permission gate and bounded
+by the run's ceiling — not only by the separate `POST /research/purchase` endpoint. So the full
+gather-purchase chain is already wired and test-asserted end to end:
+
+> main pipeline → purchase gate → `DocumentPurchaseOrchestrator.executePurchases` → TexasFile adapter
+> → `buyDocument` → filed to `research_documents` for Review
+
+`the-run-can-buy-documents.test.ts` pins the pipeline→orchestrator half; `texasfile-buy-is-wired.test.ts`
+pins the orchestrator→`buyDocument` half. With **G1** (buyDocument + file-to-Review), **G2** (the $10
+refundable earmark + per-buy gating), and **G6** (no AI), a run with paid documents on **already**
+scrapes free county sources, buys the recommended documents from TexasFile within the earmark, files
+everything for Review, and runs zero AI — i.e. it is a working Gather run.
+
+**What this means for `runGatherPipeline` (the want-list engine, G3–G7):** it is an **enhancement, not
+a blocker.** The existing path buys what the discrepancy-driven `PurchaseRecommender` recommends; the
+want-list engine additionally *guarantees* the subject's + adjoiners' plats and most-recent deeds are
+sought whether or not a discrepancy flags them. Wiring it in (replacing or augmenting the recommender
+feed) is a live-tested enhancement slice, deliberately staged (recorded in the orphan allowlist), not
+required for TexasFile-in-gather to work.
+
+---
+
 ## Phase G — the Gather pipeline (backend)
 
 ### G1 — Wire `buyDocument` into the TexasFile purchase path, filing to Review
@@ -285,11 +310,12 @@ Tie the pieces into one runnable Gather pass.
 > the $10 gate + hard-stop signal), and the real `makeTexasFileWantBuyer` by default. Runs **no AI**,
 > and refuses to gather for an `analyze` run (`shouldGatherDocuments` guard). This is the concrete
 > caller for `runGatherAcquisition`, the TexasFile buyer, the budget model and the want-list.
-> `run-gather-pipeline.test.ts` (9). Worker tsc green. **REMAINING (final wiring):** the HTTP dispatch
-> that calls `runGatherPipeline` from the run handler when `phase==='gather'`, supplying the real
-> `resolveFree` (county-site/free-adapter capture that files what it finds) and the subject/adjoiner
-> facts — plus setting the run's `maxCostUsd` to `budget.maxTotal` so the cost watchdog admits base +
-> earmark (the OPEN item from the Hard-stops section).
+> `run-gather-pipeline.test.ts` (9). Worker tsc green. **REMAINING (ENHANCEMENT, not required):** see
+> the Architecture finding above — TexasFile-in-gather is already live via the main pipeline's
+> auto-purchase (G1/G2/G6), locked by `texasfile-gather-chain-is-live.test.ts`. Wiring this want-list
+> engine to feed/augment the recommender (guaranteeing the subject/adjoiner plat+deed priority) is a
+> live-tested enhancement, plus setting the run's `maxCostUsd` to `budget.maxTotal` so the watchdog
+> admits base + earmark (the Hard-stops OPEN item — needs the owner's max-run-spend decision).
 
 ---
 
