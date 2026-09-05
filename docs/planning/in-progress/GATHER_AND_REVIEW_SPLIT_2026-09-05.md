@@ -602,9 +602,14 @@ browser-QAs.
 > narrows to that one document (`onlyDocumentId`), erroring clearly if it isn't available; the analyze
 > route accepts `documentId` from the body. So a per-file "Analyze this" can POST `{ documentId,
 > maxCostUsd }` and analyse just that file at its E2-quoted price. `analyze-cost-cap.test.ts` extended
-> (9); app tsc green. **REMAINING (E3b, UI):** the Review file rows showing each price + "Analyze this"
-> button, and the full-analysis total quote by "Run AI Review" — reads the E2 endpoint; owner
-> browser-QAs.
+> (9); app tsc green.
+>
+> **E3b UI SHIPPED 2026-09-05 (owner browser-QA pending).** `AnalysisEstimatePanel.tsx`: fetches the
+> E2 estimate, shows the **full-analysis total** ($X for N pages, ETA, $/page) and a **per-file list**
+> where each file carries its price and an **"Analyze this"** button that POSTs `analyzeFileBody(id,
+> price)` → the E3a single-document analyze at that file's quoted cap. Mounted in the review stage
+> below "Run AI Review". `analysis-estimate-panel.test.ts` (4, payload + mount wiring); app tsc clean.
+> Owner to browser-QA the render/flow.
 
 ## Deferred / open
 

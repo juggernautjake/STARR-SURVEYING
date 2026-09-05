@@ -23,6 +23,7 @@ import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas'
 import AnalysisSummary from '../components/AnalysisSummary';
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
+import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
 import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
 import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
@@ -2004,6 +2005,10 @@ export default function ResearchProjectPage() {
               here, with its own cost cap. A gather run files documents with no AI; this is where the
               user, having reviewed them, pays to analyse. */}
           <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
+
+          {/* E3b — the fixed-price analysis quote: a full-analysis total and a per-file price with an
+              "Analyze this" button, so the operator can analyse everything or one file at a time. */}
+          <AnalysisEstimatePanel projectId={projectId} onStarted={() => loadProject()} />
 
           {/* R4 — One place to export results: data (JSON/CSV), printable PDF,
               and a path to the drawing/CAD export in Job Prep. */}
