@@ -182,6 +182,15 @@ Build the ordered want-list the gather run works through:
 Derive search keys (book/page, name, subdivision/lot) from the parcel + adjoiner data already
 extracted. Most-recent-deed selection = newest recording date. Test the ordering + key derivation.
 
+> **SHIPPED 2026-09-05.** `research/acquisition-wantlist.ts` (pure): `buildWantList({ subject,
+> adjoiners })` → an ordered `Want[]` — subject plat, subject most-recent deed, then all adjoiner
+> plats, then all adjoiner deeds (plats outrank deeds globally, subject before adjoiners). Keys come
+> from a known plat/deed citation when present, else `parseSubdivisionLot(legalDescription)` +
+> owner name; `mostRecentDeed` picks the newest deed by ISO/US date. `acquisition-wantlist.test.ts`
+> (12) covers ordering, key derivation, and the deed pick. Worker tsc green. **Consumed by G5 (free
+> pass) + G4 (TexasFile gap-fill) — the next slices; the caller-assertion lands with G4/G5 when the
+> gather orchestrator that walks this list is built.**
+
 ### G5 — Free pass FIRST: county-website + free-adapter capture (no purchase)
 **Runs before any TexasFile spend.** For every want on the G3 list, try the **free** sources — county
 website, free clerk adapters, image capture — and file whatever they yield into `research_documents`
