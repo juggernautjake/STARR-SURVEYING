@@ -31,6 +31,13 @@ import { findOwned, recordPurchase, summariseSavings, type OwnedDocument } from 
 import { mayPurchaseFrom } from './platform-choice.js';
 import type { PaidPlatformId } from '../types/document-access.js';
 import { DocumentIndex } from '../research/document-identity.js';
+// The Gather-run TexasFile earmark: a flat $10, gated per-buy, refunded if it finds nothing (plan G2).
+import {
+  gatherBudget,
+  mayBuyFromTexasFile,
+  remainingTexasfileAllowance,
+  settleTexasfileAddon,
+} from '../research/gather-budget.js';
 import type {
   PurchaseOrchestratorConfig,
   DocumentPurchaseResult,
@@ -153,6 +160,17 @@ export class DocumentPurchaseOrchestrator {
     const reanalyses: DocumentReanalysis[] = [];
     const discrepanciesResolved: DiscrepancyResolution[] = [];
     let totalCharged = 0;
+
+    // ── TexasFile earmark: a flat $10, spent only on gaps, refunded if it finds nothing (plan G2) ──
+    // The base budget covers the free/other-site pass; TexasFile draws only on this $10, and every
+    // TexasFile buy is gated so real wallet spend never exceeds it. `settleTexasfileAddon` at the end
+    // charges the $10 if any file was obtained and refunds it otherwise.
+    const gatherBudgetPlan = gatherBudget({
+      baseCap: config.budget ?? 25,
+      texasfileOn: !!config.texasfileCredentials,
+    });
+    let texasFileSpend = 0;
+    let texasFileFilesFound = 0;
 
     // Sort by priority (ROI-based from Phase 8)
     const sorted = [...recommendations].sort(
@@ -346,6 +364,38 @@ export class DocumentPurchaseOrchestrator {
         let result: DocumentPurchaseResult;
         const sourceLower = rec.source.toLowerCase();
 
+        // Every TexasFile buy goes through here so the $10 earmark is enforced in ONE place: refuse a
+        // document whose estimated price would break the remaining allowance, pass the real remaining
+        // cap as `maxUsd` (buyDocument re-checks it against the true page count), and, on success,
+        // book the spend + count the file for the end-of-run settlement.
+        const buyFromTexasFile = async (): Promise<DocumentPurchaseResult> => {
+          const estDocCost = parseEstimatedCost(rec.estimatedCost, 1) || 1;
+          if (!mayBuyFromTexasFile(gatherBudgetPlan, texasFileSpend, estDocCost)) {
+            const left = remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend);
+            this.logger.warn(
+              'Purchase',
+              `TexasFile earmark reached — not buying ${rec.instrument} (est $${estDocCost}, $${left.toFixed(2)} of the $${gatherBudgetPlan.texasfileAddon} left)`,
+            );
+            return {
+              instrument: rec.instrument, documentType: rec.documentType, source: rec.source,
+              status: 'budget_exceeded', pages: 0, costPerPage: 0, totalCost: 0,
+              paymentMethod: 'texasfile_wallet', transactionId: null, downloadedImages: [],
+              imageQuality: { format: 'unknown', hasWatermark: true, qualityScore: 0 },
+              vendor: 'texasfile',
+              error: `TexasFile $${gatherBudgetPlan.texasfileAddon} earmark exhausted ($${left.toFixed(2)} left)`,
+            };
+          }
+          const r = await texasFileAdapter!.purchaseDocument(
+            countyName, rec.instrument, rec.documentType,
+            { book: rec.book, page: rec.page, maxUsd: remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend) },
+          );
+          if (r.status === 'purchased') {
+            texasFileSpend += r.totalCost ?? 0;
+            texasFileFilesFound += 1;
+          }
+          return r;
+        };
+
         // ── Cheapest-first, enforced rather than sorted (plan R13) ───────────────────────────
         //
         // `platform-choice.ts` was written to make the cost ordering a policy instead of a
@@ -382,12 +432,7 @@ export class DocumentPurchaseOrchestrator {
             rec.documentType,
           );
         } else if (sourceLower.includes('texasfile') && texasFileAdapter) {
-          result = await texasFileAdapter.purchaseDocument(
-            countyName,
-            rec.instrument,
-            rec.documentType,
-            { book: rec.book, page: rec.page },
-          );
+          result = await buyFromTexasFile();
         } else {
           // Try Kofile first, then TexasFile fallback
           if (kofileAdapter) {
@@ -400,20 +445,10 @@ export class DocumentPurchaseOrchestrator {
               texasFileAdapter
             ) {
               this.logger.info('Purchase', `Kofile failed for ${rec.instrument}, trying TexasFile...`);
-              result = await texasFileAdapter.purchaseDocument(
-                countyName,
-                rec.instrument,
-                rec.documentType,
-                { book: rec.book, page: rec.page },
-              );
+              result = await buyFromTexasFile();
             }
           } else if (texasFileAdapter) {
-            result = await texasFileAdapter.purchaseDocument(
-              countyName,
-              rec.instrument,
-              rec.documentType,
-              { book: rec.book, page: rec.page },
-            );
+            result = await buyFromTexasFile();
           } else {
             this.logger.warn('Purchase', `No adapter available for ${rec.source}`);
             purchases.push({
@@ -611,6 +646,20 @@ export class DocumentPurchaseOrchestrator {
     const invoicePath = this.billing.generateInvoice(projectId);
     const remaining = this.billing.checkBudget(projectId, 0).remaining;
 
+    // Settle the flat $10 TexasFile earmark: kept if TexasFile obtained anything, refunded if not.
+    const addonSettlement = settleTexasfileAddon({
+      filesFound: texasFileFilesFound,
+      addon: gatherBudgetPlan.texasfileAddon,
+    });
+    if (gatherBudgetPlan.texasfileOn) {
+      this.logger.info(
+        'Purchase',
+        texasFileFilesFound > 0
+          ? `TexasFile found ${texasFileFilesFound} file(s) — $${addonSettlement.charged} add-on charged (wallet spend $${texasFileSpend.toFixed(2)}).`
+          : `TexasFile found nothing — $${addonSettlement.refunded} add-on refunded.`,
+      );
+    }
+
     const billing: PurchaseBillingSummary = {
       totalDocumentCost: totalCharged,
       taxOrFees: 0,
@@ -618,6 +667,15 @@ export class DocumentPurchaseOrchestrator {
       paymentMethod: 'account_balance',
       remainingBalance: remaining,
       invoicePath,
+      ...(gatherBudgetPlan.texasfileOn
+        ? {
+            texasfileAddonUsd: gatherBudgetPlan.texasfileAddon,
+            texasfileFilesFound: texasFileFilesFound,
+            texasfileAddonCharged: addonSettlement.charged,
+            texasfileAddonRefunded: addonSettlement.refunded,
+            texasfileWalletSpend: Math.round(texasFileSpend * 100) / 100,
+          }
+        : {}),
     };
 
     // ── Build final report ──────────────────────────────────────────────

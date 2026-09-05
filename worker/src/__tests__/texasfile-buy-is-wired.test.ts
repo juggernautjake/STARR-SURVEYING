@@ -46,13 +46,29 @@ describe('the TexasFile purchase adapter delegates to the working buy module', (
 });
 
 describe('the orchestrator passes the search hints TexasFile actually needs', () => {
-  it('threads book + page into every TexasFile purchase call', () => {
+  it('threads book + page into the single gated TexasFile purchase call', () => {
     // TexasFile's instrument-number search returns empty for many counties; book/vol/page is the
-    // reliable key, and the recommendation carries it. Every texasFileAdapter.purchaseDocument call
-    // must forward it.
-    const calls = ORCH.match(/texasFileAdapter\.purchaseDocument\(/g) ?? [];
-    expect(calls.length).toBeGreaterThan(0);
-    const hintCalls = ORCH.match(/\{ book: rec\.book, page: rec\.page \}/g) ?? [];
-    expect(hintCalls.length).toBe(calls.length);
+    // reliable key, and the recommendation carries it. All TexasFile buys route through one gated
+    // closure, whose purchaseDocument call forwards book + page (alongside the maxUsd earmark cap).
+    const call = ORCH.match(/texasFileAdapter!?\.purchaseDocument\(([\s\S]*?)\);/);
+    expect(call).not.toBeNull();
+    expect(call![1]).toMatch(/book: rec\.book/);
+    expect(call![1]).toMatch(/page: rec\.page/);
+  });
+
+  it('routes every TexasFile buy through the budget-gated closure', () => {
+    // The $10 earmark is enforced in ONE place; no call site may bypass it by hitting the adapter
+    // directly. So there is exactly one raw adapter call (inside buyFromTexasFile), and the dispatch
+    // sites call the closure.
+    const rawCalls = ORCH.match(/texasFileAdapter!?\.purchaseDocument\(/g) ?? [];
+    expect(rawCalls.length).toBe(1);
+    const gatedCalls = ORCH.match(/buyFromTexasFile\(\)/g) ?? [];
+    expect(gatedCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('gates TexasFile spend on the $10 earmark', () => {
+    expect(ORCH).toMatch(/mayBuyFromTexasFile\(/);
+    expect(ORCH).toMatch(/settleTexasfileAddon\(/);
+    expect(ORCH).toMatch(/from ['"]\.\.\/research\/gather-budget\.js['"]/);
   });
 });

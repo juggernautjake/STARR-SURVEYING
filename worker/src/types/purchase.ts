@@ -286,6 +286,20 @@ export interface PurchaseBillingSummary {
   paymentMethod: string;
   remainingBalance: number;
   invoicePath: string;
+
+  // ── TexasFile earmark settlement (plan GATHER_AND_REVIEW_SPLIT G2) ──────────────────────────────
+  // The flat $10 TexasFile upcharge is charged only if TexasFile obtained ≥1 file, refunded
+  // otherwise. Present only on runs where TexasFile was enabled; the UI shows the refund at run end.
+  /** The earmarked add-on for this run ($10 when TexasFile is on). */
+  texasfileAddonUsd?: number;
+  /** How many documents TexasFile actually obtained + filed. */
+  texasfileFilesFound?: number;
+  /** The part of the add-on kept and added to the cost ($10 if any file found, else 0). */
+  texasfileAddonCharged?: number;
+  /** The part returned to the user, shown as refunded ($10 if nothing found, else 0). */
+  texasfileAddonRefunded?: number;
+  /** Real TexasFile wallet spend this run ($1/page), capped by the add-on. */
+  texasfileWalletSpend?: number;
 }
 
 // ── Final PurchaseReport (the Phase 9 deliverable) ──────────────────────────

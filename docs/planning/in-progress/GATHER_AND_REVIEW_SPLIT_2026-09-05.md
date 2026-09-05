@@ -100,6 +100,31 @@ The earlier "auto-run AI analysis every run" decision is **superseded** — see 
 
 ---
 
+## Cost-management strategy — the determination (owner asked 2026-09-05: "get everything we need from TexasFile but save as much money as possible using other sites")
+
+Synthesizing every cost idea the owner gave (hard cost cap; cost-primary; two pipelines; min $7;
+per-purchase checks; the refundable $10 TexasFile add-on; "TexasFile first" vs "save money with
+other sites"), the cost-optimal design is **free-first, TexasFile gap-fills, capped + refundable:**
+
+1. **Build the want-list** — the documents we actually need: subject plats/drawings + most-recent
+   deed(s), and each adjoiner's plats/drawings + most-recent deed(s). (G3)
+2. **Free pass first** — try to satisfy each want from **free** county sources / capture at $0. The
+   county website, free adapters, and image capture cost nothing, so anything they yield is money
+   saved. (G5, run *before* spending TexasFile money.)
+3. **TexasFile gap-fill** — only for wants the free pass could NOT get, and only if the owner toggled
+   TexasFile on, buy from TexasFile, **priority-ordered** (plats/drawings first, then most-recent
+   deeds), each purchase gated to stay within the earmarked **$10** (real wallet spend ≤ $10). Stop
+   as soon as the want-list is satisfied. (G1 buy + G2 cap + G4 stop.)
+4. **Settle** — if TexasFile obtained ≥1 file, the flat **$10 is charged**; if it obtained nothing,
+   the **$10 is refunded**. The base budget (floor **$7**) covers the free pass's incidental costs.
+
+This reconciles "TexasFile first" with "save money": TexasFile is still the reliable source for the
+critical plats/deeds (the county plat repo is IP-blocked), but we spend its money **only on the gaps
+free sources leave**, never on a document we could capture for nothing. The earlier ¾/¼ split is
+retired in favor of this — the $10 earmark is the TexasFile budget, and free-first is the saver.
+
+---
+
 ## Phase G — the Gather pipeline (backend)
 
 ### G1 — Wire `buyDocument` into the TexasFile purchase path, filing to Review
@@ -121,12 +146,32 @@ branch invokes `buyDocument` and files via `uploadDocumentIncremental`.
 > Worker tsc green; 49 purchase/texasfile tests pass. Per-purchase budget `maxUsd` and the ¾/¼ split
 > are G2.
 
-### G2 — Per-purchase budget check (¾ TexasFile / ¼ other)
-Before each TexasFile buy, check the run's remaining budget and the **TexasFile sub-allocation
-(¾ of the cap)**; refuse a purchase that would exceed it, log it, and continue. Reserve the
-remaining ¼ for other-site retrieval (slice G5). Enforce the **$7 minimum** run cost at run start
-(clamp the requested cap up to $7). Pass a `maxUsd` to `buyDocument` per document ($1/page).
-Test the split math + the $7 floor as pure functions.
+### G2 — Budget model: base (min $7) + refundable $10 TexasFile add-on
+**Revised 2026-09-05 (replaces the earlier ¾/¼ split).** In Configure the user sets a **maximum base
+budget (floor $7)** for general gathering, and toggles **TexasFile on/off**. Turning TexasFile on
+adds a **flat $10 upcharge earmarked for TexasFile**. That $10 is **conditional**: if TexasFile finds
+NO files it is **not spent and is reported as refunded**; if any files are found the **$10 is charged**
+(kept, added to the cost). Backend work for this slice:
+- a pure `gather-budget.ts`: `MIN_GATHER_BUDGET_USD=7`, `TEXASFILE_ADDON_USD=10`; `gatherBudget({
+  baseCap, texasfileOn })` → `{ baseCap≥7, texasfileAddon, maxTotal }`; `settleTexasfileAddon({
+  filesFound, addon })` → `{ charged, refunded }`. Unit-tested.
+- wire into the purchase orchestrator: gate every TexasFile buy against the **$10 add-on cap**
+  (texasFileSpend + docCost ≤ 10), pass `maxUsd` to `buyDocument` per document ($1/page), track
+  whether any TexasFile file was obtained, and surface `texasfileAddonCharged`/`texasfileAddonRefunded`
+  in the purchase report. Kofile/other paid vendors still gate on the base budget.
+The refund is *represented* in the UI (U-phase); the backend just reports charged-vs-refunded.
+
+> **SHIPPED 2026-09-05.** `research/gather-budget.ts` (pure): `MIN_GATHER_BUDGET_USD=7`,
+> `TEXASFILE_ADDON_USD=10`, `gatherBudget`, `remainingTexasfileAllowance`, `mayBuyFromTexasFile`,
+> `settleTexasfileAddon`. Wired into the purchase orchestrator: all TexasFile buys route through one
+> gated `buyFromTexasFile()` closure that refuses a doc over the remaining $10, passes `maxUsd` to
+> `buyDocument`, and books spend + file-count; the report's billing summary now carries
+> `texasfileAddonUsd/FilesFound/AddonCharged/AddonRefunded/WalletSpend`, and `settleTexasfileAddon`
+> charges $10 if any file was found else refunds it. `gather-budget.test.ts` (10) +
+> `texasfile-buy-is-wired.test.ts` updated; worker tsc green, 357 purchase/texasfile tests pass.
+> **NOTE:** the orchestrator's base budget still reads `config.budget` (default 25) from the purchase
+> request; making Configure send the user's base cap + TexasFile toggle is a U-phase slice (U2), and
+> reconciling the base floor with the run-level `MAX_COST_CEILING_USD` is tracked there.
 
 ### G3 — Acquisition priority list (subject + adjoiners)
 Build the ordered want-list the gather run works through:
@@ -137,15 +182,18 @@ Build the ordered want-list the gather run works through:
 Derive search keys (book/page, name, subdivision/lot) from the parcel + adjoiner data already
 extracted. Most-recent-deed selection = newest recording date. Test the ordering + key derivation.
 
-### G4 — Stop TexasFile once the want-list is satisfied
-After the priority list is obtained (or its TexasFile budget is spent), stop issuing TexasFile
-purchases for the run. Record which wants were satisfied vs. still missing so G5 knows what to look
-for elsewhere. Guard with a test that TexasFile is not queried past the stop condition.
+### G5 — Free pass FIRST: county-website + free-adapter capture (no purchase)
+**Runs before any TexasFile spend.** For every want on the G3 list, try the **free** sources — county
+website, free clerk adapters, image capture — and file whatever they yield into `research_documents`
+for Review at $0. Mark each want satisfied-free vs still-missing. This is the money-saver: TexasFile
+only ever sees the gaps this pass leaves. No AI.
 
-### G5 — County-website capture for the remainder (no purchase)
-For wants TexasFile didn't satisfy, and for any other available files, go to the county website and
-**record/capture images** (the existing capture path), spending only the ¼ other-sites allocation.
-File captured images into `research_documents` for Review the same way. No AI.
+### G4 — TexasFile gap-fill, then stop
+Only for wants the free pass (G5) did NOT satisfy, and only if TexasFile is toggled on, buy from
+TexasFile in priority order (plats/drawings, then most-recent deeds), each buy gated by the $10
+add-on cap (G2). Stop issuing TexasFile purchases as soon as the want-list is satisfied or the $10 is
+spent. Record charged-vs-refunded (G2 settlement). Guard with a test that free-satisfied wants are
+never bought from TexasFile and that TexasFile is not queried past the stop condition.
 
 ### G6 — Make the Gather run carry NO AI analysis
 Gate every analyzer/OCR/vision/summary step out of the gather run: the whole budget is acquisition.
