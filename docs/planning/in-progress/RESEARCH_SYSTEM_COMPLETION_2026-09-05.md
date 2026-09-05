@@ -51,6 +51,15 @@ what the UI/report reads for "spent" vs. what `recordUsage` writes to `research_
 the reported spend equal the ledger (the ledger is truth). Cover every cost source (AI calls, OCR,
 purchases). Test the reconciliation.
 
+> **Root cause found + helper SHIPPED 2026-09-05.** `recordUsage` (worker) increments the in-process
+> `runSpend` map AND writes the ledger — but the **app-side** analysis (`lib/ai/usage.ts`) writes the
+> same `research_usage_events` ledger WITHOUT touching the worker map, so the UI's live "SPENT" (worker
+> `spendForRun`) misses app-phase cost. Added `ledgerSpendForRun(projectId, load?)` to `infra/usage.ts`
+> — the TRUE all-phases spend, summed from the ledger (`load` injectable for tests). `ledger-spend.test.ts`
+> (3) incl. the $1.82+$1.31=$3.13 case. Worker tsc green. **REMAINING for F2:** wire the run report /
+> status "spent" to read `ledgerSpendForRun` instead of the in-memory accumulator, and confirm OCR +
+> purchases are recorded through `recordUsage` too.
+
 ### F3 — The Phase 3 stall + a real stall watchdog
 The run hung in Phase 3 (deed/plat extraction) at 91% with "nothing heard for 10 min", `activePipelines`
 stuck at 1. Diagnose the hang (an un-timed-out AI/extraction call, most likely) and ensure a stall
