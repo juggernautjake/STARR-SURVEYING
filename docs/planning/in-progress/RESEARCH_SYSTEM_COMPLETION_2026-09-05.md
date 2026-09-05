@@ -198,9 +198,22 @@ selection's TexasFile cost (`gather-cost-estimate`, B2.2) and warn if over — p
 Make the "most-recent plat/drawing" want search TexasFile by subdivision + book/vol/page and buy it —
 the document this session's free run could not produce. Verified against a live TexasFile-budget run.
 
+> **DEFERRED to the supervised $15/$5 run 2026-09-05.** W2 already routes a `search_required` plat want
+> to the TexasFile buyer (which today searches by owner name). Refining it to search TexasFile *by
+> subdivision* needs the live site's plat-search behaviour (which field returns a subdivision plat, how
+> "most recent" is picked) — building it blind would be guesswork, and the owner asked to verify it on
+> the run. Requires: (a) carry the subdivision through the purchase rec, (b) the orchestrator forward it
+> as a search hint, (c) `buyDocument` search plats by subdivision. Do this WITH the live run, using what
+> the site actually returns. Not folder-emptying — it is genuinely blocked on live TexasFile data.
+
 ---
 
 ## PHASE U — UI for the two-run model + review
+
+> **Project cost surfaced SHIPPED 2026-09-05.** `ProjectCostBadge` reads `GET .../cost` (F2) and shows
+> the project's TRUE all-phases spend — "Project spend $X · purchases $Y · AI $Z" — mounted in the
+> Review stage, so the operator sees real cost (the ledger truth) not the worker-phase-only run figure.
+> `project-cost-badge.test.ts` (2); app tsc green. Owner browser-QAs.
 
 ### U1 — Two-run portal + cost bars
 Reformat the portal around Gather vs Analyze with their own states + cost bars (gather budget vs spend;

@@ -24,6 +24,7 @@ import AnalysisSummary from '../components/AnalysisSummary';
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
+import ProjectCostBadge from '../components/ProjectCostBadge';
 import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
 import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
@@ -1997,6 +1998,9 @@ export default function ResearchProjectPage() {
               here, with its own cost cap. A gather run files documents with no AI; this is where the
               user, having reviewed them, pays to analyse. */}
           <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
+
+          {/* F2/U — the project's TRUE all-phases spend (gather + analyze) from the usage ledger. */}
+          <div style={{ margin: '0 0 1rem' }}><ProjectCostBadge projectId={projectId} /></div>
 
           {/* E3b — the fixed-price analysis quote: a full-analysis total and a per-file price with an
               "Analyze this" button, so the operator can analyse everything or one file at a time. */}
