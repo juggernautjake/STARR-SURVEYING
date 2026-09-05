@@ -125,6 +125,31 @@ retired in favor of this — the $10 earmark is the TexasFile budget, and free-f
 
 ---
 
+## Hard stops — budget AND duration (owner asked 2026-09-05: "really make sure")
+
+**Verified + hardened 2026-09-05.** Both hard stops exist at the run level and are pinned by tests;
+this section is the audit trail so nobody loosens them.
+
+- **Duration** — `limitsFor` ignores the requested minutes and returns a fixed **60-minute** wall
+  clock (env can only *lower* it; a 90-min env is clamped to 60). A `setTimeout` watchdog fires a
+  `BudgetAbort` at `maxWallClockMs + 30s` grace; the tail honours the abort. Pinned by
+  `run-budget.test.ts` + `run-cannot-outlive-its-ceiling.test.ts`.
+- **Cost** — `maxCostUsd` is clamped to `MAX_COST_CEILING_USD = 10` (a requested 0 survives as
+  "free only"). A cost watchdog polls `spendForRun` every **500 ms** and fires the same `BudgetAbort`
+  the instant spend crosses the cap, so overshoot ≤ one in-flight call. TexasFile spend flows through
+  `recordUsage('document_purchase')`, so it counts toward this cap; each buy is additionally gated by
+  the $10 earmark (G2).
+- **The gather loop now honours the signal (this fix).** `runGatherAcquisition` takes the run's
+  `AbortSignal` and, before each want *and* before each paid buy, stops and marks the rest `stopped`
+  when it is aborted — so both watchdogs halt a gather run to within one in-flight want, not a whole
+  want-list. Pinned by `gather-orchestrator.test.ts`.
+- **OPEN (entrypoint/U2):** the run cost cap ($10 ceiling) vs. the gather model (base up to $10 + a
+  $10 TexasFile earmark = up to ~$20). The gather-run entrypoint must set the run's `maxCostUsd` to
+  `gatherBudget.maxTotal` and the ceiling must accommodate base + addon, or a legitimate base+$10 run
+  is hard-stopped early. Tracked with U2.
+
+---
+
 ## Phase G — the Gather pipeline (backend)
 
 ### G1 — Wire `buyDocument` into the TexasFile purchase path, filing to Review

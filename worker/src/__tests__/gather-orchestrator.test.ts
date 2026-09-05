@@ -80,6 +80,37 @@ describe('TexasFile off', () => {
   });
 });
 
+describe('hard stops (cost cap / 1-hour wall clock)', () => {
+  it('stops attempting wants the instant the signal aborts, marking the rest stopped', async () => {
+    const ac = new AbortController();
+    // Abort partway: the first buy succeeds, then the watchdog fires before the second.
+    let calls = 0;
+    const buy = async (): Promise<TexasBuyResult> => {
+      calls += 1;
+      if (calls === 1) { ac.abort(); return { bought: true, costUsd: 1 }; }
+      return { bought: true, costUsd: 1 };
+    };
+    const r = await runGatherAcquisition({
+      ...twoAdjoiners, budget: budgetOn, resolveFree: freeNone, buyFromTexasFile: buy, signal: ac.signal,
+    });
+    expect(calls).toBe(1); // never opened a second buy after the abort
+    expect(r.results.filter((x) => x.outcome === 'stopped').length).toBeGreaterThan(0);
+  });
+
+  it('does not even start the free lookup once already aborted', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const free = vi.fn(freeNone);
+    const buy = vi.fn(buyNever);
+    const r = await runGatherAcquisition({
+      ...twoAdjoiners, budget: budgetOn, resolveFree: free, buyFromTexasFile: buy, signal: ac.signal,
+    });
+    expect(free).not.toHaveBeenCalled();
+    expect(buy).not.toHaveBeenCalled();
+    expect(r.results.every((x) => x.outcome === 'stopped')).toBe(true);
+  });
+});
+
 describe('resilience', () => {
   it('records a want as missing when the buyer throws, and keeps going', async () => {
     let calls = 0;

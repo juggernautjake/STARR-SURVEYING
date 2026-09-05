@@ -29,7 +29,8 @@ export type WantOutcome =
   | 'texasfile'       // bought from TexasFile
   | 'missing'         // neither free nor TexasFile could get it
   | 'skipped_budget'  // TexasFile had it but the $10 earmark was spent
-  | 'skipped_off';    // free failed and TexasFile is toggled off
+  | 'skipped_off'     // free failed and TexasFile is toggled off
+  | 'stopped';        // the run hit a hard stop (cost cap or the 1-hour wall clock) before this want
 
 /** What a free source did for one want. */
 export interface FreeResolveResult {
@@ -77,6 +78,13 @@ export interface RunGatherInput {
   resolveFree: (want: Want) => Promise<FreeResolveResult>;
   /** Buy a want from TexasFile, spending no more than `maxUsd` (the remaining earmark). */
   buyFromTexasFile: (want: Want, maxUsd: number) => Promise<TexasBuyResult>;
+  /**
+   * The run's hard-stop signal. The cost watchdog (fires the instant spend crosses the cap) and the
+   * 1-hour wall-clock watchdog both abort this. Once aborted, the gather loop stops attempting wants
+   * and marks the rest `stopped` — so a hard stop is honoured to within one in-flight want, not a
+   * whole want-list. Optional so tests and simple callers can omit it.
+   */
+  signal?: AbortSignal;
   /** Optional progress sink. */
   log?: (message: string) => void;
 }
@@ -93,6 +101,13 @@ export async function runGatherAcquisition(input: RunGatherInput): Promise<Gathe
   let texasFileFilesFound = 0;
 
   for (const want of wants) {
+    // 0. Hard stop first — the cost cap or the 1-hour wall clock aborts this signal. Do not start
+    //    another want (a free lookup or, worse, a paid buy) once the run has been told to stop.
+    if (input.signal?.aborted) {
+      results.push({ want, outcome: 'stopped', costUsd: 0, source: null, note: 'run hit its hard stop' });
+      continue;
+    }
+
     // 1. Free first — the money-saver.
     let free: FreeResolveResult = { found: false };
     try {
@@ -109,6 +124,11 @@ export async function runGatherAcquisition(input: RunGatherInput): Promise<Gathe
     // 2. TexasFile gap-fill — only if enabled and the earmark has room.
     if (!input.budget.texasfileOn) {
       results.push({ want, outcome: 'skipped_off', costUsd: 0, source: null, note: 'TexasFile off' });
+      continue;
+    }
+    // The free lookup above can itself span the cap; do not open a paid buy on a stopped run.
+    if (input.signal?.aborted) {
+      results.push({ want, outcome: 'stopped', costUsd: 0, source: null, note: 'run hit its hard stop' });
       continue;
     }
     const remaining = remainingTexasfileAllowance(input.budget, texasFileSpend);
