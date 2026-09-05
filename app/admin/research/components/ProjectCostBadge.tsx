@@ -40,7 +40,7 @@ export default function ProjectCostBadge({ projectId }: { projectId: string }) {
 
   return (
     <div
-      className="project-cost-badge"
+     
       data-testid="project-cost-badge"
       title="Real spend from the usage ledger, across every run on this project"
       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', padding: '0.35rem 0.7rem', border: '1px solid var(--border, #e5e7eb)', borderRadius: 999, background: 'var(--surface-2, #fafafa)' }}

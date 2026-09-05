@@ -61,7 +61,7 @@ export default function RunAiReviewControl({
 
   return (
     <div
-      className="run-ai-review"
+     
       data-testid="run-ai-review"
       style={{
         display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
@@ -105,7 +105,7 @@ export default function RunAiReviewControl({
       </button>
       {error && <span role="alert" style={{ color: '#DC2626', fontSize: '0.8rem', flexBasis: '100%' }}>{error}</span>}
       {started && !error && (
-        <span role="status" style={{ color: '#16A34A', fontSize: '0.8rem', flexBasis: '100%' }}>
+        <span role="status" style={{ color: '#166534', fontSize: '0.8rem', flexBasis: '100%' }}>
           AI review started — its progress and cost will appear as it runs.
         </span>
       )}

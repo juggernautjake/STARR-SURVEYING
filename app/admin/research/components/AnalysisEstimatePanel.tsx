@@ -87,15 +87,15 @@ export default function AnalysisEstimatePanel({ projectId, onStarted }: Analysis
   }
 
   if (error && !est) {
-    return <div className="analysis-estimate" role="alert" style={{ color: '#DC2626', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</div>;
+    return <div role="alert" style={{ color: '#DC2626', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</div>;
   }
   if (!est) {
-    return <div className="analysis-estimate" style={{ fontSize: '0.85rem', opacity: 0.7, margin: '0 0 1rem' }}>Loading analysis quote…</div>;
+    return <div style={{ fontSize: '0.85rem', opacity: 0.7, margin: '0 0 1rem' }}>Loading analysis quote…</div>;
   }
 
   return (
     <div
-      className="analysis-estimate"
+     
       data-testid="analysis-estimate"
       style={{ border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0 0 1.25rem', background: 'var(--surface-2, #fafafa)' }}
     >

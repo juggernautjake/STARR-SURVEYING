@@ -93,7 +93,7 @@ function Checklist({
 
 export default function GatherSelectionsField({ value, onChange }: GatherSelectionsFieldProps) {
   return (
-    <div className="gather-selections" data-testid="gather-selections" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+    <div data-testid="gather-selections" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       <div>
         <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>What should this run find?</div>
         <Checklist
