@@ -325,8 +325,18 @@ purchased / captured, cost vs the ¾/¼ split) and, separately, its analyze runs
 the user-set cap). Restyle to fit — `app/admin/research/`, `ResearchPortal.css`.
 
 ### U2 — Configure stage → gather budget ($7 min)
-The Configure stage sets the gather cap (enforced ≥ $7) and starts the gather run. Show the ¾/¼
-TexasFile-vs-other split so the user sees where the money goes.
+The Configure stage sets the gather cap (enforced ≥ $7) and starts the gather run. Show the TexasFile
+toggle (+$10 earmark, refunded if nothing found) so the user sees where the money goes.
+
+> **Settings mirror groundwork SHIPPED 2026-09-05.** The client `RunSettingsInput`
+> (`useRunState.ts`) gained `phase?: 'gather' | 'analyze'`, so the two-run model can flow from
+> Configure to the worker (`normaliseRunSettings` already reads it, G6). `run-settings-mirror.test.ts`
+> asserts the app mirror carries every worker `RUN_SETTING_KEYS` entry — closing the client/worker
+> drift gap the worker's run-settings comment names, so a future setting can't be added on one side
+> only. **REMAINING for U2:** the Configure form controls — a base-cap input (≥$7) and an explicit
+> TexasFile toggle showing the +$10 refundable earmark — plus sending `phase:'gather'` and
+> `maxCostUsd = gatherBudget.maxTotal`; UI work best done with browser QA (needs the two-run layout,
+> U1).
 
 ### U3 — Review stage: dedicated document viewer
 A full document/page viewer in Review matching the earlier request: **full-size render on open**;

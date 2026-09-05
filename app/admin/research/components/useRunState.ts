@@ -74,6 +74,13 @@ export interface RunSettingsInput {
   maxCostUsd?: number;
   mode?: 'free' | 'paid';
   refreshImagery?: boolean;
+  /**
+   * Which half of the split pipeline this run is (plan GATHER_AND_REVIEW_SPLIT): `gather` acquires
+   * files with NO AI; `analyze` runs OCR/summaries over what a gather run filed, under its own cost
+   * cap. Mirrors the worker's `RunSettings.phase` — keep in sync (guarded by
+   * run-settings-mirror.test.ts). Absent means the legacy monolithic run.
+   */
+  phase?: 'gather' | 'analyze';
 }
 
 export interface StartRunInput {
