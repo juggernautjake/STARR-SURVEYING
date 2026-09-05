@@ -36,10 +36,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Parse optional config from body early so we can check resume mode for the status check below
-  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string } | undefined;
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean } | undefined;
   try {
-    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string };
-    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId) {
+    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean };
+    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId || body.benchmark) {
       config = {};
       if (body.extractCategories) config.extractCategories = body.extractCategories;
       if (body.resume) config.resume = true;
@@ -50,6 +50,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
       // Per-file analysis (plan E3): analyse only this one document at its quoted price.
       if (typeof body.documentId === 'string' && body.documentId) config.documentId = body.documentId;
+      // Benchmark calibration run (no cost cap, page-scaled time) — sets the standardized $/page rate.
+      if (body.benchmark === true) config.benchmark = true;
     }
   } catch {
     // No body or invalid JSON — use defaults

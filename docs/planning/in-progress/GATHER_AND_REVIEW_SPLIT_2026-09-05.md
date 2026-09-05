@@ -2,7 +2,7 @@
 
 **Started** 2026-09-05 · **Branch** `claude/research-pipeline-completion-2026-09-03`
 
-<!-- HOOK:BLOCKED Both the original split AND the owner's refined spec are BUILT + tested (30 slices, all pushed, worker suite green). Done: the two-pipeline split; TexasFile-in-gather live via the main pipeline; the two metered budgets (TexasFile min $10 metered $1/page + other min $2, B2.1); 25-min gather cap (B2.3); no-AI-in-gather end to end (G6); the analyze run's own cost cap (R1/R3); the fixed $/page analysis estimator + quote endpoint (E1/E2); per-file "Analyze this" buttons + total quote (E3); the "what to find" Configure checklist + adjoiner toggle (S1/S2/S3); the persistent-zoom viewer (U3); the cost disclosure (U2). Every REMAINING item needs the owner: (1) the $/page ANALYSIS RATE is a business number (placeholder $0.25 in lib/research/analysis-estimate.ts) — set it; (2) BROWSER-QA the built UI (Configure checklist, per-file Analyze buttons, Run AI Review, viewer zoom, cost disclosure) per the repo's "drive the browser before calling UI done" rule; (3) two LIVE-WIRING slices — feed selectionsToWants into the acquisition path, and the estimate-and-warn flow into the live purchase path — change live purchase behavior and must be verified with a real run, not shipped blind; (4) the supervised live PROOF purchase (P2) needs the funded TexasFile wallet. Continuing solo would mean shipping unverified changes to the live purchase path or building UI I cannot QA. Remove this marker (or answer the rate / schedule a supervised QA+proof session) to resume the loop. -->
+<!-- HOOK:BLOCKED Awaiting the SUPERVISED BENCHMARK SESSION (owner-driven, 2026-09-05). Everything is built + tested (31 slices). The plan now waits on a real run the owner runs with me: (1) a GATHER run to fetch pages, then (2) the BENCHMARK analyze run (POST /analyze {benchmark:true}, no cost cap, 30-60s/page) which reports benchmark_usd_per_page = total cost / total pages; the owner sets ANALYSIS_RATE_USD_PER_PAGE to it. See the "Benchmark session runbook" section below. This needs the branch deployed (worker rebuild + app deploy / merge to main — owner's call) and the funded TexasFile wallet. After the benchmark: the two live-wiring slices (selections->acquisition feed; estimate-and-warn into the purchase path), verified against that run. Remove this marker when the session is scheduled/underway to resume the loop. -->
 
 
 This plan is driven by the stop-hook slice loop (`.claude/hooks/continue-until-planning-done.sh`).
@@ -622,6 +622,32 @@ browser-QAs.
 > price)` → the E3a single-document analyze at that file's quoted cap. Mounted in the review stage
 > below "Run AI Review". `analysis-estimate-panel.test.ts` (4, payload + mount wiring); app tsc clean.
 > Owner to browser-QA the render/flow.
+
+## Benchmark session runbook (owner + Claude, supervised)
+
+The one-off calibration that sets the standardized $/page analysis rate.
+
+### BM1 — Benchmark analyze mode (SHIPPED 2026-09-05)
+> `AnalysisConfig.benchmark`; a benchmark analyze run has **NO cost cap** (`analyzeCostCapUsd`
+> forced undefined), gives each page up to **60 s** (`BENCHMARK_MS_PER_PAGE`; per-document timeout
+> scales to `pageCountOf(doc) × 60 s`), analyses every page, and at the end writes
+> `benchmark_total_pages`, `benchmark_cost_usd`, `benchmark_usd_per_page` into `analysis_metadata`
+> and logs the rate. `benchmarkResult(docs, cost)` = cost ÷ pages. The analyze route accepts
+> `{ benchmark: true }`. `analysis-benchmark.test.ts` (7); app tsc green.
+
+### The session, step by step
+1. **Deploy the branch** (owner's call on merge-to-main):
+   - Worker (netcup `root@152.53.48.240`): `BUILD_SHA=$(git -C /opt/starr rev-parse --short HEAD) docker compose -f /opt/starr/worker/docker-compose.yml up -d --build worker`, verify `buildSha` on `localhost:3100/healthz`. **NOT while a run is in flight.**
+   - App (Vercel): the analyze/benchmark code is app-side (`lib/research/analysis.service.ts`), so it goes live when this branch is deployed / merged to main.
+2. **Gather run** — pick a Bell property with real records; Configure with TexasFile **on**, "All Files", adjoiners off; start it. Confirm pages/files land in Review (`research_documents`), and the first real `research_document_purchases` rows appear.
+3. **Benchmark analyze** — from Review, `POST /api/admin/research/<projectId>/analyze` with body `{ "benchmark": true }`. It runs uncapped until every page is analysed.
+4. **Read the rate** — from the run logs (a `BENCHMARK: $X over N pages = $Y/page` line) or `research_projects.analysis_metadata.benchmark_usd_per_page`.
+5. **Set the rate** — put that number (with whatever margin the owner wants) into `ANALYSIS_RATE_USD_PER_PAGE` in `lib/research/analysis-estimate.ts`; the estimator, the quote endpoint (E2) and the per-file buttons (E3) all read it.
+
+### After the benchmark — the two live-wiring slices
+- Feed `selectionsToWants` (S2) into the live acquisition path so the checklist drives what is bought/captured.
+- Wire the estimate-and-warn (B2.2) into the purchase path so an over-budget selection warns before spending.
+Both verified against the benchmark run rather than shipped blind.
 
 ## Deferred / open
 
