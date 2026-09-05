@@ -386,6 +386,7 @@ export class DocumentPurchaseOrchestrator {
             countyName,
             rec.instrument,
             rec.documentType,
+            { book: rec.book, page: rec.page },
           );
         } else {
           // Try Kofile first, then TexasFile fallback
@@ -403,6 +404,7 @@ export class DocumentPurchaseOrchestrator {
                 countyName,
                 rec.instrument,
                 rec.documentType,
+                { book: rec.book, page: rec.page },
               );
             }
           } else if (texasFileAdapter) {
@@ -410,6 +412,7 @@ export class DocumentPurchaseOrchestrator {
               countyName,
               rec.instrument,
               rec.documentType,
+              { book: rec.book, page: rec.page },
             );
           } else {
             this.logger.warn('Purchase', `No adapter available for ${rec.source}`);

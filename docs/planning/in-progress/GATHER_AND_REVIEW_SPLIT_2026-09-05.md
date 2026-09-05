@@ -112,6 +112,15 @@ recording all still fire. Widen the adapter/dispatch to pass the recommendation'
 book/vol/page + name are the reliable keys. **End with a caller-asserting test** that the texasfile
 branch invokes `buyDocument` and files via `uploadDocumentIncremental`.
 
+> **SHIPPED 2026-09-05.** `texasfile-purchase-adapter.ts` rewritten as a thin seam over
+> `buyDocument`: it writes pages to `outputDir` (the `downloadedImages` contract) AND files them into
+> `research_documents` via `uploadDocumentIncremental` so they appear in Review — the step the old
+> adapter never did. `initSession`/`destroySession` are now no-ops (buyDocument self-manages its
+> browser). The orchestrator threads `{ book, page }` into all four `purchaseDocument` call sites.
+> Guarded by `texasfile-buy-is-wired.test.ts` (caller-asserting) + `texasfile-buy-helpers.test.ts`.
+> Worker tsc green; 49 purchase/texasfile tests pass. Per-purchase budget `maxUsd` and the ¾/¼ split
+> are G2.
+
 ### G2 — Per-purchase budget check (¾ TexasFile / ¼ other)
 Before each TexasFile buy, check the run's remaining budget and the **TexasFile sub-allocation
 (¾ of the cap)**; refuse a purchase that would exceed it, log it, and continue. Reserve the
