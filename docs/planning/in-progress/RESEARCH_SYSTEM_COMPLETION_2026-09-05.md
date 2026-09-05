@@ -224,6 +224,11 @@ per-file Analyze, cost disclosure). Browser-QA.
 Surface the persistent-zoom `SourceDocumentViewer` on the gather-review surface for every gathered
 image/file/page (it already renders full-size with zoom persisting across pages). Browser-QA.
 
+> **SHIPPED (already surfaced) 2026-09-05.** The Review stage renders `SourceDocumentViewer` (with the
+> U3 persistent-zoom fix) and opens it from the gathered-document rows via `setViewerDoc(doc)` at three
+> entry points — so every captured deed/plat/aerial is one click from full-size viewing. Locked by
+> `review-viewer-surfaced.test.ts` (2). Owner browser-QAs the render.
+
 ---
 
 ## PHASE P — Proof
