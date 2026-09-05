@@ -116,6 +116,14 @@ Compute each segment's bearing/azimuth from the ring vertices (reuse the `comput
 from `adjacent-analyzer.ts`) and render "N45°12'E · 120.4 ft"-style labels on the lines-only drawing.
 Mark them GIS-computed (see feasibility note).
 
+> **SHIPPED 2026-09-05.** New pure module `worker/src/research/parcel-geometry.ts`
+> (`segmentLengthFt`, `segmentAzimuthDeg`, `azimuthToBearing`, `parcelSegments`, `perimeterFt`) is the
+> single source of truth for side geometry; `renderOverlaySvg` now labels each subject side
+> `"<bearing> · <length>′"` (e.g. `N90°00′E · 94.3′`) via that module, replacing the inline length
+> math. Tests: `parcel-geometry.test.ts` (5) + updated `parcel-lines-and-centred-frames` parser.
+> Full worker suite green (2710), tsc clean. `parcelSegments`/`perimeterFt` are the ready-made
+> structured-data source for **B2** and the per-adjoiner geometry for **C1/C2**.
+
 ### B2 — Emit the parcel's boundary segments as structured data
 Alongside the image, emit a `{ segments: [{ bearing, azimuthDeg, lengthFt, from, to }], perimeterFt,
 areaAc }` payload from the subject parcel geometry so it is usable downstream (report, viewer, future

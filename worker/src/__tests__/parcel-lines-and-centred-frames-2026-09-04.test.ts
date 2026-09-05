@@ -65,17 +65,22 @@ describe('a fixed-width frame is centred on the parcel, not the geocode', () => 
 });
 
 describe('the lines-only drawing', () => {
-  it('draws on a plain ground, in red, with each side of the subject labelled in feet', async () => {
+  it('draws on a plain ground, in red, each side labelled with its GIS bearing and length in feet', async () => {
     const parcels = parseParcelFeatures(LAYER);
     const f = frameFromHalfWidth(bboxCentre(SUBJECT_RINGS), 60, 800);
     const svg = renderOverlaySvg(f, parcels, '9158', 'lines', 'attr', { linesOnly: true, edgeLengths: true });
     expect(svg).toContain('stroke="#C8102E"');           // neighbour lines
     expect(svg).toContain('stroke="#D9480F"');           // subject
     expect(svg).toContain('flood-color="#F4F0E4"');      // pale halo for a pale ground
-    const lengths = [...svg.matchAll(/>(\d+\.\d\d)′<\/text>/g)].map((m) => Number(m[1]));
+    // Plan B — the label is now "<bearing> · <length>′", e.g. "N90°00′E · 94.3′". Pull the LENGTH,
+    // which sits after the " · " separator (the bearing itself ends in a ′ minute mark).
+    const lengths = [...svg.matchAll(/·\s([\d.]+)′<\/text>/g)].map((m) => Number(m[1]));
     expect(lengths.length).toBe(4);                      // four sides
     // ~30 m east-west sides ≈ 94 ft, ~40 m north-south ≈ 131 ft (geometry, not plat calls)
     expect(Math.min(...lengths)).toBeGreaterThan(80); expect(Math.max(...lengths)).toBeLessThan(145);
+    // Every side also carries a quadrant bearing.
+    const bearings = [...svg.matchAll(/>([NS]\d+°\d\d′[EW]) · /g)];
+    expect(bearings.length).toBe(4);
   });
 
   it('CONTROL: the imagery overlay has no side lengths and keeps its dark halo', () => {
