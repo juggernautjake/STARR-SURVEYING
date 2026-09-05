@@ -94,6 +94,17 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // Gather-run entrypoint (plan GATHER_AND_REVIEW_SPLIT G7), built ahead of its caller. It composes
+  // the whole Gather pass (want-list → free-first → TexasFile → hard stops), and everything it
+  // imports (gather-orchestrator, acquisition-wantlist, gather-budget, texasfile-want-buyer) is
+  // reachable THROUGH it. Its own non-test caller — the HTTP dispatch that runs it when
+  // phase==='gather', supplying the real resolveFree (county capture) + subject/adjoiner facts — is
+  // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
+  // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
+  'worker/src/research/run-gather-pipeline.ts':
+    'G7 Gather entrypoint, built ahead of its HTTP dispatch (the pending gather-wiring slice, which needs live county-capture). Composes the tested gather engine; remove when the phase===gather dispatch is wired.',
+
+
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by
   // the runner script worker/src/scripts/backfill-identity.mjs and its test, not by the pipeline —
   // a .mjs caller the .ts scanner does not count. Kept as a utility for future identity backfills.

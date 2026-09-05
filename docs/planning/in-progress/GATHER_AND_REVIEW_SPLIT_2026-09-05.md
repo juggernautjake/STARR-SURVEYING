@@ -386,6 +386,14 @@ two-run language (gathering vs analyzing). Drive the browser to verify render be
 Unit + caller-asserting tests for G1–G6, R1–R3; run the full worker + app suites before any
 cross-cutting merge.
 
+> **SHIPPED 2026-09-05.** Full worker suite green — **2654 passed / 188 files**. The full run caught
+> one real thing the targeted runs could not: the orphan guard (`research-modules-are-reachable`)
+> flagged `run-gather-pipeline.ts` as built-ahead-of-its-caller — exactly its job. Recorded in
+> `KNOWN_UNREACHABLE` with a reason naming the pending HTTP-dispatch slice (to be removed when that
+> lands), the sanctioned path for a deliberately-staged module. App-side: all 27 test files touching
+> this session's changes (analysis.service, useRunState, viewer-fit, analyze route, run-settings
+> mirror, gather modules) pass — **698 tests**. Worker + app tsc green throughout the session.
+
 ### P2 — Supervised proof run
 A real Gather run on a Bell property that buys the subject's plat + most-recent deed (and an
 adjoiner's) from TexasFile, files them into Review, respects the ¾/¼ split and $7 floor, and runs NO
