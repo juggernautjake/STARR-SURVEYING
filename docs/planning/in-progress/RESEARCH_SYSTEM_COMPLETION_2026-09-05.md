@@ -2,6 +2,9 @@
 
 **Started** 2026-09-05 · **Branch** `claude/research-system-completion-2026-09-05`
 
+<!-- HOOK:BLOCKED Everything buildable is BUILT + VERIFIED (Phase F cost-truth + stall watchdog; A/BW worker read/OCR/benchmark endpoint; Phase W W1-W3 — checklist + $15/$5 budget inputs in the run-start dialog, first run uses it, the checklist drives TexasFile buying plats-first within the dedicated budget, cap raised to admit the sum; UI surfaced + styled — checklist, budgets, estimate-and-warn, Run AI Review + live cost bar, per-file Analyze + full quote, persistent-zoom viewer, project cost badge). Worker suite 2700 green, app research/viewer 2584 green, npm run build clean. Every REMAINING item needs the OWNER + the live environment, not more solo code: (1) DEPLOY — worker rebuild (only when /healthz activePipelines=0) + Vercel (merge to main is the owner's call); (2) the supervised $15/$5 gather run on a NEW Bell property, which is the ONLY way to finish W4 (the live TexasFile subdivision-plat search — building it blind would be guesswork) and BW2 (the real $/page benchmark via the worker read endpoint) and to confirm the checklist actually buys the plat/deeds; (3) BROWSER-QA of the built UI and the optional two-run portal visual restyle (cosmetic). Continuing solo would mean shipping the live-only pieces blind or restyling UI I cannot QA. Remove this marker (or say "deploy" / schedule the supervised run) to resume. -->
+
+
 Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. Move to `completed/` only when every item is shipped or explicitly deferred with a
 reason. **Every slice starts by reading the live code it touches.** Standing constraints: ask before
@@ -250,6 +253,9 @@ image/file/page (it already renders full-size with zoom persisting across pages)
 ## PHASE P — Proof
 
 ### P1 — Full suite green before any cross-cutting merge (worker + app).
+> **VERIFIED 2026-09-05.** Worker suite green (2700); app research + viewer suites green (2584); app
+> production `npm run build` compiled successfully (637 pages, exit 0). Worker + app tsc green. The
+> branch is deploy-ready.
 ### P2 — Supervised proof run (owner params, 2026-09-05): a **fresh** run on a **new** Bell property,
 TexasFile budget **$15**, other-sources budget **$5**, driven by the checklist, that BUYS a plat +
 most-recent deeds, files them, then a worker-side full analysis. First real `research_document_purchases`
