@@ -5,6 +5,51 @@
 <!-- HOOK:BLOCKED Awaiting the SUPERVISED BENCHMARK SESSION (owner-driven, 2026-09-05). Everything is built + tested (31 slices). The plan now waits on a real run the owner runs with me: (1) a GATHER run to fetch pages, then (2) the BENCHMARK analyze run (POST /analyze {benchmark:true}, no cost cap, 30-60s/page) which reports benchmark_usd_per_page = total cost / total pages; the owner sets ANALYSIS_RATE_USD_PER_PAGE to it. See the "Benchmark session runbook" section below. This needs the branch deployed (worker rebuild + app deploy / merge to main — owner's call) and the funded TexasFile wallet. After the benchmark: the two live-wiring slices (selections->acquisition feed; estimate-and-warn into the purchase path), verified against that run. Remove this marker when the session is scheduled/underway to resume the loop. -->
 
 
+## CONSOLIDATED STATUS + REMAINING WIRING — owner review 2026-09-05 (evening)
+
+Every request across the whole effort, and where each stands. The two things the owner is emphasizing
+now — **TexasFile actually wired** and **the user setting what to search for** — are the W-slices.
+
+### BUILT + LIVE (working on main, deployed)
+- Two-pipeline split; TexasFile purchase PATH (login→search→purchase API→file to Review, G1) — it
+  works, but is only exercised when the pipeline decides to buy and a doc isn't free.
+- Two metered budgets model (TexasFile min $10 / other min $2, B2.1); 25-min gather cap (B2.3); hard
+  budget + duration watchdogs; no-AI-in-gather gate (G6).
+- Analyze run with its own cost cap (R1/R3); fixed $/page estimator + quote endpoint + per-file
+  "Analyze this" (E1/E2/E3); benchmark calibration mode (BM1).
+- Persistent-zoom document viewer (U3); TexasFile cost disclosure in the re-run dialog (U2).
+
+### BUILT but NOT WIRED into the live run (the gaps the owner caught)
+- **The "what to find" checklist (S1/S2/S3)** exists and maps to wants — BUT it lives only in the
+  **re-run dialog**, is NOT in the **create-project / run-start** flow, and nothing sends
+  `gatherSelections` or `phase:'gather'` to a run. So it does not yet drive what is searched.
+- **`selectionsToWants` (S2)** and **`gather-cost-estimate` (B2.2)** are pure + tested but have no
+  live caller — they are allowlisted as staged. The run still buys the OLD discrepancy-driven way.
+- **The two budgets are not separately enforced live** — the purchase orchestrator uses one
+  `config.budget`; there is no dedicated TexasFile allocation coming from the UI.
+
+### STILL TO BUILD — the live wiring (W-slices, now the priority)
+- **W1 — Run-start UI: search parameters + dedicated TexasFile budget.** Put the checklist
+  (Everything / All Plats / All Deeds / Most-recent plat / Most-recent deed / easement / maps —
+  and any combination) + a **dedicated TexasFile budget** ($10 default, raisable) + the other-sources
+  budget into the **create-project modal AND the re-run dialog**, and SEND `gatherSelections`,
+  `phase:'gather'`, and the two budgets with the run.
+- **W2 — Selection → acquisition feed (TexasFile-first).** Wire `selectionsToWants` into the live
+  purchase/acquisition path so the checklist DRIVES what is fetched: for each selected item, try free
+  first, then **buy from TexasFile within the dedicated budget**, plats/drawings + most-recent deeds
+  first. This is the "actually go to TexasFile and get the plat/recent deed" behavior.
+- **W3 — Two-budget enforcement + estimate-and-warn.** Enforce the TexasFile ($10) and other ($2)
+  budgets independently in the run; before spending, estimate the selection's cost and warn if over,
+  offering proceed-within-cap / raise-to-estimate (B2.2 wired in).
+- **W4 — Plat/drawing from TexasFile.** Make the "most-recent plat/drawing" want actually search
+  TexasFile (by subdivision + book/vol/page) and buy it — the document this benchmark run could not
+  produce from free Bell sources.
+- **BM/proof — the benchmark session** (in progress): finish the current free gather run, note the
+  gather spend (~$0, free Bell), run the uncapped benchmark analyze for the $/page rate, set
+  `ANALYSIS_RATE_USD_PER_PAGE`. Then a TexasFile-budget run to prove W1–W4 and produce a real plat.
+
+---
+
 This plan is driven by the stop-hook slice loop (`.claude/hooks/continue-until-planning-done.sh`).
 Ship the smallest meaningful slice, typecheck + lint + test, commit, push, annotate the slice with
 its completion note, and move this doc to `completed/` only when every action item is shipped or
