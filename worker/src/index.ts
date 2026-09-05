@@ -37,7 +37,7 @@ import { DocumentPurchaseOrchestrator } from './services/document-purchase-orche
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker, clampRunMinutes } from './research/run-phases.js';
-import { normaliseRunSettings, describeRunSettings, type RunSettings } from './research/run-settings.js';
+import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, type RunSettings } from './research/run-settings.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -1928,13 +1928,16 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       clearTimeout(activePipelines.get(projectId)?.watchdog);
       endRun(projectId);
 
-      // P3/A5: auto-run the app's AI data-point analysis after every run (owner's decision
-      // 2026-09-04) so the Data Points / Briefing panels populate without pressing Analyze.
-      // Fire-and-forget and non-fatal — the research is filed regardless.
+      // P3/A5: auto-run the app's AI data-point analysis after a run so the Data Points / Briefing
+      // panels populate without pressing Analyze — BUT NOT for a `gather` run (plan
+      // GATHER_AND_REVIEW_SPLIT G6): its whole budget is acquisition, and the user reviews the raw
+      // documents before paying for analysis, which is its own separate run. Fire-and-forget and
+      // non-fatal — the research is filed regardless.
+      const analysisAllowed = shouldRunAnalysis(runSettings);
       void (async () => {
         try {
           const { triggerAppAnalysis } = await import('./research/trigger-app-analysis.js');
-          const r = await triggerAppAnalysis(projectId, { allow: true });
+          const r = await triggerAppAnalysis(projectId, { allow: analysisAllowed });
           tailLog(r.statement);
         } catch (e) {
           console.warn(`[Analysis] ${projectId}: auto-run trigger threw — ${String(e)}`);

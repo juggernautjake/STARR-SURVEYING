@@ -52,9 +52,13 @@ describe('triggerAppAnalysis', () => {
 describe('wiring', () => {
   const SRC = path.resolve(process.cwd(), 'src');
   const strip = (s: string) => s.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '').replace(/^[ \t]*\/\/[^\n\r]*/gm, '');
-  it('the Bell run-finish tail calls triggerAppAnalysis', () => {
+  it('the Bell run-finish tail calls triggerAppAnalysis, gated so a gather run does not analyse', () => {
+    // G6 (plan GATHER_AND_REVIEW_SPLIT): the auto-analysis trigger no longer fires unconditionally —
+    // a `gather` run must run NO AI. The tail now passes `allow: shouldRunAnalysis(runSettings)`,
+    // which is false for a gather run.
     const index = strip(fs.readFileSync(path.join(SRC, 'index.ts'), 'utf8'));
-    expect(index).toContain('triggerAppAnalysis(projectId, { allow: true })');
+    expect(index).toContain('shouldRunAnalysis(runSettings)');
+    expect(index).toContain('triggerAppAnalysis(projectId, { allow: analysisAllowed })');
   });
   it('the app analyze route accepts the worker key and bypasses the interactive status gates', () => {
     const route = fs.readFileSync(

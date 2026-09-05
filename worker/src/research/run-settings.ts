@@ -58,6 +58,17 @@ export interface RunSettings {
    * the point of the re-run is that something on the ground changed.
    */
   refreshImagery?: boolean;
+
+  /**
+   * Which half of the split pipeline this run is (plan GATHER_AND_REVIEW_SPLIT).
+   *
+   * `gather` — find, buy and capture files/images ONLY; the whole budget goes to acquisition and NO
+   * AI analysis runs (the user reviews the raw documents first). `analyze` — run OCR + extraction +
+   * summaries over documents a prior gather run already filed, under its own separate cost cap; it
+   * does not re-gather. Absent means the legacy monolithic run (gather then analyze in one pass),
+   * kept so runs started before the split still behave as before.
+   */
+  phase?: 'gather' | 'analyze';
 }
 
 /** Every key of `RunSettings`, as data.
@@ -71,6 +82,7 @@ export const RUN_SETTING_KEYS = [
   'maxCostUsd',
   'mode',
   'refreshImagery',
+  'phase',
 ] as const;
 
 /** Ceilings on the ceilings.
@@ -123,8 +135,27 @@ export function normaliseRunSettings(raw: unknown): RunSettings {
 
   if (r.mode === 'free' || r.mode === 'paid') out.mode = r.mode;
   if (typeof r.refreshImagery === 'boolean') out.refreshImagery = r.refreshImagery;
+  if (r.phase === 'gather' || r.phase === 'analyze') out.phase = r.phase;
 
   return out;
+}
+
+/**
+ * Should this run perform AI analysis (OCR / vision / extraction / summaries)?
+ *
+ * A `gather` run must not: its whole budget is for finding and buying files, and the user reviews
+ * the raw documents before paying for analysis (plan GATHER_AND_REVIEW_SPLIT). Any other phase —
+ * `analyze`, or the legacy un-phased run — analyses as before. This is the one gate the pipeline and
+ * its tail both consult, so "no AI in a gather run" is decided in exactly one place.
+ */
+export function shouldRunAnalysis(settings: RunSettings): boolean {
+  return settings.phase !== 'gather';
+}
+
+/** Should this run gather (scrape / capture / buy) documents? An `analyze` run works over what a
+ *  prior gather run already filed and does not re-gather; every other phase gathers. */
+export function shouldGatherDocuments(settings: RunSettings): boolean {
+  return settings.phase !== 'analyze';
 }
 
 /** May this run pay for documents?

@@ -254,6 +254,17 @@ Gate every analyzer/OCR/vision/summary step out of the gather run: the whole bud
 The run ends when the want-list is done or the budget is reached, leaving documents/images filed and
 unanalyzed. Guard with a test asserting the gather path calls no analysis entrypoint.
 
+> **Gate SHIPPED 2026-09-05.** `run-settings.ts` gains `phase?: 'gather' | 'analyze'` (parsed,
+> clamped, in `RUN_SETTING_KEYS`) plus two single-source gates: `shouldRunAnalysis(settings)` (false
+> for a gather run, true for analyze/legacy) and `shouldGatherDocuments(settings)` (false for an
+> analyze run). The auto-analysis trigger in the run-finish tail now fires
+> `triggerAppAnalysis(projectId, { allow: shouldRunAnalysis(runSettings) })`, so a **gather run runs
+> no AI** — `triggerAppAnalysis`'s `allow:false` path returns "not auto-run". `run-phase-gates.test.ts`
+> (6) + updated `trigger-app-analysis` test; worker tsc green, 632 index-reading tests pass.
+> **REMAINING:** the gather-run entrypoint uses `shouldGatherDocuments`/`shouldRunAnalysis` to run
+> acquisition-only (it walks the want-list via `runGatherAcquisition` and never calls the inline
+> analyzers) — completes with the entrypoint slice.
+
 ---
 
 ## Phase R — the Review/Analyze pipeline (backend)
