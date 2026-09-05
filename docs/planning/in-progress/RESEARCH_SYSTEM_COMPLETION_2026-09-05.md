@@ -45,6 +45,12 @@ Read `worker/src/index.ts` run tail (`reanalyseProjectDocuments`, `mayRead`) + h
 out of `pending` (the worker reading pass), and that a stall/abort does not leave the substance
 documents unprocessed and invisible to analysis. Add a guard/test.
 
+> **DEFERRED into A1 (SHIPPED there) 2026-09-05.** `reanalyseProjectDocuments` already selects ALL
+> the project's docs (no status filter) and OCRs any without usable text — so it *does* reach the
+> `pending` deeds; the only gap was that it ran solely in the run tail, which the stalled/stopped
+> gather skipped. The fix is the on-demand worker read endpoint built in A1 (below) — implementing F1
+> separately would be duplicate work. F3's stall watchdog already stops the hang that caused it.
+
 ### F2 — Cost tracking = the ledger, not an undercount
 The run UI "SPENT" showed $1.82 while `research_usage_events` summed $3.13 for the same project. Find
 what the UI/report reads for "spent" vs. what `recordUsage` writes to `research_usage_events`, and make
@@ -92,6 +98,16 @@ Long/full analysis (and the benchmark) must run where it completes. Options to e
 pass + the app extractors), or (b) make the app `analyzeProject` chunked/resumable so each invocation
 finishes a bounded batch within Vercel's limit and re-schedules. Pick the smaller reliable path; the
 constraint is *it must finish a 27-page project without freezing*. Caller-asserted + a completion test.
+
+> **Worker read endpoint SHIPPED 2026-09-05 (deploy + live-test pending).** `POST
+> /research/read-documents/:projectId` runs `reanalyseProjectDocuments` (the OCR reading pass) over a
+> project's FILED documents on the long-lived worker — so it completes where the Vercel app route
+> freezes. Attributes cost via `enterRunContext`, returns 202 fire-and-forget (the worker process
+> persists), bounds a normal read by a cost cap. One foundation for **A1** (analysis on the worker),
+> **A2** (no status filter → OCRs `pending` deeds), **F1** (deeds reach `extracted`), and **BW**
+> (benchmark mode). `read-documents-endpoint.test.ts` (4); worker tsc green. **REMAINING:** rebuild the
+> worker (only when no run is in flight), live-test on the Nolan Creek project so the deeds get OCR'd,
+> and point the app "Run AI Review"/benchmark at this instead of the frozen Vercel route.
 
 ### A2 — Include `pending` (freshly captured) documents in analysis
 Analysis currently only sees `extracted|analyzed`. Ensure the analyze path OCRs/промotes `pending`

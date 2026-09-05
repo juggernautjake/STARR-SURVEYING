@@ -100,7 +100,7 @@ import {
 } from './research/persist-run-logs.js';
 import { BudgetAbort, OperatorAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
-import { resetRunSpend, spendForRun } from './infra/usage.js';
+import { resetRunSpend, spendForRun, ledgerSpendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -3581,6 +3581,64 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: `Re-analysis failed: ${msg}` });
   }
+});
+
+// ── POST /research/read-documents/:projectId — the WORKER-SIDE analysis (plan A1/A2/BW/F1) ──────────
+//
+// Runs the OCR reading pass over a project's already-FILED documents on demand: it re-reads every
+// document that has no usable text — including the `pending` deeds a stalled gather run left behind —
+// so nothing captured stays invisible to analysis. Unlike the app's `analyzeProject` (Vercel
+// serverless, which freezes long jobs), this runs on the long-lived worker and completes. In
+// `benchmark` mode it runs UNCAPPED (30–60 s/page inside the reader) and, when done, reports
+// `benchmark_usd_per_page` = the project's ledger spend ÷ total pages — the calibration number.
+//
+// 202 + fire-and-forget: the work runs in the worker process (which persists), so a 10-minute read
+// does not hold an HTTP connection. Poll document status / the ledger for progress.
+app.post('/research/read-documents/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const body = (req.body ?? {}) as { benchmark?: boolean; maxCostUsd?: number };
+  const benchmark = body.benchmark === true;
+
+  // A cost cap bounds a normal read; a benchmark read is uncapped (it exists to measure true cost).
+  const limits = limitsFor({ maxCostUsd: benchmark ? undefined : body.maxCostUsd });
+  startRun(projectId, limits);
+
+  res.status(202).json({ status: 'reading', projectId, benchmark, maxCostUsd: benchmark ? null : limits.maxCostUsd });
+
+  // Runs in the worker process, which is long-lived — so it completes where the app route cannot.
+  void (async () => {
+    enterRunContext(projectId); // attribute every OCR/AI call to this project (usage.ts)
+    const log = (line: string) => console.log(`[ReadDocs${benchmark ? ':bench' : ''}] ${projectId}: ${line}`);
+    try {
+      // Benchmark reads everything; a normal read stops at the cost cap.
+      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost';
+      const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue));
+      log(report ? `Read pass: ${report.reanalysed} read, ${report.leftUnread ?? 0} left, ${report.failed ?? 0} failed of ${report.considered}.` : 'Read pass returned nothing.');
+
+      if (benchmark) {
+        const spent = await ledgerSpendForRun(projectId);
+        const supabase = await getSupabase();
+        let pages = 0;
+        if (supabase) {
+          const { data } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ page_count: number | null }> | null }> } } })
+            .from('research_documents').select('page_count').eq('research_project_id', projectId);
+          pages = (data ?? []).reduce((s, d) => s + (Number(d.page_count) || 1), 0);
+          const perPage = pages > 0 ? Number((spent / pages).toFixed(4)) : 0;
+          await (supabase as unknown as { from: (t: string) => { update: (r: unknown) => { eq: (k: string, v: string) => Promise<unknown> } } })
+            .from('research_projects').update({ analysis_metadata: { benchmark_total_pages: pages, benchmark_cost_usd: Number(spent.toFixed(4)), benchmark_usd_per_page: perPage, benchmark_ran_at: new Date().toISOString() } }).eq('id', projectId);
+          log(`BENCHMARK: $${spent.toFixed(4)} over ${pages} page(s) = $${perPage}/page. Set ANALYSIS_RATE_USD_PER_PAGE to this (with margin).`);
+        }
+      }
+    } catch (e) {
+      log(`Read pass failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      endRun(projectId);
+    }
+  })();
 });
 
 // ── POST /research/analyze ─────────────────────────────────────────────────
