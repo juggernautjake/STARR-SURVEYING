@@ -507,6 +507,16 @@ whether it's a paid-TexasFile candidate or a free capture). "All Files/All Deeds
 the broad fetch; "Most Recent X" to the single newest. Adjoiner selections repeat per adjoiner. Feed
 this into the acquisition path (recommender feed or `runGatherAcquisition`). Unit-test the mapping.
 
+> **Mapping SHIPPED 2026-09-05.** `research/selection-wants.ts`: `selectionsToWants(selections)` →
+> `SelectionWant[]` — each carries `documentType`, `scope` (recent/all/single), and **`paid`** (true =
+> TexasFile candidate → TexasFile budget; false = free map/GIS capture → other budget), plus
+> `captureKind` for maps. `all_files` expands to every doc type at full scope + all three captures,
+> de-duped, in the owner's priority order (plats/visuals → deeds → easements); adjoiner selections
+> repeat with `target:'adjoiner'`. `paidWants`/`captureWants` split for the two-budget accounting.
+> `selection-wants.test.ts` (7); worker tsc green. **REMAINING for S2:** feeding these into the live
+> acquisition path (recommender feed / `runGatherAcquisition`) — a live-integration slice; the module
+> is allowlisted with the staged gather cluster until then.
+
 ### S3 — Configure UI: the checklist + adjoiner section
 Render the checklist in Configure with the defaults; the "research adjoining properties" toggle
 reveals the duplicate adjoiner checklist. Save into the run settings the pipeline sends. Source-assert
