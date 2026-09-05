@@ -1306,6 +1306,8 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // whatever the operator chose in the UI.
     maxResearchTimeMinutes: runSettings.maxResearchTimeMinutes ?? researchInput.maxResearchTimeMinutes,
     maxCostUsd: runSettings.maxCostUsd ?? researchInput.maxCostUsd,
+    // A gather run is capped at 25 minutes (B2.3) — it only searches, buys and downloads.
+    phase: runSettings.phase,
   });
 
   const startedRun = await recordRunStart({

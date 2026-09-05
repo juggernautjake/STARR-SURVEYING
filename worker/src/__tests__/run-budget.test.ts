@@ -215,3 +215,19 @@ describe('the wiring', () => {
     expect(index.match(/endRun\(projectId\)/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// ── B2.3: a gather run is capped at 25 minutes ──────────────────────────────────────────────────
+import { GATHER_MAX_MINUTES } from '../infra/run-budget.js';
+describe('the gather wall clock (B2.3)', () => {
+  it('caps a gather run at 25 minutes', () => {
+    expect(GATHER_MAX_MINUTES).toBe(25);
+    expect(limitsFor({ phase: 'gather' }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(25 * 60_000);
+  });
+  it('leaves a non-gather run at the one-hour cap', () => {
+    expect(limitsFor({ phase: 'analyze' }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
+    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
+  });
+  it('never lets a gather run exceed a lowered RUN_MAX_MINUTES', () => {
+    expect(limitsFor({ phase: 'gather' }, { RUN_MAX_MINUTES: '15' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(15 * 60_000);
+  });
+});

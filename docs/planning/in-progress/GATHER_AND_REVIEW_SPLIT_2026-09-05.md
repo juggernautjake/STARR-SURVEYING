@@ -552,6 +552,11 @@ estimator + test; the UI presents the choice (S3/U-phase).
 Set the gather run's `maxWallClockMs` to 25 min (the watchdog already enforces a wall clock; this
 sets the value for a gather run). Test the limit.
 
+> **SHIPPED 2026-09-05.** `limitsFor` now takes `phase`; `GATHER_MAX_MINUTES = 25` caps a gather run's
+> `maxWallClockMs` at 25 min (never above the general one-hour clock, so a lowered `RUN_MAX_MINUTES`
+> still wins). The index.ts caller passes `runSettings.phase`, so the existing wall-clock watchdog
+> fires the gather run's hard stop at 25 min. `run-budget.test.ts` extended (26 pass); worker tsc green.
+
 ## Phase E — the analysis cost estimator (new spec)
 
 ### E1 — Page-count + fixed-rate estimator (pure)
