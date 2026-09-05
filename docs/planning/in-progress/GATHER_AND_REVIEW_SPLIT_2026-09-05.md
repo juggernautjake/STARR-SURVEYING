@@ -2,8 +2,6 @@
 
 **Started** 2026-09-05 · **Branch** `claude/research-pipeline-completion-2026-09-03`
 
-<!-- HOOK:BLOCKED Core two-pipeline system is SHIPPED + tested (19 slices, all pushed, worker suite 2654 green). TexasFile-in-gather is LIVE via the main pipeline (locked by texasfile-gather-chain-is-live.test.ts); the analyze run has its own cost cap (R1/R3/U4); no-AI-in-gather is enforced end to end (G6); the persistent-zoom viewer (U3) and TexasFile cost disclosure (U2) are built. Every REMAINING item needs the owner, not more solo work: (1) the run spend CEILING is a business decision — the max dollars one run may cost, needed to reconcile the $10 run cap with base+$10 earmark; (2) browser QA of the built UI slices (U3 viewer, U4 Run-AI-Review, U2 disclosure) per the repo's "drive the browser before calling UI done" rule; (3) the live supervised proof purchase (P2) needs the funded TexasFile wallet; (4) the want-list dispatch (G7) + U1/U5 two-run layout are enhancements that need live testing / QA to build well. Continuing solo would mean inventing marginal work or building broad UI blind. Remove this marker (or answer the ceiling decision / schedule a supervised QA+proof session) to resume the loop. -->
-
 This plan is driven by the stop-hook slice loop (`.claude/hooks/continue-until-planning-done.sh`).
 Ship the smallest meaningful slice, typecheck + lint + test, commit, push, annotate the slice with
 its completion note, and move this doc to `completed/` only when every action item is shipped or
@@ -99,6 +97,39 @@ The earlier "auto-run AI analysis every run" decision is **superseded** — see 
   run reuses whatever identifies adjoiner parcels to build its acquisition list.
 - App UI under `app/admin/research/` (`ResearchPortal.css`, `pipeline/`, `library/`, `[projectId]/`).
   The Review-stage viewer request is still open.
+
+---
+
+## 2026-09-05 (evening) — the owner's refined spec (SUPERSEDES the budget + want-list model below)
+
+The owner extended the design after the core shipped. Decisions confirmed via Q&A. This section is
+the current source of truth; earlier budget/want-list notes below are kept for history but the specs
+here win where they differ. New work is **Phase S** (selection), **Phase B2** (two-budget rewrite),
+**Phase E** (the analysis estimator), and the **25-min gather cap**.
+
+**S — "What to find" selector (Configure).** The user chooses which items to gather from a checklist:
+*Most Recent Deed · Most Recent Easement · Most Recent Plat · Google Map View · GIS overhead
+(satellite) · GIS parcel map · All Deeds · All Plats · All Files.* A **"research adjoining properties"
+toggle** reveals a duplicate checklist for adjoiners. **Defaults: adjoiners OFF, all-info/"All Files"
+ON, TexasFile ON.** Saved as run settings; these drive the gather want-list (replacing the
+auto-derived one, G3). Google/GIS items are free captures (screenshots/tiles), not purchases.
+
+**B2 — Two separate METERED budgets (replaces the refundable-$10 earmark, G2).** Confirmed: TexasFile
+is metered ($1/page), the budget is only the ceiling.
+- **TexasFile budget** (when on): min **$10**, raisable. Pay only for pages actually bought.
+- **Other-sources budget** (county/GIS/free): min **$2**, raisable.
+Tracked independently, real per-item cost. **Over-budget (confirmed):** estimate first and **warn** if
+the selection would exceed the cap; then the user chooses (a) proceed within the cap — buy in priority
+order (plats/drawings → most-recent deeds → rest) until it runs out — or (b) raise the cap to the
+estimate and pay the full estimated price.
+
+**Gather time:** a hard **25-minute** wall clock for the gather run (search/purchase/download only).
+
+**E — Analysis estimator + per-file analysis (Review).** Confirmed: **fixed standardized $/page quote.**
+A dedicated processor counts total pages across all gathered files and shows a **firm total cost +
+estimated time** for a full analysis, at a set $/page rate (charged regardless of real token cost).
+The user can run the **full analysis** (total quote) or analyze **one file at a time** — every file in
+Review carries an **"Analyze this" button showing that file's price** (its pages × the rate).
 
 ---
 
@@ -453,6 +484,62 @@ separate Analyze run on those docs with its own cap. Owner supervises; needs the
 wallet.
 
 ---
+
+## Phase S — the "what to find" selector (new spec)
+
+### S1 — Selection schema + defaults (worker + client mirror)
+Add a `gatherSelections` shape to `RunSettings` (worker) + `RunSettingsInput` (client mirror, guarded
+by run-settings-mirror.test): a set of item keys (`recent_deed`, `recent_easement`, `recent_plat`,
+`google_map`, `gis_satellite`, `gis_parcel`, `all_deeds`, `all_plats`, `all_files`) plus
+`adjoiners: { enabled: boolean; selections: <same set> }`. Defaults: adjoiners off, `all_files` on,
+TexasFile on. Pure normaliser + tests (unknown keys dropped; default when absent).
+
+### S2 — Selections drive the want-list
+Map the selections onto the gather want-list: each selected item → a want (with its documentType +
+whether it's a paid-TexasFile candidate or a free capture). "All Files/All Deeds/All Plats" expand to
+the broad fetch; "Most Recent X" to the single newest. Adjoiner selections repeat per adjoiner. Feed
+this into the acquisition path (recommender feed or `runGatherAcquisition`). Unit-test the mapping.
+
+### S3 — Configure UI: the checklist + adjoiner section
+Render the checklist in Configure with the defaults; the "research adjoining properties" toggle
+reveals the duplicate adjoiner checklist. Save into the run settings the pipeline sends. Source-assert
+the wiring; owner browser-QAs the render.
+
+## Phase B2 — two metered budgets (rewrite of G2)
+
+### B2.1 — `gather-budget.ts` → two independent budgets
+Replace the single-cap + refundable-$10 earmark with `texasfileBudgetUsd` (min $10) and
+`otherBudgetUsd` (min $2), both raisable, both metered. `mayBuyFromTexasFile` gates on the TexasFile
+budget's remaining; free/GIS work draws on the other. Remove the flat-fee/refund settlement. Rewrite
+gather-budget.test + the orchestrator wiring + the billing-summary fields (spend per budget, not
+charged/refunded). Keep it green.
+
+### B2.2 — Estimate-and-warn over budget
+Before buying, estimate the selected items' cost; if over the relevant cap, return a warn state with
+the estimate and the two choices (proceed within cap in priority order / raise to the estimate). Pure
+estimator + test; the UI presents the choice (S3/U-phase).
+
+### B2.3 — 25-minute gather wall clock
+Set the gather run's `maxWallClockMs` to 25 min (the watchdog already enforces a wall clock; this
+sets the value for a gather run). Test the limit.
+
+## Phase E — the analysis cost estimator (new spec)
+
+### E1 — Page-count + fixed-rate estimator (pure)
+`analysis-estimate.ts`: a set `$/page` rate constant; `estimateAnalysis(pages)` → `{ costUsd,
+etaSeconds }`; `estimateForDocuments(docs)` sums pages across files. Pure + fully unit-tested. This is
+the "standardized cost" processor.
+
+### E2 — Per-project + per-file estimate endpoints
+An endpoint (or fields on the existing status) that returns the total-analysis quote (sum of all
+gathered files' pages × rate) and each file's own quote, reading `page_count` off `research_documents`.
+Caller-asserted.
+
+### E3 — Per-file "Analyze this" button + price; full-analysis quote in Review
+Each file row in Review shows its price and an "Analyze this" button that POSTs a single-document
+analyze with that file's cost as the cap; the Review header shows the full-analysis total quote next to
+"Run AI Review" (U4). Single-doc analyze path in `analyzeProject` (a `documentId` filter). Owner
+browser-QAs.
 
 ## Deferred / open
 
