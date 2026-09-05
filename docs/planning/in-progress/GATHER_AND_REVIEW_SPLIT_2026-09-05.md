@@ -267,6 +267,24 @@ unanalyzed. Guard with a test asserting the gather path calls no analysis entryp
 
 ---
 
+### G7 — The Gather-run entrypoint (composition)
+Tie the pieces into one runnable Gather pass.
+
+> **SHIPPED 2026-09-05.** `research/run-gather-pipeline.ts`: `runGatherPipeline({ projectId, county,
+> subject, adjoiners, settings, signal, resolveFree, buyFromTexasFile? })` composes the whole Gather
+> run — `gatherBudgetForSettings` (base = the run's cost cap floored at $7 + a $10 earmark when
+> `texasfileEnabledFor` says paid is permitted), the want-list, `runGatherAcquisition` (free-first +
+> the $10 gate + hard-stop signal), and the real `makeTexasFileWantBuyer` by default. Runs **no AI**,
+> and refuses to gather for an `analyze` run (`shouldGatherDocuments` guard). This is the concrete
+> caller for `runGatherAcquisition`, the TexasFile buyer, the budget model and the want-list.
+> `run-gather-pipeline.test.ts` (9). Worker tsc green. **REMAINING (final wiring):** the HTTP dispatch
+> that calls `runGatherPipeline` from the run handler when `phase==='gather'`, supplying the real
+> `resolveFree` (county-site/free-adapter capture that files what it finds) and the subject/adjoiner
+> facts — plus setting the run's `maxCostUsd` to `budget.maxTotal` so the cost watchdog admits base +
+> earmark (the OPEN item from the Hard-stops section).
+
+---
+
 ## Phase R — the Review/Analyze pipeline (backend)
 
 ### R1 — A separate "analyze" run with its own cost cap
