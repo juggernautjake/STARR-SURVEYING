@@ -311,6 +311,15 @@ subdivision/lot, adjoiner ids/addresses; build the in-depth property summary wit
 references; flag anything of interest and anything that looks unrelated/incorrect. This is the
 existing analysis stack, now invoked only in the analyze run and bounded by R1's cap.
 
+> **SHIPPED 2026-09-05 (existing stack, now correctly scoped).** `analyzeProject` already reads the
+> project's gathered `research_documents` and runs the full analysis over them: vision/OCR
+> (`callVision` + `extractFromDocument` with `ocrResult`), category extraction (bearings/distances,
+> monuments, curves, POB, etc.), and a 3-pass `runFinalCoherenceReview` producing the executive
+> summary + coherence/consistency flags. This slice's work was making it a SEPARATE run rather than a
+> monolithic tail: G6 gates it out of a gather run (`shouldRunAnalysis`), and R1 bounds it with its
+> own cost cap. No new extraction code was needed — the stack was already there; the split is what
+> makes it "the analyze run." Nothing deferred.
+
 ### R3 — Analyze-run progress + cost reporting
 Report the analyze run's progress and cost against its own cap (its own progress bar / status), the
 same way the gather run reports against its cap. Two runs, two independent cost views.
