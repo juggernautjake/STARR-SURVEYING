@@ -153,6 +153,16 @@ raisable) AND the other-sources budget into the **create-project modal** (curren
 the re-run dialog, and SEND `gatherSelections`, `phase:'gather'`, and the two budgets with the run.
 Source-assert the wiring; owner browser-QAs.
 
+> **W2 converter SHIPPED 2026-09-05.** `research/selection-purchases.ts`:
+> `wantsToPurchaseRecommendations(wants, ctx)` maps the PAID selection wants (deed/easement/plat — free
+> map/GIS captures excluded) onto the `PurchaseRecommendation` shape the orchestrator already buys,
+> **plats first** then most-recent deeds. A want with a located instrument buys it; one with only a
+> search carries `instrument:'search_required'` + the keys (subdivision/name/book-page) for the
+> TexasFile buyer (W4). This gives `selection-wants` + `gather-cost-estimate` real callers (allowlist
+> entries removed). `selection-purchases.test.ts` (4); worker tsc green. **REMAINING for W2 (live):** in
+> the pipeline, when `gatherSelections` is set, build these recs from the run's parcel facts and feed
+> them to `executePurchases` so the checklist actually drives TexasFile — verified on the $15/$5 run.
+
 ### W2 — Selections drive acquisition (TexasFile-first for the selected items)
 Wire `selectionsToWants` (S2) into the live purchase/acquisition path so the checklist DRIVES what the
 run fetches: for each selected item, try free first, then **buy from TexasFile within the dedicated
