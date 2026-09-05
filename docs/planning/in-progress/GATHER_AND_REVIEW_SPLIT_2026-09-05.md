@@ -215,9 +215,14 @@ never bought from TexasFile and that TexasFile is not queried past the stop cond
 
 > **SHIPPED 2026-09-05** as the orchestration core above. `runGatherAcquisition` never asks TexasFile
 > for a free-satisfied want (tested), stops once the $10 is spent (`skipped_budget`), passes the
-> remaining allowance as each buy's `maxUsd`, and settles charged-vs-refunded. **REMAINING:** the real
-> `buyFromTexasFile` adapter — a thin wrapper mapping a `Want`'s keys onto `buyDocument` (G1) + filing
-> — and the gather-run entrypoint that supplies both effects (with G6).
+> remaining allowance as each buy's `maxUsd`, and settles charged-vs-refunded.
+>
+> **Real buyer SHIPPED 2026-09-05.** `research/texasfile-want-buyer.ts`: `makeTexasFileWantBuyer({
+> county, projectId })` returns the `buyFromTexasFile` effect — `purchaseArgsForWant` maps a Want's
+> keys onto the adapter's `purchaseDocument` (book→volume, name, `maxUsd`), and `buyResultFromPurchase`
+> maps the result back (`purchased`→bought+cost; `budget_exceeded`→budget skip; else miss). Adapter
+> call injected for tests (`texasfile-want-buyer.test.ts`, 6). **REMAINING:** the gather-run
+> entrypoint that supplies this buyer + the real `resolveFree` (with G6).
 
 ### G6 — Make the Gather run carry NO AI analysis
 Gate every analyzer/OCR/vision/summary step out of the gather run: the whole budget is acquisition.
