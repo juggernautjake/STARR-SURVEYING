@@ -531,6 +531,18 @@ budget's remaining; free/GIS work draws on the other. Remove the flat-fee/refund
 gather-budget.test + the orchestrator wiring + the billing-summary fields (spend per budget, not
 charged/refunded). Keep it green.
 
+> **SHIPPED 2026-09-05.** `gather-budget.ts` rewritten: `MIN_TEXASFILE_BUDGET_USD=10`,
+> `MIN_OTHER_BUDGET_USD=2`; `gatherBudget({ texasfileOn, texasfileBudgetUsd?, otherBudgetUsd? })` →
+> `{ texasfileOn, texasfileBudgetUsd (0 off / ≥10 on), otherBudgetUsd (≥2) }`;
+> `remainingTexasfileAllowance`/`remainingOtherAllowance`; `mayBuyFromTexasFile` gates on the metered
+> TexasFile budget. **Removed** the flat-fee/refund model (`settleTexasfileAddon`, `TEXASFILE_ADDON_USD`,
+> `MIN_GATHER_BUDGET_USD`, `AddonSettlement`). The live orchestrator now builds the TexasFile budget
+> from `config.budget` and reports **metered** billing (`texasfileBudgetUsd`, `texasfileFilesFound`,
+> `texasfileWalletSpend` — no charged/refunded); `PurchaseBillingSummary` updated. The staged gather
+> engine (`gather-orchestrator`, `run-gather-pipeline`) + all four affected tests rewritten. Worker tsc
+> green; 100 budget/gather/purchase tests pass. **REMAINING for B2:** thread the SEPARATE other-sources
+> budget into the free/capture path (today only the TexasFile budget is enforced, in the orchestrator).
+
 ### B2.2 — Estimate-and-warn over budget
 Before buying, estimate the selected items' cost; if over the relevant cap, return a warn state with
 the estimate and the two choices (proceed within cap in priority order / raise to the estimate). Pure

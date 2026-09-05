@@ -66,9 +66,9 @@ describe('the orchestrator passes the search hints TexasFile actually needs', ()
     expect(gatedCalls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('gates TexasFile spend on the $10 earmark', () => {
+  it('gates TexasFile spend on the metered TexasFile budget', () => {
     expect(ORCH).toMatch(/mayBuyFromTexasFile\(/);
-    expect(ORCH).toMatch(/settleTexasfileAddon\(/);
+    expect(ORCH).toMatch(/texasfileWalletSpend/);
     expect(ORCH).toMatch(/from ['"]\.\.\/research\/gather-budget\.js['"]/);
   });
 });

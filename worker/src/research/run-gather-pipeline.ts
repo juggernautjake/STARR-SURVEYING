@@ -23,9 +23,6 @@ import {
 import { makeTexasFileWantBuyer } from './texasfile-want-buyer.js';
 import { mayRunBuyDocuments, shouldGatherDocuments, type RunSettings } from './run-settings.js';
 
-/** The base budget a gather run gets when the run settings name no cost cap. */
-export const DEFAULT_GATHER_BASE_USD = 7;
-
 export interface RunGatherPipelineInput {
   projectId: string;
   county: string;
@@ -52,18 +49,18 @@ export function texasfileEnabledFor(settings: RunSettings): boolean {
   return mayRunBuyDocuments(settings).allowed;
 }
 
-/** Build the gather budget for a run from its settings: base = the cost cap (floored at $7), plus the
- *  $10 TexasFile earmark when TexasFile is on. */
+/** Build the two-budget gather plan from a run's settings: the TexasFile budget (min $10, from
+ *  `maxCostUsd`) when TexasFile is on, and the other-sources budget (min $2). */
 export function gatherBudgetForSettings(settings: RunSettings): GatherBudget {
   return gatherBudget({
-    baseCap: settings.maxCostUsd ?? DEFAULT_GATHER_BASE_USD,
     texasfileOn: texasfileEnabledFor(settings),
+    texasfileBudgetUsd: settings.maxCostUsd,
   });
 }
 
 /**
- * Run the Gather pass: walk the want-list free-first, fill gaps from TexasFile within the $10, honour
- * the hard stops, and return the per-want outcomes + the earmark settlement. Never runs AI.
+ * Run the Gather pass: walk the want-list free-first, fill gaps from TexasFile within the TexasFile
+ * budget, honour the hard stops, and return the per-want outcomes + spend. Never runs AI.
  */
 export async function runGatherPipeline(input: RunGatherPipelineInput): Promise<RunGatherPipelineResult> {
   const log = input.log ?? (() => {});
@@ -75,7 +72,6 @@ export async function runGatherPipeline(input: RunGatherPipelineInput): Promise<
     const budget = gatherBudgetForSettings(input.settings);
     return {
       results: [], texasFileSpend: 0, texasFileFilesFound: 0,
-      settlement: { charged: 0, refunded: budget.texasfileAddon },
       satisfied: 0, missing: 0, budget, texasfileOn: budget.texasfileOn,
     };
   }
@@ -85,7 +81,9 @@ export async function runGatherPipeline(input: RunGatherPipelineInput): Promise<
     input.buyFromTexasFile ?? makeTexasFileWantBuyer({ county: input.county, projectId: input.projectId });
 
   log(
-    `Gather run: base $${budget.baseCap}${budget.texasfileOn ? ` + $${budget.texasfileAddon} TexasFile earmark` : ' (TexasFile off)'}.`,
+    budget.texasfileOn
+      ? `Gather run: TexasFile budget $${budget.texasfileBudgetUsd} + other-sources $${budget.otherBudgetUsd}.`
+      : `Gather run: other-sources $${budget.otherBudgetUsd} (TexasFile off).`,
   );
 
   const result = await runGatherAcquisition({

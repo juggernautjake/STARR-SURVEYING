@@ -36,7 +36,6 @@ import {
   gatherBudget,
   mayBuyFromTexasFile,
   remainingTexasfileAllowance,
-  settleTexasfileAddon,
 } from '../research/gather-budget.js';
 import type {
   PurchaseOrchestratorConfig,
@@ -161,13 +160,14 @@ export class DocumentPurchaseOrchestrator {
     const discrepanciesResolved: DiscrepancyResolution[] = [];
     let totalCharged = 0;
 
-    // ── TexasFile earmark: a flat $10, spent only on gaps, refunded if it finds nothing (plan G2) ──
-    // The base budget covers the free/other-site pass; TexasFile draws only on this $10, and every
-    // TexasFile buy is gated so real wallet spend never exceeds it. `settleTexasfileAddon` at the end
-    // charges the $10 if any file was obtained and refunds it otherwise.
+    // ── TexasFile budget: metered, min $10 (plan B2) ──────────────────────────────────────────────
+    // TexasFile bills $1/page and this run's TexasFile budget is only the CEILING — every buy is gated
+    // so real wallet spend never exceeds it, and the run pays for what it actually bought (no flat
+    // fee, no refund). This orchestrator only buys paid vendors, so the run's purchase budget IS the
+    // TexasFile ceiling; the separate other-sources budget covers the free/capture pass elsewhere.
     const gatherBudgetPlan = gatherBudget({
-      baseCap: config.budget ?? 25,
       texasfileOn: !!config.texasfileCredentials,
+      texasfileBudgetUsd: config.budget,
     });
     let texasFileSpend = 0;
     let texasFileFilesFound = 0;
@@ -374,7 +374,7 @@ export class DocumentPurchaseOrchestrator {
             const left = remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend);
             this.logger.warn(
               'Purchase',
-              `TexasFile earmark reached — not buying ${rec.instrument} (est $${estDocCost}, $${left.toFixed(2)} of the $${gatherBudgetPlan.texasfileAddon} left)`,
+              `TexasFile budget reached — not buying ${rec.instrument} (est $${estDocCost}, $${left.toFixed(2)} of the $${gatherBudgetPlan.texasfileBudgetUsd} left)`,
             );
             return {
               instrument: rec.instrument, documentType: rec.documentType, source: rec.source,
@@ -382,7 +382,7 @@ export class DocumentPurchaseOrchestrator {
               paymentMethod: 'texasfile_wallet', transactionId: null, downloadedImages: [],
               imageQuality: { format: 'unknown', hasWatermark: true, qualityScore: 0 },
               vendor: 'texasfile',
-              error: `TexasFile $${gatherBudgetPlan.texasfileAddon} earmark exhausted ($${left.toFixed(2)} left)`,
+              error: `TexasFile $${gatherBudgetPlan.texasfileBudgetUsd} budget exhausted ($${left.toFixed(2)} left)`,
             };
           }
           const r = await texasFileAdapter!.purchaseDocument(
@@ -646,17 +646,13 @@ export class DocumentPurchaseOrchestrator {
     const invoicePath = this.billing.generateInvoice(projectId);
     const remaining = this.billing.checkBudget(projectId, 0).remaining;
 
-    // Settle the flat $10 TexasFile earmark: kept if TexasFile obtained anything, refunded if not.
-    const addonSettlement = settleTexasfileAddon({
-      filesFound: texasFileFilesFound,
-      addon: gatherBudgetPlan.texasfileAddon,
-    });
+    // TexasFile is metered (plan B2): the run pays for the pages it actually bought, within the
+    // TexasFile budget. Report the ceiling, the file count and the real wallet spend — no settlement.
     if (gatherBudgetPlan.texasfileOn) {
       this.logger.info(
         'Purchase',
-        texasFileFilesFound > 0
-          ? `TexasFile found ${texasFileFilesFound} file(s) — $${addonSettlement.charged} add-on charged (wallet spend $${texasFileSpend.toFixed(2)}).`
-          : `TexasFile found nothing — $${addonSettlement.refunded} add-on refunded.`,
+        `TexasFile: ${texasFileFilesFound} file(s), $${texasFileSpend.toFixed(2)} of the ` +
+          `$${gatherBudgetPlan.texasfileBudgetUsd.toFixed(2)} budget.`,
       );
     }
 
@@ -669,10 +665,8 @@ export class DocumentPurchaseOrchestrator {
       invoicePath,
       ...(gatherBudgetPlan.texasfileOn
         ? {
-            texasfileAddonUsd: gatherBudgetPlan.texasfileAddon,
+            texasfileBudgetUsd: gatherBudgetPlan.texasfileBudgetUsd,
             texasfileFilesFound: texasFileFilesFound,
-            texasfileAddonCharged: addonSettlement.charged,
-            texasfileAddonRefunded: addonSettlement.refunded,
             texasfileWalletSpend: Math.round(texasFileSpend * 100) / 100,
           }
         : {}),

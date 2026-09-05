@@ -4,11 +4,11 @@ import { gatherBudget } from '../research/gather-budget.js';
 import type { Want } from '../research/acquisition-wantlist.js';
 
 // Plan GATHER_AND_REVIEW_SPLIT G4+G5 — the gather engine. It must: try free first, only hit
-// TexasFile for gaps, never exceed the $10 earmark, and settle the add-on (charge if anything
-// bought, refund if not). Fakes stand in for the two side effects so the LOGIC is what's tested.
+// TexasFile for gaps, never exceed the TexasFile budget, and stop once it is spent.
+// Fakes stand in for the two side effects so the LOGIC is what is tested.
 
-const budgetOn = gatherBudget({ baseCap: 10, texasfileOn: true });
-const budgetOff = gatherBudget({ baseCap: 10, texasfileOn: false });
+const budgetOn = gatherBudget({ texasfileOn: true, texasfileBudgetUsd: 10 });
+const budgetOff = gatherBudget({ texasfileOn: false });
 
 const twoAdjoiners = {
   subject: { ownerName: 'SMITH' },
@@ -30,7 +30,6 @@ describe('free-first', () => {
     expect(buy).not.toHaveBeenCalled();
     expect(r.results.every((x) => x.outcome === 'free')).toBe(true);
     expect(r.texasFileSpend).toBe(0);
-    expect(r.settlement).toEqual({ charged: 0, refunded: 10 }); // nothing bought → refund
   });
 
   it('only asks TexasFile for the wants free sources missed', async () => {
@@ -46,14 +45,14 @@ describe('free-first', () => {
   });
 });
 
-describe('the $10 earmark cap', () => {
-  it('stops buying once the earmark is spent, marking the rest skipped_budget', async () => {
+describe('the TexasFile budget cap', () => {
+  it('stops buying once the earmark is spent, marking the rest skipped_budget (TexasFile budget)', async () => {
     // Each buy costs $4; with $10 only two fit ($8), the third+ are skipped.
     const r = await runGatherAcquisition({ ...twoAdjoiners, budget: budgetOn, resolveFree: freeNone, buyFromTexasFile: buyPerPage(4) });
     expect(r.texasFileFilesFound).toBe(2);
     expect(r.texasFileSpend).toBe(8);
     expect(r.results.filter((x) => x.outcome === 'skipped_budget').length).toBeGreaterThanOrEqual(1);
-    expect(r.settlement).toEqual({ charged: 10, refunded: 0 }); // something bought → charge
+    expect(r.texasFileFilesFound).toBeGreaterThan(0); // something bought
   });
 
   it('passes the remaining allowance as the per-buy maxUsd', async () => {
@@ -76,7 +75,7 @@ describe('TexasFile off', () => {
     const r = await runGatherAcquisition({ ...twoAdjoiners, budget: budgetOff, resolveFree: freeNone, buyFromTexasFile: buy });
     expect(buy).not.toHaveBeenCalled();
     expect(r.results.every((x) => x.outcome === 'skipped_off')).toBe(true);
-    expect(r.settlement).toEqual({ charged: 0, refunded: 0 }); // no add-on at all
+    expect(r.texasFileFilesFound).toBe(0); // TexasFile off
   });
 });
 

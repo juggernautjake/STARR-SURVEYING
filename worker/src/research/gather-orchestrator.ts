@@ -19,9 +19,7 @@
 import { buildWantList, type Want, type SubjectInput, type AdjoinerInput } from './acquisition-wantlist.js';
 import {
   type GatherBudget,
-  type AddonSettlement,
   remainingTexasfileAllowance,
-  settleTexasfileAddon,
 } from './gather-budget.js';
 
 export type WantOutcome =
@@ -62,8 +60,6 @@ export interface GatherAcquisitionResult {
   results: GatherWantResult[];
   texasFileSpend: number;
   texasFileFilesFound: number;
-  /** The $10 earmark settlement: charged if TexasFile found anything, else refunded. */
-  settlement: AddonSettlement;
   /** Wants satisfied from any source (free or TexasFile). */
   satisfied: number;
   /** Wants nothing could get. */
@@ -161,21 +157,16 @@ export async function runGatherAcquisition(input: RunGatherInput): Promise<Gathe
     }
   }
 
-  const settlement = settleTexasfileAddon({ filesFound: texasFileFilesFound, addon: input.budget.texasfileAddon });
   const satisfied = results.filter((r) => r.outcome === 'free' || r.outcome === 'texasfile').length;
   const missing = results.filter((r) => r.outcome === 'missing').length;
 
   log(
     `Gather complete: ${satisfied}/${results.length} satisfied (${results.filter((r) => r.outcome === 'free').length} free, ` +
-      `${texasFileFilesFound} TexasFile), $${texasFileSpend.toFixed(2)} wallet; ` +
-      (input.budget.texasfileOn
-        ? settlement.charged > 0
-          ? `$${settlement.charged} add-on charged.`
-          : `$${settlement.refunded} add-on refunded.`
-        : 'TexasFile off.'),
+      `${texasFileFilesFound} TexasFile), $${texasFileSpend.toFixed(2)} TexasFile spend` +
+      (input.budget.texasfileOn ? ` of $${input.budget.texasfileBudgetUsd.toFixed(2)}.` : ' (TexasFile off).'),
   );
 
-  return { results, texasFileSpend, texasFileFilesFound, settlement, satisfied, missing };
+  return { results, texasFileSpend, texasFileFilesFound, satisfied, missing };
 }
 
 function errText(e: unknown): string {

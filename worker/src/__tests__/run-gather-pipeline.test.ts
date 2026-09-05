@@ -3,7 +3,6 @@ import {
   runGatherPipeline,
   gatherBudgetForSettings,
   texasfileEnabledFor,
-  DEFAULT_GATHER_BASE_USD,
 } from '../research/run-gather-pipeline.js';
 import type { FreeResolveResult, TexasBuyResult } from '../research/gather-orchestrator.js';
 import type { Want } from '../research/acquisition-wantlist.js';
@@ -27,38 +26,39 @@ describe('texasfileEnabledFor', () => {
   });
 });
 
-describe('gatherBudgetForSettings', () => {
-  it('floors the base at $7 and adds the $10 earmark when TexasFile is on', () => {
+describe('gatherBudgetForSettings — two metered budgets', () => {
+  it('floors the TexasFile budget at $10 and other-sources at $2 when TexasFile is on', () => {
     const b = gatherBudgetForSettings({ maxCostUsd: 3 });
-    expect(b.baseCap).toBe(7);
-    expect(b.texasfileAddon).toBe(10);
-    expect(b.maxTotal).toBe(17);
+    expect(b.texasfileOn).toBe(true);
+    expect(b.texasfileBudgetUsd).toBe(10);
+    expect(b.otherBudgetUsd).toBe(2);
   });
-  it('adds no earmark when TexasFile is off', () => {
+  it('raises the TexasFile budget to the requested cap', () => {
+    expect(gatherBudgetForSettings({ maxCostUsd: 25 }).texasfileBudgetUsd).toBe(25);
+  });
+  it('has a $0 TexasFile budget when TexasFile is off', () => {
     const b = gatherBudgetForSettings({ maxCostUsd: 20, allowPaidDocuments: false });
-    expect(b.texasfileAddon).toBe(0);
-    expect(b.maxTotal).toBe(20);
-  });
-  it('defaults the base to $7 when no cost cap was set', () => {
-    expect(gatherBudgetForSettings({}).baseCap).toBe(DEFAULT_GATHER_BASE_USD);
+    expect(b.texasfileOn).toBe(false);
+    expect(b.texasfileBudgetUsd).toBe(0);
+    expect(b.otherBudgetUsd).toBe(2);
   });
 });
 
 describe('runGatherPipeline', () => {
-  it('walks the want-list with the injected effects and returns the settlement', async () => {
+  it("walks the want-list with the injected effects and reports spend", async () => {
     const buy = vi.fn(async (): Promise<TexasBuyResult> => ({ bought: true, costUsd: 2 }));
     const r = await runGatherPipeline({
       projectId: 'p1', county: 'Bell', subject, adjoiners,
       settings: { maxCostUsd: 10 }, resolveFree: freeNone, buyFromTexasFile: buy,
     });
-    // 4 wants, all gaps → 4 TexasFile buys; something bought → $10 add-on charged.
+    // 4 wants, all gaps → 4 TexasFile buys, metered spend $8.
     expect(buy).toHaveBeenCalledTimes(4);
     expect(r.texasFileFilesFound).toBe(4);
-    expect(r.settlement).toEqual({ charged: 10, refunded: 0 });
+    expect(r.texasFileSpend).toBe(8);
     expect(r.texasfileOn).toBe(true);
   });
 
-  it('never buys when TexasFile is off, and refunds nothing (no earmark)', async () => {
+  it('never buys when TexasFile is off', async () => {
     const buy = vi.fn(async (): Promise<TexasBuyResult> => ({ bought: true, costUsd: 2 }));
     const r = await runGatherPipeline({
       projectId: 'p1', county: 'Bell', subject,
@@ -66,7 +66,7 @@ describe('runGatherPipeline', () => {
     });
     expect(buy).not.toHaveBeenCalled();
     expect(r.texasfileOn).toBe(false);
-    expect(r.settlement).toEqual({ charged: 0, refunded: 0 });
+    expect(r.texasFileSpend).toBe(0);
   });
 
   it('gathers nothing for an analyze run', async () => {
