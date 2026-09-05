@@ -315,6 +315,14 @@ existing analysis stack, now invoked only in the analyze run and bounded by R1's
 Report the analyze run's progress and cost against its own cap (its own progress bar / status), the
 same way the gather run reports against its cap. Two runs, two independent cost views.
 
+> **Backend SHIPPED 2026-09-05.** `analyzeProject` now writes `estimated_cost_usd` (upper-bound
+> estimate from the token accumulator) and `cost_cap_usd` into `analysis_metadata` — at completion,
+> at the cap-break (with `stopped_at_cost_cap: true`), and per-document while a cap is set (folded
+> into the existing per-doc persist, no extra write). The analysis status endpoint returns
+> `analysis_metadata`, so the UI can render a cost bar for the analyze run against its own cap.
+> `analyze-cost-cap.test.ts` extended; app tsc clean. **REMAINING for R3:** the UI cost bar that reads
+> these fields — folds into U1/U4 (the two-run layout + "Run AI Review").
+
 ---
 
 ## Phase U — the UI rebuild

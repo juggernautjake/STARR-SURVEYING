@@ -48,4 +48,10 @@ describe('the analyze run enforces its own cost cap', () => {
     expect(route).toMatch(/body\.maxCostUsd/);
     expect(route).toMatch(/config\.maxCostUsd = Math\.min\(Math\.max\(body\.maxCostUsd, 0\), 100\)/);
   });
+
+  it('reports the analyze runs estimated cost + cap in analysis_metadata (R3)', () => {
+    // The completion metadata carries both so the UI can show spend against the cap the operator set.
+    expect(svc).toMatch(/estimated_cost_usd: estimateAnalysisCostUsd\(tokenUsage\)/);
+    expect(svc).toMatch(/cost_cap_usd: analyzeCostCapUsd/);
+  });
 });

@@ -1230,9 +1230,12 @@ export async function analyzeProject(
             `Analysis stopped at the $${analyzeCostCapUsd.toFixed(2)} cost limit you set`,
             `Estimated spend $${spent.toFixed(2)} after ${docIndex + 1} of ${documents.length} document(s). Raise the limit and re-run to analyse the rest.`,
           );
-          await persistLogs();
+          await persistLogs({ estimated_cost_usd: spent, cost_cap_usd: analyzeCostCapUsd, stopped_at_cost_cap: true });
           break;
         }
+        // Report running cost as progress against the cap (R3) so the UI's cost bar can track it —
+        // folded into the per-document persist that already runs, no extra write.
+        await persistLogs({ estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage), cost_cap_usd: analyzeCostCapUsd });
       }
     }
 
@@ -1471,6 +1474,10 @@ export async function analyzeProject(
       discrepancy_count: allDiscrepancies.length,
       documents_analyzed: allDocuments.length,
       tokens_used: tokenUsage,
+      // The analyze run's own spend, so the UI can report it against the cap the operator set (R3).
+      // Estimated (an upper bound, priced at the dearest model) because token pricing varies by model.
+      estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
+      cost_cap_usd: analyzeCostCapUsd ?? null,
       coherence_review: coherenceReview,
     }, { status: 'review' });
 
