@@ -24,6 +24,34 @@
 // Everything below is a value the system already knew how to use and was not being told.
 
 /** What a run was configured to do. Every field optional: absent means "use the default". */
+/** The items a run can be told to gather, from the Configure checklist (plan S1). */
+export const GATHER_SELECTION_KEYS = [
+  'recent_deed',
+  'recent_easement',
+  'recent_plat',
+  'google_map',
+  'gis_satellite',
+  'gis_parcel',
+  'all_deeds',
+  'all_plats',
+  'all_files',
+] as const;
+
+export type GatherSelectionKey = (typeof GATHER_SELECTION_KEYS)[number];
+
+export interface GatherSelections {
+  /** Which items to gather for the subject property. */
+  items: GatherSelectionKey[];
+  /** The adjoining-property selections, revealed by the "research adjoining properties" toggle. */
+  adjoiners: { enabled: boolean; items: GatherSelectionKey[] };
+}
+
+/** The default when a run names no selections: no adjoiners, gather everything, for the subject. */
+export const DEFAULT_GATHER_SELECTIONS: GatherSelections = {
+  items: ['all_files'],
+  adjoiners: { enabled: false, items: [] },
+};
+
 export interface RunSettings {
   /**
    * May this run buy documents from a paid vendor (TexasFile and the other paid platforms)?
@@ -69,6 +97,13 @@ export interface RunSettings {
    * kept so runs started before the split still behave as before.
    */
   phase?: 'gather' | 'analyze';
+
+  /**
+   * Which items this run gathers, from the Configure checklist (plan S1) — subject property plus an
+   * optional adjoiner set. Absent means the default (`DEFAULT_GATHER_SELECTIONS`: all files, no
+   * adjoiners). The gather want-list is built from these.
+   */
+  gatherSelections?: GatherSelections;
 }
 
 /** Every key of `RunSettings`, as data.
@@ -83,6 +118,7 @@ export const RUN_SETTING_KEYS = [
   'mode',
   'refreshImagery',
   'phase',
+  'gatherSelections',
 ] as const;
 
 /** Ceilings on the ceilings.
@@ -137,7 +173,47 @@ export function normaliseRunSettings(raw: unknown): RunSettings {
   if (typeof r.refreshImagery === 'boolean') out.refreshImagery = r.refreshImagery;
   if (r.phase === 'gather' || r.phase === 'analyze') out.phase = r.phase;
 
+  const selections = normaliseGatherSelections(r.gatherSelections);
+  if (selections) out.gatherSelections = selections;
+
   return out;
+}
+
+/** Keep only valid selection keys, de-duplicated, order preserved. */
+function cleanSelectionKeys(raw: unknown): GatherSelectionKey[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: GatherSelectionKey[] = [];
+  for (const k of raw) {
+    if (typeof k === 'string' && (GATHER_SELECTION_KEYS as readonly string[]).includes(k) && !seen.has(k)) {
+      seen.add(k);
+      out.push(k as GatherSelectionKey);
+    }
+  }
+  return out;
+}
+
+/**
+ * Read `gatherSelections` off an untrusted body. Returns undefined when nothing usable was sent (so
+ * the caller falls through to the default), and drops unknown keys rather than failing.
+ */
+export function normaliseGatherSelections(raw: unknown): GatherSelections | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const items = cleanSelectionKeys(r.items);
+  const adjRaw = (r.adjoiners && typeof r.adjoiners === 'object') ? (r.adjoiners as Record<string, unknown>) : {};
+  const adjoiners = {
+    enabled: adjRaw.enabled === true,
+    items: cleanSelectionKeys(adjRaw.items),
+  };
+  // Nothing meaningful sent → let the default apply.
+  if (items.length === 0 && !adjoiners.enabled && adjoiners.items.length === 0) return undefined;
+  return { items, adjoiners };
+}
+
+/** The effective selections for a run — what it was told, or the default (all files, no adjoiners). */
+export function resolveGatherSelections(settings: RunSettings): GatherSelections {
+  return settings.gatherSelections ?? DEFAULT_GATHER_SELECTIONS;
 }
 
 /**

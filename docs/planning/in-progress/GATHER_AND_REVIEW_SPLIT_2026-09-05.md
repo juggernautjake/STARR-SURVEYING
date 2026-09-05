@@ -494,6 +494,13 @@ by run-settings-mirror.test): a set of item keys (`recent_deed`, `recent_easemen
 `adjoiners: { enabled: boolean; selections: <same set> }`. Defaults: adjoiners off, `all_files` on,
 TexasFile on. Pure normaliser + tests (unknown keys dropped; default when absent).
 
+> **SHIPPED 2026-09-05.** `run-settings.ts`: `GATHER_SELECTION_KEYS` (the 9 item keys),
+> `GatherSelections { items, adjoiners:{enabled,items} }`, `DEFAULT_GATHER_SELECTIONS` (all_files, no
+> adjoiners), `normaliseGatherSelections` (drops unknown keys, de-dups, undefined when nothing usable),
+> `resolveGatherSelections`, and `gatherSelections` in `RUN_SETTING_KEYS`. Client mirror
+> (`useRunState.ts`) carries it; the drift guard passes. `gather-selections.test.ts` (7) + mirror.
+> Worker + app tsc green. Consumed by S2 (want-list mapping) + S3 (UI).
+
 ### S2 — Selections drive the want-list
 Map the selections onto the gather want-list: each selected item → a want (with its documentType +
 whether it's a paid-TexasFile candidate or a free capture). "All Files/All Deeds/All Plats" expand to
