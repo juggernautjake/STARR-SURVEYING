@@ -232,12 +232,16 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
   next();
 }
 
-/** Progress as a fraction of the COST cap (owner, 2026-09-04): the bar shows how close the run is to
- *  its payment limit, not the clock. Capped at 99 until the run truly finishes (finish() sets 100). */
+/** Progress toward the run ENDING (owner, 2026-09-04): cost is primary, but a run also stops at the
+ *  one-hour cap — so the bar shows whichever ceiling it is closer to, i.e. how close it is to done.
+ *  Capped at 99 until the run truly finishes (finish() sets 100). */
 function costProgressPercent(projectId: string): number {
   const status = checkBudget(projectId, spendForRun(projectId));
-  if (!Number.isFinite(status.limitUsd) || status.limitUsd <= 0) return 0;
-  return Math.min(99, Math.max(0, Math.round((status.spentUsd / status.limitUsd) * 100)));
+  const costPct = Number.isFinite(status.limitUsd) && status.limitUsd > 0
+    ? (status.spentUsd / status.limitUsd) * 100 : 0;
+  const timePct = Number.isFinite(status.limitMs) && status.limitMs > 0
+    ? (status.elapsedMs / status.limitMs) * 100 : 0;
+  return Math.min(99, Math.max(0, Math.round(Math.max(costPct, timePct))));
 }
 
 // ── In-Memory State ────────────────────────────────────────────────────────
@@ -1350,13 +1354,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const active = activePipelines.get(projectId);
       if (!active || active.abortController?.signal.aborted) return;
       const minutes = Math.round(budgetLimits.maxWallClockMs / 60_000);
-      // The wall clock is a SAFETY net now, not the ceiling (cost is). Reaching it means a step hung.
+      // Cost is primary, but no run goes beyond an hour (owner, 2026-09-04). This is that hard cap.
       const message =
-        `Stopped by the ${minutes}-minute safety limit — a step was still running long after it should ` +
-        'have finished. What was produced is kept. (The run is bounded by its cost limit, not time.)';
+        `Finished at the ${minutes}-minute limit. Cost is the primary ceiling, but a run never goes ` +
+        'beyond an hour; what it produced is kept. Raise the cost limit to get more within the hour.';
       active.stopReason = { kind: 'budget', message };
       active.abortController?.abort(new BudgetAbort(message));
-      console.warn(`[budget] ${projectId}: SAFETY watchdog fired at ${minutes} min — a step hung`);
+      console.warn(`[budget] ${projectId}: WALL-CLOCK cap fired at ${minutes} min`);
     }, budgetLimits.maxWallClockMs + graceMs);
     watchdog.unref?.();
     const active = activePipelines.get(projectId);

@@ -112,15 +112,19 @@ export function limitsFor(
   const envCost = Number(env.RUN_MAX_COST_USD);
   const envPages = Number(env.RUN_MAX_PAID_PAGES);
 
-  // ── COST IS THE CEILING; TIME IS ONLY A SAFETY BACKSTOP (owner, 2026-09-04) ──────────────────
+  // ── COST IS PRIMARY, BUT NO RUN GOES BEYOND ONE HOUR (owner, 2026-09-04) ─────────────────────
   //
-  // A run ends when it reaches its COST limit — a hard stop the cost watchdog enforces — not on a
-  // clock. The wall clock is no longer the user's ceiling; it is a generous safety net so a genuinely
-  // hung step (a frozen browser) cannot run forever. `maxResearchTimeMinutes` from the request is
-  // ignored on purpose. To run longer / more thoroughly, raise the cost cap.
-  const SAFETY_WALL_CLOCK_MS = 120 * 60_000; // 2 h — a hung run, not a normal one, reaches this
-  const envSafety = Number(env.RUN_SAFETY_MINUTES);
-  const safetyMs = (Number.isFinite(envSafety) && envSafety > 0 ? envSafety * 60_000 : SAFETY_WALL_CLOCK_MS);
+  // A run ends when it reaches its COST limit (the cost watchdog enforces that to the dollar) OR at
+  // a HARD one-hour wall clock — whichever comes first. Cost is the primary lever (raise it to
+  // research further), but because scraping is nearly free it cannot bound a scraping-heavy run's
+  // TIME — fresh run #1 spent 44 minutes in Phase 2 at two cents — so the hour is a real, hard cap,
+  // not just a hung-run backstop. `maxResearchTimeMinutes` from the request is ignored; the hour is
+  // fixed (tunable only by the deployment, and never above 60).
+  const HARD_WALL_CLOCK_MS = 60 * 60_000;
+  const envMinutes = Number(env.RUN_MAX_MINUTES);
+  const wallMs = Number.isFinite(envMinutes) && envMinutes > 0
+    ? Math.min(envMinutes, 60) * 60_000
+    : HARD_WALL_CLOCK_MS;
 
   // A requested cost of 0 is meaningful — "spend nothing, free sources only" — so it must survive,
   // which `||` would not: `0 || fallback` is the fallback. Only a missing or unusable number falls
@@ -131,8 +135,8 @@ export function limitsFor(
     : (Number.isFinite(envCost) && envCost > 0 ? envCost : DEFAULT_LIMITS.maxCostUsd);
 
   return {
-    maxWallClockMs: safetyMs,
-    // The real ceiling. Clamped so a caller cannot raise it without bound. See MAX_COST_CEILING_USD.
+    maxWallClockMs: wallMs,
+    // The primary ceiling. Clamped so a caller cannot raise it without bound. See MAX_COST_CEILING_USD.
     maxCostUsd: clamp(cost, 0, MAX_COST_CEILING_USD),
     maxPaidPages: Number.isFinite(envPages) && envPages > 0 ? envPages : DEFAULT_LIMITS.maxPaidPages,
   };

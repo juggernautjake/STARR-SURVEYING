@@ -32,23 +32,23 @@ const T0 = 1_700_000_000_000;
 beforeEach(() => { endRun(PROJECT); });
 
 describe('the limits themselves', () => {
-  // ── COST IS THE CEILING; the wall clock is only a SAFETY net (owner, 2026-09-04) ──────────────
+  // ── COST IS PRIMARY, but no run goes beyond ONE HOUR (owner, 2026-09-04) ──────────────────────
   //
-  // A run ends when it reaches its COST limit, not on a clock. limitsFor therefore IGNORES the
-  // requested minutes and returns a generous 2-hour safety wall clock (a hung run, not a normal
-  // one, reaches it). The cost cap is what varies per run.
+  // A run ends at its COST limit OR at a hard one-hour wall clock, whichever first. limitsFor IGNORES
+  // the requested minutes and returns a fixed 60-minute cap (scraping is nearly free, so cost cannot
+  // bound a scraping-heavy run's time). The cost cap is what varies per run.
 
-  it('the wall clock is a fixed 2-hour SAFETY, independent of the requested minutes', () => {
-    const safety = 120 * 60_000;
-    expect(limitsFor({ maxResearchTimeMinutes: 30 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(safety);
-    expect(limitsFor({ maxResearchTimeMinutes: 240 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(safety);
-    expect(limitsFor({ maxResearchTimeMinutes: 5 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(safety);
-    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(safety);
+  it('the wall clock is a fixed one-hour cap, independent of the requested minutes', () => {
+    const hour = 60 * 60_000;
+    expect(limitsFor({ maxResearchTimeMinutes: 30 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
+    expect(limitsFor({ maxResearchTimeMinutes: 240 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
+    expect(limitsFor({ maxResearchTimeMinutes: 5 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
+    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
   });
 
-  it('the safety net is tunable by the deployment, not by the request', () => {
-    expect(limitsFor({ maxResearchTimeMinutes: 5 }, { RUN_SAFETY_MINUTES: '45' } as NodeJS.ProcessEnv).maxWallClockMs)
-      .toBe(45 * 60_000);
+  it('the deployment may lower the cap but never raise it above the hour', () => {
+    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '45' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(45 * 60_000);
+    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '90' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
   });
 
   // ── Per-run spend limit (owner request, 2026-08-30) ────────────────────────────────────────
@@ -93,7 +93,7 @@ describe('the limits themselves', () => {
     const l = limitsFor(undefined, { RUN_MAX_COST_USD: '0.5', RUN_MAX_PAID_PAGES: '3' } as NodeJS.ProcessEnv);
     expect(l.maxCostUsd).toBe(0.5);
     expect(l.maxPaidPages).toBe(3);
-    expect(l.maxWallClockMs).toBe(120 * 60_000); // the safety net, not RUN_MAX_MINUTES
+    expect(l.maxWallClockMs).toBe(60 * 60_000); // the one-hour cap
   });
 
   it('caps paid pages separately from dollars', () => {

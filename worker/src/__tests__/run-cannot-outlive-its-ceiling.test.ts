@@ -127,8 +127,8 @@ describe('the tail', () => {
     expect(window).toContain("status.exceeded === 'cost'");
     expect(window).toContain('active.abortController?.abort(new BudgetAbort(message))');
     expect(window).toContain('clearInterval(costPoll)');
-    // the wall-clock watchdog is reframed as a safety net, not the ceiling
-    expect(window).toContain('SAFETY watchdog fired');
+    // cost is primary, but a hard one-hour wall-clock cap also stops the run
+    expect(window).toContain('WALL-CLOCK cap fired');
   });
 });
 
