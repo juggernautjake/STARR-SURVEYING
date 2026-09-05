@@ -79,15 +79,15 @@ describe('the owner name survives the whole journey', () => {
     expect(VIEW).toContain('ownerName');
   });
 
-  it('and the RE-RUN paths carry it too', () => {
-    // `pendingSearchParams` takes precedence over the project value, so the two places that seed it
-    // — auto-start and re-run — decide the owner for exactly the case an operator hits when a run
-    // disappointed them and they try again. Setting `ownerName: ''` there loses it just as
-    // completely as the original bug did, and the assertion above would not have noticed: a
-    // mutation to `ownerName: ''` passed every other test in this file.
+  it('and the run-start dialog carries it too', () => {
+    // Since W1.3 BOTH the first run and a re-run go through the run-settings dialog (RerunDialog),
+    // which is seeded with the project's owner via projectDefaults.ownerName. The dialog then carries
+    // it to the run through onConfirm -> handleRerunResearch -> pendingRunInput. Setting it to '' there
+    // would lose the owner just as the original bug did.
     const seeds = PAGE.split('ownerName: projectOwnerName(project)').length - 1;
-    expect(seeds, 'both setPendingSearchParams sites should seed the owner').toBe(2);
-    expect(PAGE, 'a re-run must not blank the owner').not.toContain("ownerName: ''");
+    expect(seeds, 'the run-settings dialog is seeded with the owner').toBeGreaterThanOrEqual(1);
+    expect(PAGE, 'the dialog hands the run its settings incl. owner').toMatch(/onConfirm=\{\(input\) => void handleRerunResearch\(input\)\}/);
+    expect(PAGE, 'a run must not blank the owner').not.toContain("ownerName: ''");
   });
 });
 

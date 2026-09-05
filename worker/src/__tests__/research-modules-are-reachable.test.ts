@@ -101,11 +101,7 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // phase==='gather', supplying the real resolveFree (county capture) + subject/adjoiner facts — is
   // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
   // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
-  'worker/src/research/gather-cost-estimate.ts':
-    'B2.2 pre-buy TexasFile cost estimator + over-budget assessment (estimate-and-warn). Pure + unit-tested (gather-cost-estimate.test.ts); its consumer is the purchase over-budget warn flow + the Configure estimate UI, staged. Not dead — remove when the warn flow reads it.',
 
-  'worker/src/research/selection-wants.ts':
-    'S2 selection->wants mapping (the Configure checklist becomes gather targets, with the paid/free split the two-budget accounting needs). Pure + unit-tested (selection-wants.test.ts); its consumers are the gather-dispatch acquisition feed and the B2.2 estimator, both staged with run-gather-pipeline. Not dead — remove when the selection-driven acquisition feed is wired.',
 
   'worker/src/research/run-gather-pipeline.ts':
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',

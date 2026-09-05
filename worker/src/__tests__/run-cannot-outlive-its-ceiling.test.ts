@@ -44,8 +44,11 @@ describe('the watchdog', () => {
   it('is cleared on BOTH endings, so a finished run cannot be aborted after the fact', () => {
     const clears = (index.match(/clearTimeout\(activePipelines\.get\(projectId\)\?\.watchdog\)/g) ?? []).length;
     const ends = (index.match(/\n\s*endRun\(projectId\);/g) ?? []).length;
-    expect(ends).toBeGreaterThanOrEqual(2);
-    expect(clears).toBe(ends);
+    // Every wall-clock watchdog is cleared at a run ending (>= the 2 full-run terminal sites). The
+    // on-demand read-documents pass (F3/A1) also calls endRun but arms no wall-clock watchdog, so
+    // ends can exceed clears — the invariant is that no watchdog-armed run forgets to clear it.
+    expect(clears).toBeGreaterThanOrEqual(2);
+    expect(ends).toBeGreaterThanOrEqual(clears);
   });
 });
 

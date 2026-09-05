@@ -163,3 +163,38 @@ describe('a re-run keeps what earlier runs produced', () => {
     expect(dialog).toMatch(/'rerun_edited' : 'rerun_same'/);
   });
 });
+
+describe('the two dedicated gather budgets (W1)', () => {
+  const dialog = read('app/admin/research/components/RerunDialog.tsx');
+  it('offers a TexasFile budget input and an other-sources budget input', () => {
+    expect(dialog).toMatch(/data-testid="texasfile-budget"/);
+    expect(dialog).toMatch(/data-testid="other-budget"/);
+    expect(dialog).toMatch(/TexasFile budget \(USD\)/);
+    expect(dialog).toMatch(/Other-sources budget \(USD\)/);
+  });
+  it('sends both budgets to the run', () => {
+    expect(dialog).toMatch(/texasfileBudgetUsd: form\.texasfileBudgetUsd/);
+    expect(dialog).toMatch(/otherBudgetUsd: form\.otherBudgetUsd/);
+  });
+  it('defaults to $15 TexasFile and $5 other', () => {
+    expect(dialog).toMatch(/texasfileBudget: 15/);
+    expect(dialog).toMatch(/otherBudget: 5/);
+  });
+});
+
+describe('the FIRST run also goes through the settings dialog (W1.3)', () => {
+  const page = read('app/admin/research/[projectId]/page.tsx');
+  it('Start AI analysis opens the run-settings dialog instead of auto-starting with defaults', () => {
+    // handleStartAnalysis now opens the dialog (setShowRerunConfirm(true)) so the operator picks the
+    // checklist + budgets before any spend.
+    const at = page.indexOf('function handleStartAnalysis()');
+    expect(at).toBeGreaterThan(0);
+    const body = page.slice(at, at + 300);
+    expect(body).toMatch(/setShowRerunConfirm\(true\)/);
+    expect(body).not.toMatch(/setShouldAutoStartPipeline\(true\)/);
+  });
+  it('the dialog carries its settings to the run via pendingRunInput', () => {
+    expect(page).toMatch(/onConfirm=\{\(input\) => void handleRerunResearch\(input\)\}/);
+    expect(page).toMatch(/setPendingRunInput\(input\)/);
+  });
+});

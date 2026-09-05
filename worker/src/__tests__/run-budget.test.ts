@@ -65,7 +65,9 @@ describe('the limits themselves', () => {
     // A typo of 1000 for 10.00 must not become a thousand-dollar run. Satisfied AT the maximum
     // rather than refused: failing a run outright over a too-large budget helps nobody.
     expect(limitsFor({ maxCostUsd: 1000 }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(MAX_COST_CEILING_USD);
-    expect(MAX_COST_CEILING_USD).toBe(10);
+    // Raised to $100 for the two-budget model (W3): a $15 TexasFile + $5 other run's combined cap
+    // ($20) must not be clamped to $10. Each budget is still clamped to $100 in run-settings.
+    expect(MAX_COST_CEILING_USD).toBe(100);
   });
 
   it('treats a requested 0 as "free sources only", not as "unset"', () => {

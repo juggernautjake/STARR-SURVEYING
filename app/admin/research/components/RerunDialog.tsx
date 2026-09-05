@@ -34,7 +34,7 @@ import AddressAutocomplete from '../../components/AddressAutocomplete';
 import RunFileAttachments, { type RunFile } from './RunFileAttachments';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
-import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, type GatherSelectionsValue } from './GatherSelectionsField';
+import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, estimateSelectionCost, type GatherSelectionsValue } from './GatherSelectionsField';
 
 export interface PreviousRun {
   run_number?: number | null;
@@ -72,6 +72,8 @@ interface FormState {
   allowPaidDocuments: boolean;
   maxResearchTimeMinutes: number;
   maxCostUsd: number;
+  texasfileBudgetUsd: number;
+  otherBudgetUsd: number;
   mode: 'free' | 'paid';
   refreshImagery: boolean;
   gatherSelections: GatherSelectionsValue;
@@ -79,7 +81,7 @@ interface FormState {
 
 /** The defaults a run gets when nothing says otherwise. Kept here so the dialog can show them as
  *  defaults rather than presenting them as the operator's own past choices. */
-const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const };
+const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const, texasfileBudget: 15, otherBudget: 5 };
 
 /** The run length an operator may choose. Mirrors RUN_MINUTES in worker/src/research/run-phases.ts
  *  — the progress bar paces itself to this number, so the two must agree or the bar is calibrated
@@ -158,6 +160,8 @@ export default function RerunDialog({
         maxResearchTimeMinutes: Math.min(RUN_MINUTES.max, Math.max(RUN_MINUTES.min,
           num(s.maxResearchTimeMinutes, FALLBACK.minutes))),
         maxCostUsd: num(s.maxCostUsd, FALLBACK.costUsd),
+        texasfileBudgetUsd: num((s as { texasfileBudgetUsd?: number }).texasfileBudgetUsd, FALLBACK.texasfileBudget),
+        otherBudgetUsd: num((s as { otherBudgetUsd?: number }).otherBudgetUsd, FALLBACK.otherBudget),
         mode: s.mode === 'free' ? 'free' : FALLBACK.mode,
         // Off by default even if the last run used it: 19 of 53 duplicate rows measured in
         // production were the same screenshot re-taken by a later run.
@@ -222,6 +226,8 @@ export default function RerunDialog({
       allowPaidDocuments: form.allowPaidDocuments,
       maxResearchTimeMinutes: form.maxResearchTimeMinutes,
       maxCostUsd: form.maxCostUsd,
+      texasfileBudgetUsd: form.texasfileBudgetUsd,
+      otherBudgetUsd: form.otherBudgetUsd,
       mode: form.mode,
       refreshImagery: form.refreshImagery,
       gatherSelections: form.gatherSelections,
@@ -401,6 +407,49 @@ export default function RerunDialog({
                          onChange={(e) => set('maxCostUsd', Number(e.target.value))} />
                 </label>
               </div>
+
+              {/* W1 — the two dedicated gather budgets. TexasFile is metered ($1/page) up to its
+                  budget; the other budget covers county-site / GIS / free capture. */}
+              <div className="rrd__row">
+                {form.allowPaidDocuments && (
+                  <label className="rrd__field">
+                    <span className="rrd__label">
+                      TexasFile budget (USD)
+                      <span className="rrd__hint">Metered $1/page, min $10. The most this run may spend buying plats/deeds from TexasFile.</span>
+                    </span>
+                    <input className="rrd__input" type="number" min={10} max={100} step={1}
+                           value={form.texasfileBudgetUsd}
+                           onChange={(e) => set('texasfileBudgetUsd', Number(e.target.value))}
+                           data-testid="texasfile-budget" />
+                  </label>
+                )}
+                <label className="rrd__field">
+                  <span className="rrd__label">
+                    Other-sources budget (USD)
+                    <span className="rrd__hint">Min $2. County site / GIS / free capture (mostly $0).</span>
+                  </span>
+                  <input className="rrd__input" type="number" min={2} max={100} step={1}
+                         value={form.otherBudgetUsd}
+                         onChange={(e) => set('otherBudgetUsd', Number(e.target.value))}
+                         data-testid="other-budget" />
+                </label>
+              </div>
+
+              {/* U1/B2.2 — estimate-and-warn: show what the selection is likely to cost on TexasFile
+                  against the budget, so the operator raises the budget or trims the list before it
+                  runs (the run also stops at the budget, so this is guidance, not a hard gate). */}
+              {form.allowPaidDocuments && (() => {
+                const est = estimateSelectionCost(form.gatherSelections);
+                const over = est > form.texasfileBudgetUsd;
+                return (
+                  <p className={`rrd__note ${over ? 'rrd__note--warn' : 'rrd__note--info'}`} data-testid="selection-estimate">
+                    <Info size={14} aria-hidden />
+                    Estimated TexasFile cost for what you selected: <strong>~${est}</strong> of your
+                    ${form.texasfileBudgetUsd} budget.
+                    {over && <> Over budget — raise the TexasFile budget, or the run buys in priority order (plats first) until it runs out.</>}
+                  </p>
+                );
+              })()}
 
               {form.maxCostUsd === 0 && form.allowPaidDocuments && (
                 // The two are separate switches and $0 is the stronger of them, so the dialog says

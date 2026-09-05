@@ -130,6 +130,43 @@ export function spendForRun(projectId: string): number {
   return runSpend.get(projectId) ?? 0;
 }
 
+/**
+ * The TRUE, all-phases spend for a project from the `research_usage_events` ledger (plan F2).
+ *
+ * `spendForRun` is the worker's in-process accumulator and only counts calls THIS worker process
+ * made — it misses app-side analysis (`lib/ai/usage.ts` writes the same ledger without touching this
+ * map) and anything from a prior process. That is exactly the gap the 2026-09-05 session found: the
+ * run UI read $1.82 (worker in-memory) while the ledger held $3.13 (worker + app analysis). Reports
+ * and status should read THIS so no real cost is invisible. `load` is injectable for tests; the
+ * default sums `cost_usd` over the project's ledger rows.
+ */
+export async function ledgerSpendForRun(
+  projectId: string,
+  load?: (projectId: string) => Promise<Array<{ cost_usd: number | string | null }>>,
+): Promise<number> {
+  const rows = load ? await load(projectId) : await loadLedgerRows(projectId);
+  const total = rows.reduce((sum, r) => sum + (Number(r?.cost_usd) || 0), 0);
+  return Number(total.toFixed(6));
+}
+
+async function loadLedgerRows(projectId: string): Promise<Array<{ cost_usd: number | string | null }>> {
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) return [];
+    const { data, error } = await (supabase as unknown as {
+      from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ cost_usd: number | string | null }> | null; error: { message: string } | null }> } };
+    }).from('research_usage_events').select('cost_usd').eq('research_project_id', projectId);
+    if (error) {
+      console.warn(`[usage] ledgerSpendForRun could not read the ledger for ${projectId}: ${error.message}`);
+      return [];
+    }
+    return data ?? [];
+  } catch (err) {
+    console.warn(`[usage] ledgerSpendForRun threw for ${projectId}: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
+}
+
 export function resetRunSpend(projectId: string): void {
   runSpend.delete(projectId);
 }

@@ -37,7 +37,10 @@ import { DocumentPurchaseOrchestrator } from './services/document-purchase-orche
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker, clampRunMinutes } from './research/run-phases.js';
-import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, type RunSettings } from './research/run-settings.js';
+import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, resolveGatherSelections, type RunSettings } from './research/run-settings.js';
+// The checklist drives what TexasFile is asked for (plan W2): selections → wants → purchase recs.
+import { selectionsToWants } from './research/selection-wants.js';
+import { wantsToPurchaseRecommendations } from './research/selection-purchases.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -100,7 +103,7 @@ import {
 } from './research/persist-run-logs.js';
 import { BudgetAbort, OperatorAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
-import { resetRunSpend, spendForRun } from './infra/usage.js';
+import { resetRunSpend, spendForRun, ledgerSpendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -1305,7 +1308,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // cost since it was written; the app never sent either, so every run silently got the defaults
     // whatever the operator chose in the UI.
     maxResearchTimeMinutes: runSettings.maxResearchTimeMinutes ?? researchInput.maxResearchTimeMinutes,
-    maxCostUsd: runSettings.maxCostUsd ?? researchInput.maxCostUsd,
+    // W3 — when the operator set the two dedicated budgets, the run's cost cap (what the cost
+    // watchdog enforces) is their SUM, so a $15 TexasFile + $5 other run is not stopped at $10.
+    // Otherwise the single cost cap applies.
+    maxCostUsd:
+      runSettings.texasfileBudgetUsd != null || runSettings.otherBudgetUsd != null
+        ? (runSettings.texasfileBudgetUsd ?? 0) + (runSettings.otherBudgetUsd ?? 0)
+        : (runSettings.maxCostUsd ?? researchInput.maxCostUsd),
     // A gather run is capped at 25 minutes (B2.3) — it only searches, buys and downloads.
     phase: runSettings.phase,
   });
@@ -1340,6 +1349,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     runNumber: startedRun?.runNumber ?? null,
     stopReason: null,
     settings: runSettings as unknown as Record<string, unknown>,
+    lastProgressAt: Date.now(),
   });
 
   // ── THE WATCHDOG — a ceiling nobody checks is not a ceiling ────────────────────────────────
@@ -1392,6 +1402,38 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     }, 500);
     costPoll.unref?.();
   }
+
+  // ── THE STALL WATCHDOG — a run that emits no progress for too long is hung, not working (F3) ──
+  //
+  // On 2026-09-05 a run hung in Phase 3 (deed extraction) for 10+ minutes — the UI said "nothing
+  // heard for over ten minutes", yet `activePipelines` stayed at 1 and neither the cost cap (spend
+  // frozen) nor the one-hour clock could fire. This aborts a run that has reported NOTHING for
+  // `STALL_MS`, freeing the slot and filing whatever it has, instead of holding a dead pipeline for
+  // up to an hour. `RUN_STALL_MINUTES` tunes it; 12 min sits just above the UI's 10-min "stalled"
+  // notice and above a slow per-document read, so it catches a hang without cutting off real work.
+  {
+    const envStall = Number(process.env.RUN_STALL_MINUTES);
+    const STALL_MS = (Number.isFinite(envStall) && envStall > 0 ? envStall : 12) * 60_000;
+    const stallWatchdog = setInterval(() => {
+      const active = activePipelines.get(projectId);
+      if (!active || active.abortController?.signal.aborted) { clearInterval(stallWatchdog); return; }
+      const since = Date.now() - (active.lastProgressAt ?? Date.now());
+      if (since >= STALL_MS) {
+        const mins = Math.round(since / 60_000);
+        const message =
+          `Stopped after ${mins} minutes with no progress — the run appears to have stalled. ` +
+          'Everything it already retrieved is kept; re-run to continue.';
+        active.stopReason = { kind: 'error', message };
+        active.abortController?.abort(new Error(message));
+        console.warn(`[stall] ${projectId}: STALL watchdog fired — no progress for ${mins} min`);
+        clearInterval(stallWatchdog);
+      }
+    }, 30_000);
+    stallWatchdog.unref?.();
+    const active = activePipelines.get(projectId);
+    if (active) active.stallWatchdog = stallWatchdog;
+  }
+
   // The bar paces itself to the length this run was given (15–60 min, 30 default). The SHARES
   // are unchanged — retrieval is the same proportion of a short run as of a long one, because it
   // is the same work — so only the speed differs. Without this the bar is calibrated to one
@@ -1675,6 +1717,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const withinPhase = typeof progress.pct === 'number' ? progress.pct / 100 : 0;
       const snapshot = tracker?.observe(progress.phase, progress.message, withinPhase);
 
+      // Stamp the moment of this progress so the stall watchdog (F3) can tell a working run from a
+      // hung one. Any progress at all — a phase, a message — counts as "still alive".
+      { const a = activePipelines.get(projectId); if (a) a.lastProgressAt = Date.now(); }
+
       // Heartbeat the durable record (plan R3). Carries the spend, so an interrupted run's cost is
       // known to within one phase rather than being reconstructed afterwards — and now the phase and
       // percentage too, so a poll that cannot reach this process still draws a truthful bar.
@@ -1934,7 +1980,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         skippedWork: finalBudget.skipped,
         budgetSummary: windDown,
       });
-      clearTimeout(activePipelines.get(projectId)?.watchdog);
+      clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
 
       // P3/A5: auto-run the app's AI data-point analysis after a run so the Data Points / Briefing
@@ -2149,7 +2195,23 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
               // (which refuses when permission cannot be READ, not just when it is denied), the
               // per-run spend ceiling, the cross-run library that will not buy a page twice, and
               // the skip ledger.
-              const recs = report.documentPurchaseRecommendations ?? [];
+              let recs = report.documentPurchaseRecommendations ?? [];
+              // W2 — the checklist DRIVES what is bought. When the operator picked items (any run with
+              // an explicit `gatherSelections`), turn the paid selections into purchase targets and put
+              // them FIRST (plats before deeds), so TexasFile is asked for the plats/recent deeds the
+              // owner wanted — not only what a boundary discrepancy happened to flag. Runs without a
+              // selection are unchanged (they keep the discrepancy-driven recs alone).
+              if (runSettings.gatherSelections) {
+                const selRecs = wantsToPurchaseRecommendations(
+                  selectionsToWants(resolveGatherSelections(runSettings)),
+                  { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
+                );
+                if (selRecs.length > 0) {
+                  recs = [...selRecs, ...recs];
+                  handshakeLogger.attempt('[Purchase]', 'info', 'Checklist targets',
+                    `${selRecs.length} item(s) from the run's what-to-find list, plats first`).success(selRecs.length, '');
+                }
+              }
               if (recs.length > 0) {
                 const permission = await resolvePurchasePermission(projectId);
                 const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
@@ -2186,7 +2248,11 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 } else {
                   // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
                   // told the operator nothing they could have acted on.
-                  const ceiling = runSettings.maxCostUsd ?? 25;
+                  // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget is the
+                  // dedicated TexasFile budget the operator set ($15 in the run-start UI), floored to
+                  // $10 by gather-budget; the separate other-sources budget covers free capture. Falls
+                  // back to the run's cost cap when no dedicated TexasFile budget was given.
+                  const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
                   handshakeLogger
                     .attempt('[Purchase]', 'info', 'Buying documents',
                       `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)
@@ -2788,7 +2854,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         budgetSummary: budgetStop ? stop?.message ?? null : null,
         failureReason: budgetStop ? null : errMessage.slice(0, 500),
       });
-      clearTimeout(activePipelines.get(projectId)?.watchdog);
+      clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
@@ -3544,6 +3610,64 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: `Re-analysis failed: ${msg}` });
   }
+});
+
+// ── POST /research/read-documents/:projectId — the WORKER-SIDE analysis (plan A1/A2/BW/F1) ──────────
+//
+// Runs the OCR reading pass over a project's already-FILED documents on demand: it re-reads every
+// document that has no usable text — including the `pending` deeds a stalled gather run left behind —
+// so nothing captured stays invisible to analysis. Unlike the app's `analyzeProject` (Vercel
+// serverless, which freezes long jobs), this runs on the long-lived worker and completes. In
+// `benchmark` mode it runs UNCAPPED (30–60 s/page inside the reader) and, when done, reports
+// `benchmark_usd_per_page` = the project's ledger spend ÷ total pages — the calibration number.
+//
+// 202 + fire-and-forget: the work runs in the worker process (which persists), so a 10-minute read
+// does not hold an HTTP connection. Poll document status / the ledger for progress.
+app.post('/research/read-documents/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const body = (req.body ?? {}) as { benchmark?: boolean; maxCostUsd?: number };
+  const benchmark = body.benchmark === true;
+
+  // A cost cap bounds a normal read; a benchmark read is uncapped (it exists to measure true cost).
+  const limits = limitsFor({ maxCostUsd: benchmark ? undefined : body.maxCostUsd });
+  startRun(projectId, limits);
+
+  res.status(202).json({ status: 'reading', projectId, benchmark, maxCostUsd: benchmark ? null : limits.maxCostUsd });
+
+  // Runs in the worker process, which is long-lived — so it completes where the app route cannot.
+  void (async () => {
+    enterRunContext(projectId); // attribute every OCR/AI call to this project (usage.ts)
+    const log = (line: string) => console.log(`[ReadDocs${benchmark ? ':bench' : ''}] ${projectId}: ${line}`);
+    try {
+      // Benchmark reads everything; a normal read stops at the cost cap.
+      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost';
+      const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue));
+      log(report ? `Read pass: ${report.reanalysed} read, ${report.leftUnread ?? 0} left, ${report.failed ?? 0} failed of ${report.considered}.` : 'Read pass returned nothing.');
+
+      if (benchmark) {
+        const spent = await ledgerSpendForRun(projectId);
+        const supabase = await getSupabase();
+        let pages = 0;
+        if (supabase) {
+          const { data } = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ page_count: number | null }> | null }> } } })
+            .from('research_documents').select('page_count').eq('research_project_id', projectId);
+          pages = (data ?? []).reduce((s, d) => s + (Number(d.page_count) || 1), 0);
+          const perPage = pages > 0 ? Number((spent / pages).toFixed(4)) : 0;
+          await (supabase as unknown as { from: (t: string) => { update: (r: unknown) => { eq: (k: string, v: string) => Promise<unknown> } } })
+            .from('research_projects').update({ analysis_metadata: { benchmark_total_pages: pages, benchmark_cost_usd: Number(spent.toFixed(4)), benchmark_usd_per_page: perPage, benchmark_ran_at: new Date().toISOString() } }).eq('id', projectId);
+          log(`BENCHMARK: $${spent.toFixed(4)} over ${pages} page(s) = $${perPage}/page. Set ANALYSIS_RATE_USD_PER_PAGE to this (with margin).`);
+        }
+      }
+    } catch (e) {
+      log(`Read pass failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      endRun(projectId);
+    }
+  })();
 });
 
 // ── POST /research/analyze ─────────────────────────────────────────────────

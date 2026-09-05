@@ -2492,6 +2492,9 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   error?: string;
   errorCategory?: string;
   logs?: AnalysisLogEntry[];
+  // R3 — the analyze run's own spend vs the cap the operator set, so the UI can draw a cost bar.
+  estimatedCostUsd?: number;
+  costCapUsd?: number | null;
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
     supabaseAdmin.from('research_projects').select('status, analysis_metadata, updated_at').eq('id', projectId).single(),
@@ -2530,5 +2533,7 @@ export async function getAnalysisStatus(projectId: string): Promise<{
     ...(metadata?.error ? { error: String(metadata.error) } : {}),
     ...(metadata?.error_category ? { errorCategory: String(metadata.error_category) } : {}),
     ...(Array.isArray(metadata?.logs) ? { logs: metadata.logs as AnalysisLogEntry[] } : {}),
+    ...(typeof metadata?.estimated_cost_usd === 'number' ? { estimatedCostUsd: metadata.estimated_cost_usd } : {}),
+    ...(metadata?.cost_cap_usd !== undefined ? { costCapUsd: (metadata.cost_cap_usd as number | null) } : {}),
   };
 }

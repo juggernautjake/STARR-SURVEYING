@@ -24,6 +24,7 @@ import AnalysisSummary from '../components/AnalysisSummary';
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
+import ProjectCostBadge from '../components/ProjectCostBadge';
 import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
 import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
@@ -644,21 +645,13 @@ export default function ResearchProjectPage() {
   // ── R1: Start AI analysis from the always-visible action bar ──────────────
   // Mirrors Stage 1's "Initiate Research & Analysis": seed the search params
   // from the saved project, flag auto-start, and move to the research stage so
-  // ResearchRunPanel fires the pipeline on mount. The user never has to hunt
-  // for the run control by workflow stage.
+  // The FIRST run now goes through the same settings dialog as a re-run (plan W1.3), so the operator
+  // sets WHAT to find (the checklist) and the TexasFile/other budgets before any money is spent —
+  // rather than auto-starting with defaults. The dialog's onConfirm (handleRerunResearch) carries
+  // those settings with the run via pendingRunInput.
   function handleStartAnalysis() {
     if (!project) return;
-    setPendingSearchParams({
-      address: project.property_address || '',
-      county: project.county || '',
-      parcelId: project.parcel_id || '',
-      ownerName: projectOwnerName(project) || '',
-    });
-    setShouldAutoStartPipeline(true);
-    setHoldOnResearchStage(true);
-    setPipelineHasStarted(false);
-    setViewStage(null);
-    handleStatusUpdate('configure');
+    setShowRerunConfirm(true);
   }
 
   // ── R4: One-click results export from the Review stage ───────────────────
@@ -2005,6 +1998,9 @@ export default function ResearchProjectPage() {
               here, with its own cost cap. A gather run files documents with no AI; this is where the
               user, having reviewed them, pays to analyse. */}
           <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
+
+          {/* F2/U — the project's TRUE all-phases spend (gather + analyze) from the usage ledger. */}
+          <div style={{ margin: '0 0 1rem' }}><ProjectCostBadge projectId={projectId} /></div>
 
           {/* E3b — the fixed-price analysis quote: a full-analysis total and a per-file price with an
               "Analyze this" button, so the operator can analyse everything or one file at a time. */}

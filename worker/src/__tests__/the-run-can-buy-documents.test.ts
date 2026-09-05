@@ -32,8 +32,8 @@ const code = SRC
   })
   .join('\n');
 
-const at = code.indexOf('const recs = report.documentPurchaseRecommendations ?? [];');
-const block = at === -1 ? '' : code.slice(at, at + 4200);
+const at = code.indexOf('recs = report.documentPurchaseRecommendations ?? [];');
+const block = at === -1 ? '' : code.slice(at, at + 5200);
 
 describe('the run reaches the purchase step', () => {
   it('CONTROL: the purchase block is where this test thinks it is', () => {
@@ -98,7 +98,9 @@ describe('it says what it is about to spend, before it spends it', () => {
     // `runSettings.maxCostUsd` is what the operator chose in the re-run dialog. The Lab route
     // defaulted to 25 with no caller ever passing one, which is how a per-run limit came to govern
     // nothing.
-    expect(block).toContain('const ceiling = runSettings.maxCostUsd ?? 25;');
+    // W3: the orchestrator budget is the dedicated TexasFile budget (falling back to the cost cap),
+    // still from runSettings, not a constant.
+    expect(block).toContain('const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;');
     expect(block).toContain('budget: ceiling,');
   });
 

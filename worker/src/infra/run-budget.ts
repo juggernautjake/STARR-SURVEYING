@@ -57,7 +57,11 @@ export const DEFAULT_LIMITS: BudgetLimits = {
  *  form, becomes a thousand-dollar run with no second opinion. The clamp is silent on purpose —
  *  a request for more is satisfied AT the maximum rather than rejected, because failing a run
  *  outright over a too-large budget helps nobody. `limitsFor` reports what it actually applied. */
-export const MAX_COST_CEILING_USD = 10;
+// Raised 10 → 100 for the two-budget model (plan W3): the operator now sets a dedicated TexasFile
+// budget (up to ~$100) plus an other-sources budget, and the run's cost cap must admit their sum or
+// the cost watchdog would abort a legitimate $15/$5 run at $10. Each budget is still clamped to $100
+// in run-settings, so this ceiling on the combined cap is the runaway guard, not the per-budget one.
+export const MAX_COST_CEILING_USD = 100;
 
 export type ExceededReason = 'wall_clock' | 'cost' | 'paid_pages';
 

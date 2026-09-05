@@ -93,3 +93,18 @@ describe('runGatherPipeline', () => {
     expect(r.results.every((x) => x.outcome === 'stopped')).toBe(true);
   });
 });
+
+// W1 — the dedicated two budgets flow from settings into the gather budget.
+import { normaliseRunSettings } from '../research/run-settings.js';
+describe('dedicated TexasFile + other budgets (W1)', () => {
+  it('parses texasfileBudgetUsd + otherBudgetUsd off the request', () => {
+    const s = normaliseRunSettings({ texasfileBudgetUsd: 15, otherBudgetUsd: 5 });
+    expect(s.texasfileBudgetUsd).toBe(15);
+    expect(s.otherBudgetUsd).toBe(5);
+  });
+  it('gatherBudgetForSettings uses the dedicated TexasFile budget over maxCostUsd', () => {
+    const b = gatherBudgetForSettings({ texasfileBudgetUsd: 15, otherBudgetUsd: 5, maxCostUsd: 2 });
+    expect(b.texasfileBudgetUsd).toBe(15);
+    expect(b.otherBudgetUsd).toBe(5);
+  });
+});

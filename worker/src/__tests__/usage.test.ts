@@ -87,8 +87,10 @@ describe('the record itself', () => {
 
   it('accumulates BEFORE it writes, so a budget counts a call whose row was lost', () => {
     const accumulateAt = src.indexOf('runSpend.set(');
-    const insertAt = src.indexOf(".from('research_usage_events')");
+    // The INSERT specifically (not ledgerSpendForRun's read query, which also reads this table).
+    const insertAt = src.indexOf(".from('research_usage_events').insert");
     expect(accumulateAt).toBeGreaterThan(0);
+    expect(insertAt).toBeGreaterThan(0);
     expect(accumulateAt).toBeLessThan(insertAt);
   });
 

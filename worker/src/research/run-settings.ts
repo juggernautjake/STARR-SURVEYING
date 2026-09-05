@@ -70,6 +70,17 @@ export interface RunSettings {
   maxCostUsd?: number;
 
   /**
+   * The dedicated TexasFile budget for a gather run (plan W1). Metered $1/page; this is the ceiling.
+   * Floored at $10 by `gather-budget.ts` when TexasFile is on. The owner sets this in the run-start
+   * UI (e.g. $15). Absent falls back to `maxCostUsd`, then the floor.
+   */
+  texasfileBudgetUsd?: number;
+
+  /** The dedicated other-sources budget for a gather run (county site / GIS / free capture). Floored
+   *  at $2. The owner sets this in the run-start UI (e.g. $5). */
+  otherBudgetUsd?: number;
+
+  /**
    * `free` touches no paid source at all; `paid` runs the free pass first and then escalates.
    *
    * Not a synonym for `allowPaidDocuments`. Mode picks the SOURCE PLAN; the switch is a hard veto on
@@ -119,6 +130,8 @@ export const RUN_SETTING_KEYS = [
   'refreshImagery',
   'phase',
   'gatherSelections',
+  'texasfileBudgetUsd',
+  'otherBudgetUsd',
 ] as const;
 
 /** Ceilings on the ceilings.
@@ -168,6 +181,11 @@ export function normaliseRunSettings(raw: unknown): RunSettings {
   if (Number.isFinite(usd) && usd >= 0) {
     out.maxCostUsd = clamp(usd, LIMITS.usd.min, LIMITS.usd.max);
   }
+
+  const tfUsd = Number(r.texasfileBudgetUsd);
+  if (Number.isFinite(tfUsd) && tfUsd >= 0) out.texasfileBudgetUsd = clamp(tfUsd, LIMITS.usd.min, LIMITS.usd.max);
+  const otherUsd = Number(r.otherBudgetUsd);
+  if (Number.isFinite(otherUsd) && otherUsd >= 0) out.otherBudgetUsd = clamp(otherUsd, LIMITS.usd.min, LIMITS.usd.max);
 
   if (r.mode === 'free' || r.mode === 'paid') out.mode = r.mode;
   if (typeof r.refreshImagery === 'boolean') out.refreshImagery = r.refreshImagery;

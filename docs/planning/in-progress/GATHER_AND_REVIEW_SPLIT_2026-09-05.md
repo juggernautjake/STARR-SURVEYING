@@ -2,7 +2,7 @@
 
 **Started** 2026-09-05 · **Branch** `claude/research-pipeline-completion-2026-09-03`
 
-<!-- HOOK:BLOCKED Awaiting the SUPERVISED BENCHMARK SESSION (owner-driven, 2026-09-05). Everything is built + tested (31 slices). The plan now waits on a real run the owner runs with me: (1) a GATHER run to fetch pages, then (2) the BENCHMARK analyze run (POST /analyze {benchmark:true}, no cost cap, 30-60s/page) which reports benchmark_usd_per_page = total cost / total pages; the owner sets ANALYSIS_RATE_USD_PER_PAGE to it. See the "Benchmark session runbook" section below. This needs the branch deployed (worker rebuild + app deploy / merge to main — owner's call) and the funded TexasFile wallet. After the benchmark: the two live-wiring slices (selections->acquisition feed; estimate-and-warn into the purchase path), verified against that run. Remove this marker when the session is scheduled/underway to resume the loop. -->
+<!-- HOOK:BLOCKED SUPERSEDED — all remaining work (foundational fixes, worker-side analysis + benchmark, TexasFile wiring W1-W4, UI, proof) is consolidated into RESEARCH_SYSTEM_COMPLETION_2026-09-05.md, which the loop now builds in phases. This doc is kept for its SHIPPED-slice history. -->
 
 
 ## CONSOLIDATED STATUS + REMAINING WIRING — owner review 2026-09-05 (evening)
