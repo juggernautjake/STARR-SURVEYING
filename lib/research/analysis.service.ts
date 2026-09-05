@@ -9,6 +9,8 @@ import { searchOpenWeb, renderFindingsAsDocument, type OpenWebResult } from './o
 import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
 import { toConfidenceFraction, confidencePercentLabel } from './confidence-scale';
+import { estimateCostCents } from '@/lib/ai/usage';
+import { pageCountOf } from '@/lib/research/analysis-estimate';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -41,6 +43,69 @@ import type {
 export interface AnalysisConfig {
   extractCategories: Record<string, boolean>;
   templateId?: string;
+  /**
+   * The analyze run's OWN cost ceiling in USD (plan GATHER_AND_REVIEW_SPLIT R1). Set by the operator
+   * from the Review stage's "Run AI Review" — this run is separate from the gather run and gets its
+   * own budget. When the estimated AI spend reaches this, the run stops before the next document
+   * rather than analysing on. Absent means no cap (analyse every document).
+   */
+  maxCostUsd?: number;
+  /**
+   * Analyse only this one document (plan E3) — the per-file "Analyze this" button in Review. When
+   * set, the run extracts from just this document instead of every gathered file, at that file's own
+   * quoted price. Absent means analyse them all.
+   */
+  documentId?: string;
+
+  /**
+   * BENCHMARK mode — the one-off calibration run that SETS the standardized $/page rate. It runs with
+   * NO cost cap, analyses every page, gives each page 30–60 s of processing before moving on, and at
+   * the end reports `benchmark_usd_per_page = total AI cost ÷ total pages` into `analysis_metadata`.
+   * The owner reads that number and sets `ANALYSIS_RATE_USD_PER_PAGE`. Not for normal runs.
+   */
+  benchmark?: boolean;
+}
+
+/** Benchmark: the per-page processing-time allowance (owner: 30–60 s/page). The per-document timeout
+ *  scales to `pages × this` so a many-page document is not cut off mid-calibration. */
+export const BENCHMARK_MS_PER_PAGE = 60_000;
+
+// The model the analyze-cost estimate is priced against. Deliberately the DEAREST model the
+// extraction could use, so the estimate is an upper bound: stopping when the *estimate* reaches the
+// operator's cap guarantees the real spend never exceeds it. See lib/ai/usage PRICE table.
+const ANALYSIS_PRICING_MODEL = 'claude-opus-5';
+
+/**
+ * The benchmark calibration result: total cost ÷ total pages across the analysed documents. This is
+ * the number the owner reads off a benchmark run to set the standardized `ANALYSIS_RATE_USD_PER_PAGE`.
+ */
+export function benchmarkResult(
+  docs: Array<{ page_count?: number | null }>,
+  costUsd: number,
+): { benchmark: true; benchmark_total_pages: number; benchmark_cost_usd: number; benchmark_usd_per_page: number } {
+  const pages = (docs ?? []).reduce((sum, d) => sum + pageCountOf(d), 0);
+  const perPage = pages > 0 ? costUsd / pages : 0;
+  return {
+    benchmark: true,
+    benchmark_total_pages: pages,
+    benchmark_cost_usd: round4(costUsd),
+    benchmark_usd_per_page: round4(perPage),
+  };
+}
+
+function round4(n: number): number {
+  return Math.round((Number.isFinite(n) ? n : 0) * 10000) / 10000;
+}
+
+/** Estimate the analyze run's spend so far (USD) from the accumulated token usage, as an upper bound. */
+export function estimateAnalysisCostUsd(tokenUsage: { input: number; output: number }): number {
+  const cents = estimateCostCents({
+    model: ANALYSIS_PRICING_MODEL,
+    inputTokens: tokenUsage.input,
+    outputTokens: tokenUsage.output,
+    cacheReadTokens: 0,
+  });
+  return (cents ?? 0) / 100;
 }
 
 const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
@@ -256,13 +321,13 @@ const HEARTBEAT_INTERVAL_MS = 12_000;
 /** A project is considered "frozen" when its updated_at hasn't changed in this long. */
 export const FROZEN_THRESHOLD_MS = 5 * 60_000; // 5 minutes — allows time for thorough Vision OCR analysis
 
-function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<T> {
+function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string, timeoutMs = DOCUMENT_ANALYSIS_TIMEOUT_MS): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error(`Document analysis timed out after 8 minutes: "${docLabel}"`)),
-        DOCUMENT_ANALYSIS_TIMEOUT_MS,
+        () => reject(new Error(`Document analysis timed out after ${Math.round(timeoutMs / 60_000)} minutes: "${docLabel}"`)),
+        timeoutMs,
       )
     ),
   ]);
@@ -520,6 +585,15 @@ export async function analyzeProject(
 ): Promise<{ dataPointCount: number; discrepancyCount: number }> {
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
   const resumeMode = config?.resume === true;
+  // The analyze run's own cost ceiling (plan R1). Undefined = no cap.
+  // BENCHMARK mode runs with NO cost cap (it exists to measure the true cost). Otherwise the run's
+  // own cap applies (R1).
+  const benchmark = config?.benchmark === true;
+  const analyzeCostCapUsd = benchmark
+    ? undefined
+    : (typeof config?.maxCostUsd === 'number' ? config.maxCostUsd : undefined);
+  // Per-file analysis (E3): analyse only this document when set.
+  const onlyDocumentId = typeof config?.documentId === 'string' && config.documentId ? config.documentId : undefined;
 
   // In resume mode, carry over logs from the previous (frozen/aborted) run so the
   // complete history is visible in the UI.
@@ -796,9 +870,20 @@ export async function analyzeProject(
 
     // In resume mode, skip documents already successfully analyzed in a previous run.
     // Non-resume mode re-analyzes everything for a fully fresh result.
-    const documents = resumeMode
+    let documents = resumeMode
       ? allDocuments.filter((d: { processing_status: string }) => d.processing_status !== 'analyzed')
       : allDocuments;
+
+    // Per-file analysis (E3): narrow to the one document the operator asked to analyse.
+    if (onlyDocumentId) {
+      documents = allDocuments.filter((d: { id: string }) => d.id === onlyDocumentId);
+      if (documents.length === 0) {
+        addLog('error', `Document ${onlyDocumentId} is not available for analysis`, 'It may not be in an "extracted" or "analyzed" state, or does not belong to this project.');
+        await persistLogs();
+        throw new Error(`Document ${onlyDocumentId} not found for analysis`);
+      }
+      addLog('info', `Analysing a single document (${onlyDocumentId}) at its quoted price.`);
+    }
 
     const skippedCount = allDocuments.length - documents.length;
     if (resumeMode && skippedCount > 0) {
@@ -1085,6 +1170,12 @@ export async function analyzeProject(
         updated_at: new Date().toISOString(),
       }).eq('id', doc.id);
 
+      // Benchmark gives each page 30–60 s of processing: scale the per-document timeout to its pages
+      // so a many-page scan is not cut off mid-calibration. Normal runs keep the fixed 8-minute cap.
+      const docTimeoutMs = benchmark
+        ? Math.max(DOCUMENT_ANALYSIS_TIMEOUT_MS, pageCountOf(doc) * BENCHMARK_MS_PER_PAGE)
+        : DOCUMENT_ANALYSIS_TIMEOUT_MS;
+
       try {
         const extracted = await raceWithAbort(
           withDocumentTimeout(
@@ -1094,7 +1185,8 @@ export async function analyzeProject(
               owner: ownerName,
               notes: userNotes,
             }),
-            docLabel
+            docLabel,
+            docTimeoutMs
           )
         );
         allDataPoints.push(...extracted);
@@ -1189,6 +1281,27 @@ export async function analyzeProject(
 
         addLog('warn', `Document "${docLabel}" had an error but analysis will continue with remaining documents`);
         await persistLogs();
+      }
+
+      // ── The analyze run's OWN cost cap (plan R1) ──────────────────────────────────────────────
+      // A separate run from the gather run, with its own ceiling the operator set. Checked after each
+      // document (its tokens are now in the accumulator) and before the next: if the estimated spend
+      // has reached the cap, stop here rather than analyse on. The estimate is an upper bound
+      // (priced at the dearest model), so the real spend never exceeds what the operator allowed.
+      if (typeof analyzeCostCapUsd === 'number' && analyzeCostCapUsd >= 0) {
+        const spent = estimateAnalysisCostUsd(tokenUsage);
+        if (spent >= analyzeCostCapUsd) {
+          addLog(
+            'warn',
+            `Analysis stopped at the $${analyzeCostCapUsd.toFixed(2)} cost limit you set`,
+            `Estimated spend $${spent.toFixed(2)} after ${docIndex + 1} of ${documents.length} document(s). Raise the limit and re-run to analyse the rest.`,
+          );
+          await persistLogs({ estimated_cost_usd: spent, cost_cap_usd: analyzeCostCapUsd, stopped_at_cost_cap: true });
+          break;
+        }
+        // Report running cost as progress against the cap (R3) so the UI's cost bar can track it —
+        // folded into the per-document persist that already runs, no extra write.
+        await persistLogs({ estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage), cost_cap_usd: analyzeCostCapUsd });
       }
     }
 
@@ -1427,8 +1540,25 @@ export async function analyzeProject(
       discrepancy_count: allDiscrepancies.length,
       documents_analyzed: allDocuments.length,
       tokens_used: tokenUsage,
+      // The analyze run's own spend, so the UI can report it against the cap the operator set (R3).
+      // Estimated (an upper bound, priced at the dearest model) because token pricing varies by model.
+      estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
+      cost_cap_usd: analyzeCostCapUsd ?? null,
       coherence_review: coherenceReview,
+      // Benchmark result (the calibration run): total cost ÷ total pages = the standardized rate the
+      // owner sets ANALYSIS_RATE_USD_PER_PAGE to. Only present on a benchmark run.
+      ...(benchmark ? benchmarkResult(documents, estimateAnalysisCostUsd(tokenUsage)) : {}),
     }, { status: 'review' });
+
+    if (benchmark) {
+      const r = benchmarkResult(documents, estimateAnalysisCostUsd(tokenUsage));
+      addLog(
+        'success',
+        `BENCHMARK: $${r.benchmark_cost_usd.toFixed(4)} over ${r.benchmark_total_pages} page(s) = ` +
+          `$${r.benchmark_usd_per_page.toFixed(4)}/page. Set ANALYSIS_RATE_USD_PER_PAGE to this (with margin).`,
+      );
+      await persistLogs();
+    }
 
     clearInterval(heartbeatTimer);
     clearTimeout(watchdogTimer);

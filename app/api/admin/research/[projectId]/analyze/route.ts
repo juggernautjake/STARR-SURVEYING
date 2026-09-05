@@ -36,13 +36,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Parse optional config from body early so we can check resume mode for the status check below
-  let config: { extractCategories?: Record<string, boolean>; resume?: boolean } | undefined;
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean } | undefined;
   try {
-    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean };
-    if (body.extractCategories || body.resume) {
+    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean };
+    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId || body.benchmark) {
       config = {};
       if (body.extractCategories) config.extractCategories = body.extractCategories;
       if (body.resume) config.resume = true;
+      // The analyze run's own cost cap (plan R1). Clamped to a sane range; a $0 cap is meaningful
+      // ("estimate only, analyse nothing paid") and survives, so clamp rather than reject.
+      if (typeof body.maxCostUsd === 'number' && Number.isFinite(body.maxCostUsd)) {
+        config.maxCostUsd = Math.min(Math.max(body.maxCostUsd, 0), 100);
+      }
+      // Per-file analysis (plan E3): analyse only this one document at its quoted price.
+      if (typeof body.documentId === 'string' && body.documentId) config.documentId = body.documentId;
+      // Benchmark calibration run (no cost cap, page-scaled time) — sets the standardized $/page rate.
+      if (body.benchmark === true) config.benchmark = true;
     }
   } catch {
     // No body or invalid JSON — use defaults

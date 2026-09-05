@@ -105,8 +105,14 @@ const runs = new Map<string, BudgetState>();
  *  A caller's `maxResearchTimeMinutes` is honoured but clamped: a request asking for four hours is
  *  either a mistake or somebody working around a problem that should be fixed properly, and a
  *  worker that accepts it ties up a slot the whole time. */
+/**
+ * A GATHER run (plan B2.3) is *only* searching, purchasing and downloading files — the owner caps
+ * that at 25 minutes. It is a tighter cap than the general one-hour wall clock, applied on top of it.
+ */
+export const GATHER_MAX_MINUTES = 25;
+
 export function limitsFor(
-  requested?: { maxResearchTimeMinutes?: number; maxCostUsd?: number },
+  requested?: { maxResearchTimeMinutes?: number; maxCostUsd?: number; phase?: 'gather' | 'analyze' },
   env: NodeJS.ProcessEnv = process.env,
 ): BudgetLimits {
   const envCost = Number(env.RUN_MAX_COST_USD);
@@ -122,9 +128,14 @@ export function limitsFor(
   // fixed (tunable only by the deployment, and never above 60).
   const HARD_WALL_CLOCK_MS = 60 * 60_000;
   const envMinutes = Number(env.RUN_MAX_MINUTES);
-  const wallMs = Number.isFinite(envMinutes) && envMinutes > 0
+  let wallMs = Number.isFinite(envMinutes) && envMinutes > 0
     ? Math.min(envMinutes, 60) * 60_000
     : HARD_WALL_CLOCK_MS;
+  // A gather run gets the tighter 25-minute cap (owner, B2.3) — never longer than the general wall
+  // clock, so a lowered RUN_MAX_MINUTES still wins.
+  if (requested?.phase === 'gather') {
+    wallMs = Math.min(wallMs, GATHER_MAX_MINUTES * 60_000);
+  }
 
   // A requested cost of 0 is meaningful — "spend nothing, free sources only" — so it must survive,
   // which `||` would not: `0 || fallback` is the fallback. Only a missing or unusable number falls

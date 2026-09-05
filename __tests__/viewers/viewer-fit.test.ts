@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  fitScale, isAtFit, clampZoom, MIN_ZOOM, MAX_ZOOM,
+  fitScale, isAtFit, shouldRefitOnPageChange, clampZoom, MIN_ZOOM, MAX_ZOOM,
   nextRotation, rotationFit, viewerIntent, isTypingTarget, VIEWER_SHORTCUTS, ZOOM_STEP, WHEEL_STEP,
   type Rotation, type ViewerIntent,
 } from '@/lib/viewers/viewer-fit';
@@ -171,17 +171,19 @@ describe('the viewer uses it', () => {
     expect(src).toContain('if (needsFit.current) fitToContainer()');
   });
 
-  it('a page change asks for a re-fit', () => {
-    const at = src.indexOf('needsFit.current = true');
-    expect(at, 'nothing marks the new page as needing a fit').toBeGreaterThan(-1);
+  it('a page change re-fits ONLY when at fit, so a manual zoom persists across pages', () => {
+    // Owner's refinement: full-size on open, but once zoomed in, next/previous page keeps that
+    // zoom. So the page-change effect no longer forces a re-fit — it asks the shared rule.
+    const at = src.indexOf('needsFit.current = shouldRefitOnPageChange(zoom, fitZoom)');
+    expect(at, 'the page-change effect no longer defers to the persist-zoom rule').toBeGreaterThan(-1);
     // It must be in the effect keyed on currentPage, or it fires at the wrong time.
     expect(src.slice(at, at + 200)).toContain('[currentPage]');
   });
 
   it('and does NOT set a zoom on page change, which would flash the wrong scale', () => {
     // The old code did `setZoom(1)` here. The new image's dimensions are unknown at that moment, so
-    // any value set is a guess that gets corrected one frame later — visibly.
-    const at = src.indexOf('needsFit.current = true');
+    // any value set is a guess that gets corrected one frame later — visibly. onLoad measures.
+    const at = src.indexOf('needsFit.current = shouldRefitOnPageChange(zoom, fitZoom)');
     const effect = src.slice(at, src.indexOf('}, [currentPage]);', at));
     expect(effect, 'the page-change effect sets a zoom again').not.toMatch(/setZoom\(/);
   });
@@ -814,6 +816,21 @@ describe('all four viewers now share one rotation model', () => {
       expect(src, `${name} does not read the shared viewer module`)
         .toContain("from '@/lib/viewers/viewer-fit'");
     }
+  });
+
+  it('keeps the users zoom across a page change, re-fitting only when at fit', () => {
+    // Owner: full-size on open, but once zoomed in, next/previous page keeps that zoom; zoom only
+    // changes on a manual zoom. So the page-change handler re-fits ONLY when currently at fit.
+    const fit = 0.4;
+    expect(shouldRefitOnPageChange(fit, fit)).toBe(true);   // viewing the whole page → re-fit next page
+    expect(shouldRefitOnPageChange(2, fit)).toBe(false);    // zoomed in → keep the zoom
+    expect(shouldRefitOnPageChange(1, fit)).toBe(false);    // 100% while fit is 0.4 → still a manual zoom
+    expect(shouldRefitOnPageChange(fit + 0.0005, fit)).toBe(true); // within tolerance → still at fit
+  });
+
+  it('SourceDocumentViewer uses the shared rule for page-change zoom persistence', () => {
+    const src = read('app/admin/research/components/SourceDocumentViewer.tsx');
+    expect(src).toContain('shouldRefitOnPageChange(zoom, fitZoom)');
   });
 
   it('none of them re-derives a quarter turn by hand', () => {

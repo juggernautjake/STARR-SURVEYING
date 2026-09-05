@@ -286,6 +286,16 @@ export interface PurchaseBillingSummary {
   paymentMethod: string;
   remainingBalance: number;
   invoicePath: string;
+
+  // ── TexasFile metered spend (plan GATHER_AND_REVIEW_SPLIT B2) ───────────────────────────────────
+  // TexasFile is metered ($1/page) within a budget that is only the ceiling — the run pays for pages
+  // actually bought, no flat fee or refund. Present only on runs where TexasFile was enabled.
+  /** The TexasFile budget ceiling for this run (≥ $10 when on). */
+  texasfileBudgetUsd?: number;
+  /** How many documents TexasFile actually obtained + filed. */
+  texasfileFilesFound?: number;
+  /** Real TexasFile wallet spend this run ($1/page), within the budget. */
+  texasfileWalletSpend?: number;
 }
 
 // ── Final PurchaseReport (the Phase 9 deliverable) ──────────────────────────

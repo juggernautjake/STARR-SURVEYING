@@ -74,6 +74,21 @@ export interface RunSettingsInput {
   maxCostUsd?: number;
   mode?: 'free' | 'paid';
   refreshImagery?: boolean;
+  /**
+   * Which half of the split pipeline this run is (plan GATHER_AND_REVIEW_SPLIT): `gather` acquires
+   * files with NO AI; `analyze` runs OCR/summaries over what a gather run filed, under its own cost
+   * cap. Mirrors the worker's `RunSettings.phase` — keep in sync (guarded by
+   * run-settings-mirror.test.ts). Absent means the legacy monolithic run.
+   */
+  phase?: 'gather' | 'analyze';
+  // Which items the gather run should find, from the Configure checklist (plan S1) — subject plus an
+  // optional adjoiner set. Mirrors the worker's RunSettings.gatherSelections. Keys: recent_deed,
+  // recent_easement, recent_plat, google_map, gis_satellite, gis_parcel, all_deeds, all_plats,
+  // all_files. Default is all_files with adjoiners off.
+  gatherSelections?: {
+    items: string[];
+    adjoiners: { enabled: boolean; items: string[] };
+  };
 }
 
 export interface StartRunInput {

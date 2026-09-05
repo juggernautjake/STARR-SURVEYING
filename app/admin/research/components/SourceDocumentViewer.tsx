@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ResearchDocument } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import {
-  fitScale, isAtFit, clampZoom, nextRotation, viewerIntent, isTypingTarget,
+  fitScale, isAtFit, shouldRefitOnPageChange, clampZoom, nextRotation, viewerIntent, isTypingTarget,
   VIEWER_SHORTCUTS, ZOOM_STEP, WHEEL_STEP, type Rotation,
 } from '@/lib/viewers/viewer-fit';
 // A `storage_url` is a string built by `getPublicUrl`, never a check that the file exists.
@@ -207,6 +207,23 @@ export default function SourceDocumentViewer({
     needsFit.current = false;
   }, [rotation]);
 
+  // Measure the new page's fit scale WITHOUT changing the current zoom — used when the user has
+  // zoomed in and pages forward: their zoom is kept (owner: "zoom should only change if the user
+  // updates it manually"), but the Reset/Fit target must still track this page's own dimensions.
+  const measureFit = useCallback((forRotation?: Rotation) => {
+    const el = containerRef.current;
+    const img = imgRef.current;
+    if (!el || !img || !img.naturalWidth || !img.naturalHeight) return;
+    const scale = fitScale({
+      containerW: el.clientWidth,
+      containerH: el.clientHeight,
+      naturalW: img.naturalWidth,
+      naturalH: img.naturalHeight,
+      rotation: forRotation ?? rotation,
+    });
+    if (scale !== null) setFitZoom(scale);
+  }, [rotation]);
+
   /** Turn a quarter, and re-fit to the box the page now occupies. */
   const rotateBy = useCallback((direction: 'cw' | 'ccw') => {
     const next = nextRotation(rotation, direction);
@@ -214,16 +231,19 @@ export default function SourceDocumentViewer({
     fitToContainer(next);
   }, [rotation, fitToContainer]);
 
-  // A page change asks for a re-fit. It does not set a zoom itself: the new image's dimensions are
-  // not known yet, and guessing produces exactly the flash of wrong scale this is meant to remove.
-  // `onLoad` fires for every `src` change, cached or not, and does the measuring.
+  // A page change re-fits ONLY when the user is viewing the whole page. If they have zoomed in, the
+  // ZOOM SURVIVES the page change — the owner's rule: "once the user zooms in, if they hit next or
+  // previous page it keeps that same level of zoom; the zoom should only change if the user updates
+  // it manually." So `needsFit` is set from whether we are currently at fit: at fit → re-fit the new
+  // page (its dimensions come from `onLoad`); zoomed in → keep the zoom and only re-measure the fit
+  // target (`measureFit` in `onLoad`) so Reset still works.
   //
-  // The ROTATION deliberately survives a page change. A deed scanned sideways is scanned sideways
-  // on all fourteen pages, and re-turning it fourteen times is the thing somebody would complain
-  // about next. It resets when the viewer closes, because the component unmounts.
+  // The ROTATION likewise survives a page change (a deed scanned sideways is sideways on every
+  // page). Both reset when the viewer closes, because the component unmounts.
   useEffect(() => {
-    needsFit.current = true;
+    needsFit.current = shouldRefitOnPageChange(zoom, fitZoom);
     setPosition({ x: 0, y: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
   // ── FULL SCREEN ─────────────────────────────────────────────────────────────────────────────
@@ -821,8 +841,10 @@ export default function SourceDocumentViewer({
                 draggable={false}
                 onLoad={() => {
                   // Fires on every src change, so this is the one place that reliably knows the
-                  // new page's real dimensions.
+                  // new page's real dimensions. Re-fit when asked (opening a page at fit); otherwise
+                  // the user's manual zoom is kept and we only re-measure the fit target for Reset.
                   if (needsFit.current) fitToContainer();
+                  else measureFit();
                   redrawCanvas();
                 }}
               />
