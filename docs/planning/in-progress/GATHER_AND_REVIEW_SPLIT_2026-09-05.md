@@ -522,6 +522,15 @@ Render the checklist in Configure with the defaults; the "research adjoining pro
 reveals the duplicate adjoiner checklist. Save into the run settings the pipeline sends. Source-assert
 the wiring; owner browser-QAs the render.
 
+> **SHIPPED 2026-09-05 (owner browser-QA pending).** `GatherSelectionsField.tsx`: the grouped
+> checklist (Documents: all_files, plats, deeds, easement; Maps & imagery: google/GIS) + a "research
+> adjoining properties" toggle that reveals a duplicate adjoiner checklist. Pure `toggleKey` +
+> `SELECTION_OPTIONS` + `DEFAULT_GATHER_SELECTIONS_VALUE` (all_files, no adjoiners). Wired into
+> `RerunDialog`: form state seeded with the default, rendered after the paid-documents toggle, and
+> **sent as `gatherSelections`** in the run settings the pipeline receives (which `normaliseRunSettings`
+> reads, S1). `gather-selections-field.test.ts` (5, options + toggle + dialog wiring); app tsc clean.
+> Owner to browser-QA the render.
+
 ## Phase B2 — two metered budgets (rewrite of G2)
 
 ### B2.1 — `gather-budget.ts` → two independent budgets

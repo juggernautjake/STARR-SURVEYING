@@ -34,6 +34,7 @@ import AddressAutocomplete from '../../components/AddressAutocomplete';
 import RunFileAttachments, { type RunFile } from './RunFileAttachments';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
+import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, type GatherSelectionsValue } from './GatherSelectionsField';
 
 export interface PreviousRun {
   run_number?: number | null;
@@ -73,6 +74,7 @@ interface FormState {
   maxCostUsd: number;
   mode: 'free' | 'paid';
   refreshImagery: boolean;
+  gatherSelections: GatherSelectionsValue;
 }
 
 /** The defaults a run gets when nothing says otherwise. Kept here so the dialog can show them as
@@ -160,6 +162,7 @@ export default function RerunDialog({
         // Off by default even if the last run used it: 19 of 53 duplicate rows measured in
         // production were the same screenshot re-taken by a later run.
         refreshImagery: false,
+        gatherSelections: DEFAULT_GATHER_SELECTIONS_VALUE,
       });
       setLoading(false);
     })();
@@ -221,6 +224,7 @@ export default function RerunDialog({
       maxCostUsd: form.maxCostUsd,
       mode: form.mode,
       refreshImagery: form.refreshImagery,
+      gatherSelections: form.gatherSelections,
     };
     onConfirm({
       address: form.address,
@@ -368,6 +372,13 @@ export default function RerunDialog({
                   </span>
                 </span>
               </label>
+
+              {/* S3 — the "what to find" checklist: which items the gather run should get, for the
+                  subject and optionally the adjoiners. Sent as gatherSelections in the run settings. */}
+              <GatherSelectionsField
+                value={form.gatherSelections}
+                onChange={(next) => set('gatherSelections', next)}
+              />
 
               <div className="rrd__row">
                 <label className="rrd__field">
