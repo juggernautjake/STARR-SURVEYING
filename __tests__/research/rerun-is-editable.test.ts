@@ -163,3 +163,21 @@ describe('a re-run keeps what earlier runs produced', () => {
     expect(dialog).toMatch(/'rerun_edited' : 'rerun_same'/);
   });
 });
+
+describe('the two dedicated gather budgets (W1)', () => {
+  const dialog = read('app/admin/research/components/RerunDialog.tsx');
+  it('offers a TexasFile budget input and an other-sources budget input', () => {
+    expect(dialog).toMatch(/data-testid="texasfile-budget"/);
+    expect(dialog).toMatch(/data-testid="other-budget"/);
+    expect(dialog).toMatch(/TexasFile budget \(USD\)/);
+    expect(dialog).toMatch(/Other-sources budget \(USD\)/);
+  });
+  it('sends both budgets to the run', () => {
+    expect(dialog).toMatch(/texasfileBudgetUsd: form\.texasfileBudgetUsd/);
+    expect(dialog).toMatch(/otherBudgetUsd: form\.otherBudgetUsd/);
+  });
+  it('defaults to $15 TexasFile and $5 other', () => {
+    expect(dialog).toMatch(/texasfileBudget: 15/);
+    expect(dialog).toMatch(/otherBudget: 5/);
+  });
+});

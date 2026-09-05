@@ -132,6 +132,13 @@ Re-run the benchmark on the Nolan Creek project (deeds now OCR'd) or a fresh pro
 
 ## PHASE W — TexasFile wired + the user sets what to search for (owner's priority)
 
+> **W1.1 + W1.2 SHIPPED 2026-09-05.** RunSettings + client mirror carry `texasfileBudgetUsd` +
+> `otherBudgetUsd` (parsed/clamped/drift-guarded); `gatherBudgetForSettings` uses them.
+> `RerunDialog` now renders both budget inputs (TexasFile min $10 default **$15**, gated on paid docs;
+> other min $2 default **$5**) alongside the checklist, and sends both with the run. `rerun-is-editable`
+> +3. Worker + app tsc green. **REMAINING for W1:** the same checklist + budgets in the create-project
+> modal (ProjectsTab) and making the first-run "Start AI analysis" carry these settings (W1.3/W1.4).
+
 ### W1 — Run-start UI: the "what to find" checklist + a dedicated TexasFile budget
 Put the checklist (Everything / All Plats / All Deeds / Most-recent plat / deed / easement / Google &
 GIS maps — any combination, `GatherSelectionsField`) AND a **dedicated TexasFile budget** ($10 default,
