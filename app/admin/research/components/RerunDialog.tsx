@@ -34,7 +34,7 @@ import AddressAutocomplete from '../../components/AddressAutocomplete';
 import RunFileAttachments, { type RunFile } from './RunFileAttachments';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
-import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, type GatherSelectionsValue } from './GatherSelectionsField';
+import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, estimateSelectionCost, type GatherSelectionsValue } from './GatherSelectionsField';
 
 export interface PreviousRun {
   run_number?: number | null;
@@ -434,6 +434,22 @@ export default function RerunDialog({
                          data-testid="other-budget" />
                 </label>
               </div>
+
+              {/* U1/B2.2 — estimate-and-warn: show what the selection is likely to cost on TexasFile
+                  against the budget, so the operator raises the budget or trims the list before it
+                  runs (the run also stops at the budget, so this is guidance, not a hard gate). */}
+              {form.allowPaidDocuments && (() => {
+                const est = estimateSelectionCost(form.gatherSelections);
+                const over = est > form.texasfileBudgetUsd;
+                return (
+                  <p className={`rrd__note ${over ? 'rrd__note--warn' : 'rrd__note--info'}`} data-testid="selection-estimate">
+                    <Info size={14} aria-hidden />
+                    Estimated TexasFile cost for what you selected: <strong>~${est}</strong> of your
+                    ${form.texasfileBudgetUsd} budget.
+                    {over && <> Over budget — raise the TexasFile budget, or the run buys in priority order (plats first) until it runs out.</>}
+                  </p>
+                );
+              })()}
 
               {form.maxCostUsd === 0 && form.allowPaidDocuments && (
                 // The two are separate switches and $0 is the stronger of them, so the dialog says

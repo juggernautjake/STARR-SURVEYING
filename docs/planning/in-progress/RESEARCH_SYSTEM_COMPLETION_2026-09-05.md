@@ -220,6 +220,15 @@ Reformat the portal around Gather vs Analyze with their own states + cost bars (
 analyze cost vs cap, reading R3's `analysis_metadata`). Fold in the built controls (Run AI Review,
 per-file Analyze, cost disclosure). Browser-QA.
 
+> **Estimate-and-warn SHIPPED 2026-09-05 (completes W3's UI half).** `GatherSelectionsField` exports
+> `estimateSelectionCost(value)` (typical $1/page per paid item; maps/GIS free; `all_files` expands),
+> and the run-settings dialog shows "Estimated TexasFile cost for what you selected: ~$X of your $Y
+> budget" with an **over-budget warning** (raise the budget, or the run buys in priority order until it
+> runs out). `selection-estimate.test.ts` (4); app tsc green + rendered-classes/contrast green. Owner
+> browser-QAs. **REMAINING for U1:** the two-run portal restyle + live gather/analyze cost bars — a
+> broader visual pass best done with browser QA; the controls themselves (Run AI Review, per-file
+> Analyze, cost badge, checklist, budgets, estimate) are all built + surfaced.
+
 ### U2 — Review viewer coverage
 Surface the persistent-zoom `SourceDocumentViewer` on the gather-review surface for every gathered
 image/file/page (it already renders full-size with zoom persisting across pages). Browser-QA.

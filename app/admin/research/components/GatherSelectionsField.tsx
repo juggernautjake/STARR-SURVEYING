@@ -53,6 +53,27 @@ export const DEFAULT_GATHER_SELECTIONS_VALUE: GatherSelectionsValue = {
   adjoiners: { enabled: false, items: [] },
 };
 
+// Rough typical TexasFile cost per selected PAID item ($1/page), mirroring the worker's
+// gather-cost-estimate. A hint for the operator; the real charge is metered by pages. Maps/GIS are
+// free captures ($0). `all_files` expands to the paid set below.
+const TYPICAL_ITEM_COST_USD: Record<GatherSelectionKey, number> = {
+  recent_deed: 4, all_deeds: 16, recent_easement: 3,
+  recent_plat: 2, all_plats: 6,
+  google_map: 0, gis_satellite: 0, gis_parcel: 0,
+  all_files: 0, // expanded below
+};
+const ALL_FILES_PAID: GatherSelectionKey[] = ['all_plats', 'all_deeds', 'recent_easement'];
+
+/** Estimate the TexasFile cost of a selection (subject + adjoiner), for the run-start warn (B2.2/U1). */
+export function estimateSelectionCost(value: GatherSelectionsValue): number {
+  const costOf = (items: GatherSelectionKey[]): number => {
+    const set = new Set<GatherSelectionKey>();
+    for (const k of items) { if (k === 'all_files') ALL_FILES_PAID.forEach((e) => set.add(e)); else set.add(k); }
+    return [...set].reduce((s, k) => s + (TYPICAL_ITEM_COST_USD[k] ?? 0), 0);
+  };
+  return costOf(value.items) + (value.adjoiners.enabled ? costOf(value.adjoiners.items) : 0);
+}
+
 export interface GatherSelectionsFieldProps {
   value: GatherSelectionsValue;
   onChange: (next: GatherSelectionsValue) => void;
