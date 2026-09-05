@@ -265,6 +265,14 @@ unanalyzed. Guard with a test asserting the gather path calls no analysis entryp
 > acquisition-only (it walks the want-list via `runGatherAcquisition` and never calls the inline
 > analyzers) — completes with the entrypoint slice.
 
+> **Worker tail gated too, 2026-09-05.** G6 first gated only the app-side analysis trigger, but the
+> worker's own run tail reads documents with adaptive-vision OCR (the biggest spender) and summarises
+> them — analysis that must not run in a gather run. Both are now gated by
+> `shouldRunAnalysis(runSettings)`: `mayRead` returns false for a gather run (so the reading pass
+> reads nothing) and the summary sweep is skipped, while imagery/drawing **capture** still runs
+> (gathering, not analysis). So a gather run files documents and runs **zero AI** end-to-end.
+> `gather-run-skips-reading.test.ts` (3); worker tsc green.
+
 ---
 
 ### G7 — The Gather-run entrypoint (composition)

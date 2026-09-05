@@ -1839,10 +1839,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // there. Run 9 (36:25 on a 30-minute ceiling) is the run this replaces — there is no clock
         // to overrun now, only the cost limit, and the cost watchdog holds that to the dollar.
         const mayRead = () => {
+          // A gather run does NO AI (plan GATHER_AND_REVIEW_SPLIT G6): reading documents (the
+          // adaptive-vision OCR — the biggest spender) is analysis, deferred to the separate analyze
+          // run. Imagery/drawing CAPTURE above is gathering and still runs; only the reading stops.
+          if (!shouldRunAnalysis(runSettings)) return false;
           if (tailSignal?.aborted) return false;
           const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
           return ex !== 'cost' && ex !== 'paid_pages';
         };
+        if (!shouldRunAnalysis(runSettings)) {
+          tailLog('Gather run — documents filed for review; AI reading & summaries run in a separate AI review.');
+        }
         const report = await withRunContext(projectId, () =>
           reanalyseProjectDocuments(projectId, (line) => console.log(`[Reading] ${projectId}: ${line}`), mayRead));
         if (report) {
@@ -1855,7 +1862,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // And a summary for every file that has text but no summary — including the ones read
         // cleanly on an earlier run, which the reader rightly skipped. Same cost budget.
         const summaryKey = process.env.ANTHROPIC_API_KEY ?? '';
-        if (summaryKey) {
+        if (summaryKey && shouldRunAnalysis(runSettings)) {
           const supa = await getSupabase().catch(() => null);
           if (supa) {
             const { summariseUnsummarisedDocuments } = await import('./research/reading-pass.js');
