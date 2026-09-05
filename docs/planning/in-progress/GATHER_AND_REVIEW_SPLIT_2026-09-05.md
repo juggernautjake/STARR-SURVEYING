@@ -548,6 +548,15 @@ Before buying, estimate the selected items' cost; if over the relevant cap, retu
 the estimate and the two choices (proceed within cap in priority order / raise to the estimate). Pure
 estimator + test; the UI presents the choice (S3/U-phase).
 
+> **Estimator SHIPPED 2026-09-05.** `research/gather-cost-estimate.ts`: `estimateItemCostUsd(type,
+> scope, paid)` (typical pages × $1/page; free captures $0) + `assessGatherCost(itemCostsUsd, budget)`
+> → `{ estimateUsd, budgetUsd, overBudget, overageUsd, coverableCount, totalCount }` — how much the
+> selection would cost, whether it's over, and how many items fit in priority order within the budget.
+> Pure (the estimate warns; the real charge is metered). `gather-cost-estimate.test.ts` (6); worker tsc
+> green. **REMAINING for B2.2:** the warn flow itself — returning the assessment to the operator before
+> a gather run buys and honouring their choice (proceed-within-cap / raise-to-estimate); a
+> UI + endpoint slice (with S3). Estimator allowlisted with the staged cluster until then.
+
 ### B2.3 — 25-minute gather wall clock
 Set the gather run's `maxWallClockMs` to 25 min (the watchdog already enforces a wall clock; this
 sets the value for a gather run). Test the limit.

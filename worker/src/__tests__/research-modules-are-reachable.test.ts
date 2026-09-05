@@ -101,6 +101,9 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // phase==='gather', supplying the real resolveFree (county capture) + subject/adjoiner facts — is
   // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
   // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
+  'worker/src/research/gather-cost-estimate.ts':
+    'B2.2 pre-buy TexasFile cost estimator + over-budget assessment (estimate-and-warn). Pure + unit-tested (gather-cost-estimate.test.ts); its consumer is the purchase over-budget warn flow + the Configure estimate UI, staged. Not dead — remove when the warn flow reads it.',
+
   'lib/research/analysis-estimate.ts':
     'E1 standardized $/page analysis estimator (the fixed-price quote processor). Pure + unit-tested (analysis-estimate.test.ts); its consumers are the E2 estimate endpoints and the E3 per-file "Analyze this" price UI, the next slices. Not dead — remove when E2/E3 read it.',
 
