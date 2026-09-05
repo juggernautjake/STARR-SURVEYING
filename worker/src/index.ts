@@ -1340,6 +1340,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     runNumber: startedRun?.runNumber ?? null,
     stopReason: null,
     settings: runSettings as unknown as Record<string, unknown>,
+    lastProgressAt: Date.now(),
   });
 
   // ── THE WATCHDOG — a ceiling nobody checks is not a ceiling ────────────────────────────────
@@ -1392,6 +1393,38 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     }, 500);
     costPoll.unref?.();
   }
+
+  // ── THE STALL WATCHDOG — a run that emits no progress for too long is hung, not working (F3) ──
+  //
+  // On 2026-09-05 a run hung in Phase 3 (deed extraction) for 10+ minutes — the UI said "nothing
+  // heard for over ten minutes", yet `activePipelines` stayed at 1 and neither the cost cap (spend
+  // frozen) nor the one-hour clock could fire. This aborts a run that has reported NOTHING for
+  // `STALL_MS`, freeing the slot and filing whatever it has, instead of holding a dead pipeline for
+  // up to an hour. `RUN_STALL_MINUTES` tunes it; 12 min sits just above the UI's 10-min "stalled"
+  // notice and above a slow per-document read, so it catches a hang without cutting off real work.
+  {
+    const envStall = Number(process.env.RUN_STALL_MINUTES);
+    const STALL_MS = (Number.isFinite(envStall) && envStall > 0 ? envStall : 12) * 60_000;
+    const stallWatchdog = setInterval(() => {
+      const active = activePipelines.get(projectId);
+      if (!active || active.abortController?.signal.aborted) { clearInterval(stallWatchdog); return; }
+      const since = Date.now() - (active.lastProgressAt ?? Date.now());
+      if (since >= STALL_MS) {
+        const mins = Math.round(since / 60_000);
+        const message =
+          `Stopped after ${mins} minutes with no progress — the run appears to have stalled. ` +
+          'Everything it already retrieved is kept; re-run to continue.';
+        active.stopReason = { kind: 'error', message };
+        active.abortController?.abort(new Error(message));
+        console.warn(`[stall] ${projectId}: STALL watchdog fired — no progress for ${mins} min`);
+        clearInterval(stallWatchdog);
+      }
+    }, 30_000);
+    stallWatchdog.unref?.();
+    const active = activePipelines.get(projectId);
+    if (active) active.stallWatchdog = stallWatchdog;
+  }
+
   // The bar paces itself to the length this run was given (15–60 min, 30 default). The SHARES
   // are unchanged — retrieval is the same proportion of a short run as of a long one, because it
   // is the same work — so only the speed differs. Without this the bar is calibrated to one
@@ -1675,6 +1708,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const withinPhase = typeof progress.pct === 'number' ? progress.pct / 100 : 0;
       const snapshot = tracker?.observe(progress.phase, progress.message, withinPhase);
 
+      // Stamp the moment of this progress so the stall watchdog (F3) can tell a working run from a
+      // hung one. Any progress at all — a phase, a message — counts as "still alive".
+      { const a = activePipelines.get(projectId); if (a) a.lastProgressAt = Date.now(); }
+
       // Heartbeat the durable record (plan R3). Carries the spend, so an interrupted run's cost is
       // known to within one phase rather than being reconstructed afterwards — and now the phase and
       // percentage too, so a poll that cannot reach this process still draws a truthful bar.
@@ -1934,7 +1971,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         skippedWork: finalBudget.skipped,
         budgetSummary: windDown,
       });
-      clearTimeout(activePipelines.get(projectId)?.watchdog);
+      clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
 
       // P3/A5: auto-run the app's AI data-point analysis after a run so the Data Points / Briefing
@@ -2788,7 +2825,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         budgetSummary: budgetStop ? stop?.message ?? null : null,
         failureReason: budgetStop ? null : errMessage.slice(0, 500),
       });
-      clearTimeout(activePipelines.get(projectId)?.watchdog);
+      clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);

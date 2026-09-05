@@ -528,6 +528,13 @@ export interface ActivePipeline {
    *  and no phase has reported since — a step that emits no progress was otherwise unstoppable. */
   watchdog?: ReturnType<typeof setTimeout>;
 
+  /** Epoch ms of the last progress the pipeline emitted. The stall watchdog reads it (plan F3). */
+  lastProgressAt?: number;
+  /** The stall watchdog: aborts a run that has emitted no progress for too long — the Phase-3 hang
+   *  that stuck a pipeline slot for 10+ minutes on 2026-09-05 while neither the cost nor the
+   *  one-hour clock could fire. Cleared alongside `watchdog` on finish. */
+  stallWatchdog?: ReturnType<typeof setInterval>;
+
   /** The `research_runs` row this pipeline is writing to, and its ordinal within the project.
    *
    *  Absent only when the run record could not be written (Supabase down). Everything that files a

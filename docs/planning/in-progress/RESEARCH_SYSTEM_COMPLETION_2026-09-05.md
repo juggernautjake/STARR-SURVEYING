@@ -73,6 +73,15 @@ stuck at 1. Diagnose the hang (an un-timed-out AI/extraction call, most likely) 
 watchdog fires: a step that emits no progress for N minutes must abort the run, file what it has, and
 free the pipeline slot. Test the watchdog path.
 
+> **Stall watchdog SHIPPED 2026-09-05.** `ActivePipeline` gains `lastProgressAt` (stamped at run start
+> and on every progress callback) + `stallWatchdog`. A 30s-interval watchdog aborts the run when no
+> progress has been reported for `STALL_MS` (env `RUN_STALL_MINUTES`, default **12 min** — just above
+> the UI's 10-min "stalled" notice and a slow per-doc read), sets an `error` stop reason, frees the
+> slot, and keeps whatever was retrieved; cleared on finish at both terminal sites. `stall-watchdog.test.ts`
+> (5) + `run-cannot-outlive-its-ceiling` still green; worker tsc green. **Note:** this stops a *hung*
+> run; the underlying Phase-3 hang (an un-timed-out extraction call) is best fixed at its source too —
+> tracked with A1 (analysis reliability), where per-step timeouts belong.
+
 ---
 
 ## PHASE A — Analysis where it belongs (the worker, not Vercel)
