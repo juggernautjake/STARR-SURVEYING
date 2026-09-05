@@ -228,6 +228,13 @@ per-file Analyze, cost disclosure). Browser-QA.
 > browser-QAs. **REMAINING for U1:** the two-run portal restyle + live gather/analyze cost bars — a
 > broader visual pass best done with browser QA; the controls themselves (Run AI Review, per-file
 > Analyze, cost badge, checklist, budgets, estimate) are all built + surfaced.
+>
+> **Analyze cost bar SHIPPED 2026-09-05.** `getAnalysisStatus` now returns `estimatedCostUsd` +
+> `costCapUsd` from `analysis_metadata` (R3), and `RunAiReviewControl` polls the analyze status after
+> starting and shows "AI review running — ~$X spent of $Y" (→ "complete — ~$X" at the end), so the
+> operator watches the analyze run's spend against the cap they set. `analyze-cost-bar.test.ts` (2);
+> app tsc green. The only truly-remaining U1 piece is the two-run portal visual restyle (cosmetic,
+> browser-QA).
 
 ### U2 — Review viewer coverage
 Surface the persistent-zoom `SourceDocumentViewer` on the gather-review surface for every gathered

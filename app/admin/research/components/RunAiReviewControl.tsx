@@ -7,7 +7,7 @@
 // set here. This posts that cap to the analyze route (which enforces it, R1), so the money spent on
 // analysis is bounded independently of what the gather run spent.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 
 /** The analyze request body. Pure + exported so the payload (esp. the cost cap) is unit-tested. */
@@ -34,6 +34,24 @@ export default function RunAiReviewControl({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  // R3 — live analyze spend vs the cap the operator set.
+  const [progress, setProgress] = useState<{ status: string; spent?: number; cap?: number | null } | null>(null);
+
+  // After the review starts, poll its status so the operator sees spend against the cap they set.
+  useEffect(() => {
+    if (!started) return;
+    let live = true;
+    const tick = async () => {
+      try {
+        const j = await fetch(`/api/admin/research/${projectId}/analyze`).then((r) => r.json());
+        if (!live) return;
+        setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd });
+        if (j.status === 'analyzing') setTimeout(tick, 4000);
+      } catch { /* transient; the next tick retries */ }
+    };
+    void tick();
+    return () => { live = false; };
+  }, [started, projectId]);
 
   async function run() {
     if (busy) return;
@@ -105,8 +123,12 @@ export default function RunAiReviewControl({
       </button>
       {error && <span role="alert" style={{ color: '#DC2626', fontSize: '0.8rem', flexBasis: '100%' }}>{error}</span>}
       {started && !error && (
-        <span role="status" style={{ color: '#166534', fontSize: '0.8rem', flexBasis: '100%' }}>
-          AI review started — its progress and cost will appear as it runs.
+        <span role="status" data-testid="ai-review-progress" style={{ color: '#166534', fontSize: '0.8rem', flexBasis: '100%' }}>
+          {progress?.status === 'analyzing'
+            ? `AI review running${typeof progress.spent === 'number' ? ` — ~$${progress.spent.toFixed(2)} spent${progress.cap != null ? ` of $${Number(progress.cap).toFixed(2)}` : ''}` : '…'}`
+            : progress?.status === 'review'
+              ? `AI review complete${typeof progress.spent === 'number' ? ` — ~$${progress.spent.toFixed(2)}` : ''}.`
+              : 'AI review started — its progress and cost will appear as it runs.'}
         </span>
       )}
     </div>

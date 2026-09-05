@@ -13,9 +13,8 @@ describe('estimateSelectionCost', () => {
     expect(estimateSelectionCost({ items: ['recent_deed', 'gis_satellite'], adjoiners: { enabled: false, items: [] } })).toBe(4);
   });
   it('adds adjoiner cost only when enabled', () => {
-    const base = { items: ['recent_plat'] as const };
-    expect(estimateSelectionCost({ ...base, adjoiners: { enabled: false, items: ['recent_deed'] } })).toBe(2);
-    expect(estimateSelectionCost({ ...base, adjoiners: { enabled: true, items: ['recent_deed'] } })).toBe(6);
+    expect(estimateSelectionCost({ items: ['recent_plat'], adjoiners: { enabled: false, items: ['recent_deed'] } })).toBe(2);
+    expect(estimateSelectionCost({ items: ['recent_plat'], adjoiners: { enabled: true, items: ['recent_deed'] } })).toBe(6);
   });
   it('expands all_files to the paid set', () => {
     expect(estimateSelectionCost(DEFAULT_GATHER_SELECTIONS_VALUE)).toBeGreaterThan(0); // all_files
