@@ -293,6 +293,18 @@ they set. It reads the already-gathered `research_documents` for the project —
 buy. Its budget is independent of the gather run's spend. Reuse `run-budget`/`usage` keyed to this
 run. Test the settings/kind plumbing (caller-asserting).
 
+> **SHIPPED 2026-09-05.** The app-side analysis (`lib/research/analysis.service.ts`, which reads the
+> already-gathered `research_documents` and does not gather) now honours its OWN cost cap:
+> `AnalysisConfig.maxCostUsd`, read as `analyzeCostCapUsd`. After each document, the run estimates its
+> spend from the token accumulator via `estimateAnalysisCostUsd` (priced at the DEAREST model, so the
+> estimate is an upper bound and the real spend never exceeds the cap) and **breaks the document loop**
+> when it reaches the cap, logging "stopped at the $X cost limit you set". The analyze route accepts +
+> clamps `maxCostUsd` (0–100) from the body — this is the separate cap the Review "Run AI Review"
+> action sends. `analyze-cost-cap.test.ts` (6); app tsc clean. It already has a 30-min analysis
+> watchdog, so both its stops (cost + duration) are covered. Independent of the gather run's spend
+> (different run, its own token accumulator). **REMAINING for R2/R3:** the Review "Run AI Review"
+> control (U4) sends this cap; progress/cost reporting against it is R3.
+
 ### R2 — OCR + extraction + summaries over gathered docs
 Run OCR + the existing vision/extraction over every gathered image/file: bearings, distances, calls,
 subdivision/lot, adjoiner ids/addresses; build the in-depth property summary with document-link

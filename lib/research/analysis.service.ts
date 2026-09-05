@@ -9,6 +9,7 @@ import { searchOpenWeb, renderFindingsAsDocument, type OpenWebResult } from './o
 import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
 import { toConfidenceFraction, confidencePercentLabel } from './confidence-scale';
+import { estimateCostCents } from '@/lib/ai/usage';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -41,6 +42,29 @@ import type {
 export interface AnalysisConfig {
   extractCategories: Record<string, boolean>;
   templateId?: string;
+  /**
+   * The analyze run's OWN cost ceiling in USD (plan GATHER_AND_REVIEW_SPLIT R1). Set by the operator
+   * from the Review stage's "Run AI Review" — this run is separate from the gather run and gets its
+   * own budget. When the estimated AI spend reaches this, the run stops before the next document
+   * rather than analysing on. Absent means no cap (analyse every document).
+   */
+  maxCostUsd?: number;
+}
+
+// The model the analyze-cost estimate is priced against. Deliberately the DEAREST model the
+// extraction could use, so the estimate is an upper bound: stopping when the *estimate* reaches the
+// operator's cap guarantees the real spend never exceeds it. See lib/ai/usage PRICE table.
+const ANALYSIS_PRICING_MODEL = 'claude-opus-5';
+
+/** Estimate the analyze run's spend so far (USD) from the accumulated token usage, as an upper bound. */
+export function estimateAnalysisCostUsd(tokenUsage: { input: number; output: number }): number {
+  const cents = estimateCostCents({
+    model: ANALYSIS_PRICING_MODEL,
+    inputTokens: tokenUsage.input,
+    outputTokens: tokenUsage.output,
+    cacheReadTokens: 0,
+  });
+  return (cents ?? 0) / 100;
 }
 
 const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
@@ -520,6 +544,8 @@ export async function analyzeProject(
 ): Promise<{ dataPointCount: number; discrepancyCount: number }> {
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
   const resumeMode = config?.resume === true;
+  // The analyze run's own cost ceiling (plan R1). Undefined = no cap.
+  const analyzeCostCapUsd = typeof config?.maxCostUsd === 'number' ? config.maxCostUsd : undefined;
 
   // In resume mode, carry over logs from the previous (frozen/aborted) run so the
   // complete history is visible in the UI.
@@ -1189,6 +1215,24 @@ export async function analyzeProject(
 
         addLog('warn', `Document "${docLabel}" had an error but analysis will continue with remaining documents`);
         await persistLogs();
+      }
+
+      // ── The analyze run's OWN cost cap (plan R1) ──────────────────────────────────────────────
+      // A separate run from the gather run, with its own ceiling the operator set. Checked after each
+      // document (its tokens are now in the accumulator) and before the next: if the estimated spend
+      // has reached the cap, stop here rather than analyse on. The estimate is an upper bound
+      // (priced at the dearest model), so the real spend never exceeds what the operator allowed.
+      if (typeof analyzeCostCapUsd === 'number' && analyzeCostCapUsd >= 0) {
+        const spent = estimateAnalysisCostUsd(tokenUsage);
+        if (spent >= analyzeCostCapUsd) {
+          addLog(
+            'warn',
+            `Analysis stopped at the $${analyzeCostCapUsd.toFixed(2)} cost limit you set`,
+            `Estimated spend $${spent.toFixed(2)} after ${docIndex + 1} of ${documents.length} document(s). Raise the limit and re-run to analyse the rest.`,
+          );
+          await persistLogs();
+          break;
+        }
       }
     }
 
