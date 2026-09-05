@@ -46,6 +46,24 @@ export function withRunContext<T>(projectId: string, fn: () => Promise<T>): Prom
   return storage.run({ projectId }, fn);
 }
 
+/**
+ * Attribute the CURRENT async flow (and everything it awaits) to `projectId`, without a callback.
+ *
+ * `withRunContext` wraps a function; the run pipeline is a fire-and-forget promise chain hundreds of
+ * lines long (`runCountyResearch(...).then(tail)`), and wrapping the whole thing is error-prone. This
+ * sets the ambient run for the rest of THIS request handler's async execution instead — so every AI
+ * call the pipeline and its tail make (adaptive-vision OCR, the analyzers) reports through
+ * `recordAmbientAiCall`, is priced against the run, and counts toward its cost ceiling. Before this,
+ * only the tail's `withRunContext` blocks were attributed, so the biggest spender — the OCR — was
+ * invisible to the budget, and a $5-cap run really spent tens of dollars.
+ *
+ * Safe for a background run: each request handler is its own async context, so `enterWith` here does
+ * not leak into other requests.
+ */
+export function enterRunContext(projectId: string): void {
+  storage.enterWith({ projectId });
+}
+
 /** The run this code is executing for, or `null` when there is none. Never a guess. */
 export function currentProjectId(): string | null {
   return storage.getStore()?.projectId ?? null;

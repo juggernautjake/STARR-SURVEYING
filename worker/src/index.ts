@@ -94,7 +94,7 @@ import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter
 import { parseSiteId, persistHealthResults, persistRunOutcomes } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
 import { withStepDeadline } from './research/budget-gate.js';
-import { withRunContext } from './infra/run-context.js';
+import { withRunContext, enterRunContext } from './infra/run-context.js';
 import {
   persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
 } from './research/persist-run-logs.js';
@@ -1583,6 +1583,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   } catch (err) {
     console.warn(`[Worker] ${projectId}: head-of-run queue read failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  // ── ATTRIBUTE EVERY AI CALL THIS RUN MAKES TO THIS RUN ───────────────────────────────────────
+  //
+  // Without this the main pipeline (all of Phase 1/2/3 — the analyzers and the adaptive-vision OCR,
+  // which is the single biggest spender) ran OUTSIDE the run context, so its AI cost was neither
+  // priced against the run nor counted toward the cost ceiling. Fresh run #1 (2026-09-05) recorded
+  // $1.28 to its budget while the usage ledger showed the project spent tens of dollars — the $5 cap
+  // never fired because it could not see the spend. `enterRunContext` makes the rest of this run's
+  // async flow (the pipeline AND the tail) attribute to `projectId`, so the cost watchdog sees the
+  // real number and the hard stop works.
+  enterRunContext(projectId);
 
   // Run research pipeline in background — routes to county-specific or generic
   runCountyResearch(
