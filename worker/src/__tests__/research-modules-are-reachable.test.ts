@@ -104,9 +104,6 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   'worker/src/research/gather-cost-estimate.ts':
     'B2.2 pre-buy TexasFile cost estimator + over-budget assessment (estimate-and-warn). Pure + unit-tested (gather-cost-estimate.test.ts); its consumer is the purchase over-budget warn flow + the Configure estimate UI, staged. Not dead — remove when the warn flow reads it.',
 
-  'lib/research/analysis-estimate.ts':
-    'E1 standardized $/page analysis estimator (the fixed-price quote processor). Pure + unit-tested (analysis-estimate.test.ts); its consumers are the E2 estimate endpoints and the E3 per-file "Analyze this" price UI, the next slices. Not dead — remove when E2/E3 read it.',
-
   'worker/src/research/selection-wants.ts':
     'S2 selection->wants mapping (the Configure checklist becomes gather targets, with the paid/free split the two-budget accounting needs). Pure + unit-tested (selection-wants.test.ts); its consumers are the gather-dispatch acquisition feed and the B2.2 estimator, both staged with run-gather-pipeline. Not dead — remove when the selection-driven acquisition feed is wired.',
 

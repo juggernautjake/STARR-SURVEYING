@@ -585,6 +585,13 @@ An endpoint (or fields on the existing status) that returns the total-analysis q
 gathered files' pages × rate) and each file's own quote, reading `page_count` off `research_documents`.
 Caller-asserted.
 
+> **SHIPPED 2026-09-05.** `GET /api/admin/research/[projectId]/analysis-estimate`: reads
+> `research_documents` (`page_count`, label, type), returns `ratePerPageUsd`, a `total`
+> ({pages, costUsd, etaSeconds}) and a `perFile[]` breakdown (each with `documentId`, `pages`,
+> `costUsd`, `etaSeconds`) via the shared E1 estimator. This is E1's real caller — its orphan-allowlist
+> entry was removed (now genuinely wired). `analysis-estimate-endpoint.test.ts` (4, caller-asserted);
+> app tsc green. Consumed by E3 (per-file "Analyze this" price + the full-analysis quote in Review).
+
 ### E3 — Per-file "Analyze this" button + price; full-analysis quote in Review
 Each file row in Review shows its price and an "Analyze this" button that POSTs a single-document
 analyze with that file's cost as the cap; the Review header shows the full-analysis total quote next to
