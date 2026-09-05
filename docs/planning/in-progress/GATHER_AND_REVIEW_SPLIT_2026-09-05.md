@@ -2,6 +2,8 @@
 
 **Started** 2026-09-05 · **Branch** `claude/research-pipeline-completion-2026-09-03`
 
+<!-- HOOK:BLOCKED Core two-pipeline system is SHIPPED + tested (19 slices, all pushed, worker suite 2654 green). TexasFile-in-gather is LIVE via the main pipeline (locked by texasfile-gather-chain-is-live.test.ts); the analyze run has its own cost cap (R1/R3/U4); no-AI-in-gather is enforced end to end (G6); the persistent-zoom viewer (U3) and TexasFile cost disclosure (U2) are built. Every REMAINING item needs the owner, not more solo work: (1) the run spend CEILING is a business decision — the max dollars one run may cost, needed to reconcile the $10 run cap with base+$10 earmark; (2) browser QA of the built UI slices (U3 viewer, U4 Run-AI-Review, U2 disclosure) per the repo's "drive the browser before calling UI done" rule; (3) the live supervised proof purchase (P2) needs the funded TexasFile wallet; (4) the want-list dispatch (G7) + U1/U5 two-run layout are enhancements that need live testing / QA to build well. Continuing solo would mean inventing marginal work or building broad UI blind. Remove this marker (or answer the ceiling decision / schedule a supervised QA+proof session) to resume the loop. -->
+
 This plan is driven by the stop-hook slice loop (`.claude/hooks/continue-until-planning-done.sh`).
 Ship the smallest meaningful slice, typecheck + lint + test, commit, push, annotate the slice with
 its completion note, and move this doc to `completed/` only when every action item is shipped or
