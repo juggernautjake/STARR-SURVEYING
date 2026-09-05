@@ -173,9 +173,13 @@ image/file/page (it already renders full-size with zoom persisting across pages)
 ## PHASE P — Proof
 
 ### P1 — Full suite green before any cross-cutting merge (worker + app).
-### P2 — Supervised proof run: a TexasFile-budget gather run driven by the checklist that BUYS a plat +
-most-recent deeds, files them, then a worker-side full analysis with the benchmarked rate. First real
-`research_document_purchases` rows + a plat in Review.
+### P2 — Supervised proof run (owner params, 2026-09-05): a **fresh** run on a **new** Bell property,
+TexasFile budget **$15**, other-sources budget **$5**, driven by the checklist, that BUYS a plat +
+most-recent deeds, files them, then a worker-side full analysis. First real `research_document_purchases`
+rows + a plat in Review. **Owner requirement:** the ENTIRE plan is built AND every UI component is
+fully built, surfaced, rendered, and interactive (checklist, both budget inputs, per-file "Analyze
+this", Run AI Review, cost bars, the viewer) — double- and triple-checked — BEFORE this run. Deploy is
+on HOLD until then; keep building on the branch.
 
 ---
 

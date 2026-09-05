@@ -74,6 +74,10 @@ export interface RunSettingsInput {
   maxCostUsd?: number;
   mode?: 'free' | 'paid';
   refreshImagery?: boolean;
+  // The dedicated gather budgets (plan W1): TexasFile (metered $1/page, floored $10) and other-sources
+  // (floored $2). Mirrors the worker's RunSettings. Owner sets these in the run-start UI.
+  texasfileBudgetUsd?: number;
+  otherBudgetUsd?: number;
   /**
    * Which half of the split pipeline this run is (plan GATHER_AND_REVIEW_SPLIT): `gather` acquires
    * files with NO AI; `analyze` runs OCR/summaries over what a gather run filed, under its own cost

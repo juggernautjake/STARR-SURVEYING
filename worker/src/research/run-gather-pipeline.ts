@@ -54,7 +54,9 @@ export function texasfileEnabledFor(settings: RunSettings): boolean {
 export function gatherBudgetForSettings(settings: RunSettings): GatherBudget {
   return gatherBudget({
     texasfileOn: texasfileEnabledFor(settings),
-    texasfileBudgetUsd: settings.maxCostUsd,
+    // The dedicated TexasFile budget the operator set (W1), falling back to the run's cost cap.
+    texasfileBudgetUsd: settings.texasfileBudgetUsd ?? settings.maxCostUsd,
+    otherBudgetUsd: settings.otherBudgetUsd,
   });
 }
 
