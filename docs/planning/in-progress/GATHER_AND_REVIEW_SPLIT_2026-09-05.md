@@ -530,6 +530,13 @@ sets the value for a gather run). Test the limit.
 etaSeconds }`; `estimateForDocuments(docs)` sums pages across files. Pure + fully unit-tested. This is
 the "standardized cost" processor.
 
+> **SHIPPED 2026-09-05.** `lib/research/analysis-estimate.ts`: `ANALYSIS_RATE_USD_PER_PAGE` (the one
+> business knob, default **$0.25/page** — owner to confirm the final rate), `estimateAnalysis(pages)`
+> → `{ pages, costUsd, etaSeconds }`, `pageCountOf` (missing/0 → 1 page), `estimateForDocuments(docs)`
+> summing `page_count`, plus `formatEta`/`formatUsd` label helpers. Pure so the total quote, each
+> file's price, and the per-file button's cap all come from one place. `analysis-estimate.test.ts`
+> (8). **Rate is a placeholder** pending the owner's number. Consumed by E2 (endpoints) + E3 (UI).
+
 ### E2 — Per-project + per-file estimate endpoints
 An endpoint (or fields on the existing status) that returns the total-analysis quote (sum of all
 gathered files' pages × rate) and each file's own quote, reading `page_count` off `research_documents`.
