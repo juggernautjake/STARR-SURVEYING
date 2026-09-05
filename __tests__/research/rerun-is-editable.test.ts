@@ -181,3 +181,20 @@ describe('the two dedicated gather budgets (W1)', () => {
     expect(dialog).toMatch(/otherBudget: 5/);
   });
 });
+
+describe('the FIRST run also goes through the settings dialog (W1.3)', () => {
+  const page = read('app/admin/research/[projectId]/page.tsx');
+  it('Start AI analysis opens the run-settings dialog instead of auto-starting with defaults', () => {
+    // handleStartAnalysis now opens the dialog (setShowRerunConfirm(true)) so the operator picks the
+    // checklist + budgets before any spend.
+    const at = page.indexOf('function handleStartAnalysis()');
+    expect(at).toBeGreaterThan(0);
+    const body = page.slice(at, at + 300);
+    expect(body).toMatch(/setShowRerunConfirm\(true\)/);
+    expect(body).not.toMatch(/setShouldAutoStartPipeline\(true\)/);
+  });
+  it('the dialog carries its settings to the run via pendingRunInput', () => {
+    expect(page).toMatch(/onConfirm=\{\(input\) => void handleRerunResearch\(input\)\}/);
+    expect(page).toMatch(/setPendingRunInput\(input\)/);
+  });
+});

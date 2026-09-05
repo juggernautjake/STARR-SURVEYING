@@ -644,21 +644,13 @@ export default function ResearchProjectPage() {
   // ── R1: Start AI analysis from the always-visible action bar ──────────────
   // Mirrors Stage 1's "Initiate Research & Analysis": seed the search params
   // from the saved project, flag auto-start, and move to the research stage so
-  // ResearchRunPanel fires the pipeline on mount. The user never has to hunt
-  // for the run control by workflow stage.
+  // The FIRST run now goes through the same settings dialog as a re-run (plan W1.3), so the operator
+  // sets WHAT to find (the checklist) and the TexasFile/other budgets before any money is spent —
+  // rather than auto-starting with defaults. The dialog's onConfirm (handleRerunResearch) carries
+  // those settings with the run via pendingRunInput.
   function handleStartAnalysis() {
     if (!project) return;
-    setPendingSearchParams({
-      address: project.property_address || '',
-      county: project.county || '',
-      parcelId: project.parcel_id || '',
-      ownerName: projectOwnerName(project) || '',
-    });
-    setShouldAutoStartPipeline(true);
-    setHoldOnResearchStage(true);
-    setPipelineHasStarted(false);
-    setViewStage(null);
-    handleStatusUpdate('configure');
+    setShowRerunConfirm(true);
   }
 
   // ── R4: One-click results export from the Review stage ───────────────────
