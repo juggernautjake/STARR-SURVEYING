@@ -49,6 +49,12 @@ export interface AnalysisConfig {
    * rather than analysing on. Absent means no cap (analyse every document).
    */
   maxCostUsd?: number;
+  /**
+   * Analyse only this one document (plan E3) — the per-file "Analyze this" button in Review. When
+   * set, the run extracts from just this document instead of every gathered file, at that file's own
+   * quoted price. Absent means analyse them all.
+   */
+  documentId?: string;
 }
 
 // The model the analyze-cost estimate is priced against. Deliberately the DEAREST model the
@@ -546,6 +552,8 @@ export async function analyzeProject(
   const resumeMode = config?.resume === true;
   // The analyze run's own cost ceiling (plan R1). Undefined = no cap.
   const analyzeCostCapUsd = typeof config?.maxCostUsd === 'number' ? config.maxCostUsd : undefined;
+  // Per-file analysis (E3): analyse only this document when set.
+  const onlyDocumentId = typeof config?.documentId === 'string' && config.documentId ? config.documentId : undefined;
 
   // In resume mode, carry over logs from the previous (frozen/aborted) run so the
   // complete history is visible in the UI.
@@ -822,9 +830,20 @@ export async function analyzeProject(
 
     // In resume mode, skip documents already successfully analyzed in a previous run.
     // Non-resume mode re-analyzes everything for a fully fresh result.
-    const documents = resumeMode
+    let documents = resumeMode
       ? allDocuments.filter((d: { processing_status: string }) => d.processing_status !== 'analyzed')
       : allDocuments;
+
+    // Per-file analysis (E3): narrow to the one document the operator asked to analyse.
+    if (onlyDocumentId) {
+      documents = allDocuments.filter((d: { id: string }) => d.id === onlyDocumentId);
+      if (documents.length === 0) {
+        addLog('error', `Document ${onlyDocumentId} is not available for analysis`, 'It may not be in an "extracted" or "analyzed" state, or does not belong to this project.');
+        await persistLogs();
+        throw new Error(`Document ${onlyDocumentId} not found for analysis`);
+      }
+      addLog('info', `Analysing a single document (${onlyDocumentId}) at its quoted price.`);
+    }
 
     const skippedCount = allDocuments.length - documents.length;
     if (resumeMode && skippedCount > 0) {

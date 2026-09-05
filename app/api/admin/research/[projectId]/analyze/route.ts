@@ -36,10 +36,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Parse optional config from body early so we can check resume mode for the status check below
-  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number } | undefined;
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string } | undefined;
   try {
-    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number };
-    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number') {
+    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string };
+    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId) {
       config = {};
       if (body.extractCategories) config.extractCategories = body.extractCategories;
       if (body.resume) config.resume = true;
@@ -48,6 +48,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       if (typeof body.maxCostUsd === 'number' && Number.isFinite(body.maxCostUsd)) {
         config.maxCostUsd = Math.min(Math.max(body.maxCostUsd, 0), 100);
       }
+      // Per-file analysis (plan E3): analyse only this one document at its quoted price.
+      if (typeof body.documentId === 'string' && body.documentId) config.documentId = body.documentId;
     }
   } catch {
     // No body or invalid JSON — use defaults

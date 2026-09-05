@@ -598,6 +598,14 @@ analyze with that file's cost as the cap; the Review header shows the full-analy
 "Run AI Review" (U4). Single-doc analyze path in `analyzeProject` (a `documentId` filter). Owner
 browser-QAs.
 
+> **Single-document backend (E3a) SHIPPED 2026-09-05.** `AnalysisConfig.documentId`; `analyzeProject`
+> narrows to that one document (`onlyDocumentId`), erroring clearly if it isn't available; the analyze
+> route accepts `documentId` from the body. So a per-file "Analyze this" can POST `{ documentId,
+> maxCostUsd }` and analyse just that file at its E2-quoted price. `analyze-cost-cap.test.ts` extended
+> (9); app tsc green. **REMAINING (E3b, UI):** the Review file rows showing each price + "Analyze this"
+> button, and the full-analysis total quote by "Run AI Review" — reads the E2 endpoint; owner
+> browser-QAs.
+
 ## Deferred / open
 
 - (none yet — record here with a one-line reason as slices are deferred)

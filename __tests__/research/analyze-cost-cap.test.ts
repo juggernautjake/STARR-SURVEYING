@@ -55,3 +55,19 @@ describe('the analyze run enforces its own cost cap', () => {
     expect(svc).toMatch(/cost_cap_usd: analyzeCostCapUsd/);
   });
 });
+
+// ── E3: per-file analysis ────────────────────────────────────────────────────────────────────────
+describe('per-file analysis (E3)', () => {
+  const svc = read('lib/research/analysis.service.ts');
+  const route = read('app/api/admin/research/[projectId]/analyze/route.ts');
+
+  it('analyzeProject narrows to a single document when documentId is set', () => {
+    expect(svc).toMatch(/onlyDocumentId/);
+    expect(svc).toMatch(/allDocuments\.filter\(\(d: \{ id: string \}\) => d\.id === onlyDocumentId\)/);
+  });
+
+  it('the analyze route accepts a documentId from the body', () => {
+    expect(route).toMatch(/body\.documentId/);
+    expect(route).toMatch(/config\.documentId = body\.documentId/);
+  });
+});
