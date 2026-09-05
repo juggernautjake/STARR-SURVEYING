@@ -156,6 +156,15 @@ export interface PurchaseRecommendation {
   recordingDate?: string;
   book?: string;
   page?: string;
+
+  // ── Search key for a `search_required` recommendation (plan W4) ────────────
+  //
+  // A recommendation with `instrument: 'search_required'` has no document to match yet — it is a
+  // search to RUN on the vendor. Without a query the vendor search has nothing to submit and returns
+  // nothing, so the checklist-driven buy silently bought zero. `searchName` is the grantor/grantee or
+  // owner name to search TexasFile by (its `name-0-name` field); when present it lets a "most recent
+  // deed" / "all deeds" want become a real name search → results → purchase.
+  searchName?: string;
 }
 
 // ── Surveyor Decision Matrix ─────────────────────────────────────────────────

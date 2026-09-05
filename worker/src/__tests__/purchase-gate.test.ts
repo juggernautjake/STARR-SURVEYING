@@ -167,9 +167,15 @@ describe('every place the worker spends money consults the gate', () => {
     // be allowed to buy, without buying. It is counted anyway, because the number is the mechanism —
     // a new call makes this fail, and whoever fixes it has to say which kind it is.
     //
-    // The four that spend: the two purchase routes, the document-access orchestrator's paid tier,
-    // and the normal run (D1).
+    // SIX since W4: a dedicated-county run (Bell, …) produces a `county-specific` result and never
+    // entered the generic branch where the normal-run purchase lives, so its gather bought nothing.
+    // The county-specific branch now runs the same checklist purchase — a real spend site — and it
+    // consults the gate before buying, so it is counted here.
+    //
+    // The five that spend: the two purchase routes, the document-access orchestrator's paid tier,
+    // the normal (generic-pipeline) run (D1), and the dedicated-county run (W4). The sixth counted
+    // call only ASKS: the readiness route reports whether a run would be allowed, without buying.
     const calls = index.match(/await resolvePurchasePermission\(projectId\)/g) ?? [];
-    expect(calls.length).toBe(5);
+    expect(calls.length).toBe(6);
   });
 });

@@ -68,6 +68,10 @@ export function wantsToPurchaseRecommendations(
       book: known?.book,
       page: known?.page,
       recordingDate: known?.recordingDate,
+      // The search key a `search_required` want carries to the vendor (plan W4). A located instrument
+      // buys itself; a want with no instrument searches TexasFile by owner name instead of submitting
+      // an empty query — which returned zero results and quietly bought nothing.
+      searchName: known?.instrument ? undefined : ctx.ownerName,
     });
   }
   // Stable priority order (lower = sooner): plats, then deeds/easements; recent before all.

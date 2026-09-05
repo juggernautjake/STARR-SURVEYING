@@ -41,4 +41,27 @@ describe('wantsToPurchaseRecommendations', () => {
     expect(recs[0].instrument).toBe('search_required');
     expect(recs[0].estimatedCost).toMatch(/^\$\d/);
   });
+
+  // Plan W4 — a search_required want is a search to RUN, not a document to match. Without a query the
+  // vendor form submits nothing and buys nothing, which is why the checklist paid $0. The owner name
+  // becomes the search key so a name search can run → results → purchase.
+  it('a search_required want carries the owner name as its TexasFile search key', () => {
+    const recs = wantsToPurchaseRecommendations(
+      selectionsToWants({ items: ['recent_deed'], adjoiners: { enabled: false, items: [] } }),
+      { county: 'Bell', ownerName: 'DOE JOHN' },
+    );
+    expect(recs[0].instrument).toBe('search_required');
+    expect(recs[0].searchName).toBe('DOE JOHN');
+  });
+
+  it('a want with a located instrument buys it directly and needs no search key', () => {
+    const recs = wantsToPurchaseRecommendations(
+      selectionsToWants({ items: ['recent_deed'], adjoiners: { enabled: false, items: [] } }),
+      { county: 'Bell', ownerName: 'DOE JOHN', knownDocuments: [
+        { type: 'deed', instrument: 'NEW', recordingDate: '2021-05-05' },
+      ] },
+    );
+    expect(recs[0].instrument).toBe('NEW');
+    expect(recs[0].searchName).toBeUndefined();
+  });
 });

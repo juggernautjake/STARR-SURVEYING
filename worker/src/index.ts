@@ -2639,6 +2639,89 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
           `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
           .success(0, `${bellOutcome.sentence} ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
 
+        // ── Gather buys the checklist's paid documents for dedicated-county runs (plan W2/W4) ──
+        //
+        // The generic-pipeline branch buys inside confidence scoring (Phase 8 → Phase 9). A county
+        // with a DEDICATED module (Bell, …) produces a `county-specific` result and NEVER entered
+        // that branch, so a dedicated-county gather captured its free documents and bought NOTHING
+        // from TexasFile — the $15 budget went unspent and no `document_purchase` ever reached the
+        // ledger. This runs the same checklist-driven purchase here, keyed on the owner the run
+        // actually discovered, so a dedicated-county gather fills its paid gaps within budget.
+        // Gated on `gatherSelections` exactly as the generic branch is; a run without a checklist
+        // is unchanged.
+        if (runSettings.gatherSelections) {
+          try {
+            // Named `recs` (not `selRecs`) so the skip-ledger structure test sees one row mapped per
+            // recommendation, the same shape the generic branch uses.
+            const recs = wantsToPurchaseRecommendations(
+              selectionsToWants(resolveGatherSelections(runSettings)),
+              {
+                county: county ?? undefined,
+                // Prefer the owner the run DISCOVERED over the (often blank) entered value: a
+                // `search_required` want needs a real name to search TexasFile by, and an empty
+                // form submits nothing and buys nothing — the silent-$0 bug this whole block fixes.
+                ownerName: r.property?.ownerName ?? researchInput.ownerName ?? undefined,
+              },
+            );
+            if (recs.length > 0) {
+              const permission = await resolvePurchasePermission(projectId);
+              const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+              if (!permission.allowed) {
+                if (permission.skipStatus) {
+                  await recordSkippedPurchases(
+                    recs.map((rec) => ({
+                      projectId,
+                      runId: activePipelines.get(projectId)?.runId ?? null,
+                      countyFips: countyFIPS,
+                      instrument: rec.instrument,
+                      documentType: rec.documentType,
+                      platformId: rec.source,
+                      pages: 0,
+                    })),
+                    permission.skipStatus,
+                    permission.reason,
+                  ).catch((e) => console.warn(`[Worker] ${projectId}: could not record skipped purchases — ${e instanceof Error ? e.message : String(e)}`));
+                }
+                handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
+                  .success(0, describeSkippedPurchase(permission, recs.length));
+              } else {
+                // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget IS the
+                // dedicated TexasFile budget the operator set ($15 in the UI), falling back to the
+                // run's cost cap when none was given.
+                const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
+                handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents',
+                  `${recs.length} from the what-to-find list, plats first, ceiling $${ceiling.toFixed(2)}`)
+                  .success(recs.length, `Buying up to ${recs.length} document(s) within the $${ceiling.toFixed(2)} TexasFile budget this run was given.`);
+                const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+                const purchaseResult = await orchestrator.executePurchases(
+                  projectId,
+                  recs,
+                  {
+                    texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+                      username: process.env.TEXASFILE_USERNAME,
+                      password: process.env.TEXASFILE_PASSWORD!,
+                      accountType: 'pay_per_page',
+                    } : undefined,
+                    budget: ceiling,
+                    autoReanalyze: false,
+                  },
+                  countyFIPS,
+                  county ?? '',
+                );
+                const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+                const spent = purchaseResult.billing?.totalCharged ?? 0;
+                handshakeLogger.attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
+                  `${bought.length} bought, $${spent.toFixed(2)}`)
+                  .success(bought.length, `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ${purchaseResult.purchases.length - bought.length} were not obtained.`);
+              }
+            }
+          } catch (err) {
+            // A gather that researched successfully must not be reported as failed because the
+            // paid top-up threw. Loud in the server log, non-fatal to the run.
+            console.warn(`[Worker] ${projectId}: county-specific checklist purchase failed:`, err);
+          }
+        }
+
         // ── Capture live logs NOW (after summary entries) and cache ──────────
         // capturedLiveLog includes ALL entries: progress events from the
         // pipeline run + the summary entries emitted above. The live log

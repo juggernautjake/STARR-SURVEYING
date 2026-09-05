@@ -387,7 +387,13 @@ export class DocumentPurchaseOrchestrator {
           }
           const r = await texasFileAdapter!.purchaseDocument(
             countyName, rec.instrument, rec.documentType,
-            { book: rec.book, page: rec.page, maxUsd: remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend) },
+            {
+              book: rec.book, page: rec.page,
+              // A `search_required` rec has no instrument to search by — pass its owner-name key so
+              // TexasFile runs a real name search instead of submitting an empty form (plan W4).
+              name: rec.searchName,
+              maxUsd: remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend),
+            },
           );
           if (r.status === 'purchased') {
             texasFileSpend += r.totalCost ?? 0;
