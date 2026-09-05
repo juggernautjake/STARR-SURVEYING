@@ -37,7 +37,10 @@ import { DocumentPurchaseOrchestrator } from './services/document-purchase-orche
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker, clampRunMinutes } from './research/run-phases.js';
-import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, type RunSettings } from './research/run-settings.js';
+import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, resolveGatherSelections, type RunSettings } from './research/run-settings.js';
+// The checklist drives what TexasFile is asked for (plan W2): selections → wants → purchase recs.
+import { selectionsToWants } from './research/selection-wants.js';
+import { wantsToPurchaseRecommendations } from './research/selection-purchases.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -2186,7 +2189,23 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
               // (which refuses when permission cannot be READ, not just when it is denied), the
               // per-run spend ceiling, the cross-run library that will not buy a page twice, and
               // the skip ledger.
-              const recs = report.documentPurchaseRecommendations ?? [];
+              let recs = report.documentPurchaseRecommendations ?? [];
+              // W2 — the checklist DRIVES what is bought. When the operator picked items (any run with
+              // an explicit `gatherSelections`), turn the paid selections into purchase targets and put
+              // them FIRST (plats before deeds), so TexasFile is asked for the plats/recent deeds the
+              // owner wanted — not only what a boundary discrepancy happened to flag. Runs without a
+              // selection are unchanged (they keep the discrepancy-driven recs alone).
+              if (runSettings.gatherSelections) {
+                const selRecs = wantsToPurchaseRecommendations(
+                  selectionsToWants(resolveGatherSelections(runSettings)),
+                  { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
+                );
+                if (selRecs.length > 0) {
+                  recs = [...selRecs, ...recs];
+                  handshakeLogger.attempt('[Purchase]', 'info', 'Checklist targets',
+                    `${selRecs.length} item(s) from the run's what-to-find list, plats first`).success(selRecs.length, '');
+                }
+              }
               if (recs.length > 0) {
                 const permission = await resolvePurchasePermission(projectId);
                 const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');

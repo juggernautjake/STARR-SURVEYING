@@ -102,8 +102,6 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
   // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
 
-  'worker/src/research/selection-purchases.ts':
-    'W2 selection->purchase-recommendation converter (the checklist drives TexasFile buying, plats first). Pure + unit-tested (selection-purchases.test.ts); its non-test caller is the run purchase feed, wired next (W2 live) — a run that, when gatherSelections is set, buys these from TexasFile. Remove when that feed is wired.',
 
   'worker/src/research/run-gather-pipeline.ts':
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',

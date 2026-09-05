@@ -32,8 +32,8 @@ const code = SRC
   })
   .join('\n');
 
-const at = code.indexOf('const recs = report.documentPurchaseRecommendations ?? [];');
-const block = at === -1 ? '' : code.slice(at, at + 4200);
+const at = code.indexOf('recs = report.documentPurchaseRecommendations ?? [];');
+const block = at === -1 ? '' : code.slice(at, at + 5200);
 
 describe('the run reaches the purchase step', () => {
   it('CONTROL: the purchase block is where this test thinks it is', () => {

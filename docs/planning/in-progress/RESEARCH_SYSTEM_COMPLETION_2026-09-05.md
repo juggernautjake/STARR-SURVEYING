@@ -169,6 +169,16 @@ run fetches: for each selected item, try free first, then **buy from TexasFile w
 budget** — plats/drawings + most-recent deeds prioritised. Remove `selection-wants` + `run-gather-
 pipeline` from the orphan allowlist as they gain live callers. Caller-asserted.
 
+> **LIVE WIRING SHIPPED 2026-09-05.** In the pipeline purchase phase, when the run has an explicit
+> `gatherSelections`, the checklist's paid items are turned into purchase recs
+> (`wantsToPurchaseRecommendations`) and **prepended** to the discrepancy-driven recs (plats first),
+> so `executePurchases` buys the plats/recent deeds the operator asked for — through the existing
+> TexasFile buyer + $10-earmark gating. Runs without a selection are unchanged. `selection-purchases` +
+> `selection-wants` now have live callers (allowlist entries removed). `selection-drives-purchases.test.ts`
+> (2); the-run-can-buy-documents re-anchored; **full worker suite green — 2700**. **REMAINING (verify on
+> the $15/$5 run):** confirm the checklist plats/deeds actually get bought; W4 adds the subdivision-plat
+> search for `search_required` wants.
+
 ### W3 — Two budgets enforced independently + estimate-and-warn
 Enforce the TexasFile ($10) and other-sources ($2) budgets separately in the run (today the orchestrator
 uses one `config.budget` + `this.billing` caps at that single number). Before spending, estimate the
