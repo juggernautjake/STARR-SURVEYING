@@ -39,8 +39,11 @@ export function texasFileCountySlug(county: string): string {
 }
 
 /** The purchase-API URL for a document GUID found in a search (mapped live 2026-09-05). */
-export function purchaseApiUrl(county: string, guid: string, searchId: string, state = 'texas'): string {
-  return `${TF}/document/api/purchase/${state}/${texasFileCountyKey(county)}/instrument/${guid}/`
+export function purchaseApiUrl(county: string, guid: string, searchId: string, state = 'texas', product: 'instrument' | 'plat' = 'instrument'): string {
+  // A deed buy is `/instrument/{guid}/`; a PLAT buy uses `/plat/{guid}/` (plan 1.5 — the path segment
+  // differs by product on the redesigned SPA). Default stays 'instrument' so existing deed buys are
+  // unchanged; the plat segment is confirmed against the live account in the supervised run.
+  return `${TF}/document/api/purchase/${state}/${texasFileCountyKey(county)}/${product}/${guid}/`
     + `?from_product_content_type=search&from_product_object_id=${encodeURIComponent(searchId)}`;
 }
 
@@ -245,9 +248,17 @@ export async function searchTexasFilePlats(page: Page, input: TexasFilePlatInput
 }
 
 /** Purchase (or re-fetch if already owned) a document by GUID and return its page image URLs. */
-export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog): Promise<{ pages: string[]; purchaseId?: number; balance?: string } | null> {
+export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument'): Promise<{ pages: string[]; purchaseId?: number; balance?: string } | null> {
   try {
-    const res = await page.context().request.get(purchaseApiUrl(county, guid, searchId), { timeout: 30_000 });
+    let res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', product), { timeout: 30_000 });
+    // Plan 1.5 — the purchase path segment differs by product (`/instrument/` vs `/plat/`) on the
+    // redesigned SPA. A 404 means the wrong segment, not a real failure, so try the OTHER one before
+    // giving up. A 404 buys nothing, so the retry cannot double-charge.
+    if (res.status() === 404) {
+      const alt: 'instrument' | 'plat' = product === 'plat' ? 'instrument' : 'plat';
+      log.info('TexasFile', `Purchase 404 on /${product}/ for ${guid} — retrying /${alt}/.`);
+      res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', alt), { timeout: 30_000 });
+    }
     if (!res.ok()) { log.warn('TexasFile', `Purchase API HTTP ${res.status()} for ${guid}.`); return null; }
     const body = await res.json() as { pages?: string[]; purchase_id?: number; user_balance?: string; images_available?: boolean };
     if (!body.images_available || !Array.isArray(body.pages) || body.pages.length === 0) {

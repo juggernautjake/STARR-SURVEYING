@@ -67,7 +67,7 @@ then clusters the plat, sees it is NOT in the free CAD deed history, marks it **
 Search-only parse test; `buildTexasFileSearchInputs` emits a plat query when a subdivision exists; the
 `makeSourceSearch` caller runs the plat search (check the CALLER). Full worker suite green.
 
-### 1.5 — Verify the plat PURCHASE endpoint (live)
+### 1.5 — Verify the plat PURCHASE endpoint (live) ✅ BUILT (live-confirm in the run)
 `purchaseApiUrl` hardcodes `/instrument/{guid}/`. A PLAT purchase on TexasFile may use a different path
 (`/plat/{guid}/`). The search + discovery + free-vs-paid DECISION are done (plats become paid-exclusive buys);
 the actual plat purchase URL must be confirmed against the live SPA (logged in) and `buyDocument` branched by

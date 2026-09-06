@@ -57,6 +57,12 @@ describe('purchaseApiUrl — the un-UI purchase endpoint', () => {
   it('url-encodes the searchId', () => {
     expect(purchaseApiUrl('Bell', GUID, 'a b')).toContain('from_product_object_id=a%20b');
   });
+
+  it('uses the /plat/ segment for a plat buy, /instrument/ by default (plan 1.5)', () => {
+    expect(purchaseApiUrl('Bell', GUID, '1')).toContain('/bell/instrument/');           // default
+    expect(purchaseApiUrl('Bell', GUID, '1', 'texas', 'plat')).toContain('/bell/plat/'); // plat product
+    expect(purchaseApiUrl('Bell', GUID, '1', 'texas', 'plat')).not.toContain('/instrument/');
+  });
 });
 
 // Plan 1.1 — searchTexasFileDocuments is the SEARCH-ONLY entrypoint the free-first engine uses to
