@@ -107,8 +107,8 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
 
 
-  'worker/src/research/cross-source-acquire-plan.ts':
-    'Plan A3 — the cheapest-source-per-document decision: consumes the A2 clusters (imports DocumentCluster/hasFreeSource/cheapestSource, making cross-source-match reachable, which in turn keeps cross-source-discovery reachable), free-captures what a free source has and buys only paid-exclusive documents in priority order within budget. Built ahead of A4 (acquire) / A7 (live wiring), which will call planAcquisition and remove this entry. Not dead — unit-tested by cross-source-acquire-plan.test.ts.',
+  'worker/src/research/cross-source-acquire.ts':
+    'Plan A4 — executes the A3 acquisition plan (imports AcquisitionAction/AcquisitionPlan, keeping the whole A1→A2→A3 chain reachable): runs the injected free-capture and TexasFile-purchase effects per action, gates each buy on the REAL remaining budget, isolates failures. Built ahead of A7 (live wiring), which will call executeAcquisitionPlan with the real capture/buy adapters and remove this entry. Not dead — unit-tested by cross-source-acquire.test.ts.',
 
 
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by

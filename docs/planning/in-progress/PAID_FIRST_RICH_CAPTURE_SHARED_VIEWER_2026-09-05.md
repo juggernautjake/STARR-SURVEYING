@@ -152,6 +152,15 @@ is made (early, right after discovery/match), not in a post-run handler — a st
 run of a buy it already decided on. Skip re-buying anything a prior run owns (cross-run library). File
 every acquired document to Review as it lands.
 
+> **SHIPPED (orchestration) 2026-09-05.** `worker/src/research/cross-source-acquire.ts` —
+> `executeAcquisitionPlan(plan, {capture, purchase, paidBudgetUsd, log})` walks the A3 actions, runs the
+> INJECTED free-capture / purchase effects, gates each buy on the REAL remaining budget (so wallet spend
+> can't exceed the ceiling even if a doc has more pages than estimated), isolates a failing
+> capture/buy, and returns `{acquired[], spentUsd, freeCaptured, purchased, failed}`. Wires A3 (keeps the
+> whole A1→A4 chain reachable). Tests: `cross-source-acquire.test.ts` (4); guard + tsc green. **A7
+> supplies the real effects** (Bell free-capture + `buyDocument`) and files each doc to Review + skips
+> library-owned docs — the live-integration piece.
+
 ### A5 — Legibility override: buy the paid copy when the free one is unreadable (owner Q2)
 After a free capture, run the readability check (reuse the existing readability/legibility scoring). If
 the free copy is illegible AND a paid source in the cluster has it AND budget remains, buy the paid
