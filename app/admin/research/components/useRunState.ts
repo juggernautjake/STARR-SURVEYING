@@ -114,6 +114,14 @@ export interface StartRunInput {
   operatorNotes?: string;
   userFiles?: unknown[];
   settings?: RunSettingsInput;
+  /** Supplemental identifiers (plan H) — instrument numbers, key names, volume/page, cabinet/slide.
+   *  Main keys stay id + address; these are grain-of-salt search hints for the run + engine. */
+  supplemental?: {
+    instrumentNumbers?: string[];
+    ownerNames?: string[];
+    volumePages?: Array<{ volume: string; page: string }>;
+    cabinetSlides?: Array<{ cabinet: string; slide: string }>;
+  };
   trigger?: 'initial' | 'rerun_same' | 'rerun_edited';
 }
 

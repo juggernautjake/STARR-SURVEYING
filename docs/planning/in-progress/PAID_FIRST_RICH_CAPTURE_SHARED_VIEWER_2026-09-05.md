@@ -453,8 +453,13 @@ the run input.
 > folds them into `{instrumentNumbers, ownerNames, volumePages, cabinetSlides}`. Wired into
 > `ProjectsTab.tsx` (state + render before Spending + into the create POST + reset). The create API
 > (`app/api/admin/research/route.ts`) persists it under `analysis_metadata.supplemental` (only when
-> non-empty). Tests: `supplemental-info-fields.test.ts` (3); app tsc clean. **Remaining:** the same
-> control in `RerunDialog.tsx`, and H3-thread (pipeline route → worker run input → DiscoveryTarget/A7).
+> non-empty). Tests: `supplemental-info-fields.test.ts` (3); app tsc clean.
+
+> **SHIPPED (re-run dialog) 2026-09-05.** `RerunDialog.tsx` now renders the same `SupplementalInfoFields`
+> picker; `StartRunInput` gained a `supplemental` field and the dialog's `onConfirm` includes
+> `linesToSupplemental(...)`. app tsc clean, 64 related tests green. **Remaining H3-thread:** carry
+> `supplemental` from `StartRunInput`/the project through the pipeline POST → worker body → the engine's
+> `DiscoveryTarget`/relevance (A7.5 reads `body.supplemental`).
 
 ### H3 — Thread supplemental inputs through the run → the engine
 Carry the supplemental identifiers into `BellResearchInput` / run settings → the cross-source

@@ -35,6 +35,7 @@ import RunFileAttachments, { type RunFile } from './RunFileAttachments';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
 import GatherSelectionsField, { DEFAULT_GATHER_SELECTIONS_VALUE, estimateSelectionCost, type GatherSelectionsValue } from './GatherSelectionsField';
+import SupplementalInfoFields, { linesToSupplemental, type SupplementalLine } from './SupplementalInfoFields';
 
 export interface PreviousRun {
   run_number?: number | null;
@@ -178,6 +179,8 @@ export default function RerunDialog({
   // mistake the operator notes avoid: stale context wearing a fresh label. A file is attached to
   // the attempt in front of you.
   const [attachments, setAttachments] = useState<RunFile[]>([]);
+  // Supplemental "+ Add more info" lines (plan H2) — same category picker as the create modal.
+  const [supplementalLines, setSupplementalLines] = useState<SupplementalLine[]>([]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
@@ -240,6 +243,7 @@ export default function RerunDialog({
       operatorNotes: form.operatorNotes,
       // The worker has parsed `userFiles` since it was written and nothing ever sent one.
       userFiles: attachments.length > 0 ? attachments : undefined,
+      supplemental: linesToSupplemental(supplementalLines),
       settings,
       // `rerun_edited` vs `rerun_same` is what the run list uses to explain a thinner report six
       // weeks later, so it is derived from whether anything actually changed rather than from
@@ -337,6 +341,11 @@ export default function RerunDialog({
                 <input className="rrd__input" value={form.ownerName}
                        onChange={(e) => set('ownerName', e.target.value)} />
               </label>
+
+              {/* Plan H2 — the same "+ Add more info" category picker as the create modal. */}
+              <div className="rrd__field">
+                <SupplementalInfoFields lines={supplementalLines} onChange={setSupplementalLines} />
+              </div>
 
               <label className="rrd__field">
                 <span className="rrd__label">
