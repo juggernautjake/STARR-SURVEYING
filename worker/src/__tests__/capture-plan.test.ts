@@ -23,6 +23,7 @@ import {
   MAX_NEIGHBOUR_CAPTURES,
   MIN_ZOOM,
   MAX_ZOOM,
+  adaptiveZoomBands,
   type CapturePlanInput,
 } from '../research/capture-plan.js';
 
@@ -155,6 +156,55 @@ describe('adjoiner parcel LINES — GIS-only, opt-in (plan C/4.1–4.3)', () => 
     }));
     const on = planCaptures({ ...withAdjoiners, captureAdjoinerLines: true, neighbours: many });
     expect(on.captures.filter((c) => c.kind === 'cad_adjoiner_lines')).toHaveLength(MAX_NEIGHBOUR_CAPTURES);
+  });
+});
+
+describe('the adaptive Google zoom ladder (plan D/5.1, 5.4)', () => {
+  it('a LARGE tract gets four bands, the deepest pinned to Google\'s ceiling', () => {
+    // A low framed zoom (a big tract): close = framed+2 is still short of the ceiling, so a fourth
+    // detail band is added at MAX_ZOOM — one capture as close as Google renders.
+    const framed = 15;
+    const bands = adaptiveZoomBands(framed);
+    expect(bands.map((b) => b.kind)).toEqual(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_detail']);
+    expect(bands.find((b) => b.kind === 'aerial_detail')!.zoom).toBe(MAX_ZOOM);
+    // close (framed+2 = 17) is genuinely shorter than the ceiling, which is why detail earns its place.
+    expect(bands.find((b) => b.kind === 'aerial_close')!.zoom).toBeLessThan(MAX_ZOOM);
+  });
+
+  it('a SMALL lot gets three bands — its close view IS the ceiling, so no duplicate detail', () => {
+    // A high framed zoom (a town lot): close = framed+2 clamps to MAX_ZOOM, so a fourth band would
+    // just repeat it. The ladder stays three, and the small lot is already as close as Google renders.
+    const framed = 20;
+    const bands = adaptiveZoomBands(framed);
+    expect(bands.map((b) => b.kind)).toEqual(['aerial_wide', 'aerial_subject', 'aerial_close']);
+    expect(bands.find((b) => b.kind === 'aerial_close')!.zoom).toBe(MAX_ZOOM);
+  });
+
+  it('every band stays within Google\'s usable range', () => {
+    for (const framed of [10, 14, 16, 18, 21, 25]) {
+      for (const b of adaptiveZoomBands(framed)) {
+        expect(b.zoom).toBeGreaterThanOrEqual(MIN_ZOOM);
+        expect(b.zoom).toBeLessThanOrEqual(MAX_ZOOM);
+      }
+    }
+  });
+
+  it('the ladder is monotonic — wide is the widest, the deep end the closest', () => {
+    const bands = adaptiveZoomBands(15);
+    for (let i = 1; i < bands.length; i++) {
+      expect(bands[i].zoom).toBeGreaterThanOrEqual(bands[i - 1].zoom);
+    }
+  });
+
+  it('planCaptures spans whole-parcel to Google-ceiling for a large tract', () => {
+    // A 200-acre tract: the run should produce the deep detail capture at the ceiling.
+    const p = planCaptures({ ...base, acreage: 200 });
+    const detail = p.captures.find((c) => c.kind === 'aerial_detail');
+    expect(detail, 'a large tract should get the deepest Google detail band').toBeTruthy();
+    expect(detail!.zoom).toBe(MAX_ZOOM);
+    // ...and a small lot should not.
+    const small = planCaptures({ ...base, acreage: 0.15 });
+    expect(small.captures.find((c) => c.kind === 'aerial_detail')).toBeUndefined();
   });
 });
 

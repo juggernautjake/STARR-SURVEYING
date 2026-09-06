@@ -239,19 +239,30 @@ suite 2791 green.
 
 ## PHASE 5 — D: adaptive Google/ArcGIS zoom by parcel size
 
-### 5.1 — Acreage/bbox-adaptive Google zoom band (3–4 levels)
+### 5.1 — Acreage/bbox-adaptive Google zoom band (3–4 levels) ✅ BUILT + TESTED
 Read `capture-plan.ts` `ZOOM_BANDS`/`framedZoom`. Produce 3–4 Google captures spanning whole-parcel →
 close, derived from the parcel's actual size, pushing the deep end to Google's ceiling so small lots get
 as close as Google renders.
 
-### 5.2 — Deep ArcGIS vector render for small lots
+**Built (5.1–5.4):** new pure `adaptiveZoomBands(framedZoom)` returns the wide/subject/close ladder
+(offsets off the acreage-framed zoom) PLUS a 4th `aerial_detail` band pinned to `MAX_ZOOM` — added only
+when the close band has not already reached the ceiling, so a large tract gets one Google-ceiling detail
+capture and a small lot (whose close IS the ceiling) is not handed a duplicate. `planCaptures` now walks
+this ladder; the new kind files under `aerial_close` (runner) and renders on the aerial path (index.ts
+`AERIAL` set). 5.2/5.3 were already satisfied by the always-planned `cad_parcel_lines` vector render,
+which is crisp at any scale and framed to the subject's TRUE bbox via `renderParcelMap`'s
+`frameFor(subject.rings)` (tested in `parcel-map-render.test.ts`) — the deep vector fallback for when
+raster imagery can't get close enough. **Tested:** worker tsc + lint clean; +5 adaptive-zoom tests in
+`capture-plan.test.ts` (46); repointed the pinned `AERIAL`-set assertion; full worker suite 2796 green.
+
+### 5.2 — Deep ArcGIS vector render for small lots ✅ BUILT + TESTED
 For a lot where Google's max isn't close enough, add a deep ArcGIS/parcel-layer vector render (crisp at
 any scale) framed tight to the lot.
 
-### 5.3 — Frame from the parcel's true bbox
+### 5.3 — Frame from the parcel's true bbox ✅ BUILT + TESTED
 Base framing on the parcel polygon's bounding box so the whole boundary fits at the widest level.
 
-### 5.4 — Tests
+### 5.4 — Tests ✅ BUILT + TESTED
 Unit-test the adaptive zoom-band computation across parcel sizes.
 
 ---

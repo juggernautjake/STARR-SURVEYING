@@ -298,6 +298,7 @@ function documentTypeFor(kind: PlannedCaptureItem['kind']): string {
     case 'aerial_neighbours': return 'adjoiner_aerial';
     case 'aerial_wide': return 'aerial_wide';
     case 'aerial_close': return 'aerial_close';
+    case 'aerial_detail': return 'aerial_close';
     default: return 'aerial';
   }
 }

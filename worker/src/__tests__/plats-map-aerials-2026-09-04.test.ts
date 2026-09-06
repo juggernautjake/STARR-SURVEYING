@@ -199,7 +199,7 @@ describe('the aerials are rendered from imagery tiles with the parcel drawn on',
 
   it('the runner renders the sharp-enough bands from tiles, tries the provider for the close one, and logs into the run', () => {
     const index = read('index.ts');
-    expect(index).toContain("const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_neighbours']);");
+    expect(index).toContain("const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_detail', 'aerial_neighbours']);");
     expect(index).toContain('const tilesAreSharpEnough = (item.metresPerPixel ?? 0) >= 0.2;');
     expect(index).toContain("return await renderAerial(providerDown ? 'map provider is down this run' : 'tile cache is at least this sharp');");
     expect(index).toContain("return await renderAerial('provider failed');");

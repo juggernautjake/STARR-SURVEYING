@@ -60,6 +60,10 @@ export type CaptureKind =
   | 'aerial_subject'
   /** Close on the improvements — structures, drives, fence lines, encroachments. */
   | 'aerial_close'
+  /** The deepest Google view — pushed to the provider's ceiling so a small lot is captured as close
+   *  as Google renders (plan D/5.1). Only planned when the `close` band did not already reach the
+   *  ceiling, so a small lot (whose close IS the ceiling) does not get a duplicate. */
+  | 'aerial_detail'
   /** The adjoiners. The neighbour's fence and the road are usually the point of looking. */
   | 'aerial_neighbours'
   /** An aerial near the controlling deed's date. A 2024 photo says nothing about a 1968 deed. */
@@ -216,6 +220,41 @@ export function zoomForBand(framedZoom: number, offset: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, framedZoom + offset));
 }
 
+/** One aerial band resolved to an absolute zoom for this parcel. */
+export interface ResolvedZoomBand {
+  kind: 'aerial_wide' | 'aerial_subject' | 'aerial_close' | 'aerial_detail';
+  label: string;
+  purpose: string;
+  zoom: number;
+}
+
+/**
+ * The adaptive Google zoom ladder for a parcel of THIS framed zoom (plan D/5.1).
+ *
+ * Wide → subject → close come straight from `ZOOM_BANDS` (offsets off the acreage-framed zoom). The
+ * fourth, `aerial_detail`, is added ONLY when the close band has not already hit Google's ceiling —
+ * it pins the deep end to `MAX_ZOOM` so a large tract still gets one capture as close as Google
+ * renders, while a small lot (whose close band already IS the ceiling) is not handed a duplicate.
+ * So the ladder is 3 bands for a small lot and 4 for a larger one. Pure, so it is unit-tested across
+ * parcel sizes without a browser.
+ */
+export function adaptiveZoomBands(framedZoom: number): ResolvedZoomBand[] {
+  const bands: ResolvedZoomBand[] = ZOOM_BANDS.map((b) => ({
+    kind: b.kind, label: b.label, purpose: b.purpose, zoom: zoomForBand(framedZoom, b.offset),
+  }));
+  const closeZoom = bands.find((b) => b.kind === 'aerial_close')?.zoom ?? MAX_ZOOM;
+  if (closeZoom < MAX_ZOOM) {
+    bands.push({
+      kind: 'aerial_detail',
+      label: 'Aerial — deepest Google detail',
+      purpose:
+        'The closest Google renders, for reading a fence offset or a slab edge the framing zoom is too far out to show. On a small lot the close view already reaches this depth, so it is only added for larger tracts.',
+      zoom: MAX_ZOOM,
+    });
+  }
+  return bands;
+}
+
 /** Google's satellite view, at a given centre and zoom, as a URL Playwright can open.
  *
  *  Matches the form `map-screenshot-capture.ts` already drives for Bell, so this is the same road
@@ -282,10 +321,10 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
   // Wide, framed, close — every run. The framed zoom comes from the acreage and the other two are
   // offsets from it; Bell's capture used a fixed zoom 20 for everything, which photographs the
   // middle of anything larger than a house lot and calls it the parcel.
-  for (const band of ZOOM_BANDS) {
-    const zoom = zoomForBand(framing.zoom, band.offset);
+  for (const band of adaptiveZoomBands(framing.zoom)) {
+    const zoom = band.zoom;
     // Metres per pixel doubles for every zoom level down, so the scale has to be recomputed per
-    // band. Reporting the framed scale on all three would put a wrong number on two of them, and
+    // band. Reporting the framed scale on all of them would put a wrong number on most, and
     // a scale is the one thing that makes an aerial measurable rather than decorative.
     const mpp = framing.metresPerPixel * Math.pow(2, framing.zoom - zoom);
     addCapture(captures, skipped, held, refresh, {

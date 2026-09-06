@@ -4785,7 +4785,7 @@ async function runCapturePlan(
       // are rendered from them with the parcel outline drawn on. The close band wants finer
       // pixels than the tile cache serves here (~0.26 m/px), so it still tries Google first and
       // falls back to tiles rather than to nothing.
-      const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_neighbours']);
+      const AERIAL = new Set(['aerial_wide', 'aerial_subject', 'aerial_close', 'aerial_detail', 'aerial_neighbours']);
       const renderAerial = async (why: string) => {
         const { renderParcelMap } = await import('./research/parcel-map-render.js');
         const sizePx = 1600;
