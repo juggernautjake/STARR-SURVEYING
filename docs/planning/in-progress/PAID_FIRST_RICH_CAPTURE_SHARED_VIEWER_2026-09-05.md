@@ -4,6 +4,19 @@
 
 Driven by the stop-hook slice loop.
 
+<!-- HOOK:BLOCKED PAUSED for the owner's DEPLOY decision. All of this session's UI fixes are shipped +
+tested on the branch but NOT deployed — the owner is viewing production (main), which is why they keep
+re-reporting already-fixed things as broken. Shipped: E (in-progress multi-page viewer + Source), G1
+(five-stage stepper), G8 (merged Review list: Analyze·View·Source), H1/H2 (relevance + "+ Add more
+info" picker in BOTH create + re-run dialogs), B1 (parcel bearings), and the whole cross-source engine
+testable core (A0-A5 + driver A7.1 + TexasFile/clerk search mappers A7.2/A7.3) + property relevance.
+Worker 2752 + app 2499 green throughout. The productive next step is to MERGE main + deploy Vercel so
+the owner can SEE + QA the UI (a merge needs their explicit OK per feedback_pr_workflow). The remaining
+big piece — A7.5 (wire the live search into runCrossSourceAcquisition in onPropertyIdentified + C5
+update) — needs a worker deploy + a supervised paid run to build correctly, so it is deploy-gated too.
+Also open: G3/G4 (move analysis controls into the Analysis stage), H3-thread (POST→worker→engine),
+B2/C/D, F. Remove this marker or answer "deploy" / "keep building" to resume. -->
+
 **A7 decision (owner 2026-09-05): build the FULL cross-source engine early-wiring** — real Bell-clerk
 free-search + TexasFile search adapters, the free-capture + buyDocument effects, and the driver that
 runs discover→match→decide→buy-paid-only from `onPropertyIdentified` (early), with the `documentRelevance`
