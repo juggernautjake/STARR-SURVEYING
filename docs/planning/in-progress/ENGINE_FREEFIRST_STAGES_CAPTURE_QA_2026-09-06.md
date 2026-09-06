@@ -63,6 +63,11 @@ In `worker/src/index.ts`, a helper that assembles `DiscoveryTarget` from `resear
 propertyId), the `identified` parcel (subdivision, situs), and `body.supplemental` (instrument numbers,
 volume/page). This is what every source is searched by. Pure enough to unit-test.
 
+> ✅ **BUILT + TESTED 2026-09-06.** `buildDiscoveryTarget(params)` in `live-search.ts` — combines owner
+> name + subdivision + the operator's supplemental (instruments + vol/page) + the CAD deed-history
+> instruments, de-duped, empties dropped. Tests: +2 in `live-search.test.ts` (8 total). tsc green. 1.4
+> feeds this to `runCrossSourceAcquisition`.
+
 ### 1.4 — Replace A7.5 v1's blind buy with the engine's paid-ONLY decision (still EARLY)
 Rewire `runEarlyChecklistPurchase` (or a successor) to: run `runCrossSourceAcquisition` for the
 DISCOVER→MATCH→DECIDE steps (free-capture actions become no-ops — the main gather captures free), then

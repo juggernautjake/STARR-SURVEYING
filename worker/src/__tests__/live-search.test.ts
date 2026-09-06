@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { makeSourceSearch, buildTexasFileSearchInputs, type LiveSearchConfig } from '../research/live-search.js';
+import { makeSourceSearch, buildTexasFileSearchInputs, buildDiscoveryTarget, type LiveSearchConfig } from '../research/live-search.js';
 import type { AcquisitionSource, } from '../research/acquisition-sources.js';
 import type { DiscoveryTarget, ManifestEntry } from '../research/cross-source-discovery.js';
 import type { TexasFileResult, TexasFileBuyInput } from '../services/texasfile-buy.js';
@@ -62,5 +62,28 @@ describe('makeSourceSearch', () => {
     const search = makeSourceSearch({ county: 'Bell', texasfileEnabled: true, texasFileSearch });
     const entries = await search(src('texasfile', 'paid'), target);
     expect(entries.map((e) => e.previewRef)).toContain('G2');
+  });
+});
+
+// Plan 1.3 — the DiscoveryTarget the run is searched by.
+
+describe('buildDiscoveryTarget', () => {
+  it('combines owner + supplemental (instrument + vol/page) + CAD-known instruments, de-duped', () => {
+    const t = buildDiscoveryTarget({
+      county: 'Bell',
+      ownerName: '  FERRELL  ',
+      subdivision: 'Heritage',
+      supplemental: { instrumentNumbers: ['2020-1', ' '], volumePages: [{ volume: '5456', page: '704' }, { volume: '', page: '' }] },
+      knownInstruments: ['2020-1', '2015014567'],
+    });
+    expect(t.ownerName).toBe('FERRELL');
+    expect(t.subdivision).toBe('Heritage');
+    expect(t.instruments).toEqual(['2020-1', '2015014567']); // de-duped, empties dropped
+    expect(t.bookPages).toEqual([{ volume: '5456', page: '704' }]); // empty vp dropped
+  });
+  it('omits empty arrays when there is nothing supplemental', () => {
+    const t = buildDiscoveryTarget({ county: 'Bell', ownerName: 'DOE' });
+    expect(t.instruments).toBeUndefined();
+    expect(t.bookPages).toBeUndefined();
   });
 });

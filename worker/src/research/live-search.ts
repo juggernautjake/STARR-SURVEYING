@@ -24,6 +24,42 @@ export interface LiveSearchConfig {
   log?: (message: string) => void;
 }
 
+/**
+ * Assemble the `DiscoveryTarget` every source is searched by (plan 1.3): the owner name and
+ * subdivision the run identified, plus the operator's supplemental identifiers (instrument numbers +
+ * volume/page) and the instruments the CAD deed history already lists — so TexasFile is searched for
+ * the exact documents the run cares about, not just the owner name. Duplicates removed.
+ */
+export function buildDiscoveryTarget(params: {
+  county: string;
+  ownerName?: string | null;
+  subdivision?: string | null;
+  lot?: string | null;
+  supplemental?: {
+    instrumentNumbers?: string[];
+    volumePages?: Array<{ volume?: string; book?: string; page?: string }>;
+  } | null;
+  /** Instruments the CAD deed history lists — searched on TexasFile too (they may carry the plat). */
+  knownInstruments?: string[];
+}): DiscoveryTarget {
+  const instruments = Array.from(new Set(
+    [...(params.supplemental?.instrumentNumbers ?? []), ...(params.knownInstruments ?? [])]
+      .map((s) => (s ?? '').trim())
+      .filter((s) => s.length > 0),
+  ));
+  const bookPages = (params.supplemental?.volumePages ?? [])
+    .map((vp) => ({ volume: (vp.volume ?? vp.book ?? '').trim(), page: (vp.page ?? '').trim() }))
+    .filter((vp) => vp.volume && vp.page);
+  return {
+    county: params.county,
+    ownerName: params.ownerName?.trim() || undefined,
+    subdivision: params.subdivision?.trim() || undefined,
+    lot: params.lot?.trim() || undefined,
+    ...(instruments.length ? { instruments } : {}),
+    ...(bookPages.length ? { bookPages } : {}),
+  };
+}
+
 /** The TexasFile searches to run for a target: by owner name, by each volume/page, by each instrument.
  *  Each is a narrow query; the engine de-dups the union by GUID. */
 export function buildTexasFileSearchInputs(target: DiscoveryTarget, county: string): TexasFileBuyInput[] {
