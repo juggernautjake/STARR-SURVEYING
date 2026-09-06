@@ -10789,7 +10789,7 @@
 /* The worker's AI reading of the document — a conclusion, set apart from the raw excerpt. */
 .review-doc-card__summary {
   font-size: 0.84rem;
-  color: var(--theme-fg, #111827);
+  color: var(--theme-fg-primary, #111827);
   line-height: 1.55;
   background: var(--theme-bg-elevated, #f8fafc);
   border-left: 3px solid var(--theme-accent, #2563eb);
