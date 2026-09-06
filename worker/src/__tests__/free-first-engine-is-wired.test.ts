@@ -36,7 +36,7 @@ describe('the early buy runs the free-first engine (plan 1.4)', () => {
     expect(fn).toContain('knownFreeDocuments');
     expect(fn).toContain('clerkDocToManifest(');
     // Only the plan's `purchase` actions become recommendations to buy.
-    expect(fn).toContain("a.kind !== 'purchase'");
+    expect(fn).toContain("a.kind === 'purchase'");
   });
 
   it('it still buys through the orchestrator (ledger + library + gate)', () => {
@@ -48,5 +48,13 @@ describe('the early buy runs the free-first engine (plan 1.4)', () => {
   it('it builds the discovery target from owner + supplemental + CAD instruments', () => {
     expect(fn).toContain('buildDiscoveryTarget(');
     expect(fn).toContain('knownInstruments');
+  });
+
+  it('it RANKS the paid candidates by relevance (id/address main), never rejecting (plan 1.5)', () => {
+    // The searches are already property-scoped, so relevance only ORDERS the buy — most-relevant
+    // first — it never drops a candidate for a missing supplemental key (the grain-of-salt rule).
+    expect(fn).toContain('documentRelevance(');
+    expect(fn).toContain('.sort(');
+    expect(fn).toContain('relevanceOf(');
   });
 });

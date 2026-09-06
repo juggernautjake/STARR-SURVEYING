@@ -85,10 +85,19 @@ from `onPropertyIdentified`, so it still beats the cut-short. Keep the C5 test h
 > (removed `live-search` from the allowlist). Tests: `free-first-engine-is-wired.test.ts` (5, checks the
 > CALLER); full worker suite 2774 green, tsc clean.
 
-### 1.5 — Relevance filter on the manifest (id/address main, supplemental secondary)
+### 1.5 — Relevance filter on the manifest (id/address main, supplemental secondary) ✅ BUILT + TESTED
 Apply `documentRelevance` to the discovered entries before matching, dropping documents that match none
 of the property's id/address/instrument/vol-page keys — never rejecting on a missing supplemental field.
 Unit-test with the 64567 fixtures.
+
+**Built:** `runEarlyChecklistPurchase` (index.ts) now builds a `PropertySearchInputs` from the run
+(county, propertyId, address, ownerName, supplemental instruments + vol/pages, subdivision) and RANKS
+the plan's `purchase` actions by `documentRelevance(cluster).confidence` descending before mapping to
+`PurchaseRecommendation[]`. The searches are already property-scoped, so this ORDERS the buy (most
+relevant first) and never drops a candidate for a missing supplemental key (the grain-of-salt rule).
+`property-search-inputs.ts` removed from the orphan allowlist (now wired). **Tested:** tsc clean;
+`free-first-engine-is-wired` (+ new 1.5 ranking assertion), `research-modules-are-reachable`,
+`purchase-order-visuals-lead` green; full worker suite 2780 green.
 
 ### 1.6 — A6: surface the SOURCE-COMPARISON manifest
 Write the engine's manifest (per document: which sources had it, each cost, the CHOSEN source + reason)

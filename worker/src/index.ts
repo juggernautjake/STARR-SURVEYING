@@ -47,6 +47,7 @@ import { discoverAcrossSources } from './research/cross-source-discovery.js';
 import { planAcquisition } from './research/cross-source-acquire-plan.js';
 import { makeSourceSearch, buildDiscoveryTarget } from './research/live-search.js';
 import { clerkDocToManifest } from './research/live-source-adapters.js';
+import { documentRelevance, type PropertySearchInputs, type DocIdentifiers } from './research/property-search-inputs.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -1275,18 +1276,41 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     try {
       const discovery = await discoverAcrossSources(county ?? '', wants, target, engineSearch, { paidEnabled: true });
       const clusters = await clusterEntries(discovery.entries);
+      // ── Plan 1.5 — RANK the paid candidates by relevance to the property + operator keys ──────────
+      // The engine's searches are already property-scoped, so this ORDERS the buy (most-relevant first)
+      // rather than rejecting anything — a document with no matching key is kept, just ranked last.
+      // Never rejects on a MISSING supplemental field (the owner's grain-of-salt rule).
+      const searchInputs: PropertySearchInputs = {
+        county: county ?? '',
+        propertyId: researchInput.propertyId ?? undefined,
+        address: researchInput.address ?? undefined,
+        ownerNames: researchInput.ownerName ? [researchInput.ownerName] : [],
+        instrumentNumbers: supp.instrumentNumbers,
+        volumePages: (supp.volumePages ?? []).map((vp) => ({ volume: vp.volume ?? vp.book ?? '', page: vp.page ?? '' })),
+        subdivision: identified?.subdivisionName ?? undefined,
+      };
+      const relevanceOf = (c: { instrument?: string; book?: string; page?: string; grantor?: string; grantee?: string; subdivision?: string }): number => {
+        const doc: DocIdentifiers = {
+          instrument: c.instrument, book: c.book, page: c.page,
+          ownerNames: [c.grantor, c.grantee].filter((x): x is string => !!x),
+          subdivision: c.subdivision,
+        };
+        return documentRelevance(doc, searchInputs).confidence;
+      };
       const plan = planAcquisition(clusters, { paidBudgetUsd: ceiling });
-      paidRecs = plan.actions.flatMap((a, i) => {
-        if (a.kind !== 'purchase') return [];
-        const dt = (a.cluster.docType === 'plat' || a.cluster.docType === 'deed' || a.cluster.docType === 'easement' || a.cluster.docType === 'restriction') ? a.cluster.docType : 'deed';
-        return [{
-          documentType: dt as PurchaseRecommendation['documentType'],
-          instrument: a.cluster.instrument ?? 'search_required',
-          source: 'texasfile', estimatedCost: `$${a.source.unitCostUsd}`, confidenceImpact: '', callsImproved: 0,
-          reason: a.reason, priority: i + 1, roi: 1, county: county ?? undefined,
-          book: a.cluster.book, page: a.cluster.page, recordingDate: a.cluster.recordingDate,
-        } as PurchaseRecommendation];
-      });
+      paidRecs = plan.actions
+        .filter((a): a is Extract<typeof a, { kind: 'purchase' }> => a.kind === 'purchase')
+        .sort((a, b) => relevanceOf(b.cluster) - relevanceOf(a.cluster)) // most-relevant first
+        .map((a, i) => {
+          const dt = (a.cluster.docType === 'plat' || a.cluster.docType === 'deed' || a.cluster.docType === 'easement' || a.cluster.docType === 'restriction') ? a.cluster.docType : 'deed';
+          return {
+            documentType: dt as PurchaseRecommendation['documentType'],
+            instrument: a.cluster.instrument ?? 'search_required',
+            source: 'texasfile', estimatedCost: `$${a.source.unitCostUsd}`, confidenceImpact: '', callsImproved: 0,
+            reason: a.reason, priority: i + 1, roi: 1, county: county ?? undefined,
+            book: a.cluster.book, page: a.cluster.page, recordingDate: a.cluster.recordingDate,
+          } as PurchaseRecommendation;
+        });
       handshakeLogger.attempt('[Purchase]', 'info', 'Cross-source decision',
         `${discovery.entries.length} listing(s) → ${clusters.length} document(s); ${paidRecs.length} paid-exclusive`)
         .success(paidRecs.length, `Free-first: ${paidRecs.length} document(s) TexasFile has that the free record does not.`);
