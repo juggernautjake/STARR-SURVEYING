@@ -308,6 +308,13 @@ clickable source URL.
 > page 1 only. It MUST open the multi-page `SourceDocumentViewer` in-app (page through all pages, zoom)
 > as files land in real time. This is the highest-priority item in E — the owner needs it working.
 
+> **SHIPPED (E1+E2+E3) 2026-09-05.** `ResearchRunView.tsx::DocumentList` now opens the SAME
+> `SourceDocumentViewer` as Review — each in-progress row is a button that mounts the modal (multi-page
+> click-through + zoom) instead of a first-page-only new tab, plus a clickable "Source ↗" link. The
+> `/documents` endpoint already `select('*')`s every field the viewer reads; `RunDocument` (useRunState)
+> gained the declarations (`ocr_regions`, `pages_pdf_url`, `storage_url`, `source_url`, `extracted_text`,
+> …). app tsc clean. Needs browser-QA in F (owner-visible fix).
+
 ### E1 — `RunDocument` carries `source_url`
 Read `app/admin/research/components/useRunState.ts` (`RunDocument` 50-68) and the API that fills
 `run.documents`. Add `source_url` to `RunDocument` and select it in the run-documents query (the DB

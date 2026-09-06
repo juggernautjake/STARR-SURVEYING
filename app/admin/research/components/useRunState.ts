@@ -57,6 +57,17 @@ export interface RunDocument {
   storage_path?: string | null;
   public_url?: string | null;
   source_type?: string | null;
+  // ── Fields the dedicated viewer needs (plan E) — the /documents endpoint already `select('*')`s
+  // them, so they arrive at runtime; declared here so the in-progress list can open the SAME
+  // SourceDocumentViewer as Review (multi-page, zoom) instead of a first-page-only new tab. ──
+  storage_url?: string | null;
+  pages_pdf_url?: string | null;
+  ocr_regions?: unknown;
+  extracted_text?: string | null;
+  original_filename?: string | null;
+  ocr_confidence?: number | null;
+  /** The origin URL the file/doc/image was retrieved from (owner: clickable "Source ↗"). */
+  source_url?: string | null;
   created_at?: string | null;
   superseded_at?: string | null;
   duplicate_of?: string | null;
