@@ -179,6 +179,15 @@ Render the manifest as a visible comparison: one row per document (cluster) × t
 the "detailed cross comparison" the owner asked to SEE, not just an internal structure.
 
 ### A7 — Resolve the dual Bell path, wire the engine into the LIVE run, fire after Phase 1
+
+> **DUAL PATH RESOLVED 2026-09-05.** The live Bell run is `index.ts → counties/router.ts` (switch
+> `case 'bell'`) `→ runBellCountyResearch` (`counties/bell/index.js`) `→ orchestrateBellResearch`
+> (`counties/bell/orchestrator.ts`) — the "dedicated research module", producing a `county-specific`
+> result. `services/pipeline.ts::runPipeline` is the GENERIC path the router uses for non-dedicated
+> counties (its inline Bell Stage-1 code is legacy for that fallback). **So the engine wires into
+> `orchestrateBellResearch` after Phase 1 (identify)**, with the injected `SourceSearchFn` = Bell clerk
+> free search + TexasFile search adapters, and the acquire effects = the Bell free-capture +
+> `buyDocument`. `BellResearchInput` gains the supplemental identifiers (H3) → `DiscoveryTarget`.
 Determine which Bell path the live run uses — `worker/src/counties/bell/orchestrator.ts`
 (`orchestrateBellResearch`) vs the Bell handling in `worker/src/services/pipeline.ts` — by reading the
 router/dispatch, THEN wire the engine into the live one, running after Phase 1 identifies the
