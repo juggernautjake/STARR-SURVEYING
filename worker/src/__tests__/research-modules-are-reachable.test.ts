@@ -111,8 +111,8 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'Plan A7 — the engine DRIVER: composes discover (A1) → match (A2) → decide (A3) → execute (A4) into one runCrossSourceAcquisition call, keeping the whole A1→A4 chain reachable. Per-source search + capture/buy effects are injected. Built ahead of its final wiring into index.ts onPropertyIdentified (the real Bell-clerk/TexasFile adapters + Bell free-capture/buyDocument), which will call it and remove this entry. Not dead — unit-tested by cross-source-acquisition.test.ts.',
 
 
-  'worker/src/research/live-source-adapters.ts':
-    'Plan A7.2 — pure mappers turning a live TexasFile search result into a ManifestEntry (docType classify, book/vol/page split, $1/page pricing, GUID for the buy). Built ahead of A7.5, which wires makeTexasFileSearch/makeBellClerkSearch into runCrossSourceAcquisition in index.ts and removes this entry. Not dead — unit-tested by live-source-adapters.test.ts.',
+  'worker/src/research/live-search.ts':
+    'Plan 1.2 — makeSourceSearch: the live SourceSearchFn the engine dispatches (imports live-source-adapters + searchTexasFileDocuments, keeping the mappers reachable). TexasFile → live search-only + map; free source → the run\'s known-free docs (CAD deed history). Built ahead of 1.4, which calls runCrossSourceAcquisition with it in index.ts and removes this entry. Not dead — unit-tested by live-search.test.ts.',
 
 
   'worker/src/research/property-search-inputs.ts':

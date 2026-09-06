@@ -51,6 +51,13 @@ returns a `SourceSearchFn` that, given `(acquisitionSource, target)`, dispatches
 a free clerk source → the CAD deed-history + a light clerk lookup → `clerkDocToManifest`. Isolate a
 failing source (the engine already records it). Unit-test the dispatch + mapping with fakes.
 
+> ✅ **BUILT + TESTED 2026-09-06.** `worker/src/research/live-search.ts` — `makeSourceSearch(cfg)`
+> returns a `SourceSearchFn`: `texasfile` → `buildTexasFileSearchInputs` (name + each vol/page + each
+> instrument) → the injectable search-only call → de-dup by GUID → `texasFileResultToManifest`; a free
+> source → `cfg.knownFreeDocuments` (the CAD deed history — no second clerk crawl). Isolates a failing
+> query; honours a disabled TexasFile. Tests: `live-search.test.ts` (6). Wired `live-source-adapters`
+> (allowlist moved to `live-search`). tsc + guard green. 1.3 builds the `DiscoveryTarget`.
+
 ### 1.3 — Build the `DiscoveryTarget` from the run's inputs + the identified parcel
 In `worker/src/index.ts`, a helper that assembles `DiscoveryTarget` from `researchInput` (owner name,
 propertyId), the `identified` parcel (subdivision, situs), and `body.supplemental` (instrument numbers,
