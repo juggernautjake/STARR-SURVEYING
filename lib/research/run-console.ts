@@ -59,34 +59,54 @@ export interface UsageRow {
   cost_usd: number | string;
   model: string | null;
   created_at: string;
+  /** A purchase row names its vendor here (`platform`) — how the two meters are told apart. */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface SpendBreakdown {
   totalUsd: number;
   byType: Record<string, { count: number; usd: number }>;
+  // ── The two metered budgets (plan B2; split 2026-09-06) ─────────────────────────────────────
+  /** Document purchases whose ledger row names TexasFile as the vendor. */
+  texasfileUsd: number;
+  /** Everything else: other paid vendors, AI, OCR, captcha, browser sessions. */
+  otherUsd: number;
   /** No events at all. NOT the same as zero spend — see the header. */
   noEventsRecorded: boolean;
   headline: string;
 }
 
+/** Is this ledger row a TexasFile purchase? (The vendor is in the purchase row's metadata.) */
+export function isTexasFileSpend(e: Pick<UsageRow, 'event_type' | 'metadata'>): boolean {
+  if (e.event_type !== 'document_purchase') return false;
+  const platform = String(e.metadata?.platform ?? e.metadata?.vendor ?? '').toLowerCase();
+  return platform.includes('texasfile');
+}
+
 export function summariseSpend(events: UsageRow[]): SpendBreakdown {
   const byType: SpendBreakdown['byType'] = {};
   let total = 0;
+  let texasfile = 0;
   for (const e of events) {
     const usd = Number(e.cost_usd) || 0;
     total += usd;
+    if (isTexasFileSpend(e)) texasfile += usd;
     const b = byType[e.event_type] ?? (byType[e.event_type] = { count: 0, usd: 0 });
     b.count++;
     b.usd += usd;
   }
   total = Number(total.toFixed(4));
+  texasfile = Number(texasfile.toFixed(4));
+  const other = Number((total - texasfile).toFixed(4));
 
   const noEventsRecorded = events.length === 0;
   const headline = noEventsRecorded
     ? 'No usage events have been recorded for this run. That is not the same as it having cost nothing — it may mean spend is not being tracked.'
-    : `$${total.toFixed(2)} spent so far across ${events.length} recorded event(s).`;
+    : texasfile > 0
+      ? `$${total.toFixed(2)} spent so far across ${events.length} recorded event(s) — TexasFile $${texasfile.toFixed(2)}, other sources $${other.toFixed(2)}.`
+      : `$${total.toFixed(2)} spent so far across ${events.length} recorded event(s).`;
 
-  return { totalUsd: total, byType, noEventsRecorded, headline };
+  return { totalUsd: total, byType, texasfileUsd: texasfile, otherUsd: other, noEventsRecorded, headline };
 }
 
 // ── Time against the ceiling ────────────────────────────────────────────────────────────────────

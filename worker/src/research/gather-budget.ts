@@ -59,6 +59,32 @@ export function mayBuyFromTexasFile(budget: GatherBudget, spentOnTexasfile: numb
   return cost <= remainingTexasfileAllowance(budget, spentOnTexasfile);
 }
 
+/**
+ * Would buying a `docCostUsd` document from a NON-TexasFile paid vendor (Kofile, Tyler, …) stay
+ * within the remaining other-sources budget? The second of the two metered budgets. Until
+ * 2026-09-06 this budget was only SUMMED into the run's cost cap and never gated on its own, so a
+ * $5 other-sources budget could be spent entirely by TexasFile and vice versa.
+ */
+export function mayBuyFromOtherSource(budget: GatherBudget, spentOnOther: number, docCostUsd: number): boolean {
+  const cost = finiteOr(docCostUsd, Infinity);
+  if (!(cost > 0)) return false;
+  return cost <= remainingOtherAllowance(budget, spentOnOther);
+}
+
+/** The one-line settlement of both meters, for the run log and the run record. */
+export function describeGatherSpend(
+  budget: GatherBudget,
+  spentOnTexasfile: number,
+  spentOnOther: number,
+  files: { texasfileFiles?: number; otherFiles?: number } = {},
+): string {
+  const tf = budget.texasfileOn
+    ? `TexasFile: ${files.texasfileFiles ?? 0} file(s), $${finiteOr(spentOnTexasfile, 0).toFixed(2)} of the $${budget.texasfileBudgetUsd.toFixed(2)} budget`
+    : 'TexasFile: off';
+  const other = `other sources: ${files.otherFiles ?? 0} file(s), $${finiteOr(spentOnOther, 0).toFixed(2)} of the $${budget.otherBudgetUsd.toFixed(2)} budget`;
+  return `${tf} · ${other}.`;
+}
+
 function finiteOr(n: number | undefined, fallback: number): number {
   return typeof n === 'number' && Number.isFinite(n) ? n : fallback;
 }

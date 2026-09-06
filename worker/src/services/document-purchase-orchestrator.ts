@@ -31,10 +31,13 @@ import { findOwned, recordPurchase, summariseSavings, type OwnedDocument } from 
 import { mayPurchaseFrom } from './platform-choice.js';
 import type { PaidPlatformId } from '../types/document-access.js';
 import { DocumentIndex } from '../research/document-identity.js';
-// The Gather-run TexasFile earmark: a flat $10, gated per-buy, refunded if it finds nothing (plan G2).
+// The Gather run's two metered budgets (plan B2): TexasFile, and every other paid vendor.
 import {
+  describeGatherSpend,
   gatherBudget,
+  mayBuyFromOtherSource,
   mayBuyFromTexasFile,
+  remainingOtherAllowance,
   remainingTexasfileAllowance,
 } from '../research/gather-budget.js';
 import type {
@@ -192,9 +195,13 @@ export class DocumentPurchaseOrchestrator {
     const gatherBudgetPlan = gatherBudget({
       texasfileOn: !!config.texasfileCredentials,
       texasfileBudgetUsd: config.budget,
+      otherBudgetUsd: config.otherBudgetUsd,
     });
     let texasFileSpend = 0;
     let texasFileFilesFound = 0;
+    // The second meter: every non-TexasFile paid vendor draws on the other-sources budget.
+    let otherSpend = 0;
+    let otherFilesFound = 0;
 
     // Sort by priority (ROI-based from Phase 8)
     const sorted = [...recommendations].sort(
@@ -440,6 +447,36 @@ export class DocumentPurchaseOrchestrator {
           return r;
         };
 
+        // Every OTHER paid vendor goes through here so the other-sources budget is enforced in ONE
+        // place too. Until 2026-09-06 that budget was summed into the run's cap and never gated, so
+        // a Kofile page could spend what the operator had set aside for TexasFile, and vice versa.
+        const buyFromOtherVendor = async (
+          vendor: string,
+          purchase: () => Promise<DocumentPurchaseResult>,
+        ): Promise<DocumentPurchaseResult> => {
+          const estDocCost = parseEstimatedCost(rec.estimatedCost, 1) || 1;
+          if (!mayBuyFromOtherSource(gatherBudgetPlan, otherSpend, estDocCost)) {
+            const left = remainingOtherAllowance(gatherBudgetPlan, otherSpend);
+            this.logger.warn(
+              'Purchase',
+              `Other-sources budget reached — not buying ${rec.instrument} from ${vendor} (est $${estDocCost}, $${left.toFixed(2)} of the $${gatherBudgetPlan.otherBudgetUsd} left)`,
+            );
+            return {
+              instrument: rec.instrument, documentType: rec.documentType, source: rec.source,
+              status: 'budget_exceeded', pages: 0, costPerPage: 0, totalCost: 0,
+              paymentMethod: 'account_balance', transactionId: null, downloadedImages: [],
+              imageQuality: { format: 'unknown', hasWatermark: true, qualityScore: 0 },
+              error: `Other-sources $${gatherBudgetPlan.otherBudgetUsd} budget exhausted ($${left.toFixed(2)} left)`,
+            };
+          }
+          const r = await purchase();
+          if (r.status === 'purchased') {
+            otherSpend += r.totalCost ?? 0;
+            otherFilesFound += 1;
+          }
+          return r;
+        };
+
         // ── Cheapest-first, enforced rather than sorted (plan R13) ───────────────────────────
         //
         // `platform-choice.ts` was written to make the cost ordering a policy instead of a
@@ -471,19 +508,21 @@ export class DocumentPurchaseOrchestrator {
         }
 
         if (sourceLower.includes('kofile') && kofileAdapter) {
-          result = await kofileAdapter.purchaseDocument(
+          const kofile = kofileAdapter;
+          result = await buyFromOtherVendor('kofile', () => kofile.purchaseDocument(
             rec.instrument,
             rec.documentType,
-          );
+          ));
         } else if (sourceLower.includes('texasfile') && texasFileAdapter) {
           result = await buyFromTexasFile();
         } else {
           // Try Kofile first, then TexasFile fallback
           if (kofileAdapter) {
-            result = await kofileAdapter.purchaseDocument(
+            const kofile = kofileAdapter;
+            result = await buyFromOtherVendor('kofile', () => kofile.purchaseDocument(
               rec.instrument,
               rec.documentType,
-            );
+            ));
             if (
               result.status === 'failed' &&
               texasFileAdapter
@@ -701,15 +740,15 @@ export class DocumentPurchaseOrchestrator {
     const invoicePath = this.billing.generateInvoice(projectId);
     const remaining = this.billing.checkBudget(projectId, 0).remaining;
 
-    // TexasFile is metered (plan B2): the run pays for the pages it actually bought, within the
-    // TexasFile budget. Report the ceiling, the file count and the real wallet spend — no settlement.
-    if (gatherBudgetPlan.texasfileOn) {
-      this.logger.info(
-        'Purchase',
-        `TexasFile: ${texasFileFilesFound} file(s), $${texasFileSpend.toFixed(2)} of the ` +
-          `$${gatherBudgetPlan.texasfileBudgetUsd.toFixed(2)} budget.`,
-      );
-    }
+    // Both meters are reported (plan B2): the run pays for what it actually bought, within each
+    // budget. The ceiling, the file count and the real spend, per meter — no settlement.
+    this.logger.info(
+      'Purchase',
+      describeGatherSpend(gatherBudgetPlan, texasFileSpend, otherSpend, {
+        texasfileFiles: texasFileFilesFound,
+        otherFiles: otherFilesFound,
+      }),
+    );
 
     const billing: PurchaseBillingSummary = {
       totalDocumentCost: totalCharged,
@@ -725,6 +764,9 @@ export class DocumentPurchaseOrchestrator {
             texasfileWalletSpend: Math.round(texasFileSpend * 100) / 100,
           }
         : {}),
+      otherBudgetUsd: gatherBudgetPlan.otherBudgetUsd,
+      otherFilesFound,
+      otherSourcesSpend: Math.round(otherSpend * 100) / 100,
     };
 
     // ── Build final report ──────────────────────────────────────────────

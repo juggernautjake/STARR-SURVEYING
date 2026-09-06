@@ -112,7 +112,7 @@ import {
 } from './research/persist-run-logs.js';
 import { BudgetAbort, OperatorAbort, StallAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
-import { resetRunSpend, spendForRun, ledgerSpendForRun } from './infra/usage.js';
+import { resetRunSpend, spendForRun, ledgerSpendForRun, ledgerSpendByBucket, describeSpendByBucket } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -1416,7 +1416,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       projectId, recs,
       {
         texasfileCredentials: process.env.TEXASFILE_USERNAME ? { username: process.env.TEXASFILE_USERNAME, password: process.env.TEXASFILE_PASSWORD!, accountType: 'pay_per_page' } : undefined,
-        budget: ceiling, autoReanalyze: false, runId: activePipelines.get(projectId)?.runId ?? null,
+        budget: ceiling, otherBudgetUsd: runSettings.otherBudgetUsd, autoReanalyze: false, runId: activePipelines.get(projectId)?.runId ?? null,
       },
       countyFIPS, county ?? '',
     );
@@ -2229,6 +2229,19 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         }
       }
       const stopped = activePipelines.get(projectId)?.stopReason;
+      // The two meters, settled from the LEDGER (plan B2; metered separately 2026-09-06). A run that
+      // was given a TexasFile budget and an other-sources budget is told how much of EACH it used —
+      // the single total could not say whether the $5 other-sources budget was spent by TexasFile.
+      let metersLine: string | null = null;
+      if (runSettings.texasfileBudgetUsd != null || runSettings.otherBudgetUsd != null) {
+        try {
+          const buckets = await ledgerSpendByBucket(projectId);
+          metersLine = describeSpendByBucket(buckets, runSettings);
+          handshakeLogger.attempt('[Budget]', 'info', 'Spend by budget', metersLine).success(0, metersLine);
+        } catch (e) {
+          console.warn(`[budget] ${projectId}: could not settle the two meters — ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
       void recordRunFinish({
         projectId,
         runId: activePipelines.get(projectId)?.runId ?? null,
@@ -2238,7 +2251,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         costUsd: finalBudget.spentUsd,
         paidPages: finalBudget.paidPages,
         skippedWork: finalBudget.skipped,
-        budgetSummary: windDown,
+        budgetSummary: [windDown, metersLine].filter((s): s is string => !!s).join(' ') || null,
       });
       clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
@@ -2538,6 +2551,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                         accountType: 'pay_per_page',
                       } : undefined,
                       budget: ceiling,
+                      otherBudgetUsd: runSettings.otherBudgetUsd,
                       autoReanalyze: false,
                       runId: activePipelines.get(projectId)?.runId ?? null,
                     },
@@ -2966,6 +2980,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                       accountType: 'pay_per_page',
                     } : undefined,
                     budget: ceiling,
+                    otherBudgetUsd: runSettings.otherBudgetUsd,
                     autoReanalyze: false,
                     runId: activePipelines.get(projectId)?.runId ?? null,
                   },

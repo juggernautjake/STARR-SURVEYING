@@ -109,6 +109,9 @@ export interface PurchaseOrchestratorConfig {
   landexCredentials?: LandExCredentials;
   csLexiCredentials?: CSLexiCredentials;
   budget: number;
+  /** The other-sources budget (non-TexasFile paid vendors), metered on its own — plan B2's second
+   *  budget. Absent → the $2 floor applies. */
+  otherBudgetUsd?: number;
   autoReanalyze: boolean;
   /** If true (default), always try free/watermarked images before paid */
   tryFreeFirst?: boolean;
@@ -300,6 +303,14 @@ export interface PurchaseBillingSummary {
   texasfileFilesFound?: number;
   /** Real TexasFile wallet spend this run ($1/page), within the budget. */
   texasfileWalletSpend?: number;
+
+  // ── The other-sources meter (2026-09-06) — every non-TexasFile paid vendor draws on THIS ──────
+  /** The other-sources budget ceiling for this run (≥ $2). */
+  otherBudgetUsd?: number;
+  /** How many documents non-TexasFile vendors obtained. */
+  otherFilesFound?: number;
+  /** Real spend at non-TexasFile vendors this run, within the other-sources budget. */
+  otherSourcesSpend?: number;
 }
 
 // ── Final PurchaseReport (the Phase 9 deliverable) ──────────────────────────

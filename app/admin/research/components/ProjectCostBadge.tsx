@@ -10,6 +10,9 @@ import { useEffect, useState } from 'react';
 
 interface CostResponse {
   totalUsd: number;
+  /** The two metered budgets (plan B2): TexasFile purchases, and everything else. */
+  texasfileUsd?: number;
+  otherUsd?: number;
   events: number;
   byEventType: Record<string, number>;
 }
@@ -37,6 +40,8 @@ export default function ProjectCostBadge({ projectId }: { projectId: string }) {
   const ai = Object.entries(cost.byEventType)
     .filter(([k]) => k !== 'document_purchase')
     .reduce((s, [, v]) => s + v, 0);
+  // The two budgets the run dialog sets: what TexasFile took, and what everything else did.
+  const texasfile = cost.texasfileUsd ?? 0;
 
   return (
     <div
@@ -47,7 +52,7 @@ export default function ProjectCostBadge({ projectId }: { projectId: string }) {
     >
       <strong>Project spend {usd(cost.totalUsd)}</strong>
       <span style={{ opacity: 0.7 }}>
-        {buy > 0 && <>purchases {usd(buy)} · </>}AI {usd(ai)}
+        {buy > 0 && <>purchases {usd(buy)}{texasfile > 0 && <> (TexasFile {usd(texasfile)})</>} · </>}AI {usd(ai)}
       </span>
     </div>
   );

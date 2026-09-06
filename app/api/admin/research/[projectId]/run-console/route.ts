@@ -32,7 +32,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .limit(1),
     supabaseAdmin
       .from('research_usage_events')
-      .select('event_type, cost_usd, model, created_at')
+      .select('event_type, cost_usd, model, created_at, metadata')
       .eq('research_project_id', projectId)
       .order('created_at', { ascending: false })
       .limit(500),

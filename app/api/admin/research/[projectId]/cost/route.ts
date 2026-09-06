@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { isTexasFileSpend } from '@/lib/research/run-console';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
@@ -28,19 +29,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('research_usage_events')
-    .select('event_type, cost_usd')
+    .select('event_type, cost_usd, metadata')
     .eq('research_project_id', projectId);
 
   if (error) {
     return NextResponse.json({ error: 'Could not read the cost ledger', details: error.message }, { status: 500 });
   }
 
-  const rows = (data ?? []) as Array<{ event_type: string | null; cost_usd: number | string | null }>;
+  const rows = (data ?? []) as Array<{ event_type: string | null; cost_usd: number | string | null; metadata?: Record<string, unknown> | null }>;
   const byEventType: Record<string, number> = {};
   let totalUsd = 0;
+  // The two metered budgets (plan B2; split 2026-09-06): TexasFile purchases vs everything else.
+  let texasfileUsd = 0;
   for (const r of rows) {
     const c = Number(r.cost_usd) || 0;
     totalUsd += c;
+    if (isTexasFileSpend({ event_type: r.event_type ?? '', metadata: r.metadata })) texasfileUsd += c;
     const k = r.event_type || 'unknown';
     byEventType[k] = round4((byEventType[k] || 0) + c);
   }
@@ -48,6 +52,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({
     projectId,
     totalUsd: round4(totalUsd),
+    texasfileUsd: round4(texasfileUsd),
+    otherUsd: round4(totalUsd - texasfileUsd),
     events: rows.length,
     byEventType,
   });

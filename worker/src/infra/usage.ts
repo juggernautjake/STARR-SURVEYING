@@ -149,13 +149,67 @@ export async function ledgerSpendForRun(
   return Number(total.toFixed(6));
 }
 
-async function loadLedgerRows(projectId: string): Promise<Array<{ cost_usd: number | string | null }>> {
+/** One ledger row, as the two meters need it: the cost, what kind of event, and (for a purchase)
+ *  which vendor sold it. */
+export interface LedgerRowLike {
+  cost_usd: number | string | null;
+  event_type?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface SpendByBucket {
+  /** Document purchases whose ledger row names TexasFile as the vendor. */
+  texasfileUsd: number;
+  /** Everything else — other paid vendors, AI calls, OCR, captcha, browser sessions. */
+  otherUsd: number;
+  totalUsd: number;
+}
+
+/**
+ * The ledger's spend split into the two budgets a Gather run is given (plan B2, metered separately
+ * 2026-09-06): TexasFile, and everything else. `ledgerSpendForRun` answers "how much"; this answers
+ * "against which budget", which is what the run record and the run console report next to the two
+ * ceilings the operator set. Pure over the rows; `load` is injectable for tests.
+ */
+export async function ledgerSpendByBucket(
+  projectId: string,
+  load?: (projectId: string) => Promise<LedgerRowLike[]>,
+): Promise<SpendByBucket> {
+  const rows = load ? await load(projectId) : await loadLedgerRows(projectId);
+  let texasfile = 0;
+  let other = 0;
+  for (const r of rows) {
+    const cost = Number(r?.cost_usd) || 0;
+    if (isTexasFilePurchase(r)) texasfile += cost;
+    else other += cost;
+  }
+  const round = (n: number) => Number(n.toFixed(6));
+  return { texasfileUsd: round(texasfile), otherUsd: round(other), totalUsd: round(texasfile + other) };
+}
+
+/** The two meters as one sentence, against the ceilings the operator set (when they set them). */
+export function describeSpendByBucket(
+  b: SpendByBucket,
+  budgets: { texasfileBudgetUsd?: number; otherBudgetUsd?: number } = {},
+): string {
+  const of = (ceiling: number | undefined) => (typeof ceiling === 'number' && Number.isFinite(ceiling) ? ` of the $${ceiling.toFixed(2)} budget` : '');
+  return `Spend by budget — TexasFile $${b.texasfileUsd.toFixed(2)}${of(budgets.texasfileBudgetUsd)}; ` +
+    `other sources $${b.otherUsd.toFixed(2)}${of(budgets.otherBudgetUsd)} (total $${b.totalUsd.toFixed(2)}).`;
+}
+
+function isTexasFilePurchase(r: LedgerRowLike): boolean {
+  if (r.event_type !== 'document_purchase') return false;
+  const platform = String(r.metadata?.platform ?? r.metadata?.vendor ?? '').toLowerCase();
+  return platform.includes('texasfile');
+}
+
+async function loadLedgerRows(projectId: string): Promise<LedgerRowLike[]> {
   try {
     const supabase = await getSupabase();
     if (!supabase) return [];
     const { data, error } = await (supabase as unknown as {
-      from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ cost_usd: number | string | null }> | null; error: { message: string } | null }> } };
-    }).from('research_usage_events').select('cost_usd').eq('research_project_id', projectId);
+      from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: LedgerRowLike[] | null; error: { message: string } | null }> } };
+    }).from('research_usage_events').select('cost_usd, event_type, metadata').eq('research_project_id', projectId);
     if (error) {
       console.warn(`[usage] ledgerSpendForRun could not read the ledger for ${projectId}: ${error.message}`);
       return [];

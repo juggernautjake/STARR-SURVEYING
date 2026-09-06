@@ -63,6 +63,17 @@ describe('$0.00 is the dangerous number', () => {
     expect(s.byType.document_purchase!.usd).toBe(1);
     expect(s.noEventsRecorded).toBe(false);
   });
+
+  it('splits TexasFile purchases from every other source — the two budgets the run was given (2026-09-06)', () => {
+    const tf = { ...usage('document_purchase', 3), metadata: { platform: 'texasfile' } };
+    const kofile = { ...usage('document_purchase', 1), metadata: { platform: 'kofile_pay' } };
+    const s = summariseSpend([tf, kofile, usage('ai_call', 0.5)]);
+    expect(s.texasfileUsd).toBe(3);
+    expect(s.otherUsd).toBe(1.5);
+    expect(s.headline).toContain('TexasFile $3.00, other sources $1.50');
+    // A purchase row with no vendor named is NOT TexasFile's; nothing is guessed onto its meter.
+    expect(summariseSpend([usage('document_purchase', 1)]).texasfileUsd).toBe(0);
+  });
 });
 
 describe('elapsed against the ceiling', () => {
