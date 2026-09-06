@@ -143,9 +143,12 @@ describe('captured files are reviewable DURING the run', () => {
   // uploadDocumentIncremental / uploadScreenshotsIncremental at seven sites, so documents and
   // screenshots reach Supabase as they are captured, and this view already polls for them every
   // eight seconds. The rows appeared live and simply were not clickable.
-  it('each document row is a link once its file exists', () => {
-    expect(runView).toMatch(/<a href=\{url\}/);
-    expect(runView).toMatch(/target="_blank"/);
+  it('each document row opens the dedicated viewer once its file exists (plan E)', () => {
+    // The row now opens the SAME multi-page SourceDocumentViewer as Review (page through + zoom),
+    // instead of a first-page-only new tab. It still only does so when a file actually exists (`url`).
+    expect(runView).toMatch(/onClick=\{\(\) => setViewerDoc\(d\)\}/);
+    expect(runView).toContain('SourceDocumentViewer');
+    expect(runView).toContain('setViewerDoc');
   });
 
   it('decides "is there a file" with the SHARED predicate, not a truthiness check', () => {

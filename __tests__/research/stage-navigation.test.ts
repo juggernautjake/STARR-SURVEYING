@@ -31,7 +31,7 @@ describe('the stage order this is built on', () => {
     // A hand-kept order beside `PIPELINE_STAGES` is G12 waiting to happen: a fifth stage would be
     // drawn by the stepper and unreachable by the navigation, and nothing would say why.
     expect(STAGE_ORDER).toEqual(PIPELINE_STAGES.map((s) => s.key));
-    expect(STAGE_ORDER.length, 'the pipeline is four stages').toBe(4);
+    expect(STAGE_ORDER.length, 'the pipeline is five stages (Research and Analysis split)').toBe(5);
   });
 
   it('and an unknown stage reads as the FIRST one, not as -1', () => {

@@ -348,6 +348,16 @@ Review. Every extracted DATA POINT gets a button that opens a new tab to the sou
 from. This makes the two-pipeline gather/analyze model (`phase:'gather'|'analyze'`) explicit in the UI.
 
 ### G1 — Split the stage model 4 → 5 (Research | Analysis separate)
+
+> **SHIPPED (stepper) 2026-09-05.** `types/research.ts` now has FIVE `PIPELINE_STAGES` — Property
+> Information · **Research** · **Analysis** · Review · Job Prep — with a distinct `analysis` stage,
+> icon and description; the stepper renders "Stage N of 5" (fixes the owner's "shows only four"
+> screenshot). `workflowStepToStage` keeps the post-gather DB state (`review`) mapping to Review with
+> the Analysis stage sitting just before it and always openable (a distinct `analysis` DB status is a
+> later backend slice). The Analysis stage view renders the analysis content for now
+> (`currentStage === 'analysis' || 'review'`). app research suite 2498 green, tsc clean. **Follow-up
+> (G3/G4):** move the Run-AI-Review + quote controls into the Analysis stage and leave Review for the
+> results, and G8 (merge the two Review lists). Needs browser-QA in F.
 Read the pipeline stage definitions + the "RESEARCH PIPELINE" stepper + the run-status→stage mapping
 (`app/admin/research/[projectId]/page.tsx`, the stage constants, and any shared stage enum). Insert an
 **Analysis** stage between Research and Review. Research maps to the gather phase (`phase:'gather'`),
@@ -380,6 +390,15 @@ Read the data-point model (`ResearchDataPoint`/equivalent in `types/research.ts`
 point records the document/source it was extracted from. Add a button on each data point that opens a
 new tab to that source URL/page (the document's `source_url`, or the data point's own citation). Show
 it wherever data points render (Analysis + Review).
+
+### G8 — Combine the two Review-stage document lists into ONE (owner 2026-09-05)
+The Review stage currently shows the SAME documents twice: a "Documents & Sources" list (View · open
+source in a new tab) and a separate "AI analysis quote" list (Analyze this · per-page cost). Merge them
+into a SINGLE list where each row shows **Analyze (with its cost) · View (dedicated viewer) · View
+source (new tab)**, and keep the "Analyze everything" action + the full-analysis quote total. One row
+per document, real visual change. Read `app/admin/research/[projectId]/page.tsx` (the Review render:
+`review-doc-list` / `ReviewDocCard`) + `AnalysisEstimatePanel.tsx` (the per-file "Analyze this" +
+quote) and unify them; reuse `SourceDocumentViewer` for View and the existing analyze call for Analyze.
 
 ### G7 — Wire + tests + browser QA
 Assert the stepper renders five stages in order, the run status maps to the right stage, the shared

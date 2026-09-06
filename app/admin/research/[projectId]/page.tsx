@@ -461,8 +461,8 @@ export default function ResearchProjectPage() {
 
     const stepLabels: Record<WorkflowStep, string> = {
       upload: 'Property Information',
-      configure: 'Research & Analysis',
-      analyzing: 'Research & Analysis',
+      configure: 'Research',
+      analyzing: 'Research',
       review: 'Review',
       drawing: 'Job Prep',
       verifying: 'Job Prep',
@@ -1957,7 +1957,7 @@ export default function ResearchProjectPage() {
             2. Raw Log Viewer (standalone, always visible)
             3. Document/Source List (flat expandable cards)
           ════════════════════════════════════════════════════════════ */}
-      {currentStage === 'review' && (
+      {(currentStage === 'analysis' || currentStage === 'review') && (
         <div className="research-review">
           {/* ── Header ── */}
           <div className="research-step-header">
