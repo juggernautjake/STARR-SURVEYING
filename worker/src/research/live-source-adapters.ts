@@ -62,7 +62,7 @@ export function texasFileResultsToManifest(results: TexasFileResult[], county: s
  * count — NOT $1/page like a deed — so this fixes the cost and the docType rather than reusing the deed
  * mapper. `bookVolPage` here carries the cabinet/slide the plat search parsed.
  */
-export function texasFilePlatResultToManifest(r: TexasFileResult, _county: string): ManifestEntry {
+export function texasFilePlatResultToManifest(r: TexasFileResult, _county: string, subdivision?: string): ManifestEntry {
   const bvp = splitBookVolPage(r.bookVolPage);
   return {
     sourceId: 'texasfile',
@@ -70,6 +70,8 @@ export function texasFilePlatResultToManifest(r: TexasFileResult, _county: strin
     docType: 'plat',
     book: bvp.book,
     page: bvp.page,
+    // The query that found it — the buy re-runs the plat search by this to open a purchase session.
+    ...(subdivision ? { subdivision } : {}),
     recordingDate: r.date ?? undefined,
     unitCostUsd: 10, // all TexasFile plats are $10 flat, any page count
     previewRef: r.guid,

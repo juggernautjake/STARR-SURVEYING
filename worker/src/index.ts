@@ -1339,6 +1339,11 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             source: 'texasfile', estimatedCost: `$${a.source.unitCostUsd}`, confidenceImpact: '', callsImproved: 0,
             reason: a.reason, priority: i + 1, roi: 1, county: county ?? undefined,
             book: a.cluster.book, page: a.cluster.page, recordingDate: a.cluster.recordingDate,
+            // The GUID the search returned + which TexasFile records it lives in — so the buy purchases
+            // THIS document instead of re-searching by an instrument a plat does not have.
+            vendorRef: a.source.previewRef,
+            vendorProduct: dt === 'plat' ? 'plat' : 'instrument',
+            subdivision: a.cluster.subdivision,
           } as PurchaseRecommendation;
         });
       // ── Plan 1.6 — A6: the SOURCE-COMPARISON manifest the owner asked to SEE ──────────────────────

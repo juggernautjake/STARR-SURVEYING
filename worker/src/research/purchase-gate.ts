@@ -41,7 +41,7 @@
 // an instruction loses money and trust. Uncertainty resolves toward the recoverable outcome in both
 // cases; the recoverable outcome is just a different direction in each.
 
-import { mayRunBuyDocuments, type RunSettings } from './run-settings.js';
+import { mayRunBuyDocuments, normaliseRunSettings, type RunSettings } from './run-settings.js';
 
 /** Where the effective settings came from. Reported, because "allowed by default" and "allowed
  *  because the operator said so" are different facts about the same run. */
@@ -96,17 +96,15 @@ export function resolveEffectiveSettings(
 /** Read a `research_runs.settings` jsonb blob back into the typed shape.
  *
  *  Deliberately permissive about what it ignores and strict about what it accepts: the column is
- *  jsonb, so anything could be in there, and a malformed value must not become a configuration. */
+ *  jsonb, so anything could be in there, and a malformed value must not become a configuration.
+ *
+ *  This is the SAME normaliser the run POST applies to the request body, on purpose. Until
+ *  2026-09-06 a private copy here read only five fields — so the dedicated TexasFile / other-sources
+ *  budgets, the gather checklist and the run phase were DROPPED whenever a purchase fell back to the
+ *  run record (the common case: Phase 9 is a separate HTTP call and the in-memory pipeline is gone
+ *  by then). A $15 TexasFile budget set in the dialog became "no budget" at the moment of the buy. */
 function coerceRunSettings(raw: Record<string, unknown>): RunSettings {
-  const out: RunSettings = {};
-  if (typeof raw.allowPaidDocuments === 'boolean') out.allowPaidDocuments = raw.allowPaidDocuments;
-  const minutes = Number(raw.maxResearchTimeMinutes);
-  if (Number.isFinite(minutes) && minutes > 0) out.maxResearchTimeMinutes = minutes;
-  const usd = Number(raw.maxCostUsd);
-  if (Number.isFinite(usd) && usd >= 0) out.maxCostUsd = usd;
-  if (raw.mode === 'free' || raw.mode === 'paid') out.mode = raw.mode;
-  if (typeof raw.refreshImagery === 'boolean') out.refreshImagery = raw.refreshImagery;
-  return out;
+  return normaliseRunSettings(raw);
 }
 
 /**

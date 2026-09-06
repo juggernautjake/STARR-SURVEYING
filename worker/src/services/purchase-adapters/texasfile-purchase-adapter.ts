@@ -39,6 +39,12 @@ export interface TexasFilePurchaseHints {
   name?: string;
   /** Per-document cost ceiling in dollars ($1/page). The buy is refused above it. */
   maxUsd?: number;
+  /** The TexasFile GUID the discovery pass found for this exact document (2026-09-06). */
+  guid?: string;
+  /** `'plat'` buys through the PLAT records + `/plat/`; default `'instrument'`. */
+  product?: 'instrument' | 'plat';
+  /** The plat search key (subdivision or survey name) when `product` is `'plat'`. */
+  subdivision?: string;
 }
 
 // ── TexasFile Purchase Adapter ──────────────────────────────────────────────
@@ -115,6 +121,9 @@ export class TexasFilePurchaseAdapter {
       page: hints.page,
       name: hints.name,
       maxUsd: hints.maxUsd,
+      guid: hints.guid,
+      product: hints.product,
+      subdivision: hints.subdivision,
     };
 
     try {
@@ -131,8 +140,11 @@ export class TexasFilePurchaseAdapter {
       // 1. Write each page to the worker's outputDir — the `downloadedImages` contract every
       //    downstream consumer already reads (ledger storagePaths, re-analysis, billing).
       const diskPaths: string[] = [];
+      // A `search_required` want has no number to name the file by; the document TexasFile actually
+      // sold (its instrument, else its GUID) is the stable name — not the placeholder.
+      const fileKey = instrumentNumber !== 'search_required' ? instrumentNumber : (buy.instrument ?? buy.guid ?? hints.guid ?? instrumentNumber);
       for (let i = 0; i < buy.pages.length; i++) {
-        const filename = `${documentType}_${sanitize(instrumentNumber)}_p${i + 1}_texasfile.jpg`;
+        const filename = `${documentType}_${sanitize(fileKey)}_p${i + 1}_texasfile.jpg`;
         const filePath = path.join(this.outputDir, filename);
         try {
           fs.writeFileSync(filePath, Buffer.from(buy.pages[i].imageBase64, 'base64'));
@@ -145,7 +157,7 @@ export class TexasFilePurchaseAdapter {
       // 2. File into research_documents so the document shows in Review immediately. This is the step
       //    the old adapter never did — a purchased page that lives only in /tmp is invisible to the
       //    app. Failure here does not fail the purchase (the money is already spent); it is logged.
-      await this.fileForReview(county, instrumentNumber, documentType, buy);
+      await this.fileForReview(county, instrumentNumber, documentType, buy, hints);
 
       result.status = 'purchased';
       // The instrument TexasFile actually sold — for a `search_required` want this is the first time
@@ -175,6 +187,7 @@ export class TexasFilePurchaseAdapter {
     instrumentNumber: string,
     documentType: string,
     buy: Awaited<ReturnType<typeof buyDocument>>,
+    hints: TexasFilePurchaseHints = {},
   ): Promise<void> {
     try {
       const supabase = await getSupabase();
@@ -183,16 +196,17 @@ export class TexasFilePurchaseAdapter {
         return;
       }
       const category = normaliseCategory(documentType);
+      const { label, documentLabel, recordingInfo } = describePurchasedDocument(county, instrumentNumber, documentType, buy, hints);
       const pages: ArtifactPageImage[] = buy.pages.map((p, i) => ({
         category,
-        label: instrumentNumber,
+        label,
         pageNumber: i + 1,
         imageBase64: p.imageBase64,
         sourceUrl: p.url ?? null,
         ...(i === 0
           ? {
-              documentLabel: `${titleCase(documentType)} — Instr. ${instrumentNumber} (${county})`,
-              recordingInfo: `Instrument No. ${instrumentNumber}`,
+              documentLabel,
+              recordingInfo,
               documentType: category,
             }
           : {}),
@@ -209,6 +223,38 @@ export class TexasFilePurchaseAdapter {
 
 function sanitize(s: string): string {
   return s.replace(/[^a-zA-Z0-9_-]+/g, '_');
+}
+
+/**
+ * How a purchased document is labelled in Review. A `search_required` want used to file as
+ * "Deed — Instr. search_required", which is a placeholder shown to a surveyor. The label is built
+ * from what is actually known: the instrument TexasFile sold, or for a plat its subdivision and
+ * cabinet/slide. Exported for the unit test; pure.
+ */
+export function describePurchasedDocument(
+  county: string,
+  instrumentNumber: string,
+  documentType: string,
+  buy: { instrument?: string; guid?: string },
+  hints: TexasFilePurchaseHints,
+): { label: string; documentLabel: string; recordingInfo: string } {
+  const sold = buy.instrument ?? (instrumentNumber !== 'search_required' ? instrumentNumber : undefined);
+  const cabinet = hints.volume ?? hints.book;
+  const isPlat = hints.product === 'plat' || documentType.toLowerCase().includes('plat');
+  if (isPlat) {
+    const where = hints.subdivision
+      ? hints.subdivision
+      : cabinet && hints.page ? `Cabinet ${cabinet}, Slide ${hints.page}` : (sold ?? buy.guid ?? 'TexasFile');
+    const parts = ['Plat records'];
+    if (cabinet && hints.page) parts.push(`Cabinet ${cabinet}, Slide ${hints.page}`);
+    if (sold) parts.push(`Instrument No. ${sold}`);
+    return { label: where, documentLabel: `Plat — ${where} (${county})`, recordingInfo: parts.join(' · ') };
+  }
+  const ref = sold ?? (cabinet && hints.page ? `Vol. ${cabinet}, Pg. ${hints.page}` : hints.name ? `${hints.name}` : (buy.guid ?? 'TexasFile'));
+  const recordingInfo = sold
+    ? `Instrument No. ${sold}`
+    : cabinet && hints.page ? `Volume ${cabinet}, Page ${hints.page}` : `TexasFile ${buy.guid ?? ''}`.trim();
+  return { label: ref, documentLabel: `${titleCase(documentType)} — ${sold ? `Instr. ${sold}` : ref} (${county})`, recordingInfo };
 }
 
 /** Recommendation document types map onto the artifact categories the Review viewer groups by. */

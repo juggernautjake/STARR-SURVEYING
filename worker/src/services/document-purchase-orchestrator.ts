@@ -355,9 +355,12 @@ export class DocumentPurchaseOrchestrator {
         // county, so after the first such purchase every later one was reported "already owned" and
         // never bought. The ledger is consulted once the vendor has named the document (below).
         const searchRequired = rec.instrument === 'search_required';
-        const { owned, lookupFailed } = searchRequired
-          ? { owned: null, lookupFailed: false }
-          : await findOwned(countyFIPS, rec.instrument);
+        // A document the vendor named by GUID (a plat, typically) has no instrument, but it DOES have
+        // a stable key — so a prior round's plat is found in the library instead of bought twice.
+        const libraryKey = !searchRequired ? rec.instrument : rec.vendorRef ? `texasfile:${rec.vendorRef}` : null;
+        const { owned, lookupFailed } = libraryKey
+          ? await findOwned(countyFIPS, libraryKey)
+          : { owned: null, lookupFailed: false };
         if (owned) {
           reusedFromLibrary.push(owned);
           this.logger.info(
@@ -423,6 +426,11 @@ export class DocumentPurchaseOrchestrator {
               // TexasFile runs a real name search instead of submitting an empty form (plan W4).
               name: rec.searchName,
               maxUsd: remainingTexasfileAllowance(gatherBudgetPlan, texasFileSpend),
+              // Buy the document the discovery pass FOUND: its GUID, which records it lives in, and
+              // the plat search key — a plat cannot be re-found by instrument (it has none).
+              guid: rec.vendorRef,
+              product: rec.vendorProduct,
+              subdivision: rec.subdivision,
             },
           );
           if (r.status === 'purchased') {
@@ -560,7 +568,9 @@ export class DocumentPurchaseOrchestrator {
               ? result.instrumentNumber
               : rec.instrument !== 'search_required'
                 ? rec.instrument
-                : `search_required:${rec.searchName ?? (rec.book && rec.page ? `V${rec.book}P${rec.page}` : rec.documentType)}`;
+                : rec.vendorRef
+                  ? `texasfile:${rec.vendorRef}` // the same key the library lookup above used
+                  : `search_required:${rec.searchName ?? (rec.book && rec.page ? `V${rec.book}P${rec.page}` : rec.documentType)}`;
             const ledger = await recordPurchase({
               projectId,
               runId: config.runId ?? null,

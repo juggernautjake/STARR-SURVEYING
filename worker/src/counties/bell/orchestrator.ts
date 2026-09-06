@@ -418,7 +418,12 @@ export async function orchestrateBellResearch(
       `instruments=[${cad.instrumentNumbers.join(', ')}]`);
     if (cad.deedHistory.length > 0) {
       for (const dh of cad.deedHistory) {
-        progress('Phase 1', `  CAD deed: ${dh.deedDate ?? '?'} Instr#${dh.instrumentNumber} ${dh.grantor ?? '?'} → ${dh.grantee ?? '?'}`);
+        // An older deed row carries a volume/page and NO instrument number (BIS lists both columns;
+        // pre-1990s Bell deeds were never assigned one) — logged as what it IS, not `Instr#undefined`.
+        const ref = dh.instrumentNumber
+          ? `Instr#${dh.instrumentNumber}`
+          : dh.volume && dh.page ? `Vol ${dh.volume}/Pg ${dh.page}` : 'no recording ref';
+        progress('Phase 1', `  CAD deed: ${dh.deedDate ?? '?'} ${ref} ${dh.grantor ?? '?'} → ${dh.grantee ?? '?'}`);
       }
     }
   } else {

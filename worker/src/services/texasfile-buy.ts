@@ -70,6 +70,44 @@ export interface TexasFileBuyInput {
   /** A cost ceiling for THIS purchase in dollars; the buy is refused if the doc's price would exceed
    *  it. $1/page on TexasFile. */
   maxUsd?: number;
+  // ── Buying a document the discovery pass already FOUND (2026-09-06) ────────────────────────────
+  // The search-only pass returns each result's TexasFile GUID; until now the buy threw it away and
+  // re-searched by instrument (a plat has none), so a plat the engine had in hand was re-searched as
+  // a deed and never bought. With a GUID the buy picks THAT result; with `product: 'plat'` it runs
+  // the PLAT search (by subdivision or cabinet/slide) and purchases through `/plat/`.
+  guid?: string;
+  product?: 'instrument' | 'plat';
+  /** The plat search's "Subdivision or Name" key (a subdivision or a survey name). */
+  subdivision?: string;
+}
+
+/** Every TexasFile plat is $10 flat, whatever its page count (mapped live 2026-09-05). */
+export const PLAT_FLAT_USD = 10;
+
+/**
+ * Pick the search result a buy should purchase. A GUID the discovery pass recorded wins outright (it
+ * names the exact document); else the instrument-number match; else the first row (a name/vol-page
+ * search is already narrow). Pure, so the choice is unit-tested without a browser.
+ */
+export function chooseTexasFileResult(results: TexasFileResult[], input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber'>): TexasFileResult | null {
+  if (results.length === 0) return null;
+  const guid = input.guid?.trim().toUpperCase();
+  if (guid) {
+    const byGuid = results.find((r) => r.guid.toUpperCase() === guid);
+    if (byGuid) return byGuid;
+  }
+  const want = input.instrumentNumber?.replace(/\D/g, '');
+  if (want) {
+    const byInstrument = results.find((r) => (r.instrument ?? '').replace(/\D/g, '') === want);
+    if (byInstrument) return byInstrument;
+  }
+  return results[0];
+}
+
+/** What a chosen result will cost: a plat is flat-rate; anything else is $1/page (unknown pages → null). */
+export function priceTexasFileResult(r: TexasFileResult, product: 'instrument' | 'plat'): number | null {
+  if (product === 'plat' || r.type === 'plat') return PLAT_FLAT_USD;
+  return r.pages != null ? r.pages : null;
 }
 
 export interface TexasFilePage { imageBase64: string; url: string }
@@ -331,19 +369,27 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
     try {
       if (!(await loginTexasFile(page, log))) return { ok: false, reason: 'could not sign in to TexasFile', pages: [] };
 
-      const { searchId, results } = await searchTexasFile(page, input, log);
+      // A plat lives in TexasFile's PLAT records, reached by a different search form and bought
+      // through `/plat/`. The deed search cannot find it — which is how a plat the discovery pass had
+      // already located was "not available" at buy time.
+      const product: 'instrument' | 'plat' = input.product ?? 'instrument';
+      const { searchId, results } = product === 'plat'
+        ? await searchTexasFilePlats(page, { county: input.county, subdivision: input.subdivision, volume: input.volume ?? input.book, page: input.page }, log)
+        : await searchTexasFile(page, input, log);
       if (!searchId || results.length === 0) return { ok: false, reason: 'no TexasFile results for that search', pages: [] };
 
-      // Pick the result that matches the wanted document: by instrument number if we have one, else
-      // the first (a name/vol-page search is already narrow).
-      const want = input.instrumentNumber?.replace(/\D/g, '');
-      const chosen = (want && results.find(r => (r.instrument ?? '').replace(/\D/g, '') === want)) || results[0];
-
-      if (input.maxUsd != null && chosen.pages != null && chosen.pages > input.maxUsd) {
-        return { ok: false, reason: `document is ${chosen.pages} page(s) (~$${chosen.pages}), over the $${input.maxUsd} limit`, pages: [], pageCount: chosen.pages };
+      const chosen = chooseTexasFileResult(results, input)!;
+      if (input.guid && chosen.guid.toUpperCase() !== input.guid.toUpperCase()) {
+        log.warn('TexasFile', `Result ${input.guid} not in this search's ${results.length} row(s) — buying the best match ${chosen.guid} instead.`);
       }
 
-      const bought = await purchaseTexasFile(page, input.county, chosen.guid, searchId, log);
+      const price = priceTexasFileResult(chosen, product);
+      if (input.maxUsd != null && price != null && price > input.maxUsd) {
+        const what = product === 'plat' ? `plat is $${PLAT_FLAT_USD} flat` : `document is ${chosen.pages} page(s) (~$${chosen.pages})`;
+        return { ok: false, reason: `${what}, over the $${input.maxUsd} limit`, pages: [], pageCount: chosen.pages ?? undefined };
+      }
+
+      const bought = await purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product);
       if (!bought) return { ok: false, reason: 'purchase did not return images', pages: [], guid: chosen.guid };
 
       const pages = await downloadTexasFilePages(page, bought.pages);
@@ -352,7 +398,7 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       log.info('TexasFile', `Bought ${pages.length} page(s) for ${chosen.instrument ?? chosen.guid} — balance now ${bought.balance ?? '?'}.`);
       return {
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
-        pageCount: pages.length, costUsd: chosen.pages ?? pages.length, balanceAfter: bought.balance,
+        pageCount: pages.length, costUsd: price ?? pages.length, balanceAfter: bought.balance,
         instrument: chosen.instrument ?? undefined,
       };
     } finally {

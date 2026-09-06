@@ -162,14 +162,18 @@ export function makeSourceSearch(cfg: LiveSearchConfig): SourceSearchFn {
       //    cabinet/slide reference) drives a plat search the deed search never covered; plats are $10 flat.
       const platInputs = buildTexasFilePlatInputs(target, cfg.county);
       const platResults: TexasFileResult[] = [];
+      // Which query found each plat — the buy needs it to re-open a plat search session by GUID.
+      const platQueryFor = new Map<string, string | undefined>();
       for (const input of platInputs) {
         try {
-          platResults.push(...(await platSearch(input)));
+          const found = await platSearch(input);
+          for (const r of found) if (!platQueryFor.has(r.guid)) platQueryFor.set(r.guid, input.subdivision);
+          platResults.push(...found);
         } catch (e) {
           log(`TexasFile plat search failed for one query: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-      const platEntries = dedupeByGuid(platResults).map((r) => texasFilePlatResultToManifest(r, cfg.county));
+      const platEntries = dedupeByGuid(platResults).map((r) => texasFilePlatResultToManifest(r, cfg.county, platQueryFor.get(r.guid)));
       const entries = [...deedEntries, ...platEntries];
       if (entries.length === 0 && inputs.length === 0 && platInputs.length === 0) return [];
       log(`TexasFile: ${deedEntries.length} deed doc(s) across ${inputs.length} quer(y/ies) + ${platEntries.length} plat(s) across ${platInputs.length} quer(y/ies).`);

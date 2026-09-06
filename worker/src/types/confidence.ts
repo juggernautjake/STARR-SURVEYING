@@ -165,6 +165,17 @@ export interface PurchaseRecommendation {
   // owner name to search TexasFile by (its `name-0-name` field); when present it lets a "most recent
   // deed" / "all deeds" want become a real name search → results → purchase.
   searchName?: string;
+
+  // ── The vendor's own handle on the document (2026-09-06) ───────────────────
+  //
+  // The discovery pass SEARCHES TexasFile and gets back each result's GUID; the buy then threw that
+  // away and re-searched by instrument. A plat has no instrument, so a plat the engine had already
+  // located was re-searched as a deed, found nothing and was never bought. `vendorRef` is that
+  // GUID; `vendorProduct` says which TexasFile records (deed `/instrument/` vs `/plat/`) it lives in;
+  // `subdivision` is the plat search key when a re-search is needed to open a purchase session.
+  vendorRef?: string;
+  vendorProduct?: 'instrument' | 'plat';
+  subdivision?: string;
 }
 
 // ── Surveyor Decision Matrix ─────────────────────────────────────────────────

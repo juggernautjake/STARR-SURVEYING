@@ -68,6 +68,20 @@ describe('resolveEffectiveSettings — most specific source wins', () => {
     const r = resolveEffectiveSettings(null, { maxCostUsd: 0 }, true);
     expect(r.settings.maxCostUsd).toBe(0);
   });
+
+  it('keeps the dedicated budgets, the checklist and the phase off the run record (2026-09-06)', () => {
+    // The purchase-time fallback used a private five-field reader, so a $15 TexasFile budget set in
+    // the dialog was "no budget" by the time Phase 9 bought anything. Same normaliser as the POST now.
+    const r = resolveEffectiveSettings(null, {
+      allowPaidDocuments: true, texasfileBudgetUsd: 15, otherBudgetUsd: 5, phase: 'gather',
+      gatherSelections: { items: ['recent_plat', 'all_deeds'], adjoiners: { enabled: false, items: [] } },
+    }, true);
+    expect(r.source).toBe('run-record');
+    expect(r.settings.texasfileBudgetUsd).toBe(15);
+    expect(r.settings.otherBudgetUsd).toBe(5);
+    expect(r.settings.phase).toBe('gather');
+    expect(r.settings.gatherSelections?.items).toEqual(['recent_plat', 'all_deeds']);
+  });
 });
 
 describe('decidePurchase', () => {
