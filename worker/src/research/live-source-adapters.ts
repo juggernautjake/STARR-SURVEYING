@@ -56,3 +56,42 @@ export function texasFileResultToManifest(r: TexasFileResult, county: string): M
 export function texasFileResultsToManifest(results: TexasFileResult[], county: string): ManifestEntry[] {
   return results.map((r) => texasFileResultToManifest(r, county));
 }
+
+/** The shape a free county-clerk search returns (Bell clerk, Kofile, …) — any subset present. */
+export interface ClerkDocLike {
+  instrumentNumber?: string | null;
+  recordingDate?: string | null;
+  grantors?: string | null;
+  grantees?: string | null;
+  documentType?: string | null;
+  book?: string | null;
+  volume?: string | null;
+  page?: string | null;
+  pages?: number | null;
+  /** The page/details URL — the origin the free capture (and the operator's "Source ↗") uses. */
+  url?: string | null;
+}
+
+/**
+ * One free county-clerk document → a FREE `ManifestEntry`. Carries the grantor/grantee names and the
+ * recording date so the cross-source matcher can line it up against a paid copy on names+date even
+ * when the instrument number differs in format. `unitCostUsd` is 0 (free capture).
+ */
+export function clerkDocToManifest(doc: ClerkDocLike, sourceId: string, _county: string): ManifestEntry {
+  return {
+    sourceId,
+    kind: 'free',
+    docType: classifyDocType(doc.documentType),
+    instrument: doc.instrumentNumber ?? undefined,
+    book: (doc.book ?? doc.volume) ?? undefined,
+    page: doc.page ?? undefined,
+    recordingDate: doc.recordingDate ?? undefined,
+    grantor: doc.grantors ?? undefined,
+    grantee: doc.grantees ?? undefined,
+    pageCount: doc.pages ?? undefined,
+    unitCostUsd: 0,
+    previewRef: doc.url ?? undefined,
+    canFreeCapture: true,
+    canPurchase: false,
+  };
+}

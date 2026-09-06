@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyDocType, splitBookVolPage, texasFileResultToManifest } from '../research/live-source-adapters.js';
+import { classifyDocType, splitBookVolPage, texasFileResultToManifest, clerkDocToManifest } from '../research/live-source-adapters.js';
 import type { TexasFileResult } from '../services/texasfile-buy.js';
 
 // Plan A7.2 — map a live TexasFile search result into the engine's ManifestEntry so the cross-source
@@ -48,5 +48,34 @@ describe('texasFileResultToManifest', () => {
   it('a page-less result still costs at least $1', () => {
     const m = texasFileResultToManifest({ ...base, pages: null } as TexasFileResult, 'Bell');
     expect(m.unitCostUsd).toBe(1);
+  });
+});
+
+// Plan A7.3 — free county-clerk document -> free ManifestEntry (names + date carried for matching).
+
+describe('clerkDocToManifest', () => {
+  it('maps a free clerk deed, carrying grantor/grantee + date for cross-source matching', () => {
+    const m = clerkDocToManifest(
+      { instrumentNumber: '2004034968', recordingDate: '2004-08-01', grantors: 'FERRELL GEORGE W', grantees: 'EVERS JONATHAN', documentType: 'Deed', pages: 3, url: 'https://clerk/doc/2004034968' },
+      'kofile', 'Bell',
+    );
+    expect(m.sourceId).toBe('kofile');
+    expect(m.kind).toBe('free');
+    expect(m.docType).toBe('deed');
+    expect(m.instrument).toBe('2004034968');
+    expect(m.grantor).toBe('FERRELL GEORGE W');
+    expect(m.grantee).toBe('EVERS JONATHAN');
+    expect(m.unitCostUsd).toBe(0);
+    expect(m.canFreeCapture).toBe(true);
+    expect(m.canPurchase).toBe(false);
+    expect(m.previewRef).toBe('https://clerk/doc/2004034968');
+  });
+
+  it('falls back to volume when no book, and tolerates missing fields', () => {
+    const m = clerkDocToManifest({ volume: '5456', page: '704', documentType: 'Plat' }, 'kofile', 'Bell');
+    expect(m.book).toBe('5456');
+    expect(m.page).toBe('704');
+    expect(m.docType).toBe('plat');
+    expect(m.instrument).toBeUndefined();
   });
 });
