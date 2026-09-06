@@ -2,23 +2,12 @@
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
 
-<!-- HOOK:BLOCKED SHIPPED + green: the whole cross-source engine core (A0-A5), relevance model (H1),
-the "+ Add more info" category-picker UI + create-API persistence (H2/H3-persist), B1 parcel bearings —
-~66 tests, worker 2752 + app research 2498 green, tsc clean. A7 (the live early-buy wiring) hit a real
-DESIGN WALL that needs the OWNER, not a blind push: two supervised runs proved the buy MUST fire early
-(both cut short at ~99% before the end-of-run purchase, TexasFile $0), but a naive early checklist buy
-breaks the C5 anti-waste invariant (it would pay for what the free clerk was about to return — the
-owner's own "prefer free" rule). Doing A7 RIGHT = fire the CROSS-SOURCE ENGINE early (discover free+paid
-→ match → buy paid-ONLY / operator-supplied targets), which needs the real free-source SourceSearchFn
-adapter (Bell clerk → ManifestEntry) + the TexasFile search adapter wired into onPropertyIdentified,
-plus updating C5 to "buy paid-only early". That is a substantial live integration whose ONLY validation
-is a supervised paid run + a worker deploy — the owner's loop. PAUSED for the owner to choose the path:
-(a) build full A7 (free-source adapter + engine wired early + C5 update) then deploy + supervised run,
-or (b) a targeted validation now — buy the operator's EXPLICIT documents (vol 5456/pg 704, cabinet A
-slide 166) which do not violate prefer-free. Also open: H2 in RerunDialog, H3-thread, A6/E/G UI, B2/C/D,
-F. Remove this marker or name the path to resume. -->
+Driven by the stop-hook slice loop.
 
-Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
+**A7 decision (owner 2026-09-05): build the FULL cross-source engine early-wiring** — real Bell-clerk
+free-search + TexasFile search adapters, the free-capture + buyDocument effects, and the driver that
+runs discover→match→decide→buy-paid-only from `onPropertyIdentified` (early), with the `documentRelevance`
+filter and the C5 test updated to "buy paid-only early". Then deploy + supervised run on 64567. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
 before each merge to `main`; `npm run build` before a merge; **NEVER rebuild the worker while a run is
 in flight** (`activePipelines` on `localhost:3100/healthz` must be 0); worker = Docker on netcup

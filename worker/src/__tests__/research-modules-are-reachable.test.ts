@@ -107,8 +107,8 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
 
 
-  'worker/src/research/cross-source-acquire.ts':
-    'Plan A4 — executes the A3 acquisition plan (imports AcquisitionAction/AcquisitionPlan, keeping the whole A1→A2→A3 chain reachable): runs the injected free-capture and TexasFile-purchase effects per action, gates each buy on the REAL remaining budget, isolates failures. Built ahead of A7 (live wiring), which will call executeAcquisitionPlan with the real capture/buy adapters and remove this entry. Not dead — unit-tested by cross-source-acquire.test.ts.',
+  'worker/src/research/cross-source-acquisition.ts':
+    'Plan A7 — the engine DRIVER: composes discover (A1) → match (A2) → decide (A3) → execute (A4) into one runCrossSourceAcquisition call, keeping the whole A1→A4 chain reachable. Per-source search + capture/buy effects are injected. Built ahead of its final wiring into index.ts onPropertyIdentified (the real Bell-clerk/TexasFile adapters + Bell free-capture/buyDocument), which will call it and remove this entry. Not dead — unit-tested by cross-source-acquisition.test.ts.',
 
 
   'worker/src/research/property-search-inputs.ts':
