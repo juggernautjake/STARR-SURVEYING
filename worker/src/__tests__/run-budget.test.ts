@@ -32,23 +32,24 @@ const T0 = 1_700_000_000_000;
 beforeEach(() => { endRun(PROJECT); });
 
 describe('the limits themselves', () => {
-  // ── COST IS PRIMARY, but no run goes beyond ONE HOUR (owner, 2026-09-04) ──────────────────────
+  // ── COST IS PRIMARY, but no run goes beyond 30 MINUTES (owner, 2026-09-06) ──────────────────────
   //
-  // A run ends at its COST limit OR at a hard one-hour wall clock, whichever first. limitsFor IGNORES
-  // the requested minutes and returns a fixed 60-minute cap (scraping is nearly free, so cost cannot
-  // bound a scraping-heavy run's time). The cost cap is what varies per run.
+  // A run ends at its COST limit OR at a hard 30-minute wall clock, whichever first. limitsFor IGNORES
+  // the requested minutes and returns a fixed 30-minute cap (scraping is nearly free, so cost cannot
+  // bound a scraping-heavy run's time). The cost cap is what varies per run. Owner cut it from 60 to
+  // 30 on 2026-09-06.
 
-  it('the wall clock is a fixed one-hour cap, independent of the requested minutes', () => {
-    const hour = 60 * 60_000;
-    expect(limitsFor({ maxResearchTimeMinutes: 30 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
-    expect(limitsFor({ maxResearchTimeMinutes: 240 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
-    expect(limitsFor({ maxResearchTimeMinutes: 5 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
-    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(hour);
+  it('the wall clock is a fixed 30-minute cap, independent of the requested minutes', () => {
+    const halfHour = 30 * 60_000;
+    expect(limitsFor({ maxResearchTimeMinutes: 30 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(halfHour);
+    expect(limitsFor({ maxResearchTimeMinutes: 240 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(halfHour);
+    expect(limitsFor({ maxResearchTimeMinutes: 5 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(halfHour);
+    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(halfHour);
   });
 
-  it('the deployment may lower the cap but never raise it above the hour', () => {
-    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '45' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(45 * 60_000);
-    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '90' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
+  it('the deployment may lower the cap but never raise it above the half hour', () => {
+    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '20' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(20 * 60_000);
+    expect(limitsFor(undefined, { RUN_MAX_MINUTES: '90' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(30 * 60_000);
   });
 
   // ── Per-run spend limit (owner request, 2026-08-30) ────────────────────────────────────────
@@ -95,7 +96,7 @@ describe('the limits themselves', () => {
     const l = limitsFor(undefined, { RUN_MAX_COST_USD: '0.5', RUN_MAX_PAID_PAGES: '3' } as NodeJS.ProcessEnv);
     expect(l.maxCostUsd).toBe(0.5);
     expect(l.maxPaidPages).toBe(3);
-    expect(l.maxWallClockMs).toBe(60 * 60_000); // the one-hour cap
+    expect(l.maxWallClockMs).toBe(30 * 60_000); // the 30-minute cap
   });
 
   it('caps paid pages separately from dollars', () => {
@@ -225,9 +226,9 @@ describe('the gather wall clock (B2.3)', () => {
     expect(GATHER_MAX_MINUTES).toBe(25);
     expect(limitsFor({ phase: 'gather' }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(25 * 60_000);
   });
-  it('leaves a non-gather run at the one-hour cap', () => {
-    expect(limitsFor({ phase: 'analyze' }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
-    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
+  it('leaves a non-gather run at the 30-minute cap', () => {
+    expect(limitsFor({ phase: 'analyze' }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(30 * 60_000);
+    expect(limitsFor(undefined, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(30 * 60_000);
   });
   it('never lets a gather run exceed a lowered RUN_MAX_MINUTES', () => {
     expect(limitsFor({ phase: 'gather' }, { RUN_MAX_MINUTES: '15' } as NodeJS.ProcessEnv).maxWallClockMs).toBe(15 * 60_000);

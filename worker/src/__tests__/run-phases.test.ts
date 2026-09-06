@@ -299,18 +299,18 @@ describe('a REAL Bell run log, replayed', () => {
 });
 
 describe('the run length is chosen, and the bar paces itself to it', () => {
-  it('offers 15 / 30 / 60 — the owner\'s figures', () => {
+  it('offers 15 / 30 / 30 — the owner\'s figures (ceiling cut from 60, 2026-09-06)', () => {
     expect(RUN_MINUTES.min).toBe(15);
     expect(RUN_MINUTES.default).toBe(30);
-    expect(RUN_MINUTES.max).toBe(60);
+    expect(RUN_MINUTES.max).toBe(30);
   });
 
   it('clamps anything outside that range', () => {
     expect(clampRunMinutes(5)).toBe(15);
-    expect(clampRunMinutes(90)).toBe(60);
+    expect(clampRunMinutes(90)).toBe(30);
     expect(clampRunMinutes(undefined)).toBe(30);
     expect(clampRunMinutes(NaN)).toBe(30);
-    expect(clampRunMinutes(42)).toBe(42);
+    expect(clampRunMinutes(22)).toBe(22);
   });
 
   it('a SHORT run reaches the same milestone sooner, not at a different percentage', () => {

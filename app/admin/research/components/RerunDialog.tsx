@@ -88,7 +88,7 @@ const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const, texasfileBudg
  *  — the progress bar paces itself to this number, so the two must agree or the bar is calibrated
  *  to a length nobody can pick. 15 is the floor because a measured Bell run spent 18 minutes in the
  *  clerk and retrieval phases alone; anything shorter always stops early. */
-const RUN_MINUTES = { min: 15, default: 30, max: 60 };
+const RUN_MINUTES = { min: 15, default: 30, max: 30 };
 
 export default function RerunDialog({
   projectId, projectDefaults, onCancel, onConfirm,

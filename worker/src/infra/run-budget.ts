@@ -122,18 +122,20 @@ export function limitsFor(
   const envCost = Number(env.RUN_MAX_COST_USD);
   const envPages = Number(env.RUN_MAX_PAID_PAGES);
 
-  // ── COST IS PRIMARY, BUT NO RUN GOES BEYOND ONE HOUR (owner, 2026-09-04) ─────────────────────
+  // ── COST IS PRIMARY, BUT NO RUN GOES BEYOND 30 MINUTES (owner, 2026-09-06) ───────────────────
   //
   // A run ends when it reaches its COST limit (the cost watchdog enforces that to the dollar) OR at
-  // a HARD one-hour wall clock — whichever comes first. Cost is the primary lever (raise it to
+  // a HARD 30-minute wall clock — whichever comes first. Cost is the primary lever (raise it to
   // research further), but because scraping is nearly free it cannot bound a scraping-heavy run's
-  // TIME — fresh run #1 spent 44 minutes in Phase 2 at two cents — so the hour is a real, hard cap,
-  // not just a hung-run backstop. `maxResearchTimeMinutes` from the request is ignored; the hour is
-  // fixed (tunable only by the deployment, and never above 60).
-  const HARD_WALL_CLOCK_MS = 60 * 60_000;
+  // TIME, so the half hour is a real, hard cap, not just a hung-run backstop. Was one hour; the
+  // owner cut it to 30 (2026-09-06) — enough to collect the files from every source, and the
+  // free-first buy fires EARLY (at onPropertyIdentified) so a shorter cap never robs the purchase.
+  // `maxResearchTimeMinutes` from the request is ignored; the half hour is fixed (tunable only by
+  // the deployment, and never above 30).
+  const HARD_WALL_CLOCK_MS = 30 * 60_000;
   const envMinutes = Number(env.RUN_MAX_MINUTES);
   let wallMs = Number.isFinite(envMinutes) && envMinutes > 0
-    ? Math.min(envMinutes, 60) * 60_000
+    ? Math.min(envMinutes, 30) * 60_000
     : HARD_WALL_CLOCK_MS;
   // A gather run gets the tighter 25-minute cap (owner, B2.3) — never longer than the general wall
   // clock, so a lowered RUN_MAX_MINUTES still wins.

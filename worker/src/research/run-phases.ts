@@ -475,12 +475,12 @@ export const EXPECTED_TOTAL_SEC = TOTAL_SEC;
 /**
  * The run length an operator may choose, in minutes.
  *
- * 30 default, 15 floor, 60 ceiling — the owner's figures. The floor is not arbitrary: a real
+ * 30 default, 15 floor, 30 ceiling — the owner's figures (ceiling cut from 60, 2026-09-06). The floor is not arbitrary: a real
  * Bell run measured on 2026-09-02 spent 1,088 seconds in the clerk and retrieval phases alone,
  * so a ceiling below about 15 minutes cannot finish a normal property and would produce a run
  * that always stops early. Offering a number that cannot work is worse than not offering it.
  */
-export const RUN_MINUTES = { min: 15, default: 30, max: 60 } as const;
+export const RUN_MINUTES = { min: 15, default: 30, max: 30 } as const;
 
 /** Clamp a chosen run length into the range that can actually complete a run. */
 export function clampRunMinutes(minutes: number | undefined): number {

@@ -449,7 +449,9 @@ export interface BuildRunStateInput {
 export function chosenBudgetMs(settings: Record<string, unknown> | null | undefined): number | null {
   const raw = settings?.['maxResearchTimeMinutes'];
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
-  if (raw < 15 || raw > 60) return null;
+  // 15–30, matching RUN_MINUTES/LIMITS after the owner cut the ceiling to 30 (2026-09-06). A value
+  // outside the range a run can actually be configured with is not a ceiling to show.
+  if (raw < 15 || raw > 30) return null;
   return raw * 60_000;
 }
 

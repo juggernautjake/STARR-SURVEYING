@@ -28,13 +28,15 @@ describe('the chosen run length stands in until the console has one', () => {
   it('reads the length the operator picked', () => {
     expect(chosenBudgetMs({ maxResearchTimeMinutes: 30 })).toBe(30 * 60_000);
     expect(chosenBudgetMs({ maxResearchTimeMinutes: 15 })).toBe(15 * 60_000);
-    expect(chosenBudgetMs({ maxResearchTimeMinutes: 60 })).toBe(60 * 60_000);
+    expect(chosenBudgetMs({ maxResearchTimeMinutes: 22 })).toBe(22 * 60_000);
   });
 
   it('treats an out-of-range value as absent rather than clamping it', () => {
-    // Settings are data off the wire. Clamping 600 to 60 would render a ceiling nobody chose, and a
+    // Settings are data off the wire. Clamping 600 to 30 would render a ceiling nobody chose, and a
     // confident wrong number is worse here than no number: the operator would stop waiting early.
+    // 60 is now above the ceiling (the owner cut it to 30 on 2026-09-06), so it too reads as absent.
     expect(chosenBudgetMs({ maxResearchTimeMinutes: 600 })).toBeNull();
+    expect(chosenBudgetMs({ maxResearchTimeMinutes: 60 })).toBeNull();
     expect(chosenBudgetMs({ maxResearchTimeMinutes: 1 })).toBeNull();
     expect(chosenBudgetMs({ maxResearchTimeMinutes: Number.NaN })).toBeNull();
     expect(chosenBudgetMs({ maxResearchTimeMinutes: '30' as unknown as number })).toBeNull();
