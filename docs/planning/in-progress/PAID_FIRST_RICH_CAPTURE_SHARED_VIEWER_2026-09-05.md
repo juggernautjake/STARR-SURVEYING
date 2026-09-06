@@ -302,6 +302,12 @@ ones. This is what makes "get the right zoom every time" true across parcel size
 The live run panel's document list must use the SAME `SourceDocumentViewer` as Review, with a
 clickable source URL.
 
+> **CONFIRMED BROKEN by the owner 2026-09-05 (with a screenshot).** In the Research & Analysis stage
+> the document list (`ResearchRunView.tsx::DocumentList`) still opens each file in a NEW TAB showing
+> only the FIRST page — e.g. the 10-page "AFFIDAVIT — EVERS JONATHAN … (Instr. 2015014567)" opens to
+> page 1 only. It MUST open the multi-page `SourceDocumentViewer` in-app (page through all pages, zoom)
+> as files land in real time. This is the highest-priority item in E — the owner needs it working.
+
 ### E1 — `RunDocument` carries `source_url`
 Read `app/admin/research/components/useRunState.ts` (`RunDocument` 50-68) and the API that fills
 `run.documents`. Add `source_url` to `RunDocument` and select it in the run-documents query (the DB
