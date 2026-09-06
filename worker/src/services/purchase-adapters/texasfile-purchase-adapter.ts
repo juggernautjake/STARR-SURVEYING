@@ -148,6 +148,9 @@ export class TexasFilePurchaseAdapter {
       await this.fileForReview(county, instrumentNumber, documentType, buy);
 
       result.status = 'purchased';
+      // The instrument TexasFile actually sold — for a `search_required` want this is the first time
+      // the document has a real number, and it is what the ledger must be keyed on.
+      result.instrumentNumber = buy.instrument ?? instrumentNumber;
       result.pages = buy.pageCount ?? buy.pages.length;
       result.costPerPage = 1.0;
       result.totalCost = buy.costUsd ?? buy.pages.length;

@@ -114,6 +114,10 @@ export interface PurchaseOrchestratorConfig {
   tryFreeFirst?: boolean;
   /** Max cost per document in USD; skip if exceeded */
   maxCostPerDocument?: number;
+  /** The research run this purchase belongs to — written to `research_document_purchases.run_id`
+   *  so a charge can be attributed to the run that made it. Was accepted by the ledger and never
+   *  passed, so every purchase row carried a null run. */
+  runId?: string | null;
 }
 
 // ── Image Quality ───────────────────────────────────────────────────────────

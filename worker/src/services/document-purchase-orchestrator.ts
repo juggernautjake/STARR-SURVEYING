@@ -112,6 +112,30 @@ export class DocumentPurchaseOrchestrator {
     const errors: string[] = [];
     let aiCalls = 0;
 
+    // ── WHAT EARLIER RUNS ALREADY HOLD, WHEN THE CALLER DID NOT SAY ────────────────────────────
+    //
+    // Only the standalone purchase endpoint ever passed `heldDocuments`; the three in-run call
+    // sites — the ones that actually spend money — omitted it, so the free-pass / prior-round
+    // dedup was inactive precisely for the follow-up rounds the iterative loop now runs. The
+    // project library is what a prior round filed; loading it here makes "a round only ADDS" true
+    // whichever caller started the purchase. A load failure is "not checked", said in the log.
+    if (!heldDocuments && projectId !== 'unknown-project') {
+      try {
+        const { getSupabase } = await import('./pipeline.js');
+        const db = await getSupabase();
+        if (db) {
+          const { ProjectLibrary } = await import('../research/project-library.js');
+          const library = await ProjectLibrary.load(db as never, projectId, countyName);
+          if (library.size > 0) {
+            heldDocuments = library.toDocumentIndex('paid');
+            this.logger.info('Purchase', `Earlier rounds: ${library.describe()} Exact matches will not be bought again.`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn('Purchase', `Could not load what earlier rounds hold — dedup against them is NOT checked: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     // No recommendations → nothing to do
     if (recommendations.length === 0) {
       return {
@@ -327,7 +351,13 @@ export class DocumentPurchaseOrchestrator {
         // Before any vendor session, before any charge. The library is firm-wide, so this catches a
         // re-run of the same property AND a different job in the same county needing the same
         // instrument — the case the old per-project `/tmp` billing file could never see.
-        const { owned, lookupFailed } = await findOwned(countyFIPS, rec.instrument);
+        // A `search_required` want has no instrument yet — the placeholder keys to ONE ledger row per
+        // county, so after the first such purchase every later one was reported "already owned" and
+        // never bought. The ledger is consulted once the vendor has named the document (below).
+        const searchRequired = rec.instrument === 'search_required';
+        const { owned, lookupFailed } = searchRequired
+          ? { owned: null, lookupFailed: false }
+          : await findOwned(countyFIPS, rec.instrument);
         if (owned) {
           reusedFromLibrary.push(owned);
           this.logger.info(
@@ -523,10 +553,19 @@ export class DocumentPurchaseOrchestrator {
           // buying the same page. It also emits the usage event, so a $1.00 page finally shows up in
           // the same cost view as model spend instead of being money nothing could account for.
           if (result.status === 'purchased') {
+            // Keyed on the instrument the vendor actually sold. For a `search_required` want that is
+            // the first real number the document has had; if the vendor named none, a key built from
+            // the search (name or book/page) keeps two different wants from colliding in the ledger.
+            const soldAs = result.instrumentNumber && result.instrumentNumber !== 'search_required'
+              ? result.instrumentNumber
+              : rec.instrument !== 'search_required'
+                ? rec.instrument
+                : `search_required:${rec.searchName ?? (rec.book && rec.page ? `V${rec.book}P${rec.page}` : rec.documentType)}`;
             const ledger = await recordPurchase({
               projectId,
+              runId: config.runId ?? null,
               countyFips: countyFIPS,
-              instrument: rec.instrument,
+              instrument: soldAs,
               documentType: rec.documentType,
               platformId: result.vendor ?? rec.source,
               pages: result.pages,

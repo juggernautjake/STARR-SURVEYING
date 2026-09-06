@@ -111,15 +111,88 @@ panel (check the CALLER).
 
 ## PHASE 4 — User-initiated AI/OCR deep-read (the 4.1 fallback, now a button)
 
-### 4.1 — "Deep-read for more clues" action
+### 4.1 — "Deep-read for more clues" action ✅ BUILT + TESTED
 A user-triggered pass that runs the AI/OCR identifier extraction over the captured deed/plat/GIS documents to
 pull subdivision / survey / lot-block / recording references the structured parse missed, appends them to
 `discoveredLeads`, and (via `recordAmbientAiCall`) puts the AI cost on the run spend. Bounded + cost-capped.
 
-### 4.2 — Tests
+### 4.2 — Tests ✅ BUILT + TESTED
 The deep-read adds leads; every AI call lands a usage-ledger row; it is never automatic (only the button runs it).
+Worker: `deep-read-leads.test.ts` (parse, map, no-op on empty text, never throws). App: `discovered-leads-panel.test.ts`
+static guards — the panel button, the route bridge, the page never calls compile/deep-read itself, and `index.ts`
+reaches `deepReadForLeads` / `compileDiscoveredLeads` ONLY inside their POST handlers (not the run pipeline).
 
 ---
+
+## PHASE 6 — What the 2026-09-06 run log + two audits said to fix (owner: "make research, analysis and review work well")
+
+The owner pasted the full log of the 1401 North East St run (293 entries, 22 errors) and asked what
+could be improved; two read-only audits (every button on the research page; the free + paid document
+avenues end to end) ran alongside. Findings, and what was built:
+
+### 6.1 — The research run was still doing the AI analysis ✅ BUILT + TESTED
+The run spent **65 of its 76 minutes in Phase 3 AI deed analysis (35 min PER DEED)**, blew the wall
+clock, tripped the stall watchdog, and was reported as "Research Failed … found no property record
+and no documents" with 11 documents filed. Root cause: **the app never sent `phase: 'gather'`** (only
+the type existed), so `shouldRunAnalysis` was always true, the 25-min gather cap never applied, and
+the Bell orchestrator — which cannot see run settings — always ran Phase 3. Now: the run dialog +
+the pipeline route send/default `phase: 'gather'`; `index.ts` puts it on the research input; the
+router hands it to Bell; the orchestrator blanks its AI key for a gather run (the one switch every
+Phase 3 use reads — deed/plat analyzers, chain tracing, site intelligence, GIS quality, screenshot
+classifier, property summary, map OCR verify) and logs "Gather run — AI reading skipped on purpose".
+
+### 6.2 — The Analyze button starts on the worker ✅ BUILT + TESTED
+Nothing in the app called the worker's `read-documents` pass (built for the analyze run, zero
+callers); the button ran the app-side `analyzeProject`, which reads only `extracted`/`analyzed`
+documents (a gather run's deeds are `pending`) and freezes on Vercel. Now a whole-project Analyze
+POSTs the worker `read-documents` with `thenAnalyze: true` (OCR + summaries + chain of title under
+the quoted cost cap), and the worker calls the app analysis back — in `finally`, with the cap — so
+nothing parks at `analyzing`. Per-file, resume, benchmark and the callback stay in-process; an
+unreachable worker falls back to in-process.
+
+### 6.3 — A stall is a partial, not a crash ✅ BUILT + TESTED
+`StallAbort` (kind `stall`, expected); the router files it like a budget stop (`partial`,
+`budget_reached`-style stop reason), keeping the result instead of "docs=0, ran 0.0s".
+
+### 6.4 — Screenshot capture respects the host circuit ✅ BUILT + TESTED
+The CAD circuit had been open since Phase 1, yet the supplemental screenshots tried
+esearch.bellcad.org three more times at 45 s each, then the GIS viewer 60 s, then BIS GIS 45 s
+(~4 min of a capped run). The Bell screenshot collector, GIS viewer capture and direct BIS map
+capture now consult `hostCircuit` before navigating and `tripHost` on a timeout.
+
+### 6.5 — Overhead views zoom closer on a house lot ✅ BUILT + TESTED
+Owner: "20 just isn't quite enough … 22 or 23". Bell Google satellite: 22 for ≤0.75 ac, 21 for ≤3 ac,
+20 otherwise (`googleZoomForParcel`, acreage passed from the orchestrator); capture-plan `MAX_ZOOM`
+21 → 22 so a small lot's close/detail bands reach it.
+
+### 6.6 — Button audit (54 controls, every route + worker endpoint resolves) ✅ FIXED
+Real defects fixed: a corrected parcel ID was dropped by the PATCH allow-list; three stat tiles were
+no-ops on four of five stages (now land on Review first); the dialog input was never consumed, so a
+later plain Start re-ran the old input; the leads panel swallowed a failed load. Plus the owner's
+ask: a real **View** button beside **Source** on every live document row (opens the dedicated
+viewer). Noted, not changed: "Back to Research" from Analysis is a destructive revert behind a
+confirm; `ReviewDocCard` + the review-doc-list block are dead behind `{false && …}`; dead imports
+and `getNextStep`/`canAdvance` in page.tsx.
+
+### 6.7 — Free + paid avenue audit ✅ FIXED (5 of 14) / noted
+Fixed: all three in-run purchase sites required the checklist to be PRESENT (an absent one now
+resolves to the default — a run started without the dialog is no longer silently $0); TexasFile's
+`/complete/` step (the call that charges the wallet, per the 2026-09-05 mapped flow) is now called
+after the begun purchase, keeping the begun pages if it fails; a `search_required` want no longer
+collapses to one ledger key per county (lookup skipped for the placeholder, row keyed on the
+instrument the vendor sold, or a per-want key); `run_id` written on purchase rows; the orchestrator
+loads the project library itself when no held index is passed, so prior-round dedup is ON for the
+in-run sites; the early refusal files skip rows. **Noted for the owner:** `run-gather-pipeline.ts`
+/ `gather-orchestrator.ts` / `texasfile-want-buyer.ts` are authored with zero callers; `otherBudgetUsd`
+is only summed into the cap, not metered separately; a plat GUID found by the plat search is
+discarded before the buy (re-searched as an instrument); `coerceRunSettings` drops the budgets;
+the app-side data-point analysis still runs on Vercel after the worker's read pass.
+
+### 6.8 — Still in the log, not changed
+Bell CAD (`esearch.bellcad.org`) and the Bell plat repository (`bellcountytx.com`, 403 on both
+egress routes — "unreachable-by-policy") did not answer; FEMA returned no zone (likely Zone X); the
+tax scraper failed on the CAD host; the CAD deed row logged `Instr#undefined`; Stage1D still spends
+one AI call (13 s) on address variants inside the CAD scraper (search assistance, left on).
 
 ## PHASE 5 — Verification (then owner merge + worker rebuild)
 

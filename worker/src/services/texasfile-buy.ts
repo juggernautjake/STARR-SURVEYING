@@ -83,6 +83,9 @@ export interface TexasFileBuyResult {
   costUsd?: number;
   balanceAfter?: string;
   guid?: string;
+  /** The county instrument number TexasFile lists for the document actually bought. A
+   *  `search_required` want is keyed in the ledger by THIS, not by the placeholder. */
+  instrument?: string;
 }
 
 const noLog = { info: () => {}, warn: () => {}, error: () => {} } as unknown as PipelineLogger;
@@ -247,6 +250,12 @@ export async function searchTexasFilePlats(page: Page, input: TexasFilePlatInput
   return { searchId, results };
 }
 
+/** Step 2 of the mapped purchase flow (2026-09-05): completes a begun purchase and charges the wallet. */
+export function purchaseCompleteUrl(purchaseId: number | string, searchId: string): string {
+  return `${TF}/document/api/purchase/${purchaseId}/complete/`
+    + `?from_product_content_type=search&from_product_object_id=${encodeURIComponent(searchId)}`;
+}
+
 /** Purchase (or re-fetch if already owned) a document by GUID and return its page image URLs. */
 export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument'): Promise<{ pages: string[]; purchaseId?: number; balance?: string } | null> {
   try {
@@ -260,7 +269,31 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
       res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', alt), { timeout: 30_000 });
     }
     if (!res.ok()) { log.warn('TexasFile', `Purchase API HTTP ${res.status()} for ${guid}.`); return null; }
-    const body = await res.json() as { pages?: string[]; purchase_id?: number; user_balance?: string; images_available?: boolean };
+    let body = await res.json() as { pages?: string[]; purchase_id?: number; user_balance?: string; images_available?: boolean };
+    // ── STEP 2: COMPLETE THE PURCHASE ───────────────────────────────────────────────────────
+    // The live flow mapped on 2026-09-05 has two calls: `/purchase/.../{GUID}/` BEGINS a purchase
+    // and returns its id; `/purchase/{purchaseId}/complete/` is what CHARGES THE WALLET and finishes
+    // it. Only the first was ever called here, so a buy could stop at "begun". A completion that
+    // returns pages wins; one that fails is logged and the begun purchase's pages are still used —
+    // a document in hand beats a tidy abort, and the ledger row says what was paid.
+    if (body.purchase_id != null) {
+      try {
+        const done = await page.context().request.get(purchaseCompleteUrl(body.purchase_id, searchId), { timeout: 30_000 });
+        if (done.ok()) {
+          const completed = await done.json().catch(() => null) as typeof body | null;
+          if (completed && Array.isArray(completed.pages) && completed.pages.length > 0) {
+            body = { ...body, ...completed, purchase_id: completed.purchase_id ?? body.purchase_id };
+          } else if (completed?.user_balance) {
+            body = { ...body, user_balance: completed.user_balance };
+          }
+          log.info('TexasFile', `Purchase ${body.purchase_id} completed — balance ${body.user_balance ?? '?'}.`);
+        } else {
+          log.warn('TexasFile', `Purchase ${body.purchase_id} complete step returned HTTP ${done.status()} — using the begun purchase's pages.`);
+        }
+      } catch (err) {
+        log.warn('TexasFile', `Purchase ${body.purchase_id} complete step threw: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     if (!body.images_available || !Array.isArray(body.pages) || body.pages.length === 0) {
       log.warn('TexasFile', `Purchase returned no images for ${guid} (images_available=${body.images_available}).`);
       return null;
@@ -320,6 +353,7 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       return {
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
         pageCount: pages.length, costUsd: chosen.pages ?? pages.length, balanceAfter: bought.balance,
+        instrument: chosen.instrument ?? undefined,
       };
     } finally {
       await context.close().catch(() => {});

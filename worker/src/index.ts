@@ -1250,8 +1250,31 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
     const permission = await resolvePurchasePermission(projectId);
     if (!permission.allowed) {
+      // A skip row per checklist want, like the two later purchase sites file. Without these the
+      // Analysis-stage notice ("paid documents were skipped because…") stayed silent whenever the
+      // refusal happened here — which, since the early buy fires first, was every time.
+      const recs = wantsToPurchaseRecommendations(
+        selectionsToWants(resolveGatherSelections(runSettings)),
+        { county: county ?? undefined, ownerName: ownerName ?? undefined },
+      );
+      if (permission.skipStatus && recs.length > 0) {
+        const skipRec = await recordSkippedPurchases(
+          recs.map((rec) => ({
+            projectId,
+            runId: activePipelines.get(projectId)?.runId ?? null,
+            countyFips: lookupCountyFIPS(county ?? '', state ?? 'TX'),
+            instrument: rec.instrument,
+            documentType: rec.documentType,
+            platformId: rec.source,
+            pages: 0,
+          })),
+          permission.skipStatus,
+          permission.reason,
+        );
+        if (skipRec.error) console.warn(`[Worker] ${projectId}: Could not record the skipped documents (early) — ${skipRec.error}`);
+      }
       handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased (early)', permission.reason)
-        .success(0, describeSkippedPurchase(permission, 0));
+        .success(0, describeSkippedPurchase(permission, recs.length));
       return;
     }
     const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
@@ -1388,7 +1411,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       projectId, recs,
       {
         texasfileCredentials: process.env.TEXASFILE_USERNAME ? { username: process.env.TEXASFILE_USERNAME, password: process.env.TEXASFILE_PASSWORD!, accountType: 'pay_per_page' } : undefined,
-        budget: ceiling, autoReanalyze: false,
+        budget: ceiling, autoReanalyze: false, runId: activePipelines.get(projectId)?.runId ?? null,
       },
       countyFIPS, county ?? '',
     );
@@ -2511,6 +2534,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                       } : undefined,
                       budget: ceiling,
                       autoReanalyze: false,
+                      runId: activePipelines.get(projectId)?.runId ?? null,
                     },
                     countyFIPS,
                     county ?? '',
@@ -2938,6 +2962,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                     } : undefined,
                     budget: ceiling,
                     autoReanalyze: false,
+                    runId: activePipelines.get(projectId)?.runId ?? null,
                   },
                   countyFIPS,
                   county ?? '',
