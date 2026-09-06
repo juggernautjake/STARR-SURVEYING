@@ -87,15 +87,21 @@ clerk search + result matching. Tests updated (no instrument query; 2 clerk call
 ---
 
 ## PHASE 3 — Plats/drawings for ANY parcel (non-subdivision too)
-
-survey-driven plat + recorded-survey search/survey-driven plat + recorded-survey search
+### 3.1 — Abstract/survey-driven plat + recorded-survey search ✅ BUILT + TESTED
 For a metes-and-bounds parcel (`isSubdivision:false`, has abstract/survey), search TexasFile plats + the free
 plat repo + the clerk index by abstract/survey name for recorded surveys / drawings, not only named
 subdivisions. Thread `abstractNumber`/`surveyName` into `DiscoveryTarget` + the search inputs.
 
-### 3.2 — Free-source parity ✅ BUILT + TESTED
-Ensure the subdivision/abstract is searched on EVERY free source available (clerk plat index + free plat
-repo), so a paid buy is only for what the free sources genuinely lack.
+**Built:** `extractSurveyAbstract(legalDescription)` pulls the survey name + abstract; `buildDiscoveryTarget`
+derives them only when there is NO subdivision; `buildTexasFilePlatInputs` runs a plat "Name" search by the
+survey. The legal description is threaded from the identified parcel into the target.
+
+### 3.2 — Free-source parity ✅ BUILT + TESTED (subdivision) / ⏳ abstract-on-free-repo deferred
+The subdivision IS searched on both free (the Bell plat repo — "Searching … for WINNIE MAE ADDITION", when
+egress allows) and paid (TexasFile) already; the survey/abstract now drives the PAID plat search too.
+Extending the FREE plat-repo query to the survey/abstract for a bare tract is a smaller follow-up (the free
+repo is subdivision-indexed and often 403s from the server anyway), deferred until a non-subdivision test
+property shows it is needed — cost exceeds value today.
 
 ### 3.3 — Tests ✅ BUILT + TESTED
 Non-subdivision fixture yields abstract/survey plat queries; free + paid both consulted.
