@@ -91,6 +91,14 @@ TexasFile (enabled/funded), Kofile/Tyler (framework, disabled). What to look for
 `gatherSelections` (plats/deeds/easements). Read `worker/src/research/research-modes.ts` (source
 catalogue) and `worker/src/services/clerk-registry.ts` FIRST — reuse, do not duplicate the source list.
 
+> **SHIPPED 2026-09-05.** `worker/src/research/acquisition-sources.ts` — `acquisitionSourcesFor(county,
+> wants, {paidEnabled})` reuses the existing `SOURCE_CATALOGUE` (no second list): every WIRED source
+> serving the county whose capabilities cover the checklist's paid wants (`capabilityForWant`:
+> deed/easement→conveyances, plat→plats; maps are free captures, not clerk sources), free sources
+> ordered before paid. Exported `isSourceWired` from `research-modes.ts` so the engine and `buildPlan`
+> share one "wired" definition. Tests: `acquisition-sources.test.ts` (6). Suite green, tsc clean. A1
+> (discovery pass) iterates this registry.
+
 ### A1 — Discovery pass: search every in-scope source, build an availability MANIFEST (no downloads yet)
 For each source, run its search for the checklist targets (owner name, subdivision, lot, instrument,
 book/page) and record every FOUND document as a manifest entry: `{ sourceId, docType, instrument?,
