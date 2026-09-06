@@ -382,6 +382,16 @@ Project modal (`app/admin/research/_tabs/ProjectsTab.tsx`) and the re-run dialog
 RENDER it (this repo's #1 defect is authored-but-not-wired UI). Persist onto the project + thread into
 the run input.
 
+> **SHIPPED (create modal) 2026-09-05.** `app/admin/research/components/SupplementalInfoFields.tsx` —
+> the "+ Add more info" category picker: click → choose category (Key name · Volume/Page · Instrument
+> number · Plat cabinet/slide) → appends a line with the right field(s) (`volume "/" page`,
+> `cabinet "/" slide`); add/remove any number of lines, mixed categories. Pure `linesToSupplemental`
+> folds them into `{instrumentNumbers, ownerNames, volumePages, cabinetSlides}`. Wired into
+> `ProjectsTab.tsx` (state + render before Spending + into the create POST + reset). The create API
+> (`app/api/admin/research/route.ts`) persists it under `analysis_metadata.supplemental` (only when
+> non-empty). Tests: `supplemental-info-fields.test.ts` (3); app tsc clean. **Remaining:** the same
+> control in `RerunDialog.tsx`, and H3-thread (pipeline route → worker run input → DiscoveryTarget/A7).
+
 ### H3 — Thread supplemental inputs through the run → the engine
 Carry the supplemental identifiers into `BellResearchInput` / run settings → the cross-source
 `DiscoveryTarget` (A1) so every source is searched by them, and into A7's relevance filter so a document

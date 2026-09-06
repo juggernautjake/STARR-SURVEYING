@@ -26,6 +26,7 @@ import JobLinkPicker, { type JobSummary } from '../components/JobLinkPicker';
 // `Accordion` was dropped with the "Optional details" disclosure — see the note on the form.
 import { ErrorState } from '../components/ui';
 import { composeAddress, splitStreetLine, splitFullAddress } from '@/lib/research/property-address';
+import SupplementalInfoFields, { linesToSupplemental, type SupplementalLine } from '@/app/admin/research/components/SupplementalInfoFields';
 // The SAME upload path the project page uses — signed URL straight to storage, a 50 MB cap, and
 // per-file errors that do not stop the other files. Writing a second uploader here would have meant
 // two size limits, two validation lists and two ways to fail.
@@ -57,6 +58,8 @@ export default function ProjectsTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Supplemental "+ Add more info" lines (names / vol-page / instrument / cabinet-slide) — plan H2.
+  const [supplementalLines, setSupplementalLines] = useState<SupplementalLine[]>([]);
   // Named, not just linked — see the note in JobLinkPicker. Set from the deep link, and by the
   // picker itself when somebody chooses one by hand.
   const [createLinkedJob, setCreateLinkedJob] = useState<JobSummary | null>(null);
@@ -276,7 +279,7 @@ export default function ProjectsTab() {
       const res = await fetch('/api/admin/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newProject, county, name: projectName }),
+        body: JSON.stringify({ ...newProject, county, name: projectName, supplemental: linesToSupplemental(supplementalLines) }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -333,6 +336,7 @@ export default function ProjectsTab() {
           instrument_number: '', intake_notes: '', allow_paid_documents: true, job_id: null,
         });
         setIntakeFiles([]);
+        setSupplementalLines([]);
         setIntakeFileErrors([]);
       setJobHadNoCounty(false);
         router.push(`/admin/research/${data.project.id}`);
@@ -1018,6 +1022,12 @@ export default function ProjectsTab() {
                     disabled={creating}
                   />
                 </div>
+              </fieldset>
+
+              {/* ── SUPPLEMENTAL INFO (plan H2) — names / vol-page / instrument / cabinet-slide ── */}
+              <fieldset className="research-modal__section">
+                <legend className="research-modal__section-title">More info to search by</legend>
+                <SupplementalInfoFields lines={supplementalLines} onChange={setSupplementalLines} />
               </fieldset>
 
               {/* ══ WHAT THIS WILL COST ════════════════════════════════════════════════════

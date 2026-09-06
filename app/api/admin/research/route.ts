@@ -90,6 +90,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     street_number, street_name, unit, intake_notes,
     // Seed 625 — a deed the operator already has. Seeds the Bell deed-following cascade.
     instrument_number,
+    // Plan H2 — supplemental identifiers the operator added ("+ Add more info"): key names,
+    // volume/page, instrument numbers, plat cabinet/slide. Main keys stay id + address; these are
+    // grain-of-salt search hints, never a reject reason.
+    supplemental,
   } = body;
 
   if (!name || !name.trim()) {
@@ -179,6 +183,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         user_notes: (intake_notes || description || '').trim() || null,
         city: city?.trim() || null,
         zip: zip?.trim() || null,
+        // Plan H2/H3 — supplemental search hints, threaded to the run + the cross-source engine's
+        // DiscoveryTarget (A1) and relevance filter (A7). Stored only when non-empty.
+        supplemental: supplemental && (
+          (supplemental.instrumentNumbers?.length ?? 0) +
+          (supplemental.ownerNames?.length ?? 0) +
+          (supplemental.volumePages?.length ?? 0) +
+          (supplemental.cabinetSlides?.length ?? 0)
+        ) > 0 ? supplemental : null,
       },
     })
     .select()
