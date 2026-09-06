@@ -111,6 +111,10 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'Plan A4 — executes the A3 acquisition plan (imports AcquisitionAction/AcquisitionPlan, keeping the whole A1→A2→A3 chain reachable): runs the injected free-capture and TexasFile-purchase effects per action, gates each buy on the REAL remaining budget, isolates failures. Built ahead of A7 (live wiring), which will call executeAcquisitionPlan with the real capture/buy adapters and remove this entry. Not dead — unit-tested by cross-source-acquire.test.ts.',
 
 
+  'worker/src/research/property-search-inputs.ts':
+    'Plan H1 — main-vs-supplemental property inputs + documentRelevance (property id / address are the main keys; instrument/name/volume-page/cabinet are supplemental, grain of salt, never a reject reason). Built ahead of H3 (thread into the run/DiscoveryTarget) and A7 (relevance filter), which will import it and remove this entry. Not dead — unit-tested by property-search-inputs.test.ts.',
+
+
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by
   // the runner script worker/src/scripts/backfill-identity.mjs and its test, not by the pipeline —
   // a .mjs caller the .ts scanner does not count. Kept as a utility for future identity backfills.

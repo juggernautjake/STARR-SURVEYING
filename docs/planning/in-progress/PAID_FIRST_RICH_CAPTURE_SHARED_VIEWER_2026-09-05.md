@@ -2,23 +2,6 @@
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
 
-<!-- HOOK:BLOCKED The whole PURE, fully-verifiable core is SHIPPED + green (2738 suite): the
-cross-source engine's decision logic end to end — A0 source registry, A1 discovery/manifest, A2
-multi-signal matching (instrument/book-page/names/dates/location), A3 cheapest-source-per-document
-decision (free-first, buy only paid-exclusive, budget+priority), A4 resilient executor, A5 legibility
-override — plus B1 (parcel-side GIS bearings+lengths). ~55 new unit tests, orphan guard clean, tsc
-clean. PAUSED at the true boundary: every REMAINING slice needs the OWNER or the live environment, not
-more solo code — building them blind is exactly the authored-but-not-wired defect this repo keeps
-hitting. (1) A6 source-comparison manifest UI + A7 LIVE WIRING (resolve the dual Bell path
-orchestrator.ts vs services/pipeline.ts, supply the real free-capture + buyDocument effects, retire the
-ed1049322 completion-handler buy) + A8 — A7's correctness can only be confirmed by a SUPERVISED PAID
-RUN. (2) B2/C/D produce IMAGES (structured segments, per-adjoiner boundary drawings, adaptive
-Google/ArcGIS zoom) whose correctness is a VISUAL judgement I cannot make headless. (3) E + G are
-app-side UI (shared viewer in the live run, five-stage Research|Analysis split, per-data-point source
-buttons) needing BROWSER QA. (4) F is merge + worker redeploy + the supervised run — owner-gated. Remove
-this marker (or say "continue" / name a phase, e.g. "build the five-stage UI" / "wire A7 and do a paid
-run") to resume; the engine is ready for A7 to plug the real adapters into. -->
-
 Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
 before each merge to `main`; `npm run build` before a merge; **NEVER rebuild the worker while a run is
@@ -363,6 +346,46 @@ it wherever data points render (Analysis + Review).
 Assert the stepper renders five stages in order, the run status maps to the right stage, the shared
 viewer mounts in Research/Analysis/Review, and a data point's source button opens the recorded URL.
 Browser-QA the five-stage flow (this repo's #1 defect is authored-but-not-wired UI).
+
+---
+
+## PHASE H — Supplemental property inputs + relevance semantics (owner 2026-09-05)
+
+The property-info input modal gains fields for INSTRUMENT NUMBERS, KEY NAMES, VOLUME/PAGE, and PLAT
+CABINET/SLIDE via a "+ Add more info" progressive-disclosure control (add several of each). The MAIN
+search keys are the **property ID and the address**; everything else is SUPPLEMENTAL — used to search
+and to raise confidence but "taken with a grain of salt": the more the user enters, the more chance some
+of it won't line up, so a document is NEVER rejected for lacking supplemental info. A document that
+matches the correct property ID and/or address is relevant and viable; a supplemental match is a bonus,
+a supplemental mismatch is not a veto.
+
+### H1 — Property-search input model + relevance (pure, worker-side)
+A `PropertySearchInputs` type (main: propertyId, address, county; supplemental: instrumentNumbers[],
+ownerNames[], volumePages[], cabinetSlides[], subdivision, lot, block) and a pure `documentRelevance(doc,
+inputs)` returning relevant iff the doc matches a MAIN key (property id / address) OR an exact
+supplemental identifier (instrument / vol-page / cabinet-slide); supplemental fields only add confidence
+and never reject. Feeds the discovery target (A1) + the A7 relevance filter.
+
+> **SHIPPED 2026-09-05.** `worker/src/research/property-search-inputs.ts` — `PropertySearchInputs` +
+> `documentRelevance(doc, inputs)`: property id / tolerant address (St≡Street, ignores city/zip) are the
+> MAIN keys; instrument / volume-page / cabinet-slide (suffix-tolerant, e.g. `166-APR`) are exact
+> supplemental identifiers that make a doc relevant on their own; name / subdivision / lot only ADD
+> confidence; a supplemental MISMATCH never vetoes an id/address match. Tests:
+> `property-search-inputs.test.ts` (8); guard + tsc green. H3/A7 import it.
+
+### H2 — Input modal fields via a "+ Add more info" CATEGORY PICKER (owner 2026-09-05)
+Each "+ Add more info" click first asks the user to CHOOSE A CATEGORY (key name · volume/page ·
+instrument number · plat cabinet/slide); picking one appends a matching info LINE with the right fields —
+a name field, or a `volume "/" page` pair, or an instrument field, or a `cabinet + slide` pair. The user
+can add as many lines as they want, remove any line, and mix categories. Add this to the New-Research-
+Project modal (`app/admin/research/_tabs/ProjectsTab.tsx`) and the re-run dialog (`RerunDialog.tsx`).
+RENDER it (this repo's #1 defect is authored-but-not-wired UI). Persist onto the project + thread into
+the run input.
+
+### H3 — Thread supplemental inputs through the run → the engine
+Carry the supplemental identifiers into `BellResearchInput` / run settings → the cross-source
+`DiscoveryTarget` (A1) so every source is searched by them, and into A7's relevance filter so a document
+matching ID/address is kept even when it lacks the supplemental fields.
 
 ---
 
