@@ -245,6 +245,57 @@ directly over cloning it.
 
 ---
 
+## PHASE G — Five-stage pipeline: Research and Analysis split; viewer + source links everywhere (owner 2026-09-05)
+
+The pipeline goes from FOUR stages to FIVE: **1. Property Information → 2. Research** (find + download
+the docs/files/images from the sources — NO analysis) **→ 3. Analysis** (OCR + extract + summarise every
+document) **→ 4. Review** (full review of the data + each document's detailed analysis results) **→ 5.
+Job Prep**. The current "Research & Analysis" stage splits into separate Research and Analysis stages.
+The dedicated `SourceDocumentViewer` is usable in Research (as files land dynamically), Analysis, AND
+Review. Every extracted DATA POINT gets a button that opens a new tab to the source URL/page it came
+from. This makes the two-pipeline gather/analyze model (`phase:'gather'|'analyze'`) explicit in the UI.
+
+### G1 — Split the stage model 4 → 5 (Research | Analysis separate)
+Read the pipeline stage definitions + the "RESEARCH PIPELINE" stepper + the run-status→stage mapping
+(`app/admin/research/[projectId]/page.tsx`, the stage constants, and any shared stage enum). Insert an
+**Analysis** stage between Research and Review. Research maps to the gather phase (`phase:'gather'`),
+Analysis to the analyze phase (`phase:'analyze'`). Update the stepper to show five, and every
+status→stage and "Restart from here"/"Continue to …" control.
+
+### G2 — Research stage = gather only (dynamic download + the source-comparison manifest)
+The Research stage shows documents as they download (the in-progress list from Phase E, mounting the
+shared viewer) plus the A6 source-comparison manifest. NO analysis controls here — gather only. The
+"Start" control launches a gather run.
+
+### G3 — Analysis stage = run + watch the analysis, per document
+A dedicated Analysis stage: launch + monitor the analysis via the WORKER read endpoint (the app
+analyze route freezes on long jobs — `project_analysis_runs_on_worker_not_vercel`), show per-document
+OCR/extract progress + running cost, the fixed $/page quote, and per-file "Analyze this". Any document
+opens in the shared viewer here too.
+
+### G4 — Review stage = full review of the results
+Review shows the finished data points, discrepancies, and each document's analysis/summary, with the
+shared viewer — the "full reviewing of the data and the results of the detailed analysis" the owner
+described. (Largely the existing Review, now fed by a completed Analysis stage rather than a combined
+one.)
+
+### G5 — Shared `SourceDocumentViewer` mounted in Research, Analysis, AND Review
+One component, three stages. Phase E mounts it in Research; extend to Analysis; Review already has it.
+Multi-page click-through + zoom identical in all three. Do not clone the viewer — reuse it.
+
+### G6 — Every DATA POINT links to its source URL/page
+Read the data-point model (`ResearchDataPoint`/equivalent in `types/research.ts`) and where a data
+point records the document/source it was extracted from. Add a button on each data point that opens a
+new tab to that source URL/page (the document's `source_url`, or the data point's own citation). Show
+it wherever data points render (Analysis + Review).
+
+### G7 — Wire + tests + browser QA
+Assert the stepper renders five stages in order, the run status maps to the right stage, the shared
+viewer mounts in Research/Analysis/Review, and a data point's source button opens the recorded URL.
+Browser-QA the five-stage flow (this repo's #1 defect is authored-but-not-wired UI).
+
+---
+
 ## PHASE F — Verification, deploy, supervised paid run
 
 ### F1 — Green + build
