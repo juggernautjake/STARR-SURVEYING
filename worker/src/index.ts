@@ -73,6 +73,8 @@ import { TCEQClient } from './sources/tceq-client.js';
 import { RRCClient } from './sources/rrc-client.js';
 import { NRCSSoilClient } from './sources/nrcs-soil-client.js';
 import { ChainOfTitleBuilder } from './chain-of-title/chain-builder.js';
+import { findGaps } from './chain-of-title/chain-gaps.js';
+import { compileDiscoveredLeads, type DiscoveredLead } from './research/discovered-leads.js';
 import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
@@ -3558,6 +3560,70 @@ app.post('/research/reset/:projectId', requireAuth, async (req: Request, res: Re
 
   console.log(`[Worker] ${projectId}: reset — ${cleared.join('; ')}`);
   res.json({ projectId, reset: true, cleared });
+});
+
+// ── POST /research/:projectId/compile-leads ───────────────────────────────
+// Plan 1.3 — after analysis, compile the NEW search leads the analysis surfaced (chain-of-title
+// citations, adjoiners, referenced data points) so the user can choose to run a FOLLOW-UP research
+// round seeded with them. User-triggered, never automatic. Persists to
+// analysis_metadata.discoveredLeads and returns them.
+app.post('/research/:projectId/compile-leads', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) { res.status(503).json({ error: 'no database' }); return; }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const [dpRes, adjRes, projRes] = await Promise.all([
+      sb.from('extracted_data_points').select('data_category, raw_value, display_value, document_id').eq('research_project_id', projectId),
+      sb.from('research_adjoiners').select('owner_name, parcel_id').eq('research_project_id', projectId),
+      sb.from('research_projects').select('analysis_metadata, parcel_id').eq('id', projectId).single(),
+    ]);
+    const dataPoints = (dpRes.data ?? []) as Array<{ data_category: string; raw_value?: string | null; display_value?: string | null; document_id?: string | null }>;
+    const adjoiners = ((adjRes.data ?? []) as Array<{ owner_name?: string | null; parcel_id?: string | null }>)
+      .map((a) => ({ owner: a.owner_name, propertyId: a.parcel_id }));
+    const meta = (projRes.data?.analysis_metadata as Record<string, unknown>) ?? {};
+    const round = typeof meta.researchRound === 'number' ? meta.researchRound : 1;
+
+    // Chain-of-title gaps, if a chain was built for this project.
+    let gaps: ReturnType<typeof findGaps> = [];
+    try {
+      const chainPath = path.join(ANALYSIS_DIR, projectId, 'chain_of_title.json');
+      if (fs.existsSync(chainPath)) {
+        const chain = (JSON.parse(fs.readFileSync(chainPath, 'utf-8')) as { chain?: unknown[] }).chain ?? [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        gaps = findGaps(chain as any);
+      }
+    } catch (e) {
+      console.warn(`[Leads] ${projectId}: could not read chain for gaps — ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Everything already searched — leads that repeat it are dropped. Prior rounds' leads carry a
+    // `searched` flag; the supplemental the run started with is also "already searched".
+    const priorLeads = Array.isArray(meta.discoveredLeads) ? (meta.discoveredLeads as DiscoveredLead[]) : [];
+    const supp = (meta.supplemental as { instrumentNumbers?: string[]; volumePages?: Array<{ volume?: string; page?: string }> } | undefined) ?? {};
+    const alreadySearched = {
+      instruments: [...(supp.instrumentNumbers ?? []), ...priorLeads.filter((l) => l.searched && l.kind === 'instrument').map((l) => l.value)],
+      volumePages: [...(supp.volumePages ?? []).map((vp) => `VOL${Number(vp.volume)}PG${Number(vp.page)}`), ...priorLeads.filter((l) => l.searched && l.kind === 'volume_page').map((l) => l.value)],
+      names: priorLeads.filter((l) => l.searched && (l.kind === 'grantor_name' || l.kind === 'adjoiner')).map((l) => l.value),
+      subdivisions: priorLeads.filter((l) => l.searched && l.kind === 'subdivision').map((l) => l.value),
+    };
+
+    const fresh = compileDiscoveredLeads({ gaps, adjoiners, dataPoints, alreadySearched, round });
+    // Merge with prior leads (keep prior `searched` state; add new ones not already present).
+    const byId = new Map<string, DiscoveredLead>(priorLeads.map((l) => [l.id, l]));
+    for (const l of fresh) if (!byId.has(l.id)) byId.set(l.id, l);
+    const discoveredLeads = [...byId.values()];
+
+    await sb.from('research_projects')
+      .update({ analysis_metadata: { ...meta, discoveredLeads, discoveredLeadsAt: new Date().toISOString(), researchRound: round } })
+      .eq('id', projectId);
+    console.log(`[Leads] ${projectId}: compiled ${fresh.length} new lead(s) (${discoveredLeads.length} total) at round ${round}.`);
+    res.json({ projectId, round, newLeads: fresh.length, leads: discoveredLeads });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // ── POST /research/pause/:projectId ───────────────────────────────────────

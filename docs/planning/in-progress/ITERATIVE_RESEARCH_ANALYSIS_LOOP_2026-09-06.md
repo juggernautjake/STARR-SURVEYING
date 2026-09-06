@@ -47,17 +47,17 @@ round, searched }` where `kind ∈ 'citation' | 'grantor_name' | 'adjoiner' | 's
 'instrument'`. `compileDiscoveredLeads({ chainGaps, chainErrands, adjoiners, dataPoints, alreadySearched, round })`
 returns de-duped leads NOT already searched. Pure, unit-tested.
 
-### 1.2 — Feed the chain-of-title gaps + errands in
+### 1.2 — Feed the chain-of-title gaps + errands in ✅ BUILT (via errandsFromGaps in the compiler)
 Call `findGaps` + the grantor-as-grantee errands (`chain-errands.ts` / `chain-walker.ts`) on the built chain,
 map each unfollowed citation → a `citation`/`volume_page`/`instrument` lead and each prior grantor → a
 `grantor_name` lead. Adjoiner data points → `adjoiner` leads; recording-reference / subdivision data points →
 their kinds.
 
-### 1.3 — Persist after analysis
+### 1.3 — Persist after analysis ✅ BUILT + TESTED (POST compile-leads endpoint)
 When analysis finishes, write `analysis_metadata.discoveredLeads` (merged, not replacing) with the current
 `analysis_metadata.researchRound` (default 1). De-dup against leads already present + already searched.
 
-### 1.4 — Tests
+### 1.4 — Tests ✅ BUILT + TESTED
 Fixtures: a chain with an unfollowed citation yields a lead; an adjoiner yields a lead; an already-searched
 identifier is excluded; the compile is idempotent.
 

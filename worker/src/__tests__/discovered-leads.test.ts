@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { compileDiscoveredLeads, leadsToSupplemental, type DiscoveredLead } from '../research/discovered-leads.js';
 import type { ChainGap } from '../chain-of-title/chain-gaps.js';
 
@@ -85,5 +87,21 @@ describe('leadsToSupplemental — seeding a follow-up run (plan 2.1)', () => {
     expect(s.volumePages).toEqual([{ volume: '412', page: '88' }]);
     expect(s.ownerNames).toEqual(['SMITH, JOHN', 'JONES, MARY']);
     expect(s.subdivisions).toEqual(['WINNIE MAE ADDITION']);
+  });
+});
+
+describe('the compile-leads endpoint is wired (plan 1.3, the CALLER)', () => {
+  const SRC = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
+  it('exposes POST /research/:projectId/compile-leads', () => {
+    expect(SRC).toContain("app.post('/research/:projectId/compile-leads'");
+  });
+  it('reads data points + adjoiners + chain gaps, compiles, and persists discoveredLeads', () => {
+    const at = SRC.indexOf("app.post('/research/:projectId/compile-leads'");
+    const fn = SRC.slice(at, at + 4000);
+    expect(fn).toContain("from('extracted_data_points')");
+    expect(fn).toContain("from('research_adjoiners')");
+    expect(fn).toContain('findGaps(');
+    expect(fn).toContain('compileDiscoveredLeads(');
+    expect(fn).toContain('discoveredLeads');
   });
 });
