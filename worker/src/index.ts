@@ -41,6 +41,8 @@ import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, resolveGa
 // The checklist drives what TexasFile is asked for (plan W2): selections → wants → purchase recs.
 import { selectionsToWants } from './research/selection-wants.js';
 import { wantsToPurchaseRecommendations } from './research/selection-purchases.js';
+import type { PurchaseRecommendation } from './types/confidence.js';
+import { normInstrument } from './research/cross-source-match.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -1210,6 +1212,71 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   }
 
   // Build unified input — works for any Texas county
+  // ── A7.5 — buy the paid documents EARLY, the moment the parcel is known ────────────────────────
+  //
+  // Measured twice on 2026-09-05 (2417 Stoneham, 1401 North East): a Bell run reaches ~99% and is cut
+  // short by the 60-min hard cap / stall watchdog BEFORE the end-of-run completion handler, so the
+  // purchase there never fires — TexasFile is charged $0 while $5+ of AI is spent. Firing the buy HERE
+  // — from `onPropertyIdentified`, right after Phase 1 identifies the parcel and before the long free
+  // document search — is what actually gets a paid document into the run within the budget. This is
+  // the owner's explicit requirement ("any run can buy files from TexasFile"), and it deliberately
+  // runs the paid step early rather than after the whole free pass (superseding the old C5 ordering);
+  // cross-run de-duplication (the library + skip ledger inside the orchestrator) is what keeps it from
+  // paying twice. Keyed on the operator's owner name + the supplemental identifiers they gave (volume/
+  // page, instrument — plan H), plats first. Never throws; fires at most once per run.
+  let earlyPurchaseDone = false;
+  async function runEarlyChecklistPurchase(): Promise<void> {
+    if (earlyPurchaseDone || !runSettings.gatherSelections || !projectId) return;
+    earlyPurchaseDone = true;
+
+    const supp = ((body as { supplemental?: unknown }).supplemental ?? {}) as {
+      instrumentNumbers?: string[];
+      volumePages?: Array<{ volume?: string; book?: string; page?: string }>;
+    };
+    // The supplemental identifiers point at SPECIFIC documents — buy those first (priority 0).
+    const suppRecs: PurchaseRecommendation[] = [];
+    for (const vp of supp.volumePages ?? []) {
+      const vol = (vp.volume ?? vp.book ?? '').trim();
+      const pg = (vp.page ?? '').trim();
+      if (vol && pg) suppRecs.push({ documentType: 'deed', instrument: 'search_required', source: 'texasfile', estimatedCost: '$3', confidenceImpact: '', callsImproved: 0, reason: 'Operator-supplied volume/page.', priority: 0, roi: 1, county: county ?? undefined, book: vol, page: pg });
+    }
+    for (const instr of supp.instrumentNumbers ?? []) {
+      if (instr?.trim() && normInstrument(instr)) suppRecs.push({ documentType: 'deed', instrument: instr.trim(), source: 'texasfile', estimatedCost: '$3', confidenceImpact: '', callsImproved: 0, reason: 'Operator-supplied instrument number.', priority: 0, roi: 1, county: county ?? undefined });
+    }
+    const checklistRecs = wantsToPurchaseRecommendations(
+      selectionsToWants(resolveGatherSelections(runSettings)),
+      { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
+    );
+    const recs = [...suppRecs, ...checklistRecs];
+    if (recs.length === 0) return;
+
+    const permission = await resolvePurchasePermission(projectId);
+    const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+    if (!permission.allowed) {
+      handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased (early)', permission.reason)
+        .success(0, describeSkippedPurchase(permission, recs.length));
+      return;
+    }
+    const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
+    handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents (early)',
+      `${recs.length} target(s), supplemental + plats first, ceiling $${ceiling.toFixed(2)}`)
+      .success(recs.length, `Buying up to ${recs.length} document(s) EARLY from TexasFile within the $${ceiling.toFixed(2)} budget, before the free document search.`);
+    const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+    const purchaseResult = await orchestrator.executePurchases(
+      projectId, recs,
+      {
+        texasfileCredentials: process.env.TEXASFILE_USERNAME ? { username: process.env.TEXASFILE_USERNAME, password: process.env.TEXASFILE_PASSWORD!, accountType: 'pay_per_page' } : undefined,
+        budget: ceiling, autoReanalyze: false,
+      },
+      countyFIPS, county ?? '',
+    );
+    const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+    const spent = purchaseResult.billing?.totalCharged ?? 0;
+    handshakeLogger.attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Early purchase finished',
+      `${bought.length} bought, $${spent.toFixed(2)}`)
+      .success(bought.length, `${bought.length} document(s) purchased EARLY from TexasFile for $${spent.toFixed(2)}. ${purchaseResult.purchases.length - bought.length} were not obtained.`);
+  }
+
   const researchInput: CountyResearchInput = {
     projectId,
     county,
@@ -1245,6 +1312,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         await captureVisualsAtIdentification(projectId, county, identified);
       } catch (e) {
         console.warn(`[Capture] ${projectId}: early visual phase threw — ${String(e)}`);
+      }
+      // A7.5 — buy the paid documents from TexasFile NOW, before the long free document search that a
+      // cut-short run never gets past. Never throws; the research is the point.
+      try {
+        await runEarlyChecklistPurchase();
+      } catch (e) {
+        console.warn(`[Purchase:early] ${projectId}: early purchase threw — ${String(e)}`);
       }
     },
     uploadedFiles: parsedUserFiles?.map(f => ({
