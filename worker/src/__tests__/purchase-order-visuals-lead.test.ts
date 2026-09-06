@@ -123,14 +123,20 @@ describe('C5 — the free sources lead for everything else, and must keep leadin
   // watermarked previews — happens in Stages 1 and 2; the only paid step runs at the very end,
   // after the confidence report says which documents are worth money.
 
-  it('the paid step runs AFTER the free document stages, in the source', () => {
+  it('the EARLY paid step fires after the free VISUAL capture, and only through the gate (A7.5)', () => {
+    // A7.5 (owner 2026-09-05): the paid buy now fires from `onPropertyIdentified` — EARLY — because a
+    // Bell run is cut short at ~99% before the end-of-run purchase, so buying there never happened.
+    // That deliberately supersedes the old "all paid after all free" ordering. What still holds, and
+    // is what this now guards: inside the identification hook the FREE visual capture leads the paid
+    // buy, and every buy still consults the permission gate before spending.
     const s = code('index.ts');
-    const purchase = s.indexOf('new DocumentPurchaseOrchestrator(');
-    const captures = s.indexOf('captureVisualsAtIdentification');
-    expect(purchase, 'the purchase orchestrator is gone').toBeGreaterThan(-1);
-    expect(captures).toBeGreaterThan(-1);
-    // The free visual pass is wired at identification; the purchase is downstream of the whole run.
-    expect(captures).toBeLessThan(purchase);
+    const capture = s.indexOf('await captureVisualsAtIdentification(projectId, county, identified)');
+    const earlyBuy = s.indexOf('await runEarlyChecklistPurchase()');
+    expect(capture, 'the free visual capture is gone').toBeGreaterThan(-1);
+    expect(earlyBuy, 'the early paid buy is gone').toBeGreaterThan(-1);
+    expect(capture, 'the free visual capture leads the early buy').toBeLessThan(earlyBuy);
+    expect(s).toContain('const permission = await resolvePurchasePermission(projectId)');
+    expect(s).toContain('new DocumentPurchaseOrchestrator(');
   });
 
   it('the free plat repository is consulted on the generic path before any purchase', () => {

@@ -4,23 +4,12 @@
 
 Driven by the stop-hook slice loop.
 
-<!-- HOOK:BLOCKED PAUSED for the owner's DEPLOY decision. All of this session's UI fixes are shipped +
-tested on the branch but NOT deployed — the owner is viewing production (main), which is why they keep
-re-reporting already-fixed things as broken. Shipped: E (in-progress multi-page viewer + Source), G1
-(five-stage stepper), G8 (merged Review list: Analyze·View·Source), H1/H2 (relevance + "+ Add more
-info" picker in BOTH create + re-run dialogs), B1 (parcel bearings), and the whole cross-source engine
-testable core (A0-A5 + driver A7.1 + TexasFile/clerk search mappers A7.2/A7.3) + property relevance.
-Worker 2752 + app 2499 green throughout. The productive next step is to MERGE main + deploy Vercel so
-the owner can SEE + QA the UI (a merge needs their explicit OK per feedback_pr_workflow). The remaining
-big piece — A7.5 (wire the live search into runCrossSourceAcquisition in onPropertyIdentified + C5
-update) — needs a worker deploy + a supervised paid run to build correctly, so it is deploy-gated too.
-Also open: G3/G4 (move analysis controls into the Analysis stage), H3-thread (POST→worker→engine),
-B2/C/D, F. Remove this marker or answer "deploy" / "keep building" to resume. -->
-
 **A7 decision (owner 2026-09-05): build the FULL cross-source engine early-wiring** — real Bell-clerk
 free-search + TexasFile search adapters, the free-capture + buyDocument effects, and the driver that
 runs discover→match→decide→buy-paid-only from `onPropertyIdentified` (early), with the `documentRelevance`
-filter and the C5 test updated to "buy paid-only early". Then deploy + supervised run on 64567. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
+filter and the C5 test updated to "buy paid-only early". Then deploy + supervised run on 64567.
+
+Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
 before each merge to `main`; `npm run build` before a merge; **NEVER rebuild the worker while a run is
 in flight** (`activePipelines` on `localhost:3100/healthz` must be 0); worker = Docker on netcup
@@ -218,6 +207,20 @@ the "detailed cross comparison" the owner asked to SEE, not just an internal str
 > than "all paid after all free". Two proven runs (2417 Stoneham, 1401 North East) confirm the buy MUST
 > be early: both reached ~99% and were cut short before the end-of-run purchase, TexasFile $0. The
 > attempt was reverted (tree clean); this is the remaining integration + a supervised run to validate.
+
+> **SHIPPED (A7.5 live early buy) 2026-09-06.** Per the owner ("any run can buy files from TexasFile —
+> I need to know it's working"), `runEarlyChecklistPurchase()` fires from `onPropertyIdentified` in
+> `worker/src/index.ts` — right after Phase 1, before the long free search a cut-short run never
+> reaches. It builds recs from the operator's supplemental targets (volume/page + instrument, plan H)
+> plus the checklist wants keyed on the owner name (plats first), then buys via
+> `DocumentPurchaseOrchestrator.executePurchases` within the TexasFile budget (its cross-run library +
+> skip ledger prevent paying twice). **C5 updated** to the new intent (paid buys EARLY; the free VISUAL
+> capture still leads it and every buy still consults the permission gate); purchase-gate spend-site
+> count 6→7. **H3-thread SHIPPED:** the run-POST payload (`useRunState`) + the pipeline route carry
+> `supplemental` (this run's, else the project's `analysis_metadata.supplemental`) to the worker's
+> `body.supplemental`. Worker suite 2763 + app research 2499 green, tsc clean. NEXT enhancement: full
+> free-first per-document via live cross-source discovery (the A7.1–A7.3 engine); this v1 buys the
+> checklist/operator targets and relies on the library for de-dup.
 Determine which Bell path the live run uses — `worker/src/counties/bell/orchestrator.ts`
 (`orchestrateBellResearch`) vs the Bell handling in `worker/src/services/pipeline.ts` — by reading the
 router/dispatch, THEN wire the engine into the live one, running after Phase 1 identifies the

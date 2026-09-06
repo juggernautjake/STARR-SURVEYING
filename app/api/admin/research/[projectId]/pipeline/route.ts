@@ -81,7 +81,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // The address PARTS, not just the flattened line (seed 624). Selecting only
     // `property_address` is why the city and ZIP the operator typed never reached the worker: they
     // were written to `analysis_metadata`, and this list is what the run actually reads.
-    .select('id, property_address, street_number, street_name, unit, city, county, state, zip, parcel_id, instrument_number, intake_notes, allow_paid_documents')
+    .select('id, property_address, street_number, street_name, unit, city, county, state, zip, parcel_id, instrument_number, intake_notes, allow_paid_documents, analysis_metadata')
     .eq('id', projectId)
     .single();
 
@@ -217,6 +217,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     zip: (project.zip as string | null) || null,
   };
 
+  // Plan H3 — the supplemental identifiers reach the run + the early TexasFile buy (A7.5). Prefer what
+  // THIS run sent; fall back to what was saved on the project when it was created.
+  const supplemental =
+    (body as { supplemental?: unknown }).supplemental ??
+    ((project.analysis_metadata as { supplemental?: unknown } | null)?.supplemental) ??
+    undefined;
+
   const payload = {
     projectId,
     address: rawAddress,
@@ -225,6 +232,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
     ownerName: body.ownerName || undefined,
+    // Plan H3 — the worker reads `body.supplemental` for the early buy's volume/page + instrument targets.
+    supplemental,
     // ── SEED 625 — THE CASCADE FINALLY GETS A STARTING DOCUMENT ─────────────────────────────
     //
     // `CountyResearchInput.instrumentNumber` has existed since the worker was written and the Bell

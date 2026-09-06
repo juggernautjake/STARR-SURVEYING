@@ -304,6 +304,8 @@ export function useRunState(projectId: string): UseRunStateResult {
       operatorNotes: input.operatorNotes?.trim() || undefined,
       userFiles: input.userFiles?.length ? input.userFiles : undefined,
       settings: input.settings,
+      // Plan H3 — supplemental identifiers (instrument #s, names, vol/page, cabinet) for the run + engine.
+      supplemental: input.supplemental,
       trigger: input.trigger,
     };
 

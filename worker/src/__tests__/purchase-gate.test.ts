@@ -175,7 +175,9 @@ describe('every place the worker spends money consults the gate', () => {
     // The five that spend: the two purchase routes, the document-access orchestrator's paid tier,
     // the normal (generic-pipeline) run (D1), and the dedicated-county run (W4). The sixth counted
     // call only ASKS: the readiness route reports whether a run would be allowed, without buying.
+    // SEVEN since A7.5: the EARLY buy (runEarlyChecklistPurchase, fired from onPropertyIdentified so a
+    // Bell run buys before it is cut short) is a real spend site and consults the gate before buying.
     const calls = index.match(/await resolvePurchasePermission\(projectId\)/g) ?? [];
-    expect(calls.length).toBe(6);
+    expect(calls.length).toBe(7);
   });
 });
