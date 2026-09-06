@@ -2,6 +2,20 @@
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
 
+<!-- HOOK:BLOCKED PAUSED for the owner's SUPERVISED PAID RUN. A7.5 shipped (2026-09-06): any run now
+buys from TexasFile EARLY (runEarlyChecklistPurchase from onPropertyIdentified), supplemental threaded
+end-to-end (H3), merged to main (1dd6e59f9) and DEPLOYED — app on Vercel + worker rebuilt on netcup.
+Worker 2763 + app 2499 green. The next step is the owner's supervised paid run on 1401 North East St
+(Jonathan Evers) to VERIFY the buy fires and TexasFile is charged — that is the validation, and it is
+owner-gated (they said they'd give the word). Everything the owner FLAGGED is now built + deployed:
+E viewer, G1 five-stage, G8 merged Review list, H1/H2 fields (both dialogs), B1 bearings, A7.5 early buy.
+REMAINING (lower priority, NOT what the owner asked to run): the deeper free-first PER-DOCUMENT
+cross-source discovery (wire the A7.1-A7.3 engine into the run so it buys paid-ONLY after comparing
+against a live free search — A7.5 v1 buys the checklist/operator targets and relies on the cross-run
+library for de-dup); G3/G4 (move the analysis controls into their own Analysis stage); B2 structured
+segments; C surrounding-parcel boundary captures; D adaptive Google/ArcGIS zoom; F browser-QA. Remove
+this marker or say "continue"/name a phase to resume; the supervised run is the immediate next event. -->
+
 Driven by the stop-hook slice loop.
 
 **A7 decision (owner 2026-09-05): build the FULL cross-source engine early-wiring** — real Bell-clerk
