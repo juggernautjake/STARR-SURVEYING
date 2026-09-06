@@ -1,21 +1,6 @@
-# Paid TexasFile-first · rich parcel capture · shared in-progress viewer — 2026-09-05
+# Cross-source cost-optimal acquisition · rich parcel capture · shared in-progress viewer — 2026-09-05
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
-
-<!-- HOOK:BLOCKED B1 SHIPPED (parcel sides now labelled with GIS bearing + length; pure geometry
-module + tests; suite 2710 green). PAUSED for the owner during a SUPERVISED session — not because
-work is exhausted. Two reasons: (1) the owner asked, live, whether I should keep building in-session
-or let the loop carry it, and whether to slot the $10 analysis of 2417 Stoneham in now or after the
-paid run works — their answer sets the order. (2) The next major phase, PHASE A (paid = TexasFile
-first), is the critical path but hinges on a design decision I must not guess: there appear to be TWO
-Bell code paths — `worker/src/counties/bell/orchestrator.ts` (orchestrateBellResearch) and Bell
-handling inside `worker/src/services/pipeline.ts` (bell-clerk directly) — and the early purchase must
-land in the one the LIVE run uses, then be validated by a supervised paid run (the only way to confirm
-TexasFile actually buys the plat/deed early within budget). Building A blind risks another
-authored-but-not-wired miss. Safe solo slices remain (B2 structured segments, C surrounding-parcel
-captures, D deep zooms, E shared in-progress viewer) — remove this marker (or say "continue" / name
-the phase to build) to resume the loop on those; Phase A + Phase F (merge, worker redeploy, supervised
-run) need the owner + the live environment. -->
 
 Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
@@ -38,8 +23,12 @@ This is the plan for the owner's 2026-09-05 supervised-session requirements. Mem
 - **The purchase never fires for a heavy property.** 2417 Stoneham's owner is the subdivision
   developer (LHCS LLC, 30+ deeds); the deed sweep alone runs ~35 min and the run is cut short by the
   12-min stall watchdog / 60-min hard cap (`HARD_WALL_CLOCK_MS`, not raisable above 60) BEFORE the
-  completion handler. The abort catch (`worker/src/index.ts` ~2809) runs no purchase. So a paid run's
-  purchase must move to the FRONT of the run, not the end. This is exactly the owner's requirement #1.
+  completion handler. The abort catch (`worker/src/index.ts` ~2809) runs no purchase. So acquisition
+  must move to the FRONT of the run — which Phase A's discover→decide→**buy-early** does, retiring this
+  blocker.
+- **Refined owner requirement (2026-09-05):** don't just buy blindly — SEARCH every free and paid
+  source, COMPARE what each offers, and acquire each document from its cheapest source (free when
+  available, purchase only paid-exclusive / illegible-free). Phase A is that engine.
 
 ## What already works (verify before touching — do NOT rebuild)
 - TexasFile buy path: `worker/src/services/texasfile-buy.ts` (`buyDocument` → login → `searchTexasFile`
@@ -77,46 +66,81 @@ This is the plan for the owner's 2026-09-05 supervised-session requirements. Mem
 
 ---
 
-## PHASE A — Paid = TexasFile-FIRST (fixes the blocker + owner #1)
+## PHASE A — Cross-source discovery, comparison & cost-optimal acquisition (owner #1, refined 2026-09-05)
 
-Goal: a paid run buys the most-recent PLAT then most-recent DEED from TexasFile FIRST — right after
-Phase 1 identifies the owner/subdivision, BEFORE the free clerk/plat scrape — then buys further docs
-in priority order until the TexasFile budget is spent, then falls back to free sources for the rest.
-Because the buy is early, it fires long before any stall/60-min cap.
+The engine: SEARCH every free and paid source for the checklist targets, build a per-source
+availability MANIFEST, MATCH the same document across sources, then ACQUIRE each document from its
+cheapest viable source — free capture when a free source has it, PURCHASE only what is paid-exclusive
+(or the paid copy when the free one is illegible), within the paid budget and in survey priority order.
+Each purchase fires EARLY (right after its per-document decision), so it happens long before any
+stall/60-min cut-short — which also RETIRES the "purchase only on clean completion" blocker that
+stopped the 2026-09-05 supervised run from ever buying.
 
-### A1 — An early TexasFile-first acquisition step in the Bell orchestrator
-Read `worker/src/counties/bell/orchestrator.ts` (Phase 1 identify → Phase 2 scrape) and how
-`orchestrateBellResearch` receives run settings. After Phase 1 has the owner/subdivision/lot but
-BEFORE the Phase-2 free clerk/plat scrape, when the run is paid (`mayRunBuyDocuments`) and
-`gatherSelections` is set, run the checklist purchase: build recs via `wantsToPurchaseRecommendations`
-(plats first, then most-recent deed) keyed on the DISCOVERED owner, and call the orchestrator within
-the TexasFile ceiling. Emit progress + file each purchased doc to Review immediately.
+**Owner decisions (2026-09-05):** matching = **metadata first, AI only to resolve ambiguous** (hybrid);
+free-vs-paid = **prefer free, buy the paid copy only when the free one is illegible**; paid sources =
+**TexasFile now, a config-driven framework for more** (Kofile/Tyler later); buy priority when the paid
+budget is tight = **most-recent plat → most-recent deed → older deeds/easements**.
 
-### A2 — Buy in priority order until the TexasFile budget is spent
-After the most-recent plat + most-recent deed, if TexasFile budget remains, continue buying further
-priority docs (deed chain) until `remainingTexasfileAllowance` is exhausted. Respect the existing
-per-buy budget gate (`mayBuyFromTexasFile`) so real wallet spend never exceeds the ceiling.
+This supersedes the earlier blunt "TexasFile-first" framing: free is preferred whenever a free source
+has the same document; paid spend is reserved for paid-exclusive (or illegible-free) documents.
 
-### A3 — Free sources cover ONLY the remainder, after the paid pass
-Read `worker/src/research/research-modes.ts` and the Phase-2 free scrape. For a paid run, the free
-clerk/plat/portal scrape must run AFTER the TexasFile pass and skip anything already bought (the
-cross-run library + `heldDocuments` dedup). A free-only run is unchanged (free is the whole run).
+### A0 — Source registry (free vs paid, cost, coverage), scoped by the checklist
+A registry describing each source: `{ id, kind:'free'|'paid', countyCoverage, costModel, search(),
+acquire() }`. Free: Bell CAD, Bell County Clerk plat repo, Tyler/publicsearch clerk, Avenu, …; Paid:
+TexasFile (enabled/funded), Kofile/Tyler (framework, disabled). What to look for comes from the run's
+`gatherSelections` (plats/deeds/easements). Read `worker/src/research/research-modes.ts` (source
+catalogue) and `worker/src/services/clerk-registry.ts` FIRST — reuse, do not duplicate the source list.
 
-### A4 — Retire the post-run completion-handler purchase for county-specific runs
-Once A1-A3 buy early, the county-specific completion-handler purchase (added in `ed1049322`) is
-redundant for paid runs and must not double-buy. Keep it only as a fallback for the generic pipeline,
-or gate it so it does not re-run when the early pass already executed. Update
-`purchase-gate.test.ts`'s spend-site count if the site moves.
+### A1 — Discovery pass: search every in-scope source, build an availability MANIFEST (no downloads yet)
+For each source, run its search for the checklist targets (owner name, subdivision, lot, instrument,
+book/page) and record every FOUND document as a manifest entry: `{ sourceId, docType, instrument?,
+book?, page?, recordingDate?, grantor?, grantee?, pageCount?, unitCostUsd, previewRef?, canFreeCapture,
+canPurchase }`. Metadata + availability ONLY — cheap; no capture/purchase here. Emit progress so the
+operator sees the cross-source search happening.
 
-### A5 — Source-plan default + labels for paid runs
-Update the run-settings "Source plan" so a paid run defaults to "TexasFile first, then free". Reflect
-in `worker/src/research/run-settings.ts` and the run-start / re-run dialog copy
-(`app/admin/research/components/RerunDialog.tsx`). "Free first, then escalate" stays available.
+### A2 — Cross-source MATCHING: cluster the same document across sources (hybrid)
+Group manifest entries into CLUSTERS that are the same underlying instrument. Metadata match first —
+normalised instrument (strip non-digits: `2019-3389` ≡ `20193389`), or book+page, or recording date +
+grantor/grantee; reuse the cross-vendor identity logic (`DocumentIndex.decide`, S-13/S-14). For
+ambiguous / near-miss pairs ONLY, run a single AI image comparison to confirm sameness (the hybrid the
+owner chose). Output: one cluster per real document → the set of sources offering it + each cost.
 
-### A6 — Wiring test (assert the CALLER)
-A test that the Bell orchestrator itself invokes the TexasFile-first purchase before the free scrape
-for a paid run — assert something in `orchestrator.ts` calls the purchase, not that the purchase file
-imports its helpers.
+### A3 — Acquisition DECISION: cheapest viable source per cluster
+For each cluster choose a source: any FREE source → free-capture from the best free source; else
+paid-exclusive → purchase (TexasFile), subject to the paid budget and priority (most-recent plat →
+most-recent deed → rest). Emit an explicit per-document decision + REASON (`free: on Bell clerk`,
+`paid-only: TexasFile $5`, `skipped: over budget`). NEVER plan a purchase for a document a free source
+already has — that is the whole point.
+
+### A4 — ACQUIRE early + resilient: run the plan, buy as soon as decided, file immediately
+Execute the decisions: free captures + TexasFile purchases. Fire each PURCHASE the moment its decision
+is made (early, right after discovery/match), not in a post-run handler — a stall/cap must not rob the
+run of a buy it already decided on. Skip re-buying anything a prior run owns (cross-run library). File
+every acquired document to Review as it lands.
+
+### A5 — Legibility override: buy the paid copy when the free one is unreadable (owner Q2)
+After a free capture, run the readability check (reuse the existing readability/legibility scoring). If
+the free copy is illegible AND a paid source in the cluster has it AND budget remains, buy the paid
+copy and supersede the free one; state the reason in the manifest.
+
+### A6 — Surface the SOURCE-COMPARISON manifest in the UI ("detailed analysis of what all sources provide")
+Render the manifest as a visible comparison: one row per document (cluster) × the sources that have it
+× each cost × the CHOSEN source × the reason. Show it in the run panel (live) and in Review. This is
+the "detailed cross comparison" the owner asked to SEE, not just an internal structure.
+
+### A7 — Resolve the dual Bell path, wire the engine into the LIVE run, fire after Phase 1
+Determine which Bell path the live run uses — `worker/src/counties/bell/orchestrator.ts`
+(`orchestrateBellResearch`) vs the Bell handling in `worker/src/services/pipeline.ts` — by reading the
+router/dispatch, THEN wire the engine into the live one, running after Phase 1 identifies the
+owner/subdivision and before the old ad-hoc free scrape. Retire or gate the old scattered acquisition
+and the `ed1049322` completion-handler purchase so nothing double-acquires; update
+`purchase-gate.test.ts`'s spend-site count if a site moves.
+
+### A8 — Wiring tests (assert the CALLER) + settings/labels
+Tests that the live Bell path INVOKES the engine and that a decision prefers free / buys paid-exclusive
+/ respects budget + priority — assert the caller runs it, not that the engine imports its helpers.
+Update the run-settings + dialog copy to describe "search everywhere, buy only what's paid-only," and
+keep the paid budget inputs.
 
 ---
 
