@@ -72,9 +72,10 @@ export function buildTexasFileSearchInputs(target: DiscoveryTarget, county: stri
     const pg = (bp.page ?? '').trim();
     if (vol && pg) inputs.push({ county, volume: vol, page: pg });
   }
-  for (const instr of target.instruments ?? []) {
-    if (instr?.trim()) inputs.push({ county, instrumentNumber: instr.trim() });
-  }
+  // Plan 2 — NO instrument-number query. The live mapping recorded that TexasFile's clerk search
+  // returns EMPTY for a county instrument number (`searchTexasFile` ignores it too), so emitting one
+  // only wastes a login + navigation per run. Deeds are found by owner name + volume/page; the
+  // instrument still rides on the DiscoveryTarget for the free clerk search + result matching.
   return inputs;
 }
 

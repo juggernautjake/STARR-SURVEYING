@@ -75,14 +75,14 @@ docType if it differs. Verify in the supervised run.
 
 ---
 
-## PHASE 2 — Instrument search actually works
+## PHASE 2 — Instrument search ✅ RESOLVED (de-scoped with rationale)
 
-### 2.1 — Add instrument-number search to `searchTexasFile`
-The clerk-records form has a Number/instrument field. Handle `input.instrumentNumber` (submit the instrument
-search) so the engine's instrument queries stop being no-ops. Keep name + vol/page working.
-
-### 2.2 — Tests
-Assert an instrument input submits the instrument search and parses results.
+### 2.1/2.2 — DEFERRED (zero value): TexasFile returns EMPTY for a county instrument-number search (recorded
+in `texasfile-buy.ts` from the live mapping — `instrumentNumber` is "used only to PICK the right result, never
+to search by"). So rather than "make instrument search work", `buildTexasFileSearchInputs` now STOPS emitting
+instrument queries (they were harmless no-ops that wasted a login + navigation per run). Deeds are found by
+owner name + volume/page; plats by subdivision; the instrument still rides the DiscoveryTarget for the FREE
+clerk search + result matching. Tests updated (no instrument query; 2 clerk calls, not 3).
 
 ---
 

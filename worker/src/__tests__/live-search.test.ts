@@ -24,11 +24,12 @@ const target: DiscoveryTarget = {
 };
 
 describe('buildTexasFileSearchInputs', () => {
-  it('makes a name query, a vol/page query, and an instrument query', () => {
+  it('makes a name query and a vol/page query — but NOT an instrument query (plan 2)', () => {
     const inputs = buildTexasFileSearchInputs(target, 'Bell');
     expect(inputs).toContainEqual({ county: 'Bell', name: 'FERRELL' });
     expect(inputs).toContainEqual({ county: 'Bell', volume: '5456', page: '704' });
-    expect(inputs).toContainEqual({ county: 'Bell', instrumentNumber: '2020-1' });
+    // TexasFile returns empty for a county instrument number (live mapping) — no wasted round-trip.
+    expect(inputs.some((i) => 'instrumentNumber' in i)).toBe(false);
   });
   it('is empty when the target has no searchable keys', () => {
     expect(buildTexasFileSearchInputs({ county: 'Bell' }, 'Bell')).toEqual([]);
@@ -41,7 +42,7 @@ describe('makeSourceSearch', () => {
       i.name ? [tfResult('G1', '111'), tfResult('G1', '111')] : i.volume ? [tfResult('G2', '222')] : []);
     const search = makeSourceSearch({ county: 'Bell', texasfileEnabled: true, texasFileSearch, texasFilePlatSearch: noPlats });
     const entries = await search(src('texasfile', 'paid'), target);
-    expect(texasFileSearch).toHaveBeenCalledTimes(3);          // name + vol/page + instrument
+    expect(texasFileSearch).toHaveBeenCalledTimes(2);          // name + vol/page (no instrument query)
     expect(entries.map((e) => e.previewRef).sort()).toEqual(['G1', 'G2']); // de-duped by GUID
     expect(entries.every((e) => e.kind === 'paid' && e.sourceId === 'texasfile')).toBe(true);
   });
