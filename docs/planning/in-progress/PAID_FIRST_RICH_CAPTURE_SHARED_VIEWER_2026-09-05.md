@@ -400,6 +400,12 @@ per document, real visual change. Read `app/admin/research/[projectId]/page.tsx`
 `review-doc-list` / `ReviewDocCard`) + `AnalysisEstimatePanel.tsx` (the per-file "Analyze this" +
 quote) and unify them; reuse `SourceDocumentViewer` for View and the existing analyze call for Analyze.
 
+> **SHIPPED 2026-09-05.** The two lists are now ONE: `AnalysisEstimatePanel` gained `docs` + `onView`,
+> and each per-file row now shows **Analyze this (with its cost) · View · Source ↗** (joined by document
+> id). The separate "Documents & Sources" `review-doc-list` is disabled (`{false && …}`, kept one edit
+> away). "Analyze everything" stays as the Run AI Review control above; the full-analysis quote total
+> stays in the panel header. app research suite 2499 green, tsc clean; browser-QA in F.
+
 ### G7 — Wire + tests + browser QA
 Assert the stepper renders five stages in order, the run status maps to the right stage, the shared
 viewer mounts in Research/Analysis/Review, and a data point's source button opens the recorded URL.
