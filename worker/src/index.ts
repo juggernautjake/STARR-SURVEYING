@@ -42,7 +42,11 @@ import { normaliseRunSettings, describeRunSettings, shouldRunAnalysis, resolveGa
 import { selectionsToWants } from './research/selection-wants.js';
 import { wantsToPurchaseRecommendations } from './research/selection-purchases.js';
 import type { PurchaseRecommendation } from './types/confidence.js';
-import { normInstrument } from './research/cross-source-match.js';
+import { normInstrument, clusterEntries } from './research/cross-source-match.js';
+import { discoverAcrossSources } from './research/cross-source-discovery.js';
+import { planAcquisition } from './research/cross-source-acquire-plan.js';
+import { makeSourceSearch, buildDiscoveryTarget } from './research/live-search.js';
+import { clerkDocToManifest } from './research/live-source-adapters.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
@@ -1225,7 +1229,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   // paying twice. Keyed on the operator's owner name + the supplemental identifiers they gave (volume/
   // page, instrument — plan H), plats first. Never throws; fires at most once per run.
   let earlyPurchaseDone = false;
-  async function runEarlyChecklistPurchase(): Promise<void> {
+  async function runEarlyChecklistPurchase(identified?: {
+    subdivisionName?: string | null;
+    knownDocuments?: Array<{ instrument?: string; documentType?: string; recordingDate?: string; grantor?: string; grantee?: string }>;
+  }): Promise<void> {
     if (earlyPurchaseDone || !runSettings.gatherSelections || !projectId) return;
     earlyPurchaseDone = true;
 
@@ -1233,7 +1240,62 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       instrumentNumbers?: string[];
       volumePages?: Array<{ volume?: string; book?: string; page?: string }>;
     };
-    // The supplemental identifiers point at SPECIFIC documents — buy those first (priority 0).
+
+    const permission = await resolvePurchasePermission(projectId);
+    if (!permission.allowed) {
+      handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased (early)', permission.reason)
+        .success(0, describeSkippedPurchase(permission, 0));
+      return;
+    }
+    const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
+    const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+    const wants = selectionsToWants(resolveGatherSelections(runSettings));
+
+    // ── FREE-FIRST via the cross-source engine (plan 1.4) ─────────────────────────────────────────
+    // Search TexasFile, compare its results against the CAD deed history (the run's cheap FREE
+    // manifest — no second clerk crawl), and buy ONLY what TexasFile has that the free record does
+    // not. The operator's supplemental targets are added below regardless — they asked for those
+    // specific documents. Discovery failure is non-fatal: the operator targets still buy.
+    const knownFree = (identified?.knownDocuments ?? []).map((d) =>
+      clerkDocToManifest({ instrumentNumber: d.instrument, documentType: d.documentType, recordingDate: d.recordingDate, grantors: d.grantor, grantees: d.grantee }, 'cad', county ?? ''),
+    );
+    const target = buildDiscoveryTarget({
+      county: county ?? '',
+      ownerName: researchInput.ownerName,
+      subdivision: identified?.subdivisionName,
+      supplemental: supp,
+      knownInstruments: (identified?.knownDocuments ?? []).map((d) => d.instrument ?? '').filter((s) => s.length > 0),
+    });
+    const engineSearch = makeSourceSearch({
+      county: county ?? '', texasfileEnabled: true, knownFreeDocuments: knownFree,
+      log: (m) => console.log(`[Purchase:engine] ${projectId}: ${m}`),
+    });
+
+    let paidRecs: PurchaseRecommendation[] = [];
+    try {
+      const discovery = await discoverAcrossSources(county ?? '', wants, target, engineSearch, { paidEnabled: true });
+      const clusters = await clusterEntries(discovery.entries);
+      const plan = planAcquisition(clusters, { paidBudgetUsd: ceiling });
+      paidRecs = plan.actions.flatMap((a, i) => {
+        if (a.kind !== 'purchase') return [];
+        const dt = (a.cluster.docType === 'plat' || a.cluster.docType === 'deed' || a.cluster.docType === 'easement' || a.cluster.docType === 'restriction') ? a.cluster.docType : 'deed';
+        return [{
+          documentType: dt as PurchaseRecommendation['documentType'],
+          instrument: a.cluster.instrument ?? 'search_required',
+          source: 'texasfile', estimatedCost: `$${a.source.unitCostUsd}`, confidenceImpact: '', callsImproved: 0,
+          reason: a.reason, priority: i + 1, roi: 1, county: county ?? undefined,
+          book: a.cluster.book, page: a.cluster.page, recordingDate: a.cluster.recordingDate,
+        } as PurchaseRecommendation];
+      });
+      handshakeLogger.attempt('[Purchase]', 'info', 'Cross-source decision',
+        `${discovery.entries.length} listing(s) → ${clusters.length} document(s); ${paidRecs.length} paid-exclusive`)
+        .success(paidRecs.length, `Free-first: ${paidRecs.length} document(s) TexasFile has that the free record does not.`);
+    } catch (e) {
+      console.warn(`[Purchase:engine] ${projectId}: cross-source discovery failed — ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // The operator's explicit supplemental targets — always attempted (they asked for these). The
+    // orchestrator's library de-dup stops a double charge if the engine already picked one.
     const suppRecs: PurchaseRecommendation[] = [];
     for (const vp of supp.volumePages ?? []) {
       const vol = (vp.volume ?? vp.book ?? '').trim();
@@ -1243,24 +1305,16 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     for (const instr of supp.instrumentNumbers ?? []) {
       if (instr?.trim() && normInstrument(instr)) suppRecs.push({ documentType: 'deed', instrument: instr.trim(), source: 'texasfile', estimatedCost: '$3', confidenceImpact: '', callsImproved: 0, reason: 'Operator-supplied instrument number.', priority: 0, roi: 1, county: county ?? undefined });
     }
-    const checklistRecs = wantsToPurchaseRecommendations(
-      selectionsToWants(resolveGatherSelections(runSettings)),
-      { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
-    );
-    const recs = [...suppRecs, ...checklistRecs];
-    if (recs.length === 0) return;
 
-    const permission = await resolvePurchasePermission(projectId);
-    const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
-    if (!permission.allowed) {
-      handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased (early)', permission.reason)
-        .success(0, describeSkippedPurchase(permission, recs.length));
+    const recs = [...suppRecs, ...paidRecs];
+    if (recs.length === 0) {
+      handshakeLogger.attempt('[Purchase]', 'info', 'Nothing to buy (early)', 'every wanted document is available free')
+        .success(0, 'Free-first: nothing was paid-exclusive; the free gather captures the rest.');
       return;
     }
-    const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
     handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents (early)',
-      `${recs.length} target(s), supplemental + plats first, ceiling $${ceiling.toFixed(2)}`)
-      .success(recs.length, `Buying up to ${recs.length} document(s) EARLY from TexasFile within the $${ceiling.toFixed(2)} budget, before the free document search.`);
+      `${recs.length} paid-exclusive/operator target(s), ceiling $${ceiling.toFixed(2)}`)
+      .success(recs.length, `Buying up to ${recs.length} document(s) EARLY from TexasFile within the $${ceiling.toFixed(2)} budget.`);
     const orchestrator = new DocumentPurchaseOrchestrator(projectId);
     const purchaseResult = await orchestrator.executePurchases(
       projectId, recs,
@@ -1316,7 +1370,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // A7.5 — buy the paid documents from TexasFile NOW, before the long free document search that a
       // cut-short run never gets past. Never throws; the research is the point.
       try {
-        await runEarlyChecklistPurchase();
+        await runEarlyChecklistPurchase(identified);
       } catch (e) {
         console.warn(`[Purchase:early] ${projectId}: early purchase threw — ${String(e)}`);
       }

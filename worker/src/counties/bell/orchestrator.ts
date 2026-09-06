@@ -648,6 +648,15 @@ export async function orchestrateBellResearch(
       situsAddress: property.situsAddress ?? null,
       controllingDeedDate: null,
       neighbours: [],
+      // Plan 1.4 — the CAD deed history is the run's FREE manifest for the cross-source engine's
+      // free-first decision (buy only what TexasFile has that the free record does not).
+      knownDocuments: (cad?.deedHistory ?? []).map((d) => ({
+        instrument: d.instrumentNumber,
+        documentType: (d as { documentType?: string }).documentType,
+        recordingDate: d.deedDate,
+        grantor: d.grantor,
+        grantee: d.grantee,
+      })),
     };
     const readiness = visualReadiness(identified);
     progress('Phase 1.5', 'PHASE 1.5 — Drawings, plats and overhead views (before the documents)', 16);

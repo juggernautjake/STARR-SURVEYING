@@ -75,6 +75,16 @@ convert the `purchase` actions (paid-exclusive documents) into `PurchaseRecommen
 through `DocumentPurchaseOrchestrator.executePurchases` (keeps the ledger + library + budget). Fires
 from `onPropertyIdentified`, so it still beats the cut-short. Keep the C5 test honest.
 
+> ✅ **BUILT + TESTED 2026-09-06.** `runEarlyChecklistPurchase(identified)` in `worker/src/index.ts` now
+> runs the engine: `buildDiscoveryTarget` → `makeSourceSearch` (TexasFile live + the CAD deed history as
+> the free manifest) → `discoverAcrossSources` → `clusterEntries` → `planAcquisition`, and buys ONLY the
+> plan's `purchase` (paid-exclusive) documents PLUS the operator's explicit supplemental targets, through
+> `DocumentPurchaseOrchestrator.executePurchases` (ledger + library + gate). The CAD deed history is
+> threaded to `IdentifiedProperty.knownDocuments` (run-order.ts + bell/orchestrator.ts). Discovery failure
+> is non-fatal (operator targets still buy). C5 + purchase-gate kept honest; wired the engine modules
+> (removed `live-search` from the allowlist). Tests: `free-first-engine-is-wired.test.ts` (5, checks the
+> CALLER); full worker suite 2774 green, tsc clean.
+
 ### 1.5 — Relevance filter on the manifest (id/address main, supplemental secondary)
 Apply `documentRelevance` to the discovered entries before matching, dropping documents that match none
 of the property's id/address/instrument/vol-page keys — never rejecting on a missing supplemental field.

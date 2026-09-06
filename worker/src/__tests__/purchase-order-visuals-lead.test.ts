@@ -131,7 +131,7 @@ describe('C5 — the free sources lead for everything else, and must keep leadin
     // buy, and every buy still consults the permission gate before spending.
     const s = code('index.ts');
     const capture = s.indexOf('await captureVisualsAtIdentification(projectId, county, identified)');
-    const earlyBuy = s.indexOf('await runEarlyChecklistPurchase()');
+    const earlyBuy = s.indexOf('await runEarlyChecklistPurchase(');
     expect(capture, 'the free visual capture is gone').toBeGreaterThan(-1);
     expect(earlyBuy, 'the early paid buy is gone').toBeGreaterThan(-1);
     expect(capture, 'the free visual capture leads the early buy').toBeLessThan(earlyBuy);

@@ -52,6 +52,20 @@ export interface IdentifiedProperty {
   controllingDeedDate: string | null;
   /** Neighbours with coordinates, for the adjoiner aerials. */
   neighbours: Array<{ label: string; lat: number; lon: number }>;
+  /**
+   * The deed documents the CAD/appraisal record already lists (plan 1.4). This is the run's cheap
+   * FREE manifest: the cross-source engine compares TexasFile's results against it to decide which
+   * documents are paid-EXCLUSIVE (worth buying) versus already free — WITHOUT a second slow clerk
+   * crawl before the early buy. Absent/empty means "we could not read a deed history", not "there is
+   * none", so the engine simply has no free documents to net against.
+   */
+  knownDocuments?: Array<{
+    instrument?: string;
+    documentType?: string;
+    recordingDate?: string;
+    grantor?: string;
+    grantee?: string;
+  }>;
 }
 
 /**
