@@ -107,8 +107,8 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
 
 
-  'worker/src/research/acquisition-sources.ts':
-    'Plan A0 — the source registry the cross-source acquisition engine searches (which sources to look at for a run). Built one slice ahead of its consumer A1 (the discovery pass), which iterates acquisitionSourcesFor and MUST remove this entry when it lands. Not dead — unit-tested by acquisition-sources.test.ts.',
+  'worker/src/research/cross-source-discovery.ts':
+    'Plan A1 — the discovery pass: iterates the A0 registry (acquisitionSourcesFor, now REACHABLE through this module) and collects each source\'s availability into one manifest, per-source search injected. Built ahead of its consumers A2 (matching) / A7 (live wiring), which will call discoverAcrossSources and remove this entry. Not dead — unit-tested by cross-source-discovery.test.ts.',
 
 
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by

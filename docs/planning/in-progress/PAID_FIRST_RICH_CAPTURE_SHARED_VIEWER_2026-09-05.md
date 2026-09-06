@@ -106,6 +106,14 @@ book?, page?, recordingDate?, grantor?, grantee?, pageCount?, unitCostUsd, previ
 canPurchase }`. Metadata + availability ONLY — cheap; no capture/purchase here. Emit progress so the
 operator sees the cross-source search happening.
 
+> **SHIPPED 2026-09-05.** `worker/src/research/cross-source-discovery.ts` —
+> `discoverAcrossSources(county, wants, target, search, {paidEnabled, log})` iterates the A0 registry
+> (free sources before paid), collects a flat `ManifestEntry[]` plus a per-source `searched[]` outcome
+> list, and isolates a failing source (recorded, others still run). The per-source `SourceSearchFn` is
+> injected — the real adapters (Bell clerk, TexasFile search) are supplied by the A7 live wiring. This
+> made A0 reachable (moved the orphan-guard entry up to this module). Tests:
+> `cross-source-discovery.test.ts` (4). tsc + guard green. A2 (matching) consumes `ManifestEntry[]`.
+
 ### A2 — Cross-source MATCHING: cluster the same document across sources (hybrid)
 Group manifest entries into CLUSTERS that are the same underlying instrument. Metadata match first —
 normalised instrument (strip non-digits: `2019-3389` ≡ `20193389`), or book+page, or recording date +
