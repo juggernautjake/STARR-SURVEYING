@@ -242,3 +242,33 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
     // acquireBrowser leases are pooled; do not close the shared browser here.
   }
 }
+
+/**
+ * Search TexasFile for a target and return the results WITHOUT buying (cross-source discovery, plan
+ * 1.1). Login + search only — this is how the free-first engine learns what TexasFile HAS before it
+ * decides whether a document is paid-exclusive. Never throws: a failed search returns `[]` so one
+ * source cannot sink the discovery pass.
+ */
+export async function searchTexasFileDocuments(input: TexasFileBuyInput, log: PipelineLogger = noLog): Promise<TexasFileResult[]> {
+  let browser: Browser | null = null;
+  try {
+    browser = await acquireBrowser({ adapterId: 'texasfile', targetUrl: TF });
+    const context = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' });
+    const page = await context.newPage();
+    try {
+      if (!(await loginTexasFile(page, log))) {
+        log.warn('TexasFile', 'search-only: could not sign in');
+        return [];
+      }
+      const { results } = await searchTexasFile(page, input, log);
+      return results;
+    } finally {
+      await context.close().catch(() => {});
+    }
+  } catch (err) {
+    log.warn('TexasFile', `search-only failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  } finally {
+    // acquireBrowser leases are pooled; do not close the shared browser here.
+  }
+}

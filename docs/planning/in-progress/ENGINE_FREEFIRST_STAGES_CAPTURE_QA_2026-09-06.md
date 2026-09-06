@@ -38,6 +38,12 @@ Read `worker/src/services/texasfile-buy.ts` (`buyDocument`, `loginTexasFile`, `s
 browser, log in, run `searchTexasFile`, return the results, never buy, never throw. Unit-test the shape
 against a fake (the live call is exercised in the supervised run).
 
+> ✅ **BUILT + TESTED 2026-09-06.** `searchTexasFileDocuments(input, log)` added to `texasfile-buy.ts` —
+> acquireBrowser → loginTexasFile → searchTexasFile → results, never buys, returns `[]` on any failure.
+> Tests: structural search-only checks in `texasfile-buy-helpers.test.ts` (asserts it logs in + searches
+> but never calls `purchaseTexasFile`/`purchaseDocument`); the live browser path is exercised in the
+> supervised run. tsc + suite green. 1.2 wraps it in a `SourceSearchFn`.
+
 ### 1.2 — A `SourceSearchFn` factory per source (dispatch by source id)
 New `worker/src/research/live-search.ts`: `makeSourceSearch({ county, projectId, log, texasfileEnabled })`
 returns a `SourceSearchFn` that, given `(acquisitionSource, target)`, dispatches: `texasfile` →

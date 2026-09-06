@@ -58,3 +58,33 @@ describe('purchaseApiUrl — the un-UI purchase endpoint', () => {
     expect(purchaseApiUrl('Bell', GUID, 'a b')).toContain('from_product_object_id=a%20b');
   });
 });
+
+// Plan 1.1 — searchTexasFileDocuments is the SEARCH-ONLY entrypoint the free-first engine uses to
+// learn what TexasFile has, before deciding a document is paid-exclusive. It must log in and search
+// but NEVER purchase (buying only happens after the engine decides). Structural check — the live
+// browser path is exercised in the supervised run.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+describe('searchTexasFileDocuments — search only, never buys (plan 1.1)', () => {
+  const src = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'services', 'texasfile-buy.ts'),
+    'utf8',
+  );
+  const fnStart = src.indexOf('export async function searchTexasFileDocuments');
+  // Fixed window from the function start — its nested try/finally braces make a `\n}\n` scan land early.
+  const body = src.slice(fnStart, fnStart + 1500);
+
+  it('exists and is exported', () => {
+    expect(fnStart).toBeGreaterThan(-1);
+  });
+  it('logs in and runs the search', () => {
+    expect(body).toContain('loginTexasFile(page');
+    expect(body).toContain('searchTexasFile(page');
+  });
+  it('does NOT buy — no purchase call in its body', () => {
+    expect(body).not.toContain('purchaseTexasFile(');
+    expect(body).not.toContain('.purchaseDocument(');
+  });
+});
