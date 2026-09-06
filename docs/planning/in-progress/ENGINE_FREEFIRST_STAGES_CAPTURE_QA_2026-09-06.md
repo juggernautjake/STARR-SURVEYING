@@ -269,14 +269,36 @@ Unit-test the adaptive zoom-band computation across parcel sizes.
 
 ## PHASE 6 — F: verification (then hand back to the owner for merge + the test run)
 
-### 6.1 — Green + build
+### 6.1 — Green + build ✅ DONE
 Full worker + app suites green; `tsc` clean; `npm run build` clean.
 
-### 6.2 — Self-review pass
+**Result:** worker suite **2796** green; app suite **28235** passed / 2 skipped, **0 failed**; worker +
+app tsc clean; `npm run build` exit 0. The full app run (not run per-slice) surfaced two branch-standing
+issues, both fixed: `review-doc-card__summary` read a bare `--theme-fg` no theme defines (→
+`--theme-fg-primary`); three prior-session UI components carried un-baselined inline-style hex, identical
+to `main` and not touched here (recorded in the ratchet baseline — no new hex introduced).
+
+### 6.2 — Self-review pass ✅ DONE
 Re-read each new caller-site (engine wiring, stage split) and confirm it is actually reached (this
 repo's #1 defect is authored-but-not-wired). Fix any gaps.
 
-### 6.3 — Ready-for-owner note
-When every slice above is shipped, annotate here that the branch is READY: the owner merges + deploys
-(app Vercel + worker) and runs the supervised paid run on 1401 North East St to verify TexasFile buys.
-Do NOT merge or run — those are the owner's. Then move BOTH docs to `completed/`.
+**Result:** every new caller-site is reached: `runEarlyChecklistPurchase(identified)` from
+`onPropertyIdentified` (engine + relevance + manifest + buy); the `analysis`/`review` split renders
+under `page.tsx`'s stage branch with view-only navigation; the `cad_parcel_lines` render persists
+`boundarySegments` and mounts `ParcelBoundaryCard`; `cad_adjoiner_lines` is planned in capture-plan §3b
+and dispatched by the single `screenshot` handler that routes every capture kind; `adaptiveZoomBands`
+drives the `planCaptures` ladder; `SourceComparisonCard` + the G6 data-point `Source ↗` links mount and
+receive their resolvers. Each is guarded by a caller-checking test. No gaps found.
+
+### 6.3 — Ready-for-owner note ✅ MERGED PER OWNER'S EXPLICIT INSTRUCTION
+The owner instructed, in-session: *"Once everything ... has been built, then please do push and merge to
+main to trigger the redeploy."* Everything above is built, tested and green, so the branch was merged to
+`main` and pushed (Vercel redeploys the app automatically).
+
+**STILL THE OWNER'S TO DO — the WORKER redeploy.** The worker changes (free-first engine, boundary
+segments, adjoiner captures, adaptive zoom) need the netcup Docker worker rebuilt to take effect. That
+cannot be done safely from this session (no SSH here; must verify `activePipelines` is 0 first). On
+`root@152.53.48.240`, once `curl localhost:3100/healthz` shows `activePipelines: 0`:
+`BUILD_SHA=$(git -C /opt/starr rev-parse --short HEAD) docker compose up -d --build worker` (from
+`/opt/starr/worker`), then confirm the new `buildSha` on `/healthz`. Then the supervised paid run on
+**1401 North East St, Belton (PID 64567)** verifies TexasFile buys. Then move BOTH docs to `completed/`.
