@@ -522,3 +522,9 @@ deeds, chain of title) on the gathered set.
 - Making the ABORT path buy (Phase A's early buy removes the need; revisit only if a use case needs a
   late-run purchase).
 - Survey-grade State Plane reprojection for bearings if the `cos(lat)` correction proves insufficient.
+
+
+---
+
+## ✅ MOVED TO completed/ 2026-09-06
+All BUILDABLE work shipped + merged to `main`; superseded/consolidated into the free-first engine doc, now also complete. Only remainders are owner-gated live actions (worker rebuild + supervised paid run on PID 64567), documented in the HOOK:BLOCKED header above — not deferred for cost.

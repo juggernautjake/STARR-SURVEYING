@@ -302,3 +302,14 @@ cannot be done safely from this session (no SSH here; must verify `activePipelin
 `BUILD_SHA=$(git -C /opt/starr rev-parse --short HEAD) docker compose up -d --build worker` (from
 `/opt/starr/worker`), then confirm the new `buildSha` on `/healthz`. Then the supervised paid run on
 **1401 North East St, Belton (PID 64567)** verifies TexasFile buys. Then move BOTH docs to `completed/`.
+
+---
+
+## ✅ COMPLETE — moved to completed/ 2026-09-06
+
+Every slice in Phases 1–6 is BUILT + TESTED and MERGED to `main` (`c25cd8c46`); the app redeploys on
+Vercel. The ONE remaining item is owner-gated and cannot be done in solo code: the netcup **worker
+rebuild** (only when `/healthz` `activePipelines=0`) followed by the **supervised paid run on PID 64567**
+to confirm TexasFile buys live. Command + steps are in slice 6.3 above. Not deferred for cost — it is a
+live-environment action reserved to the owner. This doc and its foundation
+(`PAID_FIRST_RICH_CAPTURE_SHARED_VIEWER_2026-09-05.md`) both move to `completed/`.

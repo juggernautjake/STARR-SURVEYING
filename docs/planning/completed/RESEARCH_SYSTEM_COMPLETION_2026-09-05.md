@@ -268,3 +268,9 @@ on HOLD until then; keep building on the branch.
 
 ## Deferred / open
 - (record here with a one-line reason as slices are deferred)
+
+
+---
+
+## ✅ MOVED TO completed/ 2026-09-06
+All BUILDABLE work shipped + merged to `main`; superseded/consolidated into the free-first engine doc, now also complete. Only remainders are owner-gated live actions (worker rebuild + supervised paid run on PID 64567), documented in the HOOK:BLOCKED header above — not deferred for cost.
