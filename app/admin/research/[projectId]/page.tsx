@@ -34,6 +34,8 @@ import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences }
 import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type ToolSettings } from '../components/DrawingToolsSidebar';
 import GisQualityCard from './_sections/GisQualityCard';
 import { gisQualityOf } from './_sections/gis-quality-data';
+import SourceComparisonCard from './_sections/SourceComparisonCard';
+import { sourceComparisonOf } from './_sections/source-comparison-data';
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
@@ -2800,6 +2802,7 @@ export default function ResearchProjectPage() {
               {/* ── Tab: Artifacts — Screenshots, page images, plat images ── */}
               {reviewTab === 'artifacts' && (
                 <>
+                  <SourceComparisonCard report={sourceComparisonOf(project)} />
                   <GisQualityCard report={gisQualityOf(project)} />
                   <ArtifactGallery projectId={projectId} />
                 </>

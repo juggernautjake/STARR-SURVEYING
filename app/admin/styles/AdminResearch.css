@@ -12744,6 +12744,118 @@
   padding-left: 1.25rem;
 }
 
+/* ── Source Comparison manifest (plan 1.6 / A6) ─────────────────────────────────────────────────
+   The free-first engine's per-document breakdown: which sources have it, each cost, the chosen
+   source + why. Tokens (never bare hex) so a theme change moves the whole card together. */
+.source-comparison {
+  margin-bottom: 1.5rem;
+}
+
+.source-comparison__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.source-comparison__summary {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.source-comparison__rows {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.source-comparison__row {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--color-surface-subtle, #F8FAFC);
+  border: 1px solid var(--color-border, #E2E8F0);
+}
+
+.source-comparison__row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.source-comparison__decision {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.source-comparison__decision--paid {
+  color: var(--color-info-text, #175CD3);
+  background: var(--color-info-surface, #EFF6FF);
+}
+
+.source-comparison__decision--free {
+  color: var(--color-success-text, #067647);
+  background: var(--color-success-surface, #ECFDF3);
+}
+
+.source-comparison__decision--skip {
+  color: var(--theme-fg-secondary, #4B5563);
+  background: var(--color-surface-subtle, #F1F5F9);
+}
+
+.source-comparison__doc {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.source-comparison__type {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.source-comparison__date {
+  font-size: 0.78rem;
+  color: var(--theme-fg-secondary, #4B5563);
+  font-variant-numeric: tabular-nums;
+}
+
+.source-comparison__offers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 0.25rem;
+}
+
+.source-comparison__offer {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #E2E8F0);
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-variant-numeric: tabular-nums;
+}
+
+.source-comparison__offer--chosen {
+  border-color: color-mix(in srgb, var(--color-info-text, #175CD3) 45%, transparent);
+  color: var(--color-info-text, #175CD3);
+  font-weight: 600;
+}
+
+.source-comparison__reason {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
 .research-prefill-note {
   margin-top: 0.375rem;
   padding: 0.5rem 0.625rem;

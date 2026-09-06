@@ -50,6 +50,14 @@ describe('the early buy runs the free-first engine (plan 1.4)', () => {
     expect(fn).toContain('knownInstruments');
   });
 
+  it('it persists the SOURCE-COMPARISON manifest for the run panel + Review (plan 1.6)', () => {
+    // Per document: which sources had it, each cost, the CHOSEN source + reason — written to
+    // analysis_metadata.sourceComparison so the app can render "what all the sources provide".
+    expect(fn).toContain('sourceComparison');
+    expect(fn).toContain('analysis_metadata');
+    expect(fn).toContain('chosenSource');
+  });
+
   it('it RANKS the paid candidates by relevance (id/address main), never rejecting (plan 1.5)', () => {
     // The searches are already property-scoped, so relevance only ORDERS the buy — most-relevant
     // first — it never drops a candidate for a missing supplemental key (the grain-of-salt rule).

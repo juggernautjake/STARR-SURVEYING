@@ -99,10 +99,21 @@ relevant first) and never drops a candidate for a missing supplemental key (the 
 `free-first-engine-is-wired` (+ new 1.5 ranking assertion), `research-modules-are-reachable`,
 `purchase-order-visuals-lead` green; full worker suite 2780 green.
 
-### 1.6 — A6: surface the SOURCE-COMPARISON manifest
+### 1.6 — A6: surface the SOURCE-COMPARISON manifest ✅ BUILT + TESTED
 Write the engine's manifest (per document: which sources had it, each cost, the CHOSEN source + reason)
 to `analysis_metadata` and render it in the run panel + Review — the "detailed analysis of what all the
 sources provide" the owner asked to SEE.
+
+**Built:** `runEarlyChecklistPurchase` (worker/src/index.ts) now builds `sourceComparison` from
+`plan.actions` — one row per document (docType, instrument/book/page, relevance, every source with its
+kind + unit cost + capabilities, the decision free_capture/purchase/skip, the chosen source, cost,
+reason) — and persists it (merged, not replacing) to `analysis_metadata.sourceComparison`. App side:
+`_sections/source-comparison-data.ts` (`sourceComparisonOf` shaper + `rowLabel` + `SOURCE_COMPARISON_KEYS`),
+`_sections/SourceComparisonCard.tsx`, mounted in the Review → Artifacts tab, styled with real theme
+tokens in AdminResearch.css. **Tested:** worker tsc + suite 2781 green; app tsc clean; new
+`__tests__/research/source-comparison-contract.test.ts` (23) — worker writes every key the page reads,
+page mounts the card, shaper unit-tested; gis-quality token test re-green (caught + fixed a fictional
+`--theme-bg-primary`); `free-first-engine-is-wired` extended with a 1.6 persistence assertion.
 
 ### 1.7 — Wiring tests + de-list the engine modules from the orphan allowlist
 Assert the live Bell path (index.ts) INVOKES `runCrossSourceAcquisition` (check the caller). As each

@@ -1311,6 +1311,43 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             book: a.cluster.book, page: a.cluster.page, recordingDate: a.cluster.recordingDate,
           } as PurchaseRecommendation;
         });
+      // ── Plan 1.6 — A6: the SOURCE-COMPARISON manifest the owner asked to SEE ──────────────────────
+      // Per document: which sources had it, each one's cost, the CHOSEN source + why. This is the
+      // engine's "detailed analysis of what all the sources provide", persisted to analysis_metadata
+      // so the run panel + Review can render it. Ordered most-relevant first, same as the buy.
+      const sourceComparison = plan.actions
+        .slice()
+        .sort((a, b) => relevanceOf(b.cluster) - relevanceOf(a.cluster))
+        .map((a) => ({
+          docType: a.cluster.docType,
+          instrument: a.cluster.instrument ?? null,
+          book: a.cluster.book ?? null,
+          page: a.cluster.page ?? null,
+          recordingDate: a.cluster.recordingDate ?? null,
+          relevance: Number(relevanceOf(a.cluster).toFixed(3)),
+          sources: a.cluster.sources.map((s) => ({
+            sourceId: s.sourceId, kind: s.kind, unitCostUsd: s.unitCostUsd,
+            canFreeCapture: s.canFreeCapture, canPurchase: s.canPurchase,
+          })),
+          decision: a.kind, // 'free_capture' | 'purchase' | 'skip'
+          chosenSource: a.kind === 'skip' ? null : a.source.sourceId,
+          costUsd: a.kind === 'purchase' ? a.costUsd : 0,
+          reason: a.reason,
+        }));
+      try {
+        const sb = await getSupabase();
+        if (sb) {
+          const { data: existing } = await (sb as any)
+            .from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+          const meta = (existing?.analysis_metadata as Record<string, unknown>) ?? {};
+          await (sb as any).from('research_projects')
+            .update({ analysis_metadata: { ...meta, sourceComparison, sourceComparisonAt: new Date().toISOString() } })
+            .eq('id', projectId);
+          console.log(`[Purchase:engine] ${projectId}: saved sourceComparison (${sourceComparison.length} document(s))`);
+        }
+      } catch (e) {
+        console.warn(`[Purchase:engine] ${projectId}: failed to persist sourceComparison — ${e instanceof Error ? e.message : String(e)}`);
+      }
       handshakeLogger.attempt('[Purchase]', 'info', 'Cross-source decision',
         `${discovery.entries.length} listing(s) → ${clusters.length} document(s); ${paidRecs.length} paid-exclusive`)
         .success(paidRecs.length, `Free-first: ${paidRecs.length} document(s) TexasFile has that the free record does not.`);
