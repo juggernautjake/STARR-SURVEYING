@@ -85,22 +85,22 @@ Leads map to the right search inputs; the round increments; a re-run does not re
 
 ## PHASE 3 — UI: the Discovered Leads panel + the follow-up run
 
-### 3.1 — `DiscoveredLeadsPanel`
+### 3.1 — `DiscoveredLeadsPanel` ✅ BUILT + TESTED
 Reads `analysis_metadata.discoveredLeads`, groups by kind, shows each lead's label + where it came from, with a
 checkbox (default all selected) and a running count. Empty state: "Analysis found no new leads to chase."
 
-### 3.2 — Mount it on the Analysis screen
+### 3.2 — Mount it on the Analysis screen ✅ BUILT + TESTED
 Under the five-stage split, the panel appears on the Analysis stage once analysis is complete (below the
 Analyze controls), so the loop reads left-to-right: analyze → see leads → run follow-up.
 
-### 3.3 — "Run follow-up research (N leads)"
+### 3.3 — "Run follow-up research (N leads)" ✅ BUILT + TESTED
 A button that opens the run-settings dialog PRE-SEEDED with the selected leads (as supplemental), so the user
 sets budget/time and starts round N+1. On complete it lands on Analysis again.
 
 ### 3.4 — Round lineage
 A small "Round N" indicator on the run + on documents/leads, so the user can see what each round added.
 
-### 3.5 — Tests
+### 3.5 — Tests ✅ BUILT + TESTED
 The panel renders leads from analysis_metadata; the follow-up button seeds the dialog; the caller wires the
 panel (check the CALLER).
 

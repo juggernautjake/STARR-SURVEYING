@@ -38,6 +38,8 @@ import SourceComparisonCard from './_sections/SourceComparisonCard';
 import { sourceComparisonOf } from './_sections/source-comparison-data';
 import ParcelBoundaryCard from './_sections/ParcelBoundaryCard';
 import { parcelBoundaryOf } from './_sections/parcel-boundary-data';
+import DiscoveredLeadsPanel from './_sections/DiscoveredLeadsPanel';
+import type { SupplementalLine } from '../components/SupplementalInfoFields';
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
@@ -168,6 +170,8 @@ export default function ResearchProjectPage() {
 
   // Re-run research confirmation dialog
   const [showRerunConfirm, setShowRerunConfirm] = useState(false);
+  // Iterative loop (plan 3.3) — supplemental lines seeded into the re-run dialog from follow-up leads.
+  const [followUpSeed, setFollowUpSeed] = useState<SupplementalLine[] | undefined>(undefined);
   /**
    * What the re-run dialog was told, held until the run panel mounts and fires it.
    *
@@ -1872,8 +1876,9 @@ export default function ResearchProjectPage() {
               (project as unknown as { allow_paid_documents?: boolean })
                 .allow_paid_documents !== false,
           }}
-          onCancel={() => setShowRerunConfirm(false)}
-          onConfirm={(input) => void handleRerunResearch(input)}
+          onCancel={() => { setShowRerunConfirm(false); setFollowUpSeed(undefined); }}
+          onConfirm={(input) => { setFollowUpSeed(undefined); void handleRerunResearch(input); }}
+          seedSupplementalLines={followUpSeed}
         />
       )}
 
@@ -2043,6 +2048,21 @@ export default function ResearchProjectPage() {
                   setViewerDoc(doc);
                   setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
                   setViewerHighlight(undefined);
+                }}
+              />
+
+              {/* Iterative loop (plan 3.2) — compile the leads analysis surfaced, and run a follow-up
+                  research round seeded with the ones the user chooses. */}
+              <DiscoveredLeadsPanel
+                projectId={projectId}
+                onRunFollowUp={(supp) => {
+                  const lines: SupplementalLine[] = [];
+                  let k = 0;
+                  for (const n of [...supp.ownerNames, ...supp.subdivisions]) lines.push({ key: `f${k++}`, category: 'name', name: n });
+                  for (const instr of supp.instrumentNumbers) lines.push({ key: `f${k++}`, category: 'instrument', instrument: instr });
+                  for (const vp of supp.volumePages) lines.push({ key: `f${k++}`, category: 'volume_page', volume: vp.volume, page: vp.page });
+                  setFollowUpSeed(lines);
+                  setShowRerunConfirm(true);
                 }}
               />
             </>

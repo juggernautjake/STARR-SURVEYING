@@ -62,6 +62,9 @@ export interface RerunDialogProps {
   onCancel: () => void;
   /** Called with everything the run should be given. The caller owns the reset + start. */
   onConfirm: (input: StartRunInput) => void;
+  /** Iterative loop (plan 3.3) — pre-fill the "+ Add more info" lines from follow-up leads the user
+   *  chose to chase, so a follow-up round opens with those identifiers already staged. */
+  seedSupplementalLines?: SupplementalLine[];
 }
 
 interface FormState {
@@ -91,7 +94,7 @@ const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const, texasfileBudg
 const RUN_MINUTES = { min: 15, default: 30, max: 30 };
 
 export default function RerunDialog({
-  projectId, projectDefaults, onCancel, onConfirm,
+  projectId, projectDefaults, onCancel, onConfirm, seedSupplementalLines,
 }: RerunDialogProps) {
   const [prev, setPrev] = useState<PreviousRun | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,7 +183,7 @@ export default function RerunDialog({
   // the attempt in front of you.
   const [attachments, setAttachments] = useState<RunFile[]>([]);
   // Supplemental "+ Add more info" lines (plan H2) — same category picker as the create modal.
-  const [supplementalLines, setSupplementalLines] = useState<SupplementalLine[]>([]);
+  const [supplementalLines, setSupplementalLines] = useState<SupplementalLine[]>(seedSupplementalLines ?? []);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
