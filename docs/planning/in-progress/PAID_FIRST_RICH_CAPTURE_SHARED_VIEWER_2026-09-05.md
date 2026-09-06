@@ -138,6 +138,14 @@ most-recent deed → rest). Emit an explicit per-document decision + REASON (`fr
 `paid-only: TexasFile $5`, `skipped: over budget`). NEVER plan a purchase for a document a free source
 already has — that is the whole point.
 
+> **SHIPPED 2026-09-05.** `worker/src/research/cross-source-acquire-plan.ts` — `planAcquisition(clusters,
+> {paidBudgetUsd, paidEnabled})` returns an `AcquisitionAction[]` (`free_capture` | `purchase` | `skip`),
+> each with a reason: free-available documents capture from the cheapest free source (never bought);
+> paid-exclusive documents are ranked by `priorityTier` (plat→deed→easement→rest, most-recent first
+> within a tier) and bought within `paidBudgetUsd`, the rest skipped `over budget`. Returns
+> `plannedPaidUsd` + `skippedOverBudget`. Wires A2. Tests: `cross-source-acquire-plan.test.ts` (6);
+> guard + tsc green. A4 executes these actions (free capture + real TexasFile buy) early in the run.
+
 ### A4 — ACQUIRE early + resilient: run the plan, buy as soon as decided, file immediately
 Execute the decisions: free captures + TexasFile purchases. Fire each PURCHASE the moment its decision
 is made (early, right after discovery/match), not in a post-run handler — a stall/cap must not rob the
