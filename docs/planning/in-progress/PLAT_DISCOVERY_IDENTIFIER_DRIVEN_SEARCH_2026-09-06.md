@@ -56,16 +56,22 @@ never throws, returns `[]` on any failure. Unit-test the parsing against a fixtu
 Mirror `searchTexasFileDocuments`: acquire a browser, log in, run `searchTexasFilePlats`, return results.
 Injectable for tests.
 
-### 1.3 — Wire plats into the engine's discovery
+### 1.3 — Wire plats into the engine's discovery ✅ BUILT + TESTED
 In `research/live-search.ts`: give `buildTexasFileSearchInputs` (or a sibling) a **plat query** built from
 `target.subdivision` (and, when present, cabinet/volume/slide/page). In `makeSourceSearch`'s texasfile
 branch, run BOTH the clerk-records search AND the plat search, mapping plat results to `ManifestEntry`
 (`docType: 'plat'`, `kind: 'paid'`, `unitCostUsd: 10`, `canPurchase: true`, `previewRef` = GUID). The engine
 then clusters the plat, sees it is NOT in the free CAD deed history, marks it **paid-exclusive**, and buys it.
 
-### 1.4 — Tests + wiring
+### 1.4 — Tests + wiring ✅ BUILT + TESTED
 Search-only parse test; `buildTexasFileSearchInputs` emits a plat query when a subdivision exists; the
 `makeSourceSearch` caller runs the plat search (check the CALLER). Full worker suite green.
+
+### 1.5 — Verify the plat PURCHASE endpoint (live)
+`purchaseApiUrl` hardcodes `/instrument/{guid}/`. A PLAT purchase on TexasFile may use a different path
+(`/plat/{guid}/`). The search + discovery + free-vs-paid DECISION are done (plats become paid-exclusive buys);
+the actual plat purchase URL must be confirmed against the live SPA (logged in) and `buyDocument` branched by
+docType if it differs. Verify in the supervised run.
 
 ---
 

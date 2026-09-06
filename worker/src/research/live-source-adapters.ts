@@ -57,6 +57,27 @@ export function texasFileResultsToManifest(results: TexasFileResult[], county: s
   return results.map((r) => texasFileResultToManifest(r, county));
 }
 
+/**
+ * Map a TexasFile PLAT search result (plan 1.3). Plats are a FLAT $10 on TexasFile regardless of page
+ * count — NOT $1/page like a deed — so this fixes the cost and the docType rather than reusing the deed
+ * mapper. `bookVolPage` here carries the cabinet/slide the plat search parsed.
+ */
+export function texasFilePlatResultToManifest(r: TexasFileResult, _county: string): ManifestEntry {
+  const bvp = splitBookVolPage(r.bookVolPage);
+  return {
+    sourceId: 'texasfile',
+    kind: 'paid',
+    docType: 'plat',
+    book: bvp.book,
+    page: bvp.page,
+    recordingDate: r.date ?? undefined,
+    unitCostUsd: 10, // all TexasFile plats are $10 flat, any page count
+    previewRef: r.guid,
+    canFreeCapture: false,
+    canPurchase: true,
+  };
+}
+
 /** The shape a free county-clerk search returns (Bell clerk, Kofile, …) — any subset present. */
 export interface ClerkDocLike {
   instrumentNumber?: string | null;
