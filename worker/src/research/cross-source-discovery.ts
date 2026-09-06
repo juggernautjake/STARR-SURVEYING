@@ -37,6 +37,14 @@ export interface ManifestEntry {
   recordingDate?: string;
   grantor?: string;
   grantee?: string;
+  // ── Location signals, for the cross-source same-document check (owner 2026-09-05) ──────────────
+  // Names + dates + instrument alone can miss or mis-match; the legal location is another axis a
+  // record can be compared on. Any subset may be present depending on what a source publishes.
+  legalDescription?: string;
+  subdivision?: string;
+  lot?: string;
+  block?: string;
+  situsAddress?: string;
   pageCount?: number;
   /** Per-document cost to acquire from this source; 0 for a free source. */
   unitCostUsd: number;

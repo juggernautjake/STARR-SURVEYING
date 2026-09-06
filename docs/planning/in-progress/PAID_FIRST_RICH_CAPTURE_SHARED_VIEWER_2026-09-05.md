@@ -121,6 +121,16 @@ grantor/grantee; reuse the cross-vendor identity logic (`DocumentIndex.decide`, 
 ambiguous / near-miss pairs ONLY, run a single AI image comparison to confirm sameness (the hybrid the
 owner chose). Output: one cluster per real document → the set of sources offering it + each cost.
 
+> **SHIPPED 2026-09-05.** `worker/src/research/cross-source-match.ts` — `clusterEntries(entries,
+> judge?)` groups the manifest into one cluster per real document. The cross-check weighs every signal
+> a record carries (owner 2026-09-05: "names, dates, location and instrument number and anything
+> else"): instrument or book+page is a DEFINITE match (`metaKey`); otherwise `matchConfidence` scores
+> recording-date + grantor + grantee + legal-location agreement (`matchSignals`), merging at
+> `CONFIDENT_SAME` (0.7) on metadata alone and deferring only `NEEDS_JUDGE` (0.4–0.7) borderlines to the
+> injected AI judge; fails toward NOT merging. Added location fields (legalDescription/subdivision/lot/
+> block/situsAddress) to `ManifestEntry`. Helpers `hasFreeSource`/`cheapestSource` feed A3. Tests:
+> `cross-source-match.test.ts` (12); orphan guard + tsc green. A3 (decision) consumes the clusters.
+
 ### A3 — Acquisition DECISION: cheapest viable source per cluster
 For each cluster choose a source: any FREE source → free-capture from the best free source; else
 paid-exclusive → purchase (TexasFile), subject to the paid budget and priority (most-recent plat →
