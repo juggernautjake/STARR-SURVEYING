@@ -32,7 +32,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Microscope, FileText, ListTree, GitCompare, ClipboardCheck,
-  Loader2, CheckCircle2, XCircle, PauseCircle, AlertTriangle, Ban, RefreshCw, ChevronLeft,
+  Loader2, CheckCircle2, XCircle, PauseCircle, AlertTriangle, Ban, RefreshCw, ChevronLeft, Eye,
 } from 'lucide-react';
 import { formatElapsed, type RunState } from '@/lib/research/run-state';
 import { hasStoredFile, storedFileUrl } from '@/lib/research/stored-file';
@@ -438,6 +438,21 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
                 </button>
               ) : label}
               {d.recording_info && <span className="rrv__doc-rec"> · {d.recording_info}</span>}
+              {/* An explicit VIEW button beside Source (owner, 2026-09-06): the underlined title
+                  opened the viewer, but nothing said so. This is the control that opens the
+                  dedicated multi-page viewer with this document loaded. */}
+              {url && (
+                <button
+                  type="button"
+                  className="rrv__doc-view"
+                  onClick={() => setViewerDoc(d)}
+                  title="View — open this document in the viewer and page through it"
+                  data-testid="rrv-doc-view"
+                  style={{ marginLeft: 8, background: 'none', border: '1px solid #2563EB', color: '#2563EB', borderRadius: 6, padding: '0.15rem 0.5rem', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+                >
+                  <Eye size={12} aria-hidden style={{ verticalAlign: '-2px', marginRight: 4 }} />View
+                </button>
+              )}
               {d.source_url && (
                 <a href={d.source_url} target="_blank" rel="noopener noreferrer" className="rrv__doc-source"
                    title="Open the page this was retrieved from" style={{ marginLeft: 6, fontSize: 12 }}>

@@ -61,6 +61,12 @@ export interface BellResearchInput {
   /** Maximum USD this run may spend — AI, paid pages, captcha solves.
    *  Clamped to MAX_COST_CEILING_USD by limitsFor(); 0 means free sources only. */
   maxCostUsd?: number;
+  /**
+   * `gather` — find, buy and capture ONLY; Phase 3 (AI deed/plat reading, chain tracing, site
+   * intelligence, the AI property summary) is skipped and left to the user-initiated ANALYZE run.
+   * Absent = the legacy monolithic run, kept for callers that never sent a phase.
+   */
+  phase?: 'gather' | 'analyze';
 }
 
 export type SurveyType =

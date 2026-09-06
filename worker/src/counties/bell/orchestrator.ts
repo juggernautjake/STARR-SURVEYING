@@ -110,7 +110,18 @@ export async function orchestrateBellResearch(
   const errors: ResearchError[] = [];
   const allScreenshots: ScreenshotCapture[] = [];
   const allLinks: ResearchedLink[] = [];
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  // ── A GATHER RUN READS NOTHING WITH AI ─────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-06: research gathers; the user chooses to run analysis afterwards. Every AI use
+  // in this orchestrator takes its key from `anthropicApiKey`, so blanking it for a gather run is
+  // the one switch that turns all of Phase 3 off — the analyzers already treat "no key" as "fall
+  // back to the structured read". On 2026-09-06 the deed analysis alone took 35 minutes PER DEED
+  // inside a run that was supposed to be gathering, blew through the wall clock, and tripped the
+  // stall watchdog. `configuredApiKey` is what the deployment has; `anthropicApiKey` is what THIS
+  // run may use.
+  const configuredApiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const isGatherRun = input.phase === 'gather';
+  const anthropicApiKey = isGatherRun ? '' : configuredApiKey;
 
   /** Throws if the run has been stopped — reporting WHO stopped it.
    *
@@ -1185,6 +1196,8 @@ export async function orchestrateBellResearch(
           lat: property.lat,
           lon: property.lon,
           ownerName: property.ownerName ?? null,
+          // A house lot is captured at zoom 22, a tract at 20 (owner, 2026-09-06).
+          acreage: property.acreage ?? null,
           anthropicApiKey: anthropicApiKey || undefined,
         },
         (p) => progress('Phase 2', `Direct Maps: ${p.message}`),
@@ -1282,7 +1295,9 @@ export async function orchestrateBellResearch(
   progress('Phase 3', '─────────────────────────────────────────────', 60);
   progress('Phase 3', 'PHASE 3 — AI Analysis', 60);
 
-  if (!anthropicApiKey) {
+  if (isGatherRun) {
+    progress('Phase 3', 'Gather run — AI reading skipped on purpose. The documents are filed; start "Analyze" from the Analysis stage to read them (chain of title, calls, summaries).');
+  } else if (!anthropicApiKey) {
     progress('Phase 3', '⚠ ANTHROPIC_API_KEY not set — AI analysis will be skipped');
   }
 

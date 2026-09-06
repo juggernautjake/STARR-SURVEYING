@@ -34,6 +34,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
+import { hostCircuit, tripHost } from '../../../infra/host-circuit.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -199,6 +200,14 @@ async function captureGisViewerScreenshotsInner(
     logDetail('progress', msg);
     onProgress({ phase: 'GIS Viewer', message: msg, timestamp: new Date().toISOString() });
   };
+
+  // A viewer host that already failed to answer this run is not asked again at a 60 s timeout
+  // (2026-09-06: gis.bisclient.com timed out here, then again in the direct BIS map capture).
+  const viewerCircuit = hostCircuit(GIS_VIEWER_URL);
+  if (viewerCircuit.down) {
+    progress(`Skipping the GIS viewer — ${new URL(GIS_VIEWER_URL).host} did not answer ${Math.round((viewerCircuit.ageMs ?? 0) / 1000)}s ago (${viewerCircuit.reason ?? 'no answer'}).`);
+    return [];
+  }
 
   let browser;
   try {
@@ -570,6 +579,8 @@ async function captureGisViewerScreenshotsInner(
       screenshots_before_error: results.length,
     });
     progress(`GIS viewer capture error: ${err instanceof Error ? err.message : String(err)}`);
+    // A load timeout trips the host so the direct BIS map capture that follows skips it.
+    tripHost(GIS_VIEWER_URL, err);
   } finally {
     if (browser) {
       logDetail('cleanup', 'Closing browser');

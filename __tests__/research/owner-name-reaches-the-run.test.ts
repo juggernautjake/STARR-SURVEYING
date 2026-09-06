@@ -86,7 +86,8 @@ describe('the owner name survives the whole journey', () => {
     // would lose the owner just as the original bug did.
     const seeds = PAGE.split('ownerName: projectOwnerName(project)').length - 1;
     expect(seeds, 'the run-settings dialog is seeded with the owner').toBeGreaterThanOrEqual(1);
-    expect(PAGE, 'the dialog hands the run its settings incl. owner').toMatch(/onConfirm=\{\(input\) => void handleRerunResearch\(input\)\}/);
+    // Tolerates the follow-up-lead reset the iterative loop added around the call (plan 3.3).
+    expect(PAGE, 'the dialog hands the run its settings incl. owner').toMatch(/onConfirm=\{\(input\) => \{?[^}]*void handleRerunResearch\(input\)/);
     expect(PAGE, 'a run must not blank the owner').not.toContain("ownerName: ''");
   });
 });

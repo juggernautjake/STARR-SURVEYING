@@ -191,6 +191,10 @@ export default function ResearchProjectPage() {
   const scrollToReview = useCallback(
     (tab: typeof reviewTab) => {
       setReviewTab(tab);
+      // The review panel (and its ref) only exists on the Review stage. The stat tiles render on
+      // every stage, so on the other four this was a no-op: three clickable tiles that did
+      // nothing. Land on Review first; the frame below then finds the panel to scroll to.
+      setViewStage('review');
       // Defer a frame so the tab switch renders before we scroll —
       // otherwise the layout shift races the scroll and the user
       // lands mid-transition.
@@ -1935,6 +1939,9 @@ export default function ResearchProjectPage() {
           onPipelineStart={() => {
             setPipelineHasStarted(true);
             setHoldOnResearchStage(true);
+            // Consumed. Nothing ever cleared this, so a later plain Start (back to Stage 1, edit
+            // the address, start again) re-ran the OLD dialog input instead of what was typed.
+            setPendingRunInput(null);
           }}
           onPipelineComplete={() => {
             setShouldAutoStartPipeline(false);

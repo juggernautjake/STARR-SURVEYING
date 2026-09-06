@@ -237,6 +237,12 @@ export default function RerunDialog({
       mode: form.mode,
       refreshImagery: form.refreshImagery,
       gatherSelections: form.gatherSelections,
+      // A research run GATHERS — finds, buys and captures files — and reads nothing with AI. The
+      // user starts the separate Analyze run afterwards from the Analysis stage (owner, 2026-09-06:
+      // "we will not automatically do the AI/OCR identifier fallback or iterative discovery loop").
+      // This was never sent before, so every run was the legacy monolithic gather-then-analyse pass:
+      // the Bell run of 2026-09-06 spent 65 of its 76 minutes reading two deeds with AI.
+      phase: 'gather',
     };
     onConfirm({
       address: form.address,

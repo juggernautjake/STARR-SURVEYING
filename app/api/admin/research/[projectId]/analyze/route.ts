@@ -94,7 +94,49 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!scope.canRun) {
     return NextResponse.json(scopeRefusal(scope), { status: 422 });
   }
-  // Start analysis asynchronously
+  // ── THE USER-INITIATED ANALYZE RUN STARTS ON THE WORKER (owner, 2026-09-06) ─────────────────
+  //
+  // A gather run reads nothing with AI, so at this point the deeds it filed are still `pending`
+  // (no text). The app-side `analyzeProject` reads only `extracted`/`analyzed` documents, and on
+  // Vercel it is frozen once this response is sent — so a whole-project Analyze from here used to
+  // skip the deeds entirely and hang long jobs at `analyzing`. The long-lived worker runs the OCR
+  // reading pass first (chain of title, summaries, page text), under the same cost cap, and then
+  // calls this route back with `x-worker-key` so the data-point analysis runs over what was read.
+  //
+  // Only a whole-project, non-resume, non-benchmark start goes to the worker; a per-file
+  // "Analyze this", a resume, a benchmark and the worker's own callback keep the in-process path.
+  const workerUrl = process.env.WORKER_URL || '';
+  const workerApiKey = process.env.WORKER_API_KEY || '';
+  const wholeProject = !isWorker && !isResume && !config?.documentId && !config?.benchmark;
+  if (wholeProject && workerUrl && workerApiKey) {
+    try {
+      const workerRes = await fetch(`${workerUrl}/research/read-documents/${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${workerApiKey}` },
+        body: JSON.stringify({ maxCostUsd: config?.maxCostUsd, thenAnalyze: true }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (workerRes.ok) {
+        // Parked at `analyzing` so the Analysis stage shows the run; the worker's callback moves it
+        // on through analyzeProject, which ends at `review`.
+        await supabaseAdmin.from('research_projects')
+          .update({ status: 'analyzing', updated_at: new Date().toISOString() })
+          .eq('id', projectId);
+        return NextResponse.json({
+          message: 'Analysis started — the worker is reading the documents first (OCR, chain of title), then the data-point analysis follows.',
+          projectId,
+          status: 'analyzing',
+          via: 'worker',
+        }, { status: 202 });
+      }
+      console.warn(`[Analysis API] worker read-documents returned HTTP ${workerRes.status} for ${projectId} — analysing in-process instead`);
+    } catch (err) {
+      console.warn(`[Analysis API] worker unreachable for ${projectId} (${err instanceof Error ? err.message : String(err)}) — analysing in-process instead`);
+    }
+  }
+
+  // Start analysis asynchronously (in-process: per-file, resume, benchmark, the worker's callback,
+  // or the fallback when the worker cannot be reached).
   analyzeProject(projectId, config).catch(err => {
     console.error(`[Analysis API] Background analysis failed for ${projectId}:`, err);
   });
@@ -177,11 +219,21 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // Immediately reset the project to a clean configure state so the UI
   // reflects the abort right away — no waiting for the background task to notice.
   // Clear all partial data from this run so the next run starts completely fresh.
+  //
+  // KEPT across the abort: the follow-up research leads and the research round (iterative loop).
+  // They are the user's compiled to-do list, not this run's partial output — aborting round 2
+  // must not throw away the leads that seeded it.
+  const { data: priorRow } = await supabaseAdmin
+    .from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+  const priorMeta = (priorRow?.analysis_metadata ?? {}) as Record<string, unknown>;
+  const kept: Record<string, unknown> = {};
+  if (Array.isArray(priorMeta.discoveredLeads)) kept.discoveredLeads = priorMeta.discoveredLeads;
+  if (typeof priorMeta.researchRound === 'number') kept.researchRound = priorMeta.researchRound;
   await Promise.all([
     // 1. Reset project status and clear logs / partial metadata immediately
     supabaseAdmin.from('research_projects').update({
       status: 'configure',
-      analysis_metadata: { abort_requested: true, aborted_at: new Date().toISOString() },
+      analysis_metadata: { ...kept, abort_requested: true, aborted_at: new Date().toISOString() },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId),
 

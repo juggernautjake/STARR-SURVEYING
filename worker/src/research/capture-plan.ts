@@ -214,9 +214,14 @@ export const ZOOM_BANDS = [
   },
 ];
 
-/** Google resolves usable satellite imagery over roughly this range. */
+/** Google resolves usable satellite imagery over roughly this range.
+ *
+ *  Ceiling raised 21 → 22 (owner, 2026-09-06): "20 just isn't quite enough" for a residential
+ *  subdivision lot — at 20 a house lot's fence lines and drive edges are a few pixels. Google serves
+ *  22 over towns and clamps to what it has elsewhere, so the close/detail bands of a small lot now
+ *  reach it while a large tract's framed zoom is unaffected. */
 export const MIN_ZOOM = 14;
-export const MAX_ZOOM = 21;
+export const MAX_ZOOM = 22;
 
 /** A band's absolute zoom, from the framed zoom the acreage produced. */
 export function zoomForBand(framedZoom: number, offset: number): number {

@@ -78,8 +78,13 @@ export default function DiscoveredLeadsPanel({
         const data = await res.json();
         applyLeads(data.leads ?? [], data.round ?? 1);
         if ((data.leads ?? []).length > 0) setCompiledOnce(true);
+      } else {
+        // Said out loud: a silent failure here rendered as "no leads", which reads as a finding.
+        setError(`Could not load the saved leads (HTTP ${res.status}).`);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Could not reach the server for the saved leads.');
+    }
     setLoading(false);
   }, [projectId, applyLeads]);
 

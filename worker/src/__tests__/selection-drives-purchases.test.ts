@@ -9,7 +9,9 @@ const index = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
 
 describe('the checklist drives the purchase phase', () => {
   it('builds selection purchase recs from the run settings and prepends them', () => {
-    expect(index).toMatch(/if \(runSettings\.gatherSelections\)/);
+    // An absent checklist resolves to the default; the phase is no longer gated on its presence (2026-09-06).
+    expect(index).toMatch(/resolveGatherSelections\(runSettings\)/);
+    expect(index).not.toMatch(/if \(runSettings\.gatherSelections\)/);
     expect(index).toMatch(/wantsToPurchaseRecommendations\(\s*selectionsToWants\(resolveGatherSelections\(runSettings\)\)/);
     expect(index).toMatch(/recs = \[\.\.\.selRecs, \.\.\.recs\]/);
   });

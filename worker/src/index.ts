@@ -110,7 +110,7 @@ import { withRunContext, enterRunContext } from './infra/run-context.js';
 import {
   persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
 } from './research/persist-run-logs.js';
-import { BudgetAbort, OperatorAbort } from './research/abort-reason.js';
+import { BudgetAbort, OperatorAbort, StallAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun, ledgerSpendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
@@ -1237,7 +1237,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     legalDescription?: string | null;
     knownDocuments?: Array<{ instrument?: string; documentType?: string; recordingDate?: string; grantor?: string; grantee?: string }>;
   }): Promise<void> {
-    if (earlyPurchaseDone || !runSettings.gatherSelections || !projectId) return;
+    // Not gated on the checklist being PRESENT: `resolveGatherSelections` defaults an absent one
+    // to "all files, no adjoiners", and requiring presence made every run started without the
+    // dialog (an API caller, the fallback start) skip the paid path silently, with no skip row.
+    if (earlyPurchaseDone || !projectId) return;
     earlyPurchaseDone = true;
 
     const supp = ((body as { supplemental?: unknown }).supplemental ?? {}) as {
@@ -1496,6 +1499,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   // the line "nothing tags a document or fact with its run". Awaiting it costs one round trip and
   // buys attribution for every document the run files.
   const runSettings = normaliseRunSettings(body.settings);
+  // The dedicated county modules cannot see `runSettings`; the phase rides on the research input so
+  // a gather run's Phase 3 is skipped there too (Bell spent 65 of 76 minutes in it on 2026-09-06).
+  researchInput.phase = runSettings.phase;
 
   // ── Follow-up round bookkeeping (plan 2.2) ────────────────────────────────────────────────────
   // If this run carries supplemental identifiers (a user-initiated FOLLOW-UP round seeded from the
@@ -1647,8 +1653,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         const message =
           `Stopped after ${mins} minutes with no progress — the run appears to have stalled. ` +
           'Everything it already retrieved is kept; re-run to continue.';
-        active.stopReason = { kind: 'error', message };
-        active.abortController?.abort(new Error(message));
+        // An EXPECTED stop that keeps what was found (a StallAbort, kind 'stall'), not a crash.
+        // As a bare Error this turned an eleven-document run into "found no documents" (2026-09-06).
+        active.stopReason = { kind: 'stall', message };
+        active.abortController?.abort(new StallAbort(message));
         console.warn(`[stall] ${projectId}: STALL watchdog fired — no progress for ${mins} min`);
         clearInterval(stallWatchdog);
       }
@@ -2425,7 +2433,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
               // them FIRST (plats before deeds), so TexasFile is asked for the plats/recent deeds the
               // owner wanted — not only what a boundary discrepancy happened to flag. Runs without a
               // selection are unchanged (they keep the discrepancy-driven recs alone).
-              if (runSettings.gatherSelections) {
+              // `resolveGatherSelections` supplies the default checklist when none was sent, so
+              // this is no longer gated on the checklist's PRESENCE (see the early purchase).
+              {
                 const selRecs = wantsToPurchaseRecommendations(
                   selectionsToWants(resolveGatherSelections(runSettings)),
                   { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
@@ -2871,9 +2881,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // from TexasFile — the $15 budget went unspent and no `document_purchase` ever reached the
         // ledger. This runs the same checklist-driven purchase here, keyed on the owner the run
         // actually discovered, so a dedicated-county gather fills its paid gaps within budget.
-        // Gated on `gatherSelections` exactly as the generic branch is; a run without a checklist
-        // is unchanged.
-        if (runSettings.gatherSelections) {
+        // Runs without a checklist get the DEFAULT one (all files, no adjoiners) exactly as the
+        // generic branch does — a dedicated-county run is no longer silently $0 for lack of a dialog.
+        {
           try {
             // Named `recs` (not `selRecs`) so the skip-ledger structure test sees one row mapped per
             // recommendation, the same shape the generic branch uses.
@@ -4061,8 +4071,12 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
     res.status(400).json({ error: 'Invalid projectId' });
     return;
   }
-  const body = (req.body ?? {}) as { benchmark?: boolean; maxCostUsd?: number };
+  const body = (req.body ?? {}) as { benchmark?: boolean; maxCostUsd?: number; thenAnalyze?: boolean };
   const benchmark = body.benchmark === true;
+  // The user-initiated ANALYZE run (owner, 2026-09-06): the app asks for the reading pass here and
+  // wants the data-point analysis to follow it, so the deeds this pass promotes out of `pending`
+  // are what that analysis reads. The read pass alone is what the benchmark wants.
+  const thenAnalyze = body.thenAnalyze === true;
 
   // A cost cap bounds a normal read; a benchmark read is uncapped (it exists to measure true cost).
   const limits = limitsFor({ maxCostUsd: benchmark ? undefined : body.maxCostUsd });
@@ -4089,8 +4103,13 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
             .from('research_documents').select('page_count').eq('research_project_id', projectId);
           pages = (data ?? []).reduce((s, d) => s + (Number(d.page_count) || 1), 0);
           const perPage = pages > 0 ? Number((spent / pages).toFixed(4)) : 0;
+          // MERGED into the existing metadata. This used to REPLACE analysis_metadata wholesale, which
+          // wiped the review result, the master report, and the follow-up leads on every benchmark.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: projRow } = await (supabase as any).from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+          const priorMeta = (projRow?.analysis_metadata as Record<string, unknown>) ?? {};
           await (supabase as unknown as { from: (t: string) => { update: (r: unknown) => { eq: (k: string, v: string) => Promise<unknown> } } })
-            .from('research_projects').update({ analysis_metadata: { benchmark_total_pages: pages, benchmark_cost_usd: Number(spent.toFixed(4)), benchmark_usd_per_page: perPage, benchmark_ran_at: new Date().toISOString() } }).eq('id', projectId);
+            .from('research_projects').update({ analysis_metadata: { ...priorMeta, benchmark_total_pages: pages, benchmark_cost_usd: Number(spent.toFixed(4)), benchmark_usd_per_page: perPage, benchmark_ran_at: new Date().toISOString() } }).eq('id', projectId);
           log(`BENCHMARK: $${spent.toFixed(4)} over ${pages} page(s) = $${perPage}/page. Set ANALYSIS_RATE_USD_PER_PAGE to this (with margin).`);
         }
       }
@@ -4098,6 +4117,19 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
       log(`Read pass failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       endRun(projectId);
+      // The second half of the user's ANALYZE run: the app's data-point analysis over what was just
+      // read. In `finally` on purpose — a read pass that stopped at its cap still leaves documents
+      // worth analysing, and a project parked at `analyzing` with no follow-up is the frozen state
+      // the owner had to unstick by hand on 2026-09-05.
+      if (thenAnalyze) {
+        try {
+          const { triggerAppAnalysis } = await import('./research/trigger-app-analysis.js');
+          const r = await triggerAppAnalysis(projectId, { allow: true, maxCostUsd: benchmark ? undefined : body.maxCostUsd });
+          log(r.statement);
+        } catch (e) {
+          log(`Data-point analysis could not be started after the read pass: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
     }
   })();
 });

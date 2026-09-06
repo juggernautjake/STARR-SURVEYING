@@ -103,6 +103,14 @@ export interface CountyResearchInput {
   maxResearchTimeMinutes?: number;
   /** Max USD for this run. Clamped to MAX_COST_CEILING_USD; 0 means free sources only. */
   maxCostUsd?: number;
+  /**
+   * Which half of the split pipeline this run is (plan GATHER_AND_REVIEW_SPLIT). A `gather` run finds,
+   * buys and captures files ONLY — no AI reads them; the user starts the ANALYZE run afterwards from
+   * the Analysis stage. Carried to the dedicated county modules, which cannot see the run settings.
+   * On 2026-09-06 the Bell run spent 65 of its 76 minutes inside Phase 3 deed analysis because this
+   * was never passed, and the stall watchdog then reported the whole run as a failure.
+   */
+  phase?: 'gather' | 'analyze';
 }
 
 // ── Unified Progress ────────────────────────────────────────────────
@@ -549,6 +557,8 @@ export async function runCountyResearch(
             includeAdjacentProperties: input.includeAdjacentProperties,
             maxResearchTimeMinutes: input.maxResearchTimeMinutes,
             maxCostUsd: input.maxCostUsd,
+            // A gather run must not read the deeds with AI — that is the separate ANALYZE run.
+            phase: input.phase,
           },
           onProgress,
           signal,
@@ -589,7 +599,9 @@ export async function runCountyResearch(
         // never moved to review, and the deeds it had filed sat behind a red banner. The
         // orchestrator's accumulated result is still discarded on this path (it throws rather
         // than returning) — that is the remaining half, recorded in the plan.
-        const budgetStop = expected && abort?.kind === 'budget';
+        // A stall stop is a partial too: the watchdog's own message promises "everything it already
+        // retrieved is kept", and on 2026-09-06 the same stop was reported as "found no documents".
+        const budgetStop = expected && (abort?.kind === 'budget' || abort?.kind === 'stall');
         const failedResult: PipelineResult = {
           projectId: input.projectId,
           status: budgetStop ? 'partial' : 'failed',

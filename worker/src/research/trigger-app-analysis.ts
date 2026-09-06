@@ -15,7 +15,7 @@ export interface AutoAnalysisResult {
 
 export async function triggerAppAnalysis(
   projectId: string,
-  opts: { allow: boolean },
+  opts: { allow: boolean; /** The analyze run's own cost cap, carried through to the app (plan R1). */ maxCostUsd?: number },
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,
 ): Promise<AutoAnalysisResult> {
@@ -32,7 +32,7 @@ export async function triggerAppAnalysis(
     const res = await fetchImpl(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-worker-key': key },
-      body: JSON.stringify({}),
+      body: JSON.stringify(typeof opts.maxCostUsd === 'number' && Number.isFinite(opts.maxCostUsd) ? { maxCostUsd: opts.maxCostUsd } : {}),
       signal: AbortSignal.timeout(20_000),
     });
     if (res.ok) {

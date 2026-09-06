@@ -147,6 +147,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // paid documents off for one attempt without changing what the project means in general.
   const settings: Record<string, unknown> = {
     allowPaidDocuments: project.allow_paid_documents !== false,
+    // A research run is a GATHER run unless the caller says otherwise: no AI reading, no automatic
+    // analysis afterwards — the user starts Analyze from the Analysis stage (owner, 2026-09-06).
+    // The dialog sends this too; defaulting it here covers any caller that omits settings.
+    phase: 'gather',
     ...(body.settings ?? {}),
   };
 

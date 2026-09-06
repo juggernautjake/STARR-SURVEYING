@@ -26,7 +26,9 @@ describe('the stall watchdog', () => {
     const at = index.indexOf('const stallWatchdog = setInterval(');
     const block = index.slice(at, at + 900);
     expect(block).toMatch(/active\.abortController\?\.abort\(/);
-    expect(block).toMatch(/active\.stopReason = \{ kind: 'error'/);
+    // A stall is an EXPECTED, partial stop (StallAbort) — not a crash that discards the result (2026-09-06).
+    expect(block).toMatch(/active\.stopReason = \{ kind: 'stall'/);
+    expect(block).toMatch(/new StallAbort\(message\)/);
   });
 
   it('is tunable and defaults to 12 minutes', () => {

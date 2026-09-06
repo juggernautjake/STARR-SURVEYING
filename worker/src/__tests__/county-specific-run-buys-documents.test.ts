@@ -37,7 +37,9 @@ describe('the county-specific completion branch buys the checklist documents', (
   it('gates on gatherSelections and honours the TexasFile budget ceiling', () => {
     const afterBell = src.slice(src.indexOf('bellOutcome.sentence'));
     const block = afterBell.slice(0, afterBell.indexOf('Capture live logs NOW'));
-    expect(block).toContain('runSettings.gatherSelections');
+    // No longer gated on the checklist being PRESENT — an absent one resolves to the default (2026-09-06).
+    expect(block).toContain('resolveGatherSelections(runSettings)');
+    expect(block).not.toContain('if (runSettings.gatherSelections) {');
     expect(block).toContain('runSettings.texasfileBudgetUsd');
   });
 });

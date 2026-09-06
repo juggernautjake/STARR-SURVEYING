@@ -557,7 +557,7 @@ export interface ActivePipeline {
    * and was not cancelled by anybody. Operators were shown "Research Failed — Pipeline cancelled by
    * user" beside a budget bar reading "Finished in 2 minutes for $0.02", for the same run.
    */
-  stopReason?: { kind: 'budget' | 'cancelled' | 'error'; message: string } | null;
+  stopReason?: { kind: 'budget' | 'cancelled' | 'error' | 'stall'; message: string } | null;
 
   /** The settings this run was given, so the status endpoint can report what it was asked to do. */
   settings?: Record<string, unknown>;

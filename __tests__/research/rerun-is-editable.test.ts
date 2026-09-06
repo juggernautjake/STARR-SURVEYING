@@ -194,7 +194,8 @@ describe('the FIRST run also goes through the settings dialog (W1.3)', () => {
     expect(body).not.toMatch(/setShouldAutoStartPipeline\(true\)/);
   });
   it('the dialog carries its settings to the run via pendingRunInput', () => {
-    expect(page).toMatch(/onConfirm=\{\(input\) => void handleRerunResearch\(input\)\}/);
+    // Tolerates the follow-up-lead reset the iterative loop added around the call (plan 3.3).
+    expect(page).toMatch(/onConfirm=\{\(input\) => \{?[^}]*void handleRerunResearch\(input\)/);
     expect(page).toMatch(/setPendingRunInput\(input\)/);
   });
 });

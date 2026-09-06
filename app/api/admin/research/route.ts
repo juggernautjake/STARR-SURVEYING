@@ -220,6 +220,10 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (updates.property_address !== undefined) allowed.property_address = updates.property_address?.trim() || null;
   if (updates.county !== undefined) allowed.county = updates.county?.trim() || null;
   if (updates.state !== undefined) allowed.state = updates.state?.trim() || 'TX';
+  // The re-run dialog sends a corrected parcel ID here (page.tsx handleRerunResearch) and this
+  // list silently dropped it — the run used the correction, the project kept the old value, and
+  // the NEXT run reverted. Accepted on PATCH exactly as on POST.
+  if (updates.parcel_id !== undefined) allowed.parcel_id = updates.parcel_id?.trim() || null;
 
   // ── The address parts are editable too, or the columns rot (seed 624) ───────────────────────
   //

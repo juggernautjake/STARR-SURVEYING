@@ -15,21 +15,21 @@ describe('POST /research/read-documents/:projectId', () => {
 
   it('attributes cost to the project (enterRunContext) and returns 202 fire-and-forget', () => {
     const at = index.indexOf("app.post('/research/read-documents/:projectId'");
-    const block = index.slice(at, at + 2600);
+    const block = index.slice(at, at + 4600);
     expect(block).toMatch(/enterRunContext\(projectId\)/);
     expect(block).toMatch(/res\.status\(202\)/);
   });
 
   it('benchmark mode is uncapped and everything-continues', () => {
     const at = index.indexOf("app.post('/research/read-documents/:projectId'");
-    const block = index.slice(at, at + 2600);
+    const block = index.slice(at, at + 4600);
     expect(block).toMatch(/benchmark \? undefined : body\.maxCostUsd/);
     expect(block).toMatch(/const mayContinue = \(\) => benchmark \|\|/);
   });
 
   it('benchmark writes benchmark_usd_per_page from the ledger \u00f7 pages', () => {
     const at = index.indexOf("app.post('/research/read-documents/:projectId'");
-    const block = index.slice(at, at + 2600);
+    const block = index.slice(at, at + 4600);
     expect(block).toMatch(/ledgerSpendForRun\(projectId\)/);
     expect(block).toMatch(/benchmark_usd_per_page/);
   });

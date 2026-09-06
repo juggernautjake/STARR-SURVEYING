@@ -36,7 +36,7 @@
 
 /** Why a run was aborted. Every abort must be one of these — a bare `abort()` is what produced a
  *  run that blamed the operator for the budget's decision. */
-export type AbortKind = 'budget' | 'operator' | 'shutdown';
+export type AbortKind = 'budget' | 'operator' | 'shutdown' | 'stall';
 
 export class RunAbort extends Error {
   readonly kind: AbortKind;
@@ -63,6 +63,19 @@ export class BudgetAbort extends RunAbort {
 export class OperatorAbort extends RunAbort {
   constructor(message: string) {
     super('operator', message, true);
+  }
+}
+
+/**
+ * The stall watchdog stopped a run that had reported nothing for too long. EXPECTED, and a PARTIAL
+ * result: on 2026-09-06 a run that had identified the parcel, captured five images and filed eleven
+ * documents was reported as "Research Failed … found no property record and no documents" because
+ * the stall abort was a bare Error, so the router treated it as a crash and discarded the result.
+ * Everything the run already retrieved is kept; the stop is a caveat, not a failure.
+ */
+export class StallAbort extends RunAbort {
+  constructor(message: string) {
+    super('stall', message, true);
   }
 }
 

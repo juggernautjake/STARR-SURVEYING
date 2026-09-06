@@ -21,6 +21,7 @@
  */
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import { hostCircuit, tripHost } from '../../../infra/host-circuit.js';
 import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
@@ -46,6 +47,8 @@ export interface MapScreenshotInput {
   lon: number;
   /** Owner name for labeling */
   ownerName: string | null;
+  /** Parcel acreage, when known — picks the Google satellite zoom (a house lot zooms closer). */
+  acreage?: number | null;
   /**
    * Anthropic API key for OCR verification after each operation.
    * If not provided, OCR verification is skipped (screenshots still captured).
@@ -75,6 +78,19 @@ const GIS_ZOOM_OUT_CLICKS = 2;
 
 /** Google Maps zoom level for close-up property view */
 const GOOGLE_MAPS_ZOOM = 20;
+
+/**
+ * The Google satellite zoom for a parcel of this size (owner, 2026-09-06: "for residential
+ * subdivision properties … zoom in a bit more than 20; 22 or 23"). A house lot gets 22 — close
+ * enough to read fence lines and drive edges; a few-acre tract 21; anything larger keeps 20, where
+ * the whole parcel still fits the frame. Google clamps to the sharpest imagery it has for the spot.
+ */
+export function googleZoomForParcel(acreage: number | null | undefined): number {
+  if (typeof acreage !== 'number' || !Number.isFinite(acreage) || acreage <= 0) return GOOGLE_MAPS_ZOOM;
+  if (acreage <= 0.75) return 22;
+  if (acreage <= 3) return 21;
+  return GOOGLE_MAPS_ZOOM;
+}
 
 /** AI model for lightweight OCR verification checks */
 const OCR_VERIFY_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
@@ -364,10 +380,23 @@ async function captureBisGisParcel(
     console.log(`[map-capture]   propertyId=${input.propertyId}, objectId=${input.arcgisObjectId ?? 'unknown (search-only mode)'}`);
     progress(`[BIS GIS] Op 1/6: Loading parcel ${input.propertyId} via direct URL...`);
 
-    await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.playwrightNavigation,
-    });
+    // The viewer host already failed to answer this run (the GIS viewer capture runs first and trips
+    // it) — do not spend another 45 s finding that out.
+    const circuit = hostCircuit(url);
+    if (circuit.down) {
+      progress(`[BIS GIS] Skipped — ${new URL(url).host} did not answer ${Math.round((circuit.ageMs ?? 0) / 1000)}s ago (${circuit.reason ?? 'no answer'}).`);
+      await page.close().catch(() => {});
+      return null;
+    }
+    try {
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: TIMEOUTS.playwrightNavigation,
+      });
+    } catch (err) {
+      tripHost(url, err);
+      throw err;
+    }
 
     // Wait for the map container to appear
     try {
@@ -615,9 +644,10 @@ async function captureGoogleMapsSatellite(
 
   try {
     // ── OPERATION 1: Navigate to satellite view ───────────────────
-    const url = BELL_ENDPOINTS.googleMaps.satellite(input.lat, input.lon, GOOGLE_MAPS_ZOOM);
+    const zoom = googleZoomForParcel(input.acreage);
+    const url = BELL_ENDPOINTS.googleMaps.satellite(input.lat, input.lon, zoom);
     console.log(`[map-capture] Google Satellite URL: ${url}`);
-    progress(`[Google Sat] Op 1/3: Loading satellite view at zoom ${GOOGLE_MAPS_ZOOM}...`);
+    progress(`[Google Sat] Op 1/3: Loading satellite view at zoom ${zoom}${input.acreage ? ` (${input.acreage} ac)` : ""}...`);
 
     await page.goto(url, {
       waitUntil: 'domcontentloaded',
@@ -640,7 +670,7 @@ async function captureGoogleMapsSatellite(
     // OCR VERIFY: Did satellite imagery load?
     const loadCheck = await verify(
       'Google Satellite Load',
-      `Satellite/aerial imagery visible centered near coordinates ${input.lat.toFixed(4)}, ${input.lon.toFixed(4)} at zoom ${GOOGLE_MAPS_ZOOM} — should show building footprints, roofs, driveways, vegetation`,
+      `Satellite/aerial imagery visible centered near coordinates ${input.lat.toFixed(4)}, ${input.lon.toFixed(4)} at zoom ${zoom} — should show building footprints, roofs, driveways, vegetation`,
     );
 
     // ── OPERATION 3: Capture screenshot ───────────────────────────
@@ -675,7 +705,7 @@ async function captureGoogleMapsSatellite(
       url: page.url(),
       imageBase64: buffer.toString('base64'),
       capturedAt: new Date().toISOString(),
-      description: `Google Maps satellite — ${input.situsAddress ?? `${input.lat}, ${input.lon}`} — zoom ${GOOGLE_MAPS_ZOOM} — OCR verify: ${successCount}/${verifyLog.length} passed`,
+      description: `Google Maps satellite — ${input.situsAddress ?? `${input.lat}, ${input.lon}`} — zoom ${zoom} — OCR verify: ${successCount}/${verifyLog.length} passed`,
       classification: finalCheck.success ? 'useful' : 'misc',
     };
   } catch (err) {
