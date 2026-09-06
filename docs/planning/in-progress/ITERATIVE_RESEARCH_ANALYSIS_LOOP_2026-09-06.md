@@ -65,20 +65,20 @@ identifier is excluded; the compile is idempotent.
 
 ## PHASE 2 — Seeded follow-up research (worker + app plumbing)
 
-### 2.1 — Accept selected leads on the run POST
+### 2.1 — Accept selected leads on the run POST ✅ BUILT + TESTED
 The run start payload gains `followUpLeads?: DiscoveredLead[]` (or reuse `supplemental`), merged into the
 DiscoveryTarget: `citation`/`volume_page` → volumePages; `instrument` → instrumentNumbers; `grantor_name`/
 `adjoiner` → an owner-name search; `subdivision` → the plat search.
 
-### 2.2 — Round tracking
+### 2.2 — Round tracking ✅ BUILT + TESTED
 Increment `analysis_metadata.researchRound` when a follow-up run starts; tag the round on the run record so
 documents/data can show which round found them. Mark the seeded leads `searched: true`.
 
-### 2.3 — Dedup against what is held
+### 2.3 — Dedup against what is held ✅ BUILT + TESTED
 A follow-up round must only ADD — rely on the cross-run library for documents, and skip a lead whose target is
 already in the held set. Log what was skipped.
 
-### 2.4 — Tests
+### 2.4 — Tests ✅ BUILT + TESTED
 Leads map to the right search inputs; the round increments; a re-run does not re-search a `searched` lead.
 
 ---

@@ -74,7 +74,7 @@ import { RRCClient } from './sources/rrc-client.js';
 import { NRCSSoilClient } from './sources/nrcs-soil-client.js';
 import { ChainOfTitleBuilder } from './chain-of-title/chain-builder.js';
 import { findGaps } from './chain-of-title/chain-gaps.js';
-import { compileDiscoveredLeads, type DiscoveredLead } from './research/discovered-leads.js';
+import { compileDiscoveredLeads, markLeadsSearched, type DiscoveredLead } from './research/discovered-leads.js';
 import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
@@ -1496,6 +1496,37 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   // the line "nothing tags a document or fact with its run". Awaiting it costs one round trip and
   // buys attribution for every document the run files.
   const runSettings = normaliseRunSettings(body.settings);
+
+  // ── Follow-up round bookkeeping (plan 2.2) ────────────────────────────────────────────────────
+  // If this run carries supplemental identifiers (a user-initiated FOLLOW-UP round seeded from the
+  // discovered leads), bump the research round and mark the matching leads `searched` so the next
+  // compile does not surface them again. Never blocks the run; a bookkeeping failure is non-fatal.
+  {
+    const supp = (body as { supplemental?: { instrumentNumbers?: string[]; volumePages?: Array<{ volume?: string; page?: string; book?: string }>; ownerNames?: string[]; subdivisions?: string[] } }).supplemental;
+    const hasSupp = !!supp && ((supp.instrumentNumbers?.length ?? 0) + (supp.volumePages?.length ?? 0) + (supp.ownerNames?.length ?? 0) + (supp.subdivisions?.length ?? 0)) > 0;
+    if (hasSupp && projectId) {
+      void (async () => {
+        try {
+          const sb = await getSupabase();
+          if (!sb) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (sb as any).from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+          const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
+          const priorLeads = Array.isArray(meta.discoveredLeads) ? (meta.discoveredLeads as DiscoveredLead[]) : [];
+          const round = (typeof meta.researchRound === 'number' ? meta.researchRound : 1) + 1;
+          const discoveredLeads = markLeadsSearched(priorLeads, supp);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb as any).from('research_projects')
+            .update({ analysis_metadata: { ...meta, researchRound: round, discoveredLeads } })
+            .eq('id', projectId);
+          console.log(`[Leads] ${projectId}: follow-up round ${round}; marked ${discoveredLeads.filter((l) => l.searched).length} lead(s) searched.`);
+        } catch (e) {
+          console.warn(`[Leads] ${projectId}: round bookkeeping failed — ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })();
+    }
+  }
+
   const budgetLimits = limitsFor({
     // Both of these were being dropped. `limitsFor()` has accepted a per-run clock and a per-run
     // cost since it was written; the app never sent either, so every run silently got the defaults

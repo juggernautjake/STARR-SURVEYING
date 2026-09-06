@@ -132,6 +132,31 @@ export function compileDiscoveredLeads(input: CompileLeadsInput): DiscoveredLead
   return out;
 }
 
+/**
+ * Mark the leads a follow-up round is searching as `searched: true` (plan 2.2), so the next
+ * compile does not surface them again. A lead matches the run's supplemental by its normalised
+ * value: instrument digits, `VOL{n}PG{n}`, upper-cased name, upper-cased subdivision. Pure.
+ */
+export function markLeadsSearched(
+  leads: DiscoveredLead[],
+  supplemental: { instrumentNumbers?: string[]; volumePages?: Array<{ volume?: string; page?: string; book?: string }>; ownerNames?: string[]; subdivisions?: string[] } | null | undefined,
+): DiscoveredLead[] {
+  const s = supplemental ?? {};
+  const instr = new Set((s.instrumentNumbers ?? []).map(normInstr).filter(Boolean));
+  const vps = new Set((s.volumePages ?? []).map((vp) => normVp(vp.volume ?? vp.book ?? '', vp.page ?? '')));
+  const names = new Set((s.ownerNames ?? []).map(normName).filter(Boolean));
+  const subs = new Set((s.subdivisions ?? []).map((x) => (x ?? '').toUpperCase()).filter(Boolean));
+  return leads.map((l) => {
+    if (l.searched) return l;
+    const hit =
+      (l.kind === 'instrument' && instr.has(normInstr(l.value))) ||
+      (l.kind === 'volume_page' && l.volume && l.page && vps.has(normVp(l.volume, l.page))) ||
+      ((l.kind === 'grantor_name' || l.kind === 'adjoiner') && names.has(normName(l.value))) ||
+      (l.kind === 'subdivision' && subs.has(l.value.toUpperCase()));
+    return hit ? { ...l, searched: true } : l;
+  });
+}
+
 /** Turn selected leads into the run's `supplemental` payload for a follow-up round (plan 2.1). */
 export function leadsToSupplemental(leads: DiscoveredLead[]): {
   instrumentNumbers: string[];

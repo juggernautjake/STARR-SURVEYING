@@ -105,3 +105,26 @@ describe('the compile-leads endpoint is wired (plan 1.3, the CALLER)', () => {
     expect(fn).toContain('discoveredLeads');
   });
 });
+
+describe('markLeadsSearched — bookkeeping a follow-up round (plan 2.2)', () => {
+  it('flips searched on the leads the run is seeded with, leaving others alone', async () => {
+    const { markLeadsSearched } = await import('../research/discovered-leads.js');
+    const leads: DiscoveredLead[] = [
+      { id: 'a', kind: 'instrument', value: '2015-1', label: '', source: '', round: 1, searched: false },
+      { id: 'b', kind: 'volume_page', value: 'VOL412PG88', volume: '412', page: '88', label: '', source: '', round: 1, searched: false },
+      { id: 'c', kind: 'subdivision', value: 'HERITAGE', label: '', source: '', round: 1, searched: false },
+    ];
+    const out = markLeadsSearched(leads, { instrumentNumbers: ['2015 1'], volumePages: [{ volume: '412', page: '88' }] });
+    expect(out.find((l) => l.id === 'a')!.searched).toBe(true);   // instrument matched (digits-normalised)
+    expect(out.find((l) => l.id === 'b')!.searched).toBe(true);   // vol/page matched
+    expect(out.find((l) => l.id === 'c')!.searched).toBe(false);  // not seeded → untouched
+  });
+});
+
+describe('the run start does the follow-up bookkeeping (plan 2.2, CALLER)', () => {
+  it('marks leads searched + bumps the round when a run carries supplemental', () => {
+    const SRC = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
+    expect(SRC).toContain('markLeadsSearched(priorLeads, supp)');
+    expect(SRC).toContain('researchRound: round');
+  });
+});
