@@ -72,6 +72,10 @@ export type CaptureKind =
    *  the view the county viewer shows with imagery off, and the one a surveyor reads dimensions
    *  from. Owner, 2026-09-04: "at least one where it is just the parcel lines". */
   | 'cad_parcel_lines'
+  /** An ADJOINER's parcel lines alone, drawn from the layer on a plain ground (plan C/4.1). GIS-only
+   *  — the neighbour's boundary + bearings, never a deed purchase. Behind a toggle + the neighbour
+   *  cap; the owner deferred adjoiner DEED research, not the free GIS boundary sketch. */
+  | 'cad_adjoiner_lines'
   /** The county appraisal district's own GIS viewer, showing the parcel as the county draws it. */
   | 'cad_gis'
   /** A recorded plat, survey or CAD drawing published by the county. */
@@ -138,8 +142,12 @@ export interface CapturePlanInput {
   /** Date of the deed being retraced, for choosing a historical aerial. */
   controllingDeedDate?: string | null;
   frontages?: RoadFrontage[];
-  /** Adjoining parcels' centroids, when the adjoiner register found them. */
-  neighbours?: Array<{ label: string; lat: number; lon: number }>;
+  /** Adjoining parcels' centroids, when the adjoiner register found them. `parcelId` (when known)
+   *  lets the lines-only render match the adjoiner in the layer and emit its boundary segments. */
+  neighbours?: Array<{ label: string; lat: number; lon: number; parcelId?: string | null }>;
+  /** Plan 4.3 — opt-in: also draw each adjoiner's parcel lines (GIS-only). Off by default; the owner
+   *  deferred adjoiner work, so this capability ships dormant until a run asks for it. */
+  captureAdjoinerLines?: boolean;
   /** Is an oblique provider configured? Bird's-eye is licensed, not free, and claiming coverage we
    *  do not have is worse than recording that we do not have it. */
   obliqueProvider?: string | null;
@@ -340,6 +348,37 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
           `${neighbours.length - MAX_NEIGHBOUR_CAPTURES} further adjoining parcel(s) were not ` +
           `photographed — the plan captures the nearest ${MAX_NEIGHBOUR_CAPTURES}. They are named ` +
           'in the adjoiner register and can be captured on request.',
+      });
+    }
+
+    // ── 3b. Each adjoiner's parcel LINES (plan C/4.1) — GIS-only, opt-in ──────────────────────────
+    // The neighbour's boundary + bearings drawn from the layer, same as the subject's lines drawing.
+    // Off unless the run asks (the owner deferred adjoiner work); GIS-only, never a deed purchase;
+    // shares the neighbour cap. Needs the adjoiner's parcelId so the render can match it in the layer
+    // and emit its segments (4.2).
+    const layer = (input.parcelLayerUrl ?? '').trim();
+    if (input.captureAdjoinerLines && layer) {
+      for (const n of neighbours.slice(0, MAX_NEIGHBOUR_CAPTURES)) {
+        const pid = (n.parcelId ?? '').trim();
+        if (!pid || !Number.isFinite(n.lat) || !Number.isFinite(n.lon)) continue;
+        addCapture(captures, skipped, held, refresh, {
+          key: captureKey(input.projectId, 'cad_adjoiner_lines', pid),
+          kind: 'cad_adjoiner_lines',
+          source: 'cad_gis',
+          label: `Adjoiner parcel lines — ${n.label} (${pid})`,
+          purpose:
+            'The adjoining tract\'s lot lines alone, with each side\'s length in feet from the ' +
+            'parcel-layer geometry — a GIS boundary sketch of the neighbour, not a recorded plat.',
+          ocr: false,
+          parcelLayerUrl: layer,
+          parcelId: pid,
+          centre: { lat: n.lat, lon: n.lon },
+        });
+      }
+    } else if (!input.captureAdjoinerLines) {
+      skipped.push({
+        kind: 'cad_adjoiner_lines',
+        reason: 'Adjoiner parcel-line drawings were not requested for this run (GIS-only, opt-in). The subject parcel lines are always drawn; the neighbours are on request.',
       });
     }
   }

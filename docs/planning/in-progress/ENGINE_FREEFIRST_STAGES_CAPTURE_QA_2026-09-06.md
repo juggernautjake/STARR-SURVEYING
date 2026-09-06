@@ -206,21 +206,34 @@ Unit-test the emitted payload against a known ring.
 
 ## PHASE 4 — C: surrounding-parcel boundary captures (GIS-only)
 
-### 4.1 — Per-adjoiner lines-only capture
+### 4.1 — Per-adjoiner lines-only capture ✅ BUILT + TESTED
 Read `capture-plan.ts` §3 (neighbour planning) + `gis-scraper.ts::findAdjacentParcels` (each adjoiner
 already carries its rings). Add a `cad_parcel_lines`-style capture per adjoiner (boundary + bearings,
 `basemap:'none'`), labelled "Adjoiner parcel lines — <owner/id> (<direction>)".
 
-### 4.2 — Structured segments per adjoiner
+### 4.2 — Structured segments per adjoiner ✅ BUILT + TESTED
 Emit the Phase-3 `{ segments, perimeterFt, areaAc }` payload for each adjoiner, keyed to the adjoiner
 register (`research_adjoiners`).
 
-### 4.3 — Cap + toggle
+### 4.3 — Cap + toggle ✅ BUILT + TESTED
 Respect `MAX_NEIGHBOUR_CAPTURES` (or a dedicated cap) and a checklist toggle. GIS-only; no adjoiner deed
 purchasing.
 
-### 4.4 — Tests
+### 4.4 — Tests ✅ BUILT + TESTED
 Unit-test the per-adjoiner capture planning.
+
+**Built (4.1–4.4):** new `cad_adjoiner_lines` capture kind. In `capture-plan.ts` §3b, when
+`captureAdjoinerLines` is on (sourced from `gatherSelections.adjoiners.enabled` — OFF by default,
+honouring the owner's adjoiner deferral) and a parcel layer exists, the plan adds a lines-only
+`cad_adjoiner_lines` capture per adjoiner that has a `parcelId` (up to `MAX_NEIGHBOUR_CAPTURES`),
+labelled "Adjoiner parcel lines — <owner> (<id>)"; records a skip with the reason when off. The
+neighbour input now carries `parcelId`. `capture-runner.ts` files it under `gis_map`. In `index.ts`
+the render matches the adjoiner in the layer (`renderParcelMap`, `basemap:'none'`) and persists ITS
+segments/perimeter/area to `analysis_metadata.adjoinerBoundaries` keyed by parcelId — NOT the
+subject's `boundarySegments`. GIS-only throughout; never a deed purchase. **Tested:** worker tsc +
+lint clean; +6 adjoiner tests in `capture-plan.test.ts` (41); repointed the fragile `capture-is-wired`
+cad_gis-OCR anchor to the map's label (adjoiner lines now share `source: 'cad_gis'`); full worker
+suite 2791 green.
 
 ---
 

@@ -118,10 +118,11 @@ describe('a capture is filed like any other document', () => {
 describe('OCR', () => {
   it('is requested for the CAD GIS map, whose whole value is its text', () => {
     const plan = readFileSync(join(__dirname, '..', 'research', 'capture-plan.ts'), 'utf8');
-    // Anchored on `source:`, not `kind:`. The first `kind: 'cad_gis'` in that file belongs to the
-    // SKIP branch, so the probe was reading the wrong block — the behaviour was never wrong, and
-    // capture-plan.test.ts asserts it directly.
-    const at = plan.indexOf("source: 'cad_gis'");
+    // Anchored on the MAP capture's own label — not the first `source: 'cad_gis'`, which since plan
+    // 4.1 also matches the adjoiner-lines capture (source cad_gis, ocr false) that appears earlier in
+    // the file. The cad_gis MAP is the block whose whole value is its text, so it is the one that
+    // must request OCR; capture-plan.test.ts asserts the behaviour directly.
+    const at = plan.indexOf('label: `County GIS map —');
     expect(at).toBeGreaterThan(-1);
     expect(plan.slice(at, at + 1200)).toContain('ocr: true');
   });

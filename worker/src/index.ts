@@ -4738,6 +4738,44 @@ async function runCapturePlan(
           return null;
         }
       }
+      // ── AN ADJOINER'S PARCEL LINES (plan C/4.1) — GIS-only, opt-in ──────────────────────────────
+      //
+      // The neighbour's boundary drawn from the layer, same render as the subject's lines, matched on
+      // the ADJOINER's parcelId so its segments (4.2) are emitted — persisted to a per-adjoiner map,
+      // NOT `boundarySegments` (that is the subject's alone). Never buys a deed; this is free GIS.
+      if (item.kind === 'cad_adjoiner_lines') {
+        if (!item.parcelLayerUrl || !item.centre || !item.parcelId) return null;
+        try {
+          const { renderParcelMap } = await import('./research/parcel-map-render.js');
+          const map = await renderParcelMap({
+            county, parcelId: item.parcelId, centre: item.centre, acreage: item.acreage ?? null,
+            parcelLayerUrl: item.parcelLayerUrl, basemap: 'none', edgeLengths: true, title: item.label,
+          });
+          capLog('info', `${item.label}: drawn — subject ${map.subjectFound ? 'matched' : 'NOT matched'}`);
+          if (map.subjectGeometry) {
+            try {
+              const sb = await getSupabase();
+              if (sb) {
+                const { data: existing } = await (sb as any)
+                  .from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+                const meta = (existing?.analysis_metadata as Record<string, unknown>) ?? {};
+                const adjoiners = { ...((meta.adjoinerBoundaries as Record<string, unknown>) ?? {}) };
+                adjoiners[item.parcelId] = { label: item.label, ...map.subjectGeometry };
+                await (sb as any).from('research_projects')
+                  .update({ analysis_metadata: { ...meta, adjoinerBoundaries: adjoiners, adjoinerBoundariesAt: new Date().toISOString() } })
+                  .eq('id', projectId);
+                capLog('info', `${item.label}: emitted ${map.subjectGeometry.segments.length} boundary segment(s) (GIS-computed).`);
+              }
+            } catch (e) {
+              capLog('warn', `${item.label}: could not persist the adjoiner boundary — ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+          return { bytes: map.png, width: map.width, height: map.height, text: map.text, sourceUrl: map.sources.parcelQueryUrl, metresPerPixel: map.metresPerPixel };
+        } catch (e) {
+          capLog('warn', `${item.label}: could not be drawn (${String(e)})`);
+          return null;
+        }
+      }
       // ── THE AERIALS ARE RENDERED TOO ──────────────────────────────────────────────────────
       //
       // This project holds two captured images after four runs, both the GIS map: not one
@@ -4913,6 +4951,7 @@ function capturePlanInputFromIdentified(
     neighbours: p.neighbours,
     obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
     refreshImagery: (activePipelines.get(projectId)?.settings as { refreshImagery?: boolean } | undefined)?.refreshImagery === true,
+    captureAdjoinerLines: (activePipelines.get(projectId)?.settings as { gatherSelections?: { adjoiners?: { enabled?: boolean } } } | undefined)?.gatherSelections?.adjoiners?.enabled === true,
   };
 }
 
@@ -4968,6 +5007,7 @@ function capturePlanInputFor(
     .map((a) => ({
       label: String(a.ownerName ?? a.situsAddress ?? a.propertyId ?? 'adjoiner'),
       lat: Number(a.lat), lon: Number(a.lon),
+      parcelId: a.propertyId != null ? String(a.propertyId) : null,
     }))
     .filter((n) => Number.isFinite(n.lat) && Number.isFinite(n.lon));
 
@@ -4988,6 +5028,9 @@ function capturePlanInputFor(
     // words rather than implying the county has no oblique coverage.
     obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
     refreshImagery: (activePipelines.get(projectId)?.settings as { refreshImagery?: boolean } | undefined)?.refreshImagery === true,
+    // Plan 4.3 — draw each adjoiner's parcel lines only when the run turned adjoiners on (GIS-only,
+    // opt-in). Off for the default subject-only run, honouring the owner's deferral of adjoiner work.
+    captureAdjoinerLines: (activePipelines.get(projectId)?.settings as { gatherSelections?: { adjoiners?: { enabled?: boolean } } } | undefined)?.gatherSelections?.adjoiners?.enabled === true,
   };
 }
 

@@ -102,6 +102,62 @@ describe('the surrounding properties — the half that was missing entirely', ()
   });
 });
 
+describe('adjoiner parcel LINES — GIS-only, opt-in (plan C/4.1–4.3)', () => {
+  const layer = 'https://gis.bisclient.com/bellcad/rest/services/parcels/FeatureServer/0';
+  const withAdjoiners: CapturePlanInput = {
+    ...base,
+    parcelLayerUrl: layer,
+    neighbours: [
+      { label: 'North adjoiner', lat: 31.058, lon: -97.4642, parcelId: '111111' },
+      { label: 'South adjoiner', lat: 31.055, lon: -97.4642, parcelId: '222222' },
+    ],
+  };
+
+  it('draws each adjoiner\'s lines ONLY when the run turned adjoiners on', () => {
+    const off = planCaptures(withAdjoiners); // captureAdjoinerLines undefined → off
+    expect(kinds(off)).not.toContain('cad_adjoiner_lines');
+    // ...and it says why, rather than silently drawing nothing.
+    expect(skipKinds(off)).toContain('cad_adjoiner_lines');
+
+    const on = planCaptures({ ...withAdjoiners, captureAdjoinerLines: true });
+    expect(on.captures.filter((c) => c.kind === 'cad_adjoiner_lines')).toHaveLength(2);
+  });
+
+  it('matches each capture to the adjoiner\'s OWN parcel id, so its segments can be emitted', () => {
+    const on = planCaptures({ ...withAdjoiners, captureAdjoinerLines: true });
+    const ids = on.captures.filter((c) => c.kind === 'cad_adjoiner_lines').map((c) => c.parcelId).sort();
+    expect(ids).toEqual(['111111', '222222']);
+  });
+
+  it('is GIS-only — a lines drawing on a plain ground, never a deed purchase (no url, no ocr)', () => {
+    const on = planCaptures({ ...withAdjoiners, captureAdjoinerLines: true });
+    for (const c of on.captures.filter((x) => x.kind === 'cad_adjoiner_lines')) {
+      expect(c.ocr).toBe(false);
+      expect(c.parcelLayerUrl).toBe(layer);
+      expect(c.url).toBeUndefined();
+    }
+  });
+
+  it('skips an adjoiner whose parcel id is unknown (nothing to match in the layer)', () => {
+    const on = planCaptures({
+      ...withAdjoiners, captureAdjoinerLines: true,
+      neighbours: [
+        { label: 'Known', lat: 31.058, lon: -97.4642, parcelId: '111111' },
+        { label: 'No id', lat: 31.055, lon: -97.4642 },
+      ],
+    });
+    expect(on.captures.filter((c) => c.kind === 'cad_adjoiner_lines')).toHaveLength(1);
+  });
+
+  it('respects the neighbour cap', () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({
+      label: `Adjoiner ${i}`, lat: 31.05 + i / 1000, lon: -97.46, parcelId: `90000${i}`,
+    }));
+    const on = planCaptures({ ...withAdjoiners, captureAdjoinerLines: true, neighbours: many });
+    expect(on.captures.filter((c) => c.kind === 'cad_adjoiner_lines')).toHaveLength(MAX_NEIGHBOUR_CAPTURES);
+  });
+});
+
 describe('the county CAD GIS map', () => {
   it('is captured from the county gisBaseUrl, not from a Bell-only constant', () => {
     const p = planCaptures({ ...base, county: 'Coryell', gisBaseUrl: 'https://gis.bisclient.com/coryellcad/' });
