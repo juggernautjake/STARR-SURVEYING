@@ -190,16 +190,16 @@ rendered split is folded into Phase 6 (F).
 
 ## PHASE 3 — B2: emit the parcel boundary segments as STRUCTURED data
 
-### 3.1 — Emit subject-parcel segments from the capture
+### 3.1 — Emit subject-parcel segments from the capture ✅ BUILT + TESTED
 In the `cad_parcel_lines` render path (`worker/src/index.ts` `runCapturePlan` + `parcel-map-render.ts`),
 compute `parcelSegments(ring)` (bearing, azimuth, length) for the subject and attach a
 `{ segments[], perimeterFt, areaAc }` payload to the run result / `analysis_metadata` (not only baked
 into the PNG).
 
-### 3.2 — Surface the segments
+### 3.2 — Surface the segments ✅ BUILT + TESTED
 Show the segment table (bearing · length per side, GIS-computed) in Review beside the parcel drawing.
 
-### 3.3 — Tests
+### 3.3 — Tests ✅ BUILT + TESTED
 Unit-test the emitted payload against a known ring.
 
 ---

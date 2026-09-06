@@ -25,7 +25,7 @@
 // imagery is requested in 3857 for a 3857 bbox, so a pixel is a linear function of x/y and the
 // overlay cannot drift against the photo.
 
-import { segmentLengthFt, segmentAzimuthDeg, azimuthToBearing } from './parcel-geometry.js';
+import { segmentLengthFt, segmentAzimuthDeg, azimuthToBearing, parcelBoundary, type ParcelBoundary } from './parcel-geometry.js';
 
 export interface LonLat { lat: number; lon: number }
 
@@ -77,6 +77,10 @@ export interface RenderParcelMapResult {
   subjectFound: boolean;
   parcelCount: number;
   sources: { parcelQueryUrl: string; basemapUrl: string };
+  /** Plan B2 — the subject parcel's boundary as STRUCTURED data (GIS-computed bearing + length per
+   *  side, perimeter, area), not only baked into the PNG. null when the subject polygon was not
+   *  matched in the layer. */
+  subjectGeometry: ParcelBoundary | null;
 }
 
 // ── Projection ──────────────────────────────────────────────────────────────────────────────────
@@ -531,5 +535,10 @@ export async function renderParcelMap(input: RenderParcelMapInput): Promise<Rend
     subjectFound: Boolean(subject),
     parcelCount: parcels.length,
     sources,
+    // B2 — emit the subject's segments/perimeter/area as data. The outer ring is first; a parcel with
+    // no matched polygon (centred on run coordinates) has no geometry to emit.
+    subjectGeometry: subject && subject.rings[0] && subject.rings[0].length >= 3
+      ? parcelBoundary(subject.rings[0] as Array<[number, number]>)
+      : null,
   };
 }

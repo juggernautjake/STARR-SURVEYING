@@ -5,6 +5,8 @@ import {
   azimuthToBearing,
   parcelSegments,
   perimeterFt,
+  ringAreaAcres,
+  parcelBoundary,
 } from '../research/parcel-geometry.js';
 
 // Plan B — the parcel-lines drawing labels each side with its GIS-computed BEARING and length. These
@@ -64,5 +66,47 @@ describe('parcelSegments + perimeterFt', () => {
     expect(segs[0].bearing).toBe('N90°00′E'); // east side
     expect(segs.every((s) => s.lengthFt > 200)).toBe(true);
     expect(perimeterFt(ring)).toBeCloseTo(segs.reduce((n, s) => n + s.lengthFt, 0), 6);
+  });
+});
+
+describe('ringAreaAcres (plan B2)', () => {
+  // The same ~0.001° square near Temple, TX. Hand computation:
+  //   lat side ≈ 0.001° × 111,320 m/° ≈ 111.3 m ≈ 365 ft
+  //   lon side ≈ 365 ft × cos(31.1°) ≈ 312 ft
+  //   area ≈ 365 × 312 ≈ 114,000 sq ft ≈ 2.6 acres
+  const square: Array<[number, number]> = [
+    [-97.400, 31.100], [-97.399, 31.100], [-97.399, 31.101], [-97.400, 31.101], [-97.400, 31.100],
+  ];
+
+  it('gives the hand-computed acreage of the square', () => {
+    expect(ringAreaAcres(square)).toBeGreaterThan(2.4);
+    expect(ringAreaAcres(square)).toBeLessThan(2.8);
+  });
+
+  it('drops a duplicated closing vertex rather than counting it twice', () => {
+    const open = square.slice(0, -1); // no closing vertex
+    expect(ringAreaAcres(open)).toBeCloseTo(ringAreaAcres(square), 6);
+  });
+
+  it('a degenerate ring (< 3 vertices) has zero area, not a crash', () => {
+    expect(ringAreaAcres([[-97.4, 31.1], [-97.399, 31.1]])).toBe(0);
+    expect(ringAreaAcres([])).toBe(0);
+  });
+
+  it('winding direction does not flip the sign — area is absolute', () => {
+    const reversed = [...square].reverse() as Array<[number, number]>;
+    expect(ringAreaAcres(reversed)).toBeCloseTo(ringAreaAcres(square), 6);
+  });
+});
+
+describe('parcelBoundary (plan B2) — the whole emitted payload', () => {
+  it('bundles segments + perimeter + area, each consistent with its own helper', () => {
+    const ring: Array<[number, number]> = [
+      [-97.400, 31.100], [-97.399, 31.100], [-97.399, 31.101], [-97.400, 31.101], [-97.400, 31.100],
+    ];
+    const b = parcelBoundary(ring);
+    expect(b.segments).toEqual(parcelSegments(ring));
+    expect(b.perimeterFt).toBeCloseTo(perimeterFt(ring), 6);
+    expect(b.areaAc).toBeCloseTo(ringAreaAcres(ring), 6);
   });
 });

@@ -4714,6 +4714,24 @@ async function runCapturePlan(
             parcelLayerUrl: item.parcelLayerUrl, basemap: 'none', edgeLengths: true, title: item.label,
           });
           capLog('info', `${item.label}: drawn from the parcel layer — ${map.parcelCount} parcel(s), subject ${map.subjectFound ? 'matched' : 'NOT matched'}`);
+          // B2 — persist the subject's boundary as STRUCTURED data (bearing + length per side,
+          // perimeter, area), not only baked into the PNG, so Review can show a segment table.
+          if (map.subjectGeometry) {
+            try {
+              const sb = await getSupabase();
+              if (sb) {
+                const { data: existing } = await (sb as any)
+                  .from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+                const meta = (existing?.analysis_metadata as Record<string, unknown>) ?? {};
+                await (sb as any).from('research_projects')
+                  .update({ analysis_metadata: { ...meta, boundarySegments: map.subjectGeometry, boundarySegmentsAt: new Date().toISOString() } })
+                  .eq('id', projectId);
+                capLog('info', `${item.label}: emitted ${map.subjectGeometry.segments.length} boundary segment(s), perimeter ${map.subjectGeometry.perimeterFt.toFixed(0)}′, ${map.subjectGeometry.areaAc.toFixed(2)} ac (GIS-computed).`);
+              }
+            } catch (e) {
+              capLog('warn', `${item.label}: could not persist the boundary segments — ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
           return { bytes: map.png, width: map.width, height: map.height, text: map.text, sourceUrl: map.sources.parcelQueryUrl, metresPerPixel: map.metresPerPixel };
         } catch (e) {
           capLog('warn', `${item.label}: could not be drawn (${String(e)})`);

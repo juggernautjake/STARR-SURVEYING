@@ -88,3 +88,49 @@ export function parcelSegments(ring: Array<[number, number]>): ParcelSegment[] {
 export function perimeterFt(ring: Array<[number, number]>): number {
   return parcelSegments(ring).reduce((sum, s) => sum + s.lengthFt, 0);
 }
+
+const SQ_M_PER_ACRE = 4046.8564224;
+
+/**
+ * Ring area in acres via the shoelace formula in a local east-north metre frame anchored at the
+ * ring's mean latitude (the same cos(lat) east-correction the length math uses). Accurate to well
+ * within a percent at a single parcel's extent — a boundary sketch figure, not a survey plat area,
+ * so callers label it "GIS-computed". Returns 0 for a degenerate ring (< 3 distinct vertices).
+ */
+export function ringAreaAcres(ring: Array<[number, number]>): number {
+  if (ring.length < 3) return 0;
+  // Drop a duplicated closing vertex so it is not counted twice.
+  const pts = ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+    ? ring.slice(0, -1)
+    : ring;
+  if (pts.length < 3) return 0;
+  const lat0 = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const cosLat = Math.cos((lat0 * Math.PI) / 180);
+  const toXY = (p: [number, number]): [number, number] => [
+    ((p[0] * Math.PI) / 180) * EARTH_R_M * cosLat,
+    ((p[1] * Math.PI) / 180) * EARTH_R_M,
+  ];
+  let twiceArea = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = toXY(pts[i]);
+    const [x2, y2] = toXY(pts[(i + 1) % pts.length]);
+    twiceArea += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(twiceArea / 2) / SQ_M_PER_ACRE;
+}
+
+/** The subject parcel's boundary as structured, GIS-computed data (plan B2). */
+export interface ParcelBoundary {
+  segments: ParcelSegment[];
+  perimeterFt: number;
+  areaAc: number;
+}
+
+/** Compute the full boundary payload (segments + perimeter + area) for one ring. */
+export function parcelBoundary(ring: Array<[number, number]>): ParcelBoundary {
+  return {
+    segments: parcelSegments(ring),
+    perimeterFt: perimeterFt(ring),
+    areaAc: ringAreaAcres(ring),
+  };
+}

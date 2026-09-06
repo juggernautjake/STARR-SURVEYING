@@ -36,6 +36,8 @@ import GisQualityCard from './_sections/GisQualityCard';
 import { gisQualityOf } from './_sections/gis-quality-data';
 import SourceComparisonCard from './_sections/SourceComparisonCard';
 import { sourceComparisonOf } from './_sections/source-comparison-data';
+import ParcelBoundaryCard from './_sections/ParcelBoundaryCard';
+import { parcelBoundaryOf } from './_sections/parcel-boundary-data';
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
@@ -2832,6 +2834,7 @@ export default function ResearchProjectPage() {
               {/* ── Tab: Artifacts — Screenshots, page images, plat images ── */}
               {reviewTab === 'artifacts' && (
                 <>
+                  <ParcelBoundaryCard report={parcelBoundaryOf(project)} />
                   <SourceComparisonCard report={sourceComparisonOf(project)} />
                   <GisQualityCard report={gisQualityOf(project)} />
                   <ArtifactGallery projectId={projectId} />

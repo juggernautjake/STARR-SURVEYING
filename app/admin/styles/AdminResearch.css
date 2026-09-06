@@ -12871,6 +12871,59 @@
   color: var(--theme-fg-secondary, #4B5563);
 }
 
+/* ── Parcel Boundary table (plan 3.2 / B2) — GIS-computed bearings + lengths ─────────────────── */
+.parcel-boundary {
+  margin-bottom: 1.5rem;
+}
+
+.parcel-boundary__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.parcel-boundary__summary {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.parcel-boundary__table-wrap {
+  overflow-x: auto;
+}
+
+.parcel-boundary__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.parcel-boundary__table th,
+.parcel-boundary__table td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-border, #E2E8F0);
+}
+
+.parcel-boundary__table th {
+  color: var(--theme-fg-secondary, #4B5563);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.72rem;
+}
+
+.parcel-boundary__bearing {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.parcel-boundary__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-primary, #111827);
+}
+
 .research-prefill-note {
   margin-top: 0.375rem;
   padding: 0.5rem 0.625rem;
