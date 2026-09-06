@@ -141,19 +141,19 @@ budget/time stops the loop and says why; the loop terminates (no infinite chain)
 
 ## PHASE 4C — Boundary map legibility + a boundary CALL SHEET document
 
-### 4C.1 — Make the parcel-lines labels legible
+### 4C.1 — Make the parcel-lines labels legible ✅ BUILT + TESTED
 In `worker/src/research/parcel-map-render.ts` (`renderOverlaySvg` edge-length labels): stop labels
 overlapping on short/curved sides — e.g. suppress labels on segments too short to fit, keep a minimum gap
 between adjacent labels, and/or scale the font to the segment length. The straight sides already read; the
 fix is the dense curved road frontage in the owner's screenshot.
 
-### 4C.2 — Emit a boundary CALL SHEET document
+### 4C.2 — Emit a boundary CALL SHEET document ✅ BUILT + TESTED
 From the `boundarySegments` data (already computed in the `cad_parcel_lines` render — bearing + length per
 side, perimeter, area), render a clean, filed **document** (a drawn call-sheet image or a text/PDF) listing
 Side # · Bearing · Distance for every side, plus perimeter + area, labelled "GIS-computed, not a recorded
 plat". File it as a run document so it shows in the documents list + the shared viewer.
 
-### 4C.3 — Tests
+### 4C.3 — Tests ✅ BUILT + TESTED
 The call sheet is produced from the segments and filed as a document; the map render suppresses overlapping
 labels on short segments.
 

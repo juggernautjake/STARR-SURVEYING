@@ -80,6 +80,9 @@ export type CaptureKind =
    *  — the neighbour's boundary + bearings, never a deed purchase. Behind a toggle + the neighbour
    *  cap; the owner deferred adjoiner DEED research, not the free GIS boundary sketch. */
   | 'cad_adjoiner_lines'
+  /** The subject parcel's boundary CALLS as a clean table document (plan 4C.2) — Side · Bearing · Length,
+   *  perimeter + area — so every side reads legibly even where the map dropped overlapping labels. */
+  | 'boundary_call_sheet'
   /** The county appraisal district's own GIS viewer, showing the parcel as the county draws it. */
   | 'cad_gis'
   /** A recorded plat, survey or CAD drawing published by the county. */
@@ -352,6 +355,27 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
   if (gis.capture) captures.push(gis.capture); else if (gis.skip) skipped.push(gis.skip);
   const lines = planCadParcelLines(input, held, refresh);
   if (lines.capture) captures.push(lines.capture); else if (lines.skip) skipped.push(lines.skip);
+  // Plan 4C.2 — the boundary CALL SHEET, drawn when the parcel lines are (same layer + centre + id). It
+  // is rendered from the same GIS geometry and files the calls as a legible table document.
+  if (lines.capture) {
+    const csKey = captureKey(input.projectId, 'boundary_call_sheet', input.parcelId ?? input.county);
+    if (held.has(csKey) && !refresh) {
+      skipped.push({ kind: 'boundary_call_sheet', reason: 'The project library already holds this parcel\'s boundary call sheet and the run was not asked to re-capture.' });
+    } else {
+      captures.push({
+        key: csKey,
+        kind: 'boundary_call_sheet',
+        source: 'cad_gis',
+        label: `Boundary call sheet — ${input.county} CAD (GIS-computed)`,
+        purpose: 'Every side\'s bearing + ground length as a clean table, so the calls read legibly even where the map dropped overlapping labels on a curved frontage. GIS-computed, not a recorded plat.',
+        ocr: false,
+        parcelLayerUrl: lines.capture.parcelLayerUrl,
+        parcelId: lines.capture.parcelId,
+        acreage: lines.capture.acreage,
+        centre: lines.capture.centre,
+      });
+    }
+  }
 
   // ── 3. The neighbours ────────────────────────────────────────────────────────────────────────
   const neighbours = input.neighbours ?? [];

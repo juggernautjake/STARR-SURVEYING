@@ -291,6 +291,7 @@ function documentTypeFor(kind: PlannedCaptureItem['kind']): string {
     case 'cad_gis': return 'gis_map';
     case 'cad_parcel_lines': return 'gis_map';
     case 'cad_adjoiner_lines': return 'gis_map';
+    case 'boundary_call_sheet': return 'survey';
     case 'drawing': return 'drawing';
     case 'streetview': return 'street_view';
     case 'oblique': return 'oblique_aerial';

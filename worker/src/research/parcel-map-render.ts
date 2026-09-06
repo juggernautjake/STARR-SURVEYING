@@ -87,6 +87,56 @@ export interface RenderParcelMapResult {
 
 const R = 6378137;
 
+/** XML-escape for SVG text. */
+function escSvg(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
+/**
+ * Plan 4C.2 — the boundary CALL SHEET. Renders the subject parcel's GIS-computed calls (Side · Bearing ·
+ * Length, plus perimeter + area) as a clean, filed DOCUMENT, so every side reads legibly even when the map
+ * had to drop overlapping labels on a curved frontage. Labelled "GIS-computed, not a recorded plat" — these
+ * are parcel-fabric geometry, not record calls. Returns a PNG; the same segment data as the map + the
+ * `boundarySegments` metadata, so they can never disagree.
+ */
+export async function renderBoundaryCallSheet(boundary: ParcelBoundary, title: string): Promise<{ png: Buffer; width: number; height: number }> {
+  const { default: sharp } = await import('sharp');
+  const rows = boundary.segments;
+  const W = 1100;
+  const padTop = 150, rowH = 46, padBottom = 120;
+  const H = padTop + rows.length * rowH + padBottom;
+  const ink = '#1B1E22', sub = '#5A5F66', line = '#D8D2C5', head = '#7A1F00', band = '#F6F1EA';
+  const F = 'font-family="Arial, Helvetica, sans-serif"';
+  const parts: string[] = [];
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`);
+  parts.push(`<rect width="${W}" height="${H}" fill="#FFFDF9"/>`);
+  parts.push(`<text x="40" y="56" ${F} font-size="30" font-weight="700" fill="${ink}">${escSvg(title)}</text>`);
+  parts.push(`<text x="40" y="88" ${F} font-size="18" fill="${sub}">Boundary calls — GIS-computed from the county parcel-fabric geometry, NOT a recorded plat.</text>`);
+  parts.push(`<text x="40" y="118" ${F} font-size="19" font-weight="700" fill="${ink}">${rows.length} sides · perimeter ${boundary.perimeterFt.toFixed(0)}′ · area ${boundary.areaAc.toFixed(2)} ac</text>`);
+  // Header row
+  const cx = { side: 60, bearing: 200, len: 620, az: 880 };
+  parts.push(`<text x="${cx.side}" y="${padTop - 12}" ${F} font-size="15" font-weight="700" fill="${head}">SIDE</text>`);
+  parts.push(`<text x="${cx.bearing}" y="${padTop - 12}" ${F} font-size="15" font-weight="700" fill="${head}">BEARING</text>`);
+  parts.push(`<text x="${cx.len}" y="${padTop - 12}" ${F} font-size="15" font-weight="700" fill="${head}">LENGTH (FT)</text>`);
+  parts.push(`<text x="${cx.az}" y="${padTop - 12}" ${F} font-size="15" font-weight="700" fill="${head}">AZIMUTH</text>`);
+  parts.push(`<line x1="40" y1="${padTop - 4}" x2="${W - 40}" y2="${padTop - 4}" stroke="${line}" stroke-width="2"/>`);
+  rows.forEach((s, i) => {
+    const y = padTop + i * rowH;
+    if (i % 2 === 1) parts.push(`<rect x="40" y="${y}" width="${W - 80}" height="${rowH}" fill="${band}"/>`);
+    const ty = y + rowH * 0.62;
+    parts.push(`<text x="${cx.side}" y="${ty}" ${F} font-size="20" font-weight="700" fill="${ink}">${i + 1}</text>`);
+    parts.push(`<text x="${cx.bearing}" y="${ty}" font-family="Consolas, monospace" font-size="20" fill="${ink}">${escSvg(s.bearing)}</text>`);
+    parts.push(`<text x="${cx.len + 90}" y="${ty}" ${F} font-size="20" fill="${ink}" text-anchor="end">${s.lengthFt.toFixed(1)}</text>`);
+    parts.push(`<text x="${cx.az}" y="${ty}" ${F} font-size="20" fill="${sub}">${s.azimuthDeg.toFixed(1)}°</text>`);
+  });
+  const fy = padTop + rows.length * rowH + 44;
+  parts.push(`<line x1="40" y1="${fy - 30}" x2="${W - 40}" y2="${fy - 30}" stroke="${line}" stroke-width="2"/>`);
+  parts.push(`<text x="40" y="${fy}" ${F} font-size="16" fill="${sub}">Perimeter ${boundary.perimeterFt.toFixed(1)}′ · Area ${boundary.areaAc.toFixed(3)} ac (${(boundary.areaAc * 43560).toFixed(0)} sq ft). Bearings quadrant, azimuth clockwise from north.</text>`);
+  parts.push('</svg>');
+  const png = await sharp(Buffer.from(parts.join(''))).png().toBuffer();
+  return { png, width: W, height: H };
+}
+
 export function toMercator(p: LonLat): { x: number; y: number } {
   const x = (R * p.lon * Math.PI) / 180;
   const lat = Math.max(-85.05112878, Math.min(85.05112878, p.lat));
@@ -385,15 +435,29 @@ export function renderOverlaySvg(
         // Each side's GIS-computed BEARING and ground length in feet, set along the side at its
         // midpoint. Bearing + length come from the one geometry helper (plan B) so the drawing and
         // the structured segment data can never disagree.
+        //
+        // Plan 4C.1 — legibility. A curved road frontage is approximated by many short segments whose
+        // midpoint labels stack into an unreadable smear (owner screenshot, 2026-09-06). Two guards:
+        //   1) skip a side too SHORT in PIXELS to hold its label (it cannot be read at any font); and
+        //   2) skip a label whose midpoint collides with one already placed.
+        // Every dropped side's bearing + length still appears in the boundary CALL SHEET (4C.2), so
+        // no information is lost — the map just stops trying to letter a 6-pixel arc.
+        const placed: Array<{ x: number; y: number }> = [];
+        const minLabelPx = font * 4.5;   // a "N00°00′W · 000.0′" label needs about this much room
+        const minGapPx = font * 1.6;     // keep adjacent labels at least this far apart
         for (let i = 0; i + 1 < ring.length; i++) {
           const aPt: [number, number] = [ring[i][0], ring[i][1]];
           const bPt: [number, number] = [ring[i + 1][0], ring[i + 1][1]];
           const feet = segmentLengthFt(aPt, bPt);
           if (feet < 5) continue;
-          const bearing = azimuthToBearing(segmentAzimuthDeg(aPt, bPt));
           const p1 = toPixel(f, ring[i][0], ring[i][1]);
           const p2 = toPixel(f, ring[i + 1][0], ring[i + 1][1]);
+          const segPx = Math.hypot(p2.px - p1.px, p2.py - p1.py);
+          if (segPx < minLabelPx) continue; // too short on screen to letter legibly
           const mx = (p1.px + p2.px) / 2, my = (p1.py + p2.py) / 2;
+          if (placed.some((q) => Math.hypot(q.x - mx, q.y - my) < minGapPx)) continue; // would overlap a placed label
+          placed.push({ x: mx, y: my });
+          const bearing = azimuthToBearing(segmentAzimuthDeg(aPt, bPt));
           let angle = (Math.atan2(p2.py - p1.py, p2.px - p1.px) * 180) / Math.PI;
           if (angle > 90 || angle < -90) angle += 180; // keep the text upright
           parts.push(`<text x="${mx.toFixed(1)}" y="${(my - font * 0.35).toFixed(1)}" transform="rotate(${angle.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})" font-family="Arial, Helvetica, sans-serif" font-size="${font * 0.9}" font-weight="700" fill="${linesOnly ? '#7A1F00' : '#FFE3C2'}" text-anchor="middle" filter="url(#halo)">${bearing} · ${feet.toFixed(1)}′</text>`);

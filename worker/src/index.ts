@@ -4776,6 +4776,34 @@ async function runCapturePlan(
           return null;
         }
       }
+      // ── THE BOUNDARY CALL SHEET (plan 4C.2) ────────────────────────────────────────────────────
+      //
+      // Every side's bearing + length as a legible table document, rendered from the SAME GIS geometry
+      // as the parcel-lines drawing — so the calls read even where the map had to drop overlapping
+      // labels on a curved frontage. The text is the calls themselves, so no OCR is needed.
+      if (item.kind === 'boundary_call_sheet') {
+        if (!item.parcelLayerUrl || !item.centre || !item.parcelId) return null;
+        try {
+          const { renderParcelMap, renderBoundaryCallSheet } = await import('./research/parcel-map-render.js');
+          const map = await renderParcelMap({
+            county, parcelId: item.parcelId, centre: item.centre, acreage: item.acreage ?? null,
+            parcelLayerUrl: item.parcelLayerUrl, basemap: 'none', edgeLengths: false, title: item.label,
+          });
+          if (!map.subjectGeometry || map.subjectGeometry.segments.length === 0) {
+            capLog('warn', `${item.label}: no boundary geometry to tabulate (subject not matched).`);
+            return null;
+          }
+          const sheet = await renderBoundaryCallSheet(map.subjectGeometry, `${county} CAD — parcel #${item.parcelId} boundary calls`);
+          const b = map.subjectGeometry;
+          const text = `Boundary calls (GIS-computed, not a recorded plat) — ${b.segments.length} sides, perimeter ${b.perimeterFt.toFixed(1)} ft, area ${b.areaAc.toFixed(3)} ac.\n`
+            + b.segments.map((s, i) => `Side ${i + 1}: ${s.bearing} · ${s.lengthFt.toFixed(1)} ft (az ${s.azimuthDeg.toFixed(1)}°)`).join('\n');
+          capLog('info', `${item.label}: filed a call sheet with ${b.segments.length} sides.`);
+          return { bytes: sheet.png, width: sheet.width, height: sheet.height, text, sourceUrl: map.sources.parcelQueryUrl };
+        } catch (e) {
+          capLog('warn', `${item.label}: could not be drawn (${String(e)})`);
+          return null;
+        }
+      }
       // ── THE AERIALS ARE RENDERED TOO ──────────────────────────────────────────────────────
       //
       // This project holds two captured images after four runs, both the GIS map: not one
