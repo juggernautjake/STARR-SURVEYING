@@ -185,6 +185,14 @@ export function servesCounty(source: ResearchSource, county: string): boolean {
   return source.counties.some((c) => norm(c) === norm(county));
 }
 
+/** Whether a code path in THIS county actually reaches the source (plan S-6c/S-6d). A source with
+ *  `notWiredYet`, or whose `wiredCounties` excludes this county, is known-about but not used by a run
+ *  here. Exported so the acquisition engine and `buildPlan` share one definition of "wired". */
+export function isSourceWired(source: ResearchSource, county: string): boolean {
+  return !source.notWiredYet
+    && (!source.wiredCounties || source.wiredCounties.some((c) => norm(c) === norm(county)));
+}
+
 export interface PlanStep {
   source: ResearchSource;
   /** Order within the run. Free steps always precede paid ones. */
@@ -233,8 +241,7 @@ export function buildPlan(
   // S-6d — "wired" is per county, not per source. A statewide source called from one county's
   // pipeline is wired THERE and nowhere else, and treating it as wired everywhere would re-make
   // S-6b's defect county by county.
-  const isWired = (s: ResearchSource) =>
-    !s.notWiredYet && (!s.wiredCounties || s.wiredCounties.some((c) => c.toLowerCase() === county.trim().toLowerCase()));
+  const isWired = (s: ResearchSource) => isSourceWired(s, county);
 
   const known = catalogue.filter((s) => servesCounty(s, county));
   const notWired = known.filter((s) => !isWired(s));

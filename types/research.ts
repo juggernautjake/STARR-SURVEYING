@@ -17,7 +17,7 @@ export const WORKFLOW_STEPS: { key: WorkflowStep; label: string; number: number 
 // ── 4-Stage Pipeline (user-facing UI) ────────────────────────────────────────
 
 /** The four high-level pipeline stages shown to the user in the stepper UI. */
-export type PipelineStage = 'upload' | 'research' | 'review' | 'jobprep';
+export type PipelineStage = 'upload' | 'research' | 'analysis' | 'review' | 'jobprep';
 
 export interface PipelineStageInfo {
   key: PipelineStage;
@@ -41,14 +41,22 @@ export const PIPELINE_STAGES: PipelineStageInfo[] = [
   {
     key: 'research',
     number: 2,
-    label: 'Research & Analysis',
+    label: 'Research',
     icon: '🔬',
-    description: 'Automated research from 10+ sources and AI data extraction',
+    description: 'Find and download the documents, files and images from every source',
     primaryStep: 'configure',
   },
   {
-    key: 'review',
+    key: 'analysis',
     number: 3,
+    label: 'Analysis',
+    icon: '🧠',
+    description: 'OCR and extract bearings, distances and summaries from every document',
+    primaryStep: 'review',
+  },
+  {
+    key: 'review',
+    number: 4,
     label: 'Review',
     icon: '📋',
     description: 'Review results, summaries, discrepancies, and source links',
@@ -56,7 +64,7 @@ export const PIPELINE_STAGES: PipelineStageInfo[] = [
   },
   {
     key: 'jobprep',
-    number: 4,
+    number: 5,
     label: 'Job Prep',
     icon: '🏗️',
     description: 'AI drawing, field plan, and final printable job document',
@@ -72,6 +80,9 @@ export function workflowStepToStage(step: WorkflowStep): PipelineStage {
     case 'configure':
     case 'analyzing':
       return 'research';
+    // The DB has ONE post-gather state (`review`). In the five-stage model the Analysis and Review
+    // stages both live in it — the project has reached Review, and the Analysis stage sits just
+    // before it and is always openable. (A distinct `analysis` DB status is a later backend slice.)
     case 'review':
       return 'review';
     case 'drawing':

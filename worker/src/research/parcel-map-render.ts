@@ -25,6 +25,8 @@
 // imagery is requested in 3857 for a 3857 bbox, so a pixel is a linear function of x/y and the
 // overlay cannot drift against the photo.
 
+import { segmentLengthFt, segmentAzimuthDeg, azimuthToBearing } from './parcel-geometry.js';
+
 export interface LonLat { lat: number; lon: number }
 
 export interface ParcelFeature {
@@ -376,21 +378,21 @@ export function renderOverlaySvg(
           : `<path d="${d}" fill="none" stroke="${lineColour}" stroke-width="${Math.max(2, S / 900)}" stroke-opacity="0.95" stroke-linejoin="round"/>`,
       );
       if (subject && opts.edgeLengths) {
-        // Each side's ground length in feet, set along the side at its midpoint.
+        // Each side's GIS-computed BEARING and ground length in feet, set along the side at its
+        // midpoint. Bearing + length come from the one geometry helper (plan B) so the drawing and
+        // the structured segment data can never disagree.
         for (let i = 0; i + 1 < ring.length; i++) {
-          const a = toMercator({ lon: ring[i][0], lat: ring[i][1] });
-          const c2 = toMercator({ lon: ring[i + 1][0], lat: ring[i + 1][1] });
-          const midLat = (ring[i][1] + ring[i + 1][1]) / 2;
-          const scale = Math.cos((midLat * Math.PI) / 180); // Mercator lengths are inflated by 1/cos(lat)
-          const metres = Math.hypot(c2.x - a.x, c2.y - a.y) * scale;
-          const feet = metres * 3.28084;
+          const aPt: [number, number] = [ring[i][0], ring[i][1]];
+          const bPt: [number, number] = [ring[i + 1][0], ring[i + 1][1]];
+          const feet = segmentLengthFt(aPt, bPt);
           if (feet < 5) continue;
+          const bearing = azimuthToBearing(segmentAzimuthDeg(aPt, bPt));
           const p1 = toPixel(f, ring[i][0], ring[i][1]);
           const p2 = toPixel(f, ring[i + 1][0], ring[i + 1][1]);
           const mx = (p1.px + p2.px) / 2, my = (p1.py + p2.py) / 2;
           let angle = (Math.atan2(p2.py - p1.py, p2.px - p1.px) * 180) / Math.PI;
           if (angle > 90 || angle < -90) angle += 180; // keep the text upright
-          parts.push(`<text x="${mx.toFixed(1)}" y="${(my - font * 0.35).toFixed(1)}" transform="rotate(${angle.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})" font-family="Arial, Helvetica, sans-serif" font-size="${font * 0.95}" font-weight="700" fill="${linesOnly ? '#7A1F00' : '#FFE3C2'}" text-anchor="middle" filter="url(#halo)">${feet.toFixed(2)}′</text>`);
+          parts.push(`<text x="${mx.toFixed(1)}" y="${(my - font * 0.35).toFixed(1)}" transform="rotate(${angle.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)})" font-family="Arial, Helvetica, sans-serif" font-size="${font * 0.9}" font-weight="700" fill="${linesOnly ? '#7A1F00' : '#FFE3C2'}" text-anchor="middle" filter="url(#halo)">${bearing} · ${feet.toFixed(1)}′</text>`);
         }
       }
     }

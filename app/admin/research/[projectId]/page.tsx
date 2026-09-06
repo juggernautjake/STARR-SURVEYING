@@ -461,8 +461,8 @@ export default function ResearchProjectPage() {
 
     const stepLabels: Record<WorkflowStep, string> = {
       upload: 'Property Information',
-      configure: 'Research & Analysis',
-      analyzing: 'Research & Analysis',
+      configure: 'Research',
+      analyzing: 'Research',
       review: 'Review',
       drawing: 'Job Prep',
       verifying: 'Job Prep',
@@ -1957,7 +1957,7 @@ export default function ResearchProjectPage() {
             2. Raw Log Viewer (standalone, always visible)
             3. Document/Source List (flat expandable cards)
           ════════════════════════════════════════════════════════════ */}
-      {currentStage === 'review' && (
+      {(currentStage === 'analysis' || currentStage === 'review') && (
         <div className="research-review">
           {/* ── Header ── */}
           <div className="research-step-header">
@@ -2002,9 +2002,20 @@ export default function ResearchProjectPage() {
           {/* F2/U — the project's TRUE all-phases spend (gather + analyze) from the usage ledger. */}
           <div style={{ margin: '0 0 1rem' }}><ProjectCostBadge projectId={projectId} /></div>
 
-          {/* E3b — the fixed-price analysis quote: a full-analysis total and a per-file price with an
-              "Analyze this" button, so the operator can analyse everything or one file at a time. */}
-          <AnalysisEstimatePanel projectId={projectId} onStarted={() => loadProject()} />
+          {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a
+              per-file price with "Analyze this") now also carries View + Source ↗ on each row, so the
+              old separate "Documents & Sources" list is folded in. "Analyze everything" is the Run AI
+              Review control above. */}
+          <AnalysisEstimatePanel
+            projectId={projectId}
+            onStarted={() => loadProject()}
+            docs={documents}
+            onView={(doc) => {
+              setViewerDoc(doc);
+              setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+              setViewerHighlight(undefined);
+            }}
+          />
 
           {/* R4 — One place to export results: data (JSON/CSV), printable PDF,
               and a path to the drawing/CAD export in Job Prep. */}
@@ -2913,6 +2924,10 @@ export default function ResearchProjectPage() {
             }
             return (
               <>
+                {/* Plan G8 — the "Documents & Sources" list is now MERGED into the single combined
+                    Analyze · View · Source ↗ list above (AnalysisEstimatePanel). Kept here, disabled,
+                    so its grouping logic is one edit away if a source-grouped view is wanted again. */}
+                {false && (
                 <div className="review-doc-list">
                   <div className="review-doc-list__header">
                     <span className="review-doc-list__title"><FolderOpen size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Documents &amp; Sources</span>
@@ -2959,6 +2974,7 @@ export default function ResearchProjectPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* MISC documents are excluded from display — they are error pages,
                    empty results, auth walls, and other non-useful captures */}

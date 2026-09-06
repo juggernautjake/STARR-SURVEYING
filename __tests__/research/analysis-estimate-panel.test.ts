@@ -32,6 +32,14 @@ describe('the Review stage mounts the panel', () => {
   const page = read('app/admin/research/[projectId]/page.tsx');
   it('imports and renders AnalysisEstimatePanel', () => {
     expect(page).toMatch(/import AnalysisEstimatePanel from '\.\.\/components\/AnalysisEstimatePanel'/);
-    expect(page).toMatch(/<AnalysisEstimatePanel projectId=\{projectId\}/);
+    expect(page).toContain('<AnalysisEstimatePanel');
+    expect(page).toContain('projectId={projectId}');
+  });
+
+  it('feeds the panel the docs + onView so it is ONE combined list (plan G8)', () => {
+    // The Documents & Sources list is merged into the analysis quote list; the panel gets the docs
+    // and an onView so each row can Analyze, View, and open Source.
+    expect(page).toContain('docs={documents}');
+    expect(page).toMatch(/onView=\{\(doc\) =>/);
   });
 });

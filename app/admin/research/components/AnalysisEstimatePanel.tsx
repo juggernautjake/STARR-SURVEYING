@@ -8,6 +8,7 @@
 // exactly what a total or a single-file analysis costs before spending.
 
 import { useEffect, useState, useCallback } from 'react';
+import type { ResearchDocument } from '@/types/research';
 
 interface PerFileQuote {
   documentId: string;
@@ -42,9 +43,15 @@ export interface AnalysisEstimatePanelProps {
   projectId: string;
   /** Called after a per-file analysis is accepted, so the page can refresh/poll. */
   onStarted?: () => void;
+  /** The gathered documents (plan G8) — so each row can also VIEW the file and open its SOURCE,
+   *  merging the old separate "Documents & Sources" list into this one. Keyed by document id. */
+  docs?: ResearchDocument[];
+  /** Open a document in the dedicated viewer (plan G8). */
+  onView?: (doc: ResearchDocument) => void;
 }
 
-export default function AnalysisEstimatePanel({ projectId, onStarted }: AnalysisEstimatePanelProps) {
+export default function AnalysisEstimatePanel({ projectId, onStarted, docs, onView }: AnalysisEstimatePanelProps) {
+  const docById = new Map((docs ?? []).map((d) => [d.id, d]));
   const [est, setEst] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -100,7 +107,7 @@ export default function AnalysisEstimatePanel({ projectId, onStarted }: Analysis
       style={{ border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0 0 1.25rem', background: 'var(--surface-2, #fafafa)' }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: '0.9rem' }}>AI analysis quote</strong>
+        <strong style={{ fontSize: '0.9rem' }}>Documents — analyze, view, or open source</strong>
         <span style={{ fontSize: '0.82rem', opacity: 0.8 }}>
           Full analysis: <strong>{usd(est.total.costUsd)}</strong> for {est.total.pages} page(s) across{' '}
           {est.documentCount} file(s) · {eta(est.total.etaSeconds)} · {usd(est.ratePerPageUsd)}/page
@@ -122,6 +129,35 @@ export default function AnalysisEstimatePanel({ projectId, onStarted }: Analysis
               >
                 {busyId === q.documentId ? 'Starting…' : startedIds.has(q.documentId) ? 'Analyzing' : 'Analyze this'}
               </button>
+              {/* Plan G8 — View + Source on the SAME row, merging the old "Documents & Sources" list. */}
+              {(() => {
+                const doc = docById.get(q.documentId);
+                const viewable = !!(doc && (doc.pages_pdf_url || doc.storage_url));
+                return (
+                  <>
+                    {viewable && onView && (
+                      <button
+                        onClick={() => onView(doc!)}
+                        title="View — page through every page and zoom"
+                        style={{ background: 'none', border: '1px solid #2563EB', color: '#2563EB', borderRadius: 6, padding: '0.3rem 0.65rem', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        View
+                      </button>
+                    )}
+                    {doc?.source_url && (
+                      <a
+                        href={doc.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Open the page this was retrieved from"
+                        style={{ fontSize: '0.78rem', whiteSpace: 'nowrap', color: '#2563EB' }}
+                      >
+                        Source ↗
+                      </a>
+                    )}
+                  </>
+                );
+              })()}
             </li>
           ))}
         </ul>

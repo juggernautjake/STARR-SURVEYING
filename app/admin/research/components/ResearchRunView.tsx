@@ -40,6 +40,8 @@ import { useRunState, type RunDocument, type StartRunInput } from './useRunState
 import RunDiffPanel from './RunDiffPanel';
 import ReportCardPanel from './ReportCardPanel';
 import { mergeLogEntries, type PipelineLogEntry } from './PipelineProgressPanel';
+import SourceDocumentViewer from './SourceDocumentViewer';
+import type { ResearchDocument } from '@/types/research';
 import { frontendLogEntries } from '@/lib/research/frontend-log';
 
 export interface ResearchRunViewProps {
@@ -374,6 +376,9 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
   const [showPrior, setShowPrior] = useState(false);
   const [showDupes, setShowDupes] = useState(false);
   const [unmarking, setUnmarking] = useState<string | null>(null);
+  // Plan E — open the SAME dedicated viewer as Review (multi-page, zoom) in the live run, instead of
+  // a first-page-only new tab. The /documents endpoint select('*')s every field the viewer needs.
+  const [viewerDoc, setViewerDoc] = useState<RunDocument | null>(null);
 
   async function unmark(id: string) {
     setUnmarking(id);
@@ -422,12 +427,23 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
             <FileText size={14} className="rrv__doc-icon" aria-hidden />
             <span className="rrv__doc-label">
               {url ? (
-                <a href={url} target="_blank" rel="noopener noreferrer" className="rrv__doc-link"
-                   title="Open this document — available now, the run does not have to finish">
+                <button
+                  type="button"
+                  className="rrv__doc-link"
+                  onClick={() => setViewerDoc(d)}
+                  title="Open in the viewer — page through every page and zoom, without waiting for the run to finish"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
+                >
                   {label}
-                </a>
+                </button>
               ) : label}
               {d.recording_info && <span className="rrv__doc-rec"> · {d.recording_info}</span>}
+              {d.source_url && (
+                <a href={d.source_url} target="_blank" rel="noopener noreferrer" className="rrv__doc-source"
+                   title="Open the page this was retrieved from" style={{ marginLeft: 6, fontSize: 12 }}>
+                  Source ↗
+                </a>
+              )}
             </span>
             <span className="rrv__doc-meta">
               {/* An honest state, not a dead link. A row exists before its bytes finish
@@ -504,6 +520,18 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
             </ul>
           )}
         </div>
+      )}
+
+      {/* Plan E — the SAME dedicated viewer as Review: page through every page + zoom, in the live
+          run stage, with the file's source URL. The runtime document carries the fields the viewer
+          reads (the /documents endpoint select('*')s them). */}
+      {viewerDoc && (
+        <SourceDocumentViewer
+          document={viewerDoc as unknown as ResearchDocument}
+          pagesPdfUrl={viewerDoc.pages_pdf_url ?? (hasStoredFile(viewerDoc) ? storedFileUrl(viewerDoc) : null)}
+          projectId={projectId}
+          onClose={() => setViewerDoc(null)}
+        />
       )}
     </>
   );

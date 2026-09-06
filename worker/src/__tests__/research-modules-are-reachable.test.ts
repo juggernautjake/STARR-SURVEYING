@@ -107,6 +107,18 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
 
 
+  'worker/src/research/cross-source-acquisition.ts':
+    'Plan A7 — the engine DRIVER: composes discover (A1) → match (A2) → decide (A3) → execute (A4) into one runCrossSourceAcquisition call, keeping the whole A1→A4 chain reachable. Per-source search + capture/buy effects are injected. Built ahead of its final wiring into index.ts onPropertyIdentified (the real Bell-clerk/TexasFile adapters + Bell free-capture/buyDocument), which will call it and remove this entry. Not dead — unit-tested by cross-source-acquisition.test.ts.',
+
+
+  'worker/src/research/live-source-adapters.ts':
+    'Plan A7.2 — pure mappers turning a live TexasFile search result into a ManifestEntry (docType classify, book/vol/page split, $1/page pricing, GUID for the buy). Built ahead of A7.5, which wires makeTexasFileSearch/makeBellClerkSearch into runCrossSourceAcquisition in index.ts and removes this entry. Not dead — unit-tested by live-source-adapters.test.ts.',
+
+
+  'worker/src/research/property-search-inputs.ts':
+    'Plan H1 — main-vs-supplemental property inputs + documentRelevance (property id / address are the main keys; instrument/name/volume-page/cabinet are supplemental, grain of salt, never a reject reason). Built ahead of H3 (thread into the run/DiscoveryTarget) and A7 (relevance filter), which will import it and remove this entry. Not dead — unit-tested by property-search-inputs.test.ts.',
+
+
   // One-time data migration (plan D4): its pure planning logic (planIdentityBackfill) is called by
   // the runner script worker/src/scripts/backfill-identity.mjs and its test, not by the pipeline —
   // a .mjs caller the .ts scanner does not count. Kept as a utility for future identity backfills.
