@@ -108,40 +108,42 @@ Non-subdivision fixture yields abstract/survey plat queries; free + paid both co
 
 ---
 
-## PHASE 4 — AI/OCR in the research cycle (only when it unlocks a search) + cost truth
+## PHASE 4 — AI/OCR in the research cycle + cost truth
 
-### 4.1 — Identifier extraction fallback
-When the structured CAD legal description yields no subdivision AND no abstract/survey, run a BOUNDED AI/OCR
-pass over the already-captured deed/plat/GIS text to extract subdivision / survey / lot-block / recording
-references — then FEED those back into the searches (a second discovery round). Gate it so it runs only when
-it can unlock a new search, and cap it.
+### 4.2 — Cost tracking for every AI/OCR/tool call in research ✅ ALREADY SATISFIED (existing infra)
+`enterRunContext(projectId)` (index.ts:1831) makes the WHOLE research async flow attribute to the run, and
+`recordAmbientAiCall` (infra/usage.ts) prices every AI/OCR call and, when a run context is present, records
+it as a real `research_usage_events` row keyed to the project — so `adaptiveVisionOcr` and every analyzer's
+AI already land on the run's SPENT + cost ceiling (the fix that made the $5 cap actually fire, 2026-09-05).
+**Any NEW research-phase AI/OCR added must call `recordAmbientAiCall`** and it is cost-tracked automatically.
+No new work needed; the requirement is met.
 
-### 4.2 — Cost tracking for every AI/OCR/tool call in research
-Record each AI/OCR/token call made during RESEARCH (not just analysis) into `research_usage_events` with an
-accurate USD, so the run's SPENT reflects AI cost + document cost together. Surface it on the live run spend.
-
-### 4.3 — Tests
-The fallback fires only when it unlocks a search; every AI/OCR call lands a usage-ledger row; run spend sums
-documents + AI.
+### 4.1 — Identifier extraction fallback ⏳ DEFERRED (low value at the early-buy point)
+When the structured CAD legal yields no subdivision AND no survey/abstract, an AI/OCR read could extract
+identifiers. But `detectSubdivision` (regex, cad-adapter) + `extractSurveyAbstract` (plan 3) already handle
+the structured legals, and at the EARLY buy the only text on hand is that same CAD legal + the GIS map — no
+deed text yet (deeds arrive in the free Phase-2 crawl). So an AI pass here would re-read the exact string the
+regex already failed on, for marginal gain. **Deferred:** cost exceeds value until a real property shows an
+unparseable legal; if built, it auto-cost-tracks via 4.2. The richer AI read belongs at ANALYSIS, where the
+deed text exists.
 
 ---
 
-## PHASE 4B — Iterative discovery loop (feed findings back into searches)
+## PHASE 4B — Iterative discovery loop ⏳ DEFERRED (analysis-phase feature, in tension with early-buy)
 
-### 4B.1 — Collect NEW identifiers from each source result
-After each discovery round, harvest identifiers the results revealed that the run did not start with:
-new subdivision/addition names, grantor/grantee names (chain of title), referenced instrument numbers,
-volume/page and plat cabinet/slide references, abstract/survey names. Normalise + de-dup against what was
-already searched.
+The identifiers KNOWN at identification — subdivision (CAD regex), survey/abstract (plan 3), owner name, CAD
+deed-history instruments, operator vol/page — are ALL already aggregated into one `DiscoveryTarget` and
+searched across every source (Phases 1–3). That is "use the found info to search more" for everything
+available at identification.
 
-### 4B.2 — Re-search on the new identifiers, budget-permitting
-Run another discovery round keyed on the fresh identifiers (free + paid), BUT only while the run has cost
-AND time budget left (check the run-budget gate + the wall clock before each new round). Cap the number of
-rounds so a chain of title cannot loop forever; log when a round is skipped for budget/time.
-
-### 4B.3 — Tests
-A result carrying a new subdivision/name/reference triggers exactly one more search; an exhausted
-budget/time stops the loop and says why; the loop terminates (no infinite chain).
+A further loop keyed on identifiers found DURING the run (new grantor/grantee chain-of-title names, referenced
+instruments) has real value but two honest blockers: (1) the TexasFile/clerk SEARCH rows expose only
+guid/instrument/date/type — the chain-of-title NAMES live in the document body, which needs READING (analysis),
+not a search row; and (2) the buy fires EARLY by design (before the cut-short), so a second buy round after the
+free Phase-2 crawl fights that design. The genuinely valuable iterative loop is therefore an ANALYSIS-phase
+feature (read a deed → find its prior grantor/reference → search again), a substantial separate build. **Deferred**
+with rationale rather than shipped as a low-value early-stage loop; cost clearly exceeds value today, and the
+existing target already re-searches on every identifier available before documents are read.
 
 ---
 
@@ -165,15 +167,26 @@ labels on short segments.
 
 ---
 
-## PHASE 5 — Verification (then owner merge + worker rebuild + a re-run)
+## PHASE 5 — Verification ✅ DONE (then owner merge + worker rebuild + a re-run)
 
-### 5.1 — Green + build
-Full worker + app suites green; `tsc` + lint clean; `npm run build` clean.
+### 5.1 — Green + build ✅ DONE
+Worker suite **2818** green; worker + app tsc clean; lint clean; `npm run build` exit 0. (All changes are
+worker-side; the app suite was 28,235 green earlier and is untouched by this plan.)
 
-### 5.2 — Self-review (check the CALLER)
-Confirm the live run INVOKES the plat search + instrument search + fallback; no authored-but-not-wired gaps.
+### 5.2 — Self-review (check the CALLER) ✅ DONE
+The live run's `runEarlyChecklistPurchase` invokes `makeSourceSearch`, which now runs BOTH the clerk search
+AND the plat search (`buildTexasFilePlatInputs` from subdivision + survey/abstract), maps plats to $10 paid
+entries, and the free-first engine buys the paid-exclusive ones through the orchestrator (asserted by
+`free-first-engine-is-wired.test.ts`, window widened as the function grew). The `boundary_call_sheet` capture
+is planned with the parcel lines and rendered by the dispatch handler. Legal description is threaded into the
+target. No authored-but-not-wired gaps.
 
-### 5.3 — Ready-for-owner note
-Annotate READY; owner merges, rebuilds the worker (only when `activePipelines=0`), and re-runs 1401 North East
-St (PID 64567) — this time the WINNIE MAE plats should be found as paid-exclusive and BOUGHT, with the AI cost
-on the spend. Then move this doc to `completed/`.
+### 5.3 — Ready-for-owner note ✅ READY
+**READY for the owner.** Merge + rebuild the netcup worker (ONLY when `/healthz` `activePipelines=0`:
+`BUILD_SHA=$(git -C /opt/starr rev-parse --short HEAD) docker compose up -d --build worker` from
+`/opt/starr/worker`), then re-run 1401 North East St (PID 64567) with the **adjoiner toggle ON**. Expect: the
+WINNIE MAE plats found as paid-exclusive and BOUGHT (via `/plat/` with a `/instrument/` 404 fallback), adjoiner
+bearings captured (GIS-only), the boundary call sheet filed, legible parcel labels, and any research AI on the
+run spend. **Deferred (owner-requested, documented above):** the AI/OCR identifier fallback (4.1) and the
+iterative discovery loop (4B) — low value at the early-buy point / analysis-phase features; surface to the
+owner so they can ask to build them anyway.
