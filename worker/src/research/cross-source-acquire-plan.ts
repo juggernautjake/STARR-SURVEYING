@@ -58,6 +58,44 @@ export function cheapestFreeSource(c: DocumentCluster): ManifestEntry | null {
   return [...free].sort((a, b) => a.unitCostUsd - b.unitCostUsd)[0];
 }
 
+export interface LegibilityRebuy {
+  rebuy: boolean;
+  source: ManifestEntry | null;
+  reason: string;
+}
+
+/**
+ * Legibility override (plan A5, owner 2026-09-05): after a document is captured FREE, decide whether
+ * to buy the paid copy because the free one is unreadable. Re-buy only when the free capture scores
+ * BELOW the legibility threshold AND a paid source in the cluster has the document AND its cost fits
+ * the remaining paid budget. `freeReadability` is 0..1, higher = more legible.
+ */
+export function decideLegibilityRebuy(
+  cluster: DocumentCluster,
+  freeReadability: number,
+  opts: { legibilityThreshold: number; remainingBudgetUsd: number },
+): LegibilityRebuy {
+  if (freeReadability >= opts.legibilityThreshold) {
+    return { rebuy: false, source: null, reason: `free copy is legible (${freeReadability.toFixed(2)})` };
+  }
+  const paid = cheapestPaidSource(cluster);
+  if (!paid) {
+    return { rebuy: false, source: null, reason: 'free copy illegible, but no paid source has it' };
+  }
+  if (paid.unitCostUsd > opts.remainingBudgetUsd) {
+    return {
+      rebuy: false,
+      source: null,
+      reason: `free copy illegible, but the paid copy ($${paid.unitCostUsd} on ${paid.sourceId}) is over the remaining $${opts.remainingBudgetUsd.toFixed(2)} budget`,
+    };
+  }
+  return {
+    rebuy: true,
+    source: paid,
+    reason: `free copy illegible (${freeReadability.toFixed(2)} < ${opts.legibilityThreshold}) — buy the paid copy from ${paid.sourceId}`,
+  };
+}
+
 /**
  * Decide the acquisition action for every clustered document. Free-available documents are captured
  * free; paid-exclusive documents are bought in priority order (plat → most-recent deed → rest) until

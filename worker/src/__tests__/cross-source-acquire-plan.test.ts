@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planAcquisition, priorityTier } from '../research/cross-source-acquire-plan.js';
+import { planAcquisition, priorityTier, decideLegibilityRebuy } from '../research/cross-source-acquire-plan.js';
 import type { DocumentCluster } from '../research/cross-source-match.js';
 import type { ManifestEntry } from '../research/cross-source-discovery.js';
 
@@ -70,5 +70,34 @@ describe('planAcquisition', () => {
     expect(plan.actions[0].kind).toBe('skip');
     expect(plan.actions[0].reason).toMatch(/paid documents are off/);
     expect(plan.plannedPaidUsd).toBe(0);
+  });
+});
+
+// Plan A5 — the legibility override: buy the paid copy only when the free one is unreadable.
+
+describe('decideLegibilityRebuy', () => {
+  const bothSources = cluster('deed', [src('kofile', 'free'), src('texasfile', 'paid', 4)]);
+
+  it('does not re-buy when the free copy is legible', () => {
+    const d = decideLegibilityRebuy(bothSources, 0.9, { legibilityThreshold: 0.5, remainingBudgetUsd: 15 });
+    expect(d.rebuy).toBe(false);
+    expect(d.reason).toMatch(/legible/);
+  });
+
+  it('re-buys the paid copy when the free one is illegible and it fits the budget', () => {
+    const d = decideLegibilityRebuy(bothSources, 0.2, { legibilityThreshold: 0.5, remainingBudgetUsd: 15 });
+    expect(d.rebuy).toBe(true);
+    expect(d.source?.sourceId).toBe('texasfile');
+  });
+
+  it('does not re-buy an illegible free copy when no paid source has it', () => {
+    const freeOnly = cluster('deed', [src('kofile', 'free')]);
+    expect(decideLegibilityRebuy(freeOnly, 0.1, { legibilityThreshold: 0.5, remainingBudgetUsd: 15 }).rebuy).toBe(false);
+  });
+
+  it('does not re-buy when the paid copy is over the remaining budget', () => {
+    const d = decideLegibilityRebuy(bothSources, 0.1, { legibilityThreshold: 0.5, remainingBudgetUsd: 2 });
+    expect(d.rebuy).toBe(false);
+    expect(d.reason).toMatch(/over the remaining/);
   });
 });

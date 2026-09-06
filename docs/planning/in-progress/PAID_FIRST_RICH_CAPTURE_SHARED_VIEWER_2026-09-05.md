@@ -166,6 +166,13 @@ After a free capture, run the readability check (reuse the existing readability/
 the free copy is illegible AND a paid source in the cluster has it AND budget remains, buy the paid
 copy and supersede the free one; state the reason in the manifest.
 
+> **SHIPPED (decision) 2026-09-05.** `decideLegibilityRebuy(cluster, freeReadability, {legibilityThreshold,
+> remainingBudgetUsd})` in `cross-source-acquire-plan.ts`: re-buys the paid copy only when the free
+> readability is below threshold AND a paid source has the document AND its cost fits the remaining
+> budget; otherwise returns why not. Tests: +4 in `cross-source-acquire-plan.test.ts` (10 total). tsc
+> green. **A7 wires it**: feed the real readability score after each free capture and run the buy +
+> supersede when `rebuy` is true.
+
 ### A6 — Surface the SOURCE-COMPARISON manifest in the UI ("detailed analysis of what all sources provide")
 Render the manifest as a visible comparison: one row per document (cluster) × the sources that have it
 × each cost × the CHOSEN source × the reason. Show it in the run panel (live) and in Review. This is
