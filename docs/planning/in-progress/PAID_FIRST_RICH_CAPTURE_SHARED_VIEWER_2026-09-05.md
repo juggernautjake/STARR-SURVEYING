@@ -2,6 +2,22 @@
 
 **Started** 2026-09-05 · **Branch** `claude/paid-first-rich-capture-viewer-2026-09-05`
 
+<!-- HOOK:BLOCKED SHIPPED + green: the whole cross-source engine core (A0-A5), relevance model (H1),
+the "+ Add more info" category-picker UI + create-API persistence (H2/H3-persist), B1 parcel bearings —
+~66 tests, worker 2752 + app research 2498 green, tsc clean. A7 (the live early-buy wiring) hit a real
+DESIGN WALL that needs the OWNER, not a blind push: two supervised runs proved the buy MUST fire early
+(both cut short at ~99% before the end-of-run purchase, TexasFile $0), but a naive early checklist buy
+breaks the C5 anti-waste invariant (it would pay for what the free clerk was about to return — the
+owner's own "prefer free" rule). Doing A7 RIGHT = fire the CROSS-SOURCE ENGINE early (discover free+paid
+→ match → buy paid-ONLY / operator-supplied targets), which needs the real free-source SourceSearchFn
+adapter (Bell clerk → ManifestEntry) + the TexasFile search adapter wired into onPropertyIdentified,
+plus updating C5 to "buy paid-only early". That is a substantial live integration whose ONLY validation
+is a supervised paid run + a worker deploy — the owner's loop. PAUSED for the owner to choose the path:
+(a) build full A7 (free-source adapter + engine wired early + C5 update) then deploy + supervised run,
+or (b) a targeted validation now — buy the operator's EXPLICIT documents (vol 5456/pg 704, cabinet A
+slide 166) which do not violate prefer-free. Also open: H2 in RerunDialog, H3-thread, A6/E/G UI, B2/C/D,
+F. Remove this marker or name the path to resume. -->
+
 Driven by the stop-hook slice loop. Ship the smallest meaningful slice, `tsc` + lint + test, commit,
 push, annotate. **Every slice starts by reading the live code it touches.** Standing constraints: ask
 before each merge to `main`; `npm run build` before a merge; **NEVER rebuild the worker while a run is
@@ -184,10 +200,22 @@ the "detailed cross comparison" the owner asked to SEE, not just an internal str
 > `case 'bell'`) `→ runBellCountyResearch` (`counties/bell/index.js`) `→ orchestrateBellResearch`
 > (`counties/bell/orchestrator.ts`) — the "dedicated research module", producing a `county-specific`
 > result. `services/pipeline.ts::runPipeline` is the GENERIC path the router uses for non-dedicated
-> counties (its inline Bell Stage-1 code is legacy for that fallback). **So the engine wires into
-> `orchestrateBellResearch` after Phase 1 (identify)**, with the injected `SourceSearchFn` = Bell clerk
-> free search + TexasFile search adapters, and the acquire effects = the Bell free-capture +
-> `buyDocument`. `BellResearchInput` gains the supplemental identifiers (H3) → `DiscoveryTarget`.
+> counties. The clean early seam is the **`onPropertyIdentified` hook** (index.ts ~1243), which fires
+> right after Phase 1 identifies the parcel, IN `index.ts` scope (runSettings + all purchase helpers
+> available) — no orchestrator signature change needed.
+>
+> **CONFLICT FOUND 2026-09-05 — a naive early buy is WRONG.** A first attempt fired the checklist
+> purchase from `onPropertyIdentified` and broke the C5 invariant
+> (`purchase-order-visuals-lead.test.ts`: "free sources lead; the paid step runs AFTER the free
+> stages") — because buying the general checklist EARLY, before the per-source free check, would pay
+> for a deed the free county clerk was about to return. That is the exact waste the owner's own
+> "prefer free" rule forbids. **So A7 must fire the CROSS-SOURCE ENGINE early (discover free+paid →
+> match → buy paid-ONLY / operator-supplied targets), not a blind early buy.** That needs the real
+> free-source `SourceSearchFn` adapter (Bell clerk → `ManifestEntry`) + the TexasFile search adapter,
+> wired into `onPropertyIdentified`, and the C5 test updated to reflect "buy paid-only, early" rather
+> than "all paid after all free". Two proven runs (2417 Stoneham, 1401 North East) confirm the buy MUST
+> be early: both reached ~99% and were cut short before the end-of-run purchase, TexasFile $0. The
+> attempt was reverted (tree clean); this is the remaining integration + a supervised run to validate.
 Determine which Bell path the live run uses — `worker/src/counties/bell/orchestrator.ts`
 (`orchestrateBellResearch`) vs the Bell handling in `worker/src/services/pipeline.ts` — by reading the
 router/dispatch, THEN wire the engine into the live one, running after Phase 1 identifies the
