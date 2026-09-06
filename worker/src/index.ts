@@ -1232,6 +1232,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   let earlyPurchaseDone = false;
   async function runEarlyChecklistPurchase(identified?: {
     subdivisionName?: string | null;
+    legalDescription?: string | null;
     knownDocuments?: Array<{ instrument?: string; documentType?: string; recordingDate?: string; grantor?: string; grantee?: string }>;
   }): Promise<void> {
     if (earlyPurchaseDone || !runSettings.gatherSelections || !projectId) return;
@@ -1264,6 +1265,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       county: county ?? '',
       ownerName: researchInput.ownerName,
       subdivision: identified?.subdivisionName,
+      legalDescription: identified?.legalDescription, // plan 3 — survey/abstract for a non-subdivision tract
       supplemental: supp,
       knownInstruments: (identified?.knownDocuments ?? []).map((d) => d.instrument ?? '').filter((s) => s.length > 0),
     });

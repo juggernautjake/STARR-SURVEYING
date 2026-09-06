@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { makeSourceSearch, buildTexasFileSearchInputs, buildTexasFilePlatInputs, buildDiscoveryTarget, type LiveSearchConfig } from '../research/live-search.js';
+import { makeSourceSearch, buildTexasFileSearchInputs, buildTexasFilePlatInputs, buildDiscoveryTarget, extractSurveyAbstract, type LiveSearchConfig } from '../research/live-search.js';
 import type { AcquisitionSource, } from '../research/acquisition-sources.js';
 import type { DiscoveryTarget, ManifestEntry } from '../research/cross-source-discovery.js';
 import type { TexasFileResult, TexasFileBuyInput, TexasFilePlatInput } from '../services/texasfile-buy.js';
@@ -105,8 +105,33 @@ describe('buildTexasFilePlatInputs', () => {
     const inputs = buildTexasFilePlatInputs({ county: 'Bell', bookPages: [{ volume: 'A', page: '166' }] }, 'Bell');
     expect(inputs).toContainEqual({ county: 'Bell', volume: 'A', page: '166' });
   });
-  it('is empty for a bare tract with no subdivision or cabinet reference', () => {
+  it('is empty for a bare tract with no subdivision, survey or cabinet reference', () => {
     expect(buildTexasFilePlatInputs({ county: 'Bell', ownerName: 'DOE' }, 'Bell')).toEqual([]);
+  });
+  it('searches the plat NAME field by the survey for a non-subdivision tract (plan 3)', () => {
+    const inputs = buildTexasFilePlatInputs({ county: 'Bell', surveyName: 'WILLIAM HARTRICK SURVEY' }, 'Bell');
+    expect(inputs).toContainEqual({ county: 'Bell', subdivision: 'WILLIAM HARTRICK SURVEY' });
+  });
+});
+
+describe('extractSurveyAbstract (plan 3) — survey + abstract from a metes-and-bounds legal', () => {
+  it('pulls the survey name and abstract number', () => {
+    const r = extractSurveyAbstract('A0488 WILLIAM HARTRICK SURVEY, 12.358 ACRES, ABSTRACT 488');
+    expect(r.surveyName).toBe('WILLIAM HARTRICK SURVEY');
+    expect(r.abstractNumber).toBe('488');
+  });
+  it('reads the "A-488" abstract shorthand', () => {
+    expect(extractSurveyAbstract('JOHN DOE SURVEY A-488').abstractNumber).toBe('488');
+  });
+  it('returns nothing for a subdivision legal (handled by the subdivision path)', () => {
+    expect(extractSurveyAbstract('LOT 5, BLOCK B, WINNIE MAE ADDITION')).toEqual({});
+  });
+  it('buildDiscoveryTarget derives the survey ONLY when there is no subdivision', () => {
+    const withSub = buildDiscoveryTarget({ county: 'Bell', subdivision: 'WINNIE MAE ADDITION', legalDescription: 'X SURVEY, ABSTRACT 1' });
+    expect(withSub.surveyName).toBeUndefined();
+    const bare = buildDiscoveryTarget({ county: 'Bell', legalDescription: 'WILLIAM HARTRICK SURVEY, ABSTRACT 488, 12.3 ACRES' });
+    expect(bare.surveyName).toBe('WILLIAM HARTRICK SURVEY');
+    expect(bare.abstractNumber).toBe('488');
   });
 });
 

@@ -18,7 +18,10 @@ const stripped = src
 
 describe('the early buy runs the free-first engine (plan 1.4)', () => {
   const fnStart = stripped.indexOf('async function runEarlyChecklistPurchase');
-  const fn = stripped.slice(fnStart, fnStart + 8000);
+  // Up to the next top-level `const` after the function (the hoisted `researchInput`), so the window
+  // covers the whole function even as it grows, without bleeding into unrelated code.
+  const fnEnd = stripped.indexOf('\n  const researchInput', fnStart);
+  const fn = stripped.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 12000);
 
   it('the early-buy function exists and is called from onPropertyIdentified', () => {
     expect(fnStart).toBeGreaterThan(-1);

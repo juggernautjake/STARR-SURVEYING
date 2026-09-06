@@ -20,6 +20,10 @@ export interface DiscoveryTarget {
   ownerName?: string;
   subdivision?: string;
   lot?: string;
+  /** For a metes-and-bounds tract with no subdivision (plan 3): the original survey name and abstract
+   *  number, so a plat/recorded-survey search can be run for a parcel that is not in a named subdivision. */
+  surveyName?: string;
+  abstractNumber?: string;
   /** Specific instruments already located (e.g. from CAD deed history) to look up directly. */
   instruments?: string[];
   bookPages?: Array<{ book?: string; volume?: string; page?: string }>;

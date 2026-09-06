@@ -32,11 +32,32 @@ export interface LiveSearchConfig {
  * volume/page) and the instruments the CAD deed history already lists — so TexasFile is searched for
  * the exact documents the run cares about, not just the owner name. Duplicates removed.
  */
+/**
+ * Pull the original survey name + abstract number out of a metes-and-bounds legal description (plan 3),
+ * e.g. "A0488 WILLIAM HARTRICK SURVEY, 12.358 ACRES" → { surveyName: 'WILLIAM HARTRICK SURVEY',
+ * abstractNumber: '488' }. Returns empty for a subdivision legal ("LOT 5, WINNIE MAE ADDITION"), which
+ * the subdivision path already handles. Pure, so it is unit-tested without a browser.
+ */
+export function extractSurveyAbstract(legalDescription?: string | null): { surveyName?: string; abstractNumber?: string } {
+  const s = (legalDescription ?? '').toUpperCase();
+  if (!s.trim()) return {};
+  const out: { surveyName?: string; abstractNumber?: string } = {};
+  // Abstract: "ABSTRACT 488", "ABST 488", "A-488", "A0488".
+  const abs = s.match(/\bABSTRACT\s*(?:NO\.?\s*)?(\d{1,5})\b/) || s.match(/\bABST\.?\s*(\d{1,5})\b/) || s.match(/\bA[-\s]?0*(\d{2,5})\b/);
+  if (abs) out.abstractNumber = abs[1];
+  // Survey: a name immediately before "SURVEY" (letters, spaces, &, .), trimmed.
+  const surv = s.match(/([A-Z][A-Z&.\s]{2,40}?SURVEY)\b/);
+  if (surv) out.surveyName = surv[1].replace(/^A0*\d+\s+/, '').replace(/\s+/g, ' ').trim();
+  return out;
+}
+
 export function buildDiscoveryTarget(params: {
   county: string;
   ownerName?: string | null;
   subdivision?: string | null;
   lot?: string | null;
+  /** The parcel's legal description — for a non-subdivision tract, the survey + abstract are pulled from it. */
+  legalDescription?: string | null;
   supplemental?: {
     instrumentNumbers?: string[];
     volumePages?: Array<{ volume?: string; book?: string; page?: string }>;
@@ -52,11 +73,16 @@ export function buildDiscoveryTarget(params: {
   const bookPages = (params.supplemental?.volumePages ?? [])
     .map((vp) => ({ volume: (vp.volume ?? vp.book ?? '').trim(), page: (vp.page ?? '').trim() }))
     .filter((vp) => vp.volume && vp.page);
+  // Plan 3 — only bother extracting a survey/abstract when the parcel is NOT in a named subdivision;
+  // the subdivision path already covers the residential case and is the stronger key.
+  const sa = params.subdivision?.trim() ? {} : extractSurveyAbstract(params.legalDescription);
   return {
     county: params.county,
     ownerName: params.ownerName?.trim() || undefined,
     subdivision: params.subdivision?.trim() || undefined,
     lot: params.lot?.trim() || undefined,
+    ...(sa.surveyName ? { surveyName: sa.surveyName } : {}),
+    ...(sa.abstractNumber ? { abstractNumber: sa.abstractNumber } : {}),
     ...(instruments.length ? { instruments } : {}),
     ...(bookPages.length ? { bookPages } : {}),
   };
@@ -88,6 +114,13 @@ export function buildTexasFileSearchInputs(target: DiscoveryTarget, county: stri
 export function buildTexasFilePlatInputs(target: DiscoveryTarget, county: string): TexasFilePlatInput[] {
   const inputs: TexasFilePlatInput[] = [];
   if (target.subdivision?.trim()) inputs.push({ county, subdivision: target.subdivision.trim() });
+  // Plan 3 — a non-subdivision tract: search the plat "Subdivision or Name" field by the SURVEY name, so a
+  // recorded map/survey filed for the tract is found even though it is not in a named subdivision. Skipped
+  // when it duplicates the subdivision query.
+  const survey = target.surveyName?.trim();
+  if (survey && survey.toUpperCase() !== target.subdivision?.trim().toUpperCase()) {
+    inputs.push({ county, subdivision: survey });
+  }
   for (const bp of target.bookPages ?? []) {
     const vol = (bp.volume ?? bp.book ?? '').trim();
     const pg = (bp.page ?? '').trim();

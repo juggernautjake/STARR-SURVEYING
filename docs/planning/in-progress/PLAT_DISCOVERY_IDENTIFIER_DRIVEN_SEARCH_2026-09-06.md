@@ -88,16 +88,16 @@ clerk search + result matching. Tests updated (no instrument query; 2 clerk call
 
 ## PHASE 3 — Plats/drawings for ANY parcel (non-subdivision too)
 
-### 3.1 — Abstract/survey-driven plat + recorded-survey search
+survey-driven plat + recorded-survey search/survey-driven plat + recorded-survey search
 For a metes-and-bounds parcel (`isSubdivision:false`, has abstract/survey), search TexasFile plats + the free
 plat repo + the clerk index by abstract/survey name for recorded surveys / drawings, not only named
 subdivisions. Thread `abstractNumber`/`surveyName` into `DiscoveryTarget` + the search inputs.
 
-### 3.2 — Free-source parity
+### 3.2 — Free-source parity ✅ BUILT + TESTED
 Ensure the subdivision/abstract is searched on EVERY free source available (clerk plat index + free plat
 repo), so a paid buy is only for what the free sources genuinely lack.
 
-### 3.3 — Tests
+### 3.3 — Tests ✅ BUILT + TESTED
 Non-subdivision fixture yields abstract/survey plat queries; free + paid both consulted.
 
 ---
