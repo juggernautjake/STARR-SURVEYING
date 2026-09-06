@@ -221,18 +221,29 @@ the surrounding-parcel capture can be turned off. GIS-only; no adjoiner DEED pur
 
 ---
 
-## PHASE D — Google Map deep zooms 25 & 30 (owner #4)
+## PHASE D — Adaptive Google-map zoom by parcel size (owner #4, refined 2026-09-05)
 
-### D1 — Add the requested Google zooms (with honest clamping)
-Read `worker/src/research/capture-plan.ts` `ZOOM_BANDS` / `MAX_ZOOM` and
-`worker/src/counties/bell/scrapers/map-screenshot-capture.ts` (`GOOGLE_MAPS_ZOOM=20`, place `19`).
-Add capture requests at the owner's zoom 25 and 30 in addition to the existing levels. Since Google
-clamps ~21, capture at Google's deepest real level and label the requested-vs-actual zoom honestly.
+Capture Google-map images at the RIGHT zoom for the parcel's size: a big parcel framed wide enough to
+show the whole boundary, a small subdivision lot deep enough to actually see detail (owner: "zoom 20 is
+not quite enough" for some lots). Capture 3–4 adaptive levels so at least one is always a good frame.
 
-### D2 — Deep parcel-layer (ArcGIS) zoom where 25/30 are meaningful
-Where a deeper-than-Google view is wanted, add ArcGIS/parcel-layer captures at the deep levels (the
-parcel-line render is vector, so it stays crisp) so "zoom 25/30" yields a genuinely deeper image, not
-a clamped duplicate.
+### D1 — Acreage-adaptive Google zoom band, 3–4 levels, small lots reach the deepest
+Read `worker/src/research/capture-plan.ts` `ZOOM_BANDS` (offsets from an acreage-derived `framedZoom`;
+`MIN_ZOOM=14`, `MAX_ZOOM=21`) and how `framedZoom` is computed from acreage/bbox. Produce 3–4 Google
+captures spanning "whole parcel visible" → "close detail", derived from the parcel's ACTUAL size
+(acreage, or the parcel polygon's bbox), so a 50-acre tract and a 0.15-acre lot each get an appropriate
+spread. Push the deep end to Google's real ceiling (~21–22; it clamps beyond that) so small lots get as
+close as Google renders.
+
+### D2 — Vector parcel render for genuinely deeper-than-Google detail (small lots)
+For a lot where even Google's max is not close enough, add an ArcGIS/parcel-layer vector render (crisp
+at any scale) framed tight to the lot, so "really see everything" is satisfied without Google's imagery
+ceiling. Reuse `renderParcelMap` at a deep frame.
+
+### D3 — Frame from the parcel's true extent, not a fixed radius
+Base framing on the parcel polygon's bounding box (already fetched) so the whole boundary fits with a
+small margin at the widest level — not a fixed half-width that clips large parcels or over-zooms tiny
+ones. This is what makes "get the right zoom every time" true across parcel sizes.
 
 ---
 
