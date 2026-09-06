@@ -94,18 +94,14 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
-  // Gather-run entrypoint (plan GATHER_AND_REVIEW_SPLIT G7), built ahead of its caller. It composes
-  // the whole Gather pass (want-list → free-first → TexasFile → hard stops), and everything it
-  // imports (gather-orchestrator, acquisition-wantlist, gather-budget, texasfile-want-buyer) is
-  // reachable THROUGH it. Its own non-test caller — the HTTP dispatch that runs it when
-  // phase==='gather', supplying the real resolveFree (county capture) + subject/adjoiner facts — is
-  // the plan's explicit remaining wiring slice, which needs live testing. Remove this entry when that
-  // dispatch lands. Deliberately staged, not dead: unit-tested by run-gather-pipeline.test.ts.
-
-
-  'worker/src/research/run-gather-pipeline.ts':
-    'G7 want-list Gather engine, a STAGED ENHANCEMENT. TexasFile-in-gather is already live via the main pipeline (DocumentPurchaseOrchestrator -> buyDocument, G1/G2/G6, asserted by the-run-can-buy-documents + texasfile-buy-is-wired). This engine additionally guarantees the subject/adjoiner plat+deed priority; wiring it to feed/augment the recommender is a live-tested slice. Not dead — unit-tested by run-gather-pipeline.test.ts.',
-
+  // RETIRED 2026-09-06: `run-gather-pipeline.ts` + `gather-orchestrator.ts` + `texasfile-want-buyer.ts`
+  // + `acquisition-wantlist.ts` (the G7 "want-list Gather engine", $7 base + refundable $10 earmark).
+  // They sat on this list as a STAGED ENHANCEMENT for two plans while the live path grew past them:
+  // the checklist-driven wants (selection-wants → selection-purchases), the cross-source engine
+  // (discover → cluster → plan), and DocumentPurchaseOrchestrator with BOTH metered budgets, the
+  // cross-run library and the ledger. Wiring the engine in would have duplicated all of that with a
+  // superseded budget model. Deleted with their four unit-test files; `gather-budget.ts` (the two
+  // meters) stays and is reached by the orchestrator.
 
   'worker/src/research/cross-source-acquisition.ts':
     'Plan A7/1.7 — the engine DRIVER, a unit-tested convenience composition of discover (A1) → match (A2) → decide (A3) → execute (A4). The A1–A3 DECISION pieces it composes (discoverAcrossSources, clusterEntries, planAcquisition) ARE the live path: index.ts runEarlyChecklistPurchase invokes them directly from onPropertyIdentified (asserted by free-first-engine-is-wired.test.ts — the CALLER check). Execution deliberately does NOT go through this driver\'s generic executor (cross-source-acquire): the live buy runs through DocumentPurchaseOrchestrator, which owns the cross-run library dedup, the research_usage_events ledger, the permission gate and the real page-count budget the generic executor lacks. Routing the live buy through this wrapper would DOWNGRADE those, so the driver stays a tested composition, not the live path. Not dead — unit-tested by cross-source-acquisition.test.ts.',
