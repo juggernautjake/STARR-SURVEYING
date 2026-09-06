@@ -108,7 +108,7 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
 
 
   'worker/src/research/cross-source-acquisition.ts':
-    'Plan A7 — the engine DRIVER: composes discover (A1) → match (A2) → decide (A3) → execute (A4) into one runCrossSourceAcquisition call, keeping the whole A1→A4 chain reachable. Per-source search + capture/buy effects are injected. Built ahead of its final wiring into index.ts onPropertyIdentified (the real Bell-clerk/TexasFile adapters + Bell free-capture/buyDocument), which will call it and remove this entry. Not dead — unit-tested by cross-source-acquisition.test.ts.',
+    'Plan A7/1.7 — the engine DRIVER, a unit-tested convenience composition of discover (A1) → match (A2) → decide (A3) → execute (A4). The A1–A3 DECISION pieces it composes (discoverAcrossSources, clusterEntries, planAcquisition) ARE the live path: index.ts runEarlyChecklistPurchase invokes them directly from onPropertyIdentified (asserted by free-first-engine-is-wired.test.ts — the CALLER check). Execution deliberately does NOT go through this driver\'s generic executor (cross-source-acquire): the live buy runs through DocumentPurchaseOrchestrator, which owns the cross-run library dedup, the research_usage_events ledger, the permission gate and the real page-count budget the generic executor lacks. Routing the live buy through this wrapper would DOWNGRADE those, so the driver stays a tested composition, not the live path. Not dead — unit-tested by cross-source-acquisition.test.ts.',
 
 
 

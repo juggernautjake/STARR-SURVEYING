@@ -115,10 +115,31 @@ tokens in AdminResearch.css. **Tested:** worker tsc + suite 2781 green; app tsc 
 page mounts the card, shaper unit-tested; gis-quality token test re-green (caught + fixed a fictional
 `--theme-bg-primary`); `free-first-engine-is-wired` extended with a 1.6 persistence assertion.
 
-### 1.7 — Wiring tests + de-list the engine modules from the orphan allowlist
-Assert the live Bell path (index.ts) INVOKES `runCrossSourceAcquisition` (check the caller). As each
-engine module gains a real caller, remove its `KNOWN_UNREACHABLE` entry
-(cross-source-acquisition, live-source-adapters, property-search-inputs, …).
+### 1.7 — Wiring tests + de-list the engine modules from the orphan allowlist ✅ BUILT + TESTED
+Assert the live Bell path (index.ts) INVOKES the engine (check the caller). As each engine module
+gains a real caller, remove its `KNOWN_UNREACHABLE` entry (cross-source-acquisition,
+live-source-adapters, property-search-inputs, …).
+
+**Built / design decision:** the live path (`runEarlyChecklistPurchase` in index.ts, fired from
+`onPropertyIdentified`) invokes the engine's A1–A3 DECISION pieces DIRECTLY — `makeSourceSearch` →
+`discoverAcrossSources` → `clusterEntries` → `planAcquisition` — and executes the buy through
+`DocumentPurchaseOrchestrator`. It does **not** route through the `runCrossSourceAcquisition` driver's
+generic executor (`cross-source-acquire`), because the orchestrator owns the cross-run library dedup,
+the `research_usage_events` ledger, the permission gate and the real page-count budget that the generic
+executor lacks — routing through the wrapper would DOWNGRADE those. So `cross-source-acquisition.ts`
+stays a unit-tested convenience composition of the same pieces, recorded as an accurate
+`KNOWN_UNREACHABLE` decision (note rewritten), not forced into the live path. `live-source-adapters`
+(1.2/1.3) and `property-search-inputs` (1.5) were de-listed as they gained real callers. **Tested:**
+`free-first-engine-is-wired` (7 — the CALLER check) + `research-modules-are-reachable` (9, incl. the
+no-stale-entry guard) green; full worker suite 2781 green.
+
+---
+
+**PHASE 1 COMPLETE** — the deeper free-first engine is fully built, wired into the live run, and
+surfaced in Review. Every document acquisition is now free-first per-document: TexasFile is searched,
+its results compared against the CAD deed history (the free manifest), only paid-exclusive documents
+are bought, ranked by relevance to the property, within budget, through the ledger/library/gate — and
+the whole source comparison is persisted and rendered.
 
 ---
 
