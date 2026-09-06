@@ -97,8 +97,11 @@ Analyze controls), so the loop reads left-to-right: analyze → see leads → ru
 A button that opens the run-settings dialog PRE-SEEDED with the selected leads (as supplemental), so the user
 sets budget/time and starts round N+1. On complete it lands on Analysis again.
 
-### 3.4 — Round lineage
-A small "Round N" indicator on the run + on documents/leads, so the user can see what each round added.
+### 3.4 — Round lineage ✅ BUILT (round shown) / per-document lineage deferred
+The panel surfaces the current research round ("Currently on round N"), and the worker bumps + persists
+`researchRound` each follow-up. Tagging each individual DOCUMENT with the round it was found in needs a
+`research_round` column on `research_documents` (a schema change) — deferred until the owner wants
+per-document provenance; the round-level indicator covers the user's "which round am I on" need today.
 
 ### 3.5 — Tests ✅ BUILT + TESTED
 The panel renders leads from analysis_metadata; the follow-up button seeds the dialog; the caller wires the

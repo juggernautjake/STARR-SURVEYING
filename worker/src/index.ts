@@ -3657,6 +3657,67 @@ app.post('/research/:projectId/compile-leads', requireAuth, async (req: Request,
   }
 });
 
+// ── POST /research/:projectId/deep-read ───────────────────────────────────
+// Plan 4 — the USER-INITIATED AI "deep-read for more clues": one bounded AI pass over the text the run
+// already captured, to pull identifiers the structured parse missed (subdivisions, surveys, referenced
+// deeds, prior owners) and append them to the discovered leads. Never automatic. AI cost is recorded
+// against the run (recordAmbientAiCall via the run context).
+app.post('/research/:projectId/deep-read', requireAuth, rateLimit(6, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) { res.status(503).json({ error: 'AI is not configured' }); return; }
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) { res.status(503).json({ error: 'no database' }); return; }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const [docsRes, projRes] = await Promise.all([
+      sb.from('research_documents').select('extracted_text').eq('research_project_id', projectId).not('extracted_text', 'is', null).limit(60),
+      sb.from('research_projects').select('analysis_metadata').eq('id', projectId).single(),
+    ]);
+    const documentText = ((docsRes.data ?? []) as Array<{ extracted_text?: string | null }>)
+      .map((d) => (d.extracted_text ?? '').trim()).filter(Boolean).join('\n---\n');
+    if (!documentText.trim()) { res.json({ projectId, newLeads: 0, leads: [], note: 'No captured text to deep-read yet — run and analyze first.' }); return; }
+
+    const meta = (projRes.data?.analysis_metadata as Record<string, unknown>) ?? {};
+    const round = typeof meta.researchRound === 'number' ? meta.researchRound : 1;
+    const priorLeads = Array.isArray(meta.discoveredLeads) ? (meta.discoveredLeads as DiscoveredLead[]) : [];
+    const alreadySearched = {
+      instruments: priorLeads.filter((l) => l.searched && l.kind === 'instrument').map((l) => l.value),
+      volumePages: priorLeads.filter((l) => l.searched && l.kind === 'volume_page').map((l) => l.value),
+      names: priorLeads.filter((l) => l.searched && (l.kind === 'grantor_name' || l.kind === 'adjoiner')).map((l) => l.value),
+      subdivisions: priorLeads.filter((l) => l.searched && l.kind === 'subdivision').map((l) => l.value),
+    };
+
+    const { deepReadForLeads } = await import('./research/deep-read-leads.js');
+    const { recordAmbientAiCall } = await import('./infra/usage.js');
+    const model = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
+    const fresh = await withRunContext(projectId, () => deepReadForLeads({
+      documentText, round, alreadySearched,
+      callAi: async (prompt: string): Promise<string> => {
+        const { default: Anthropic } = await import('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+        const response = await client.messages.create({ model, max_tokens: 2048, messages: [{ role: 'user', content: prompt }] });
+        // Cost on the run spend (plan 4.2) — recorded whether or not the JSON parses.
+        void recordAmbientAiCall('deep-read-leads', model, { input: response.usage?.input_tokens ?? 0, output: response.usage?.output_tokens ?? 0 });
+        const block = response.content.find((b) => b.type === 'text');
+        return block && block.type === 'text' ? block.text : '';
+      },
+    }));
+
+    const byId = new Map<string, DiscoveredLead>(priorLeads.map((l) => [l.id, l]));
+    for (const l of fresh) if (!byId.has(l.id)) byId.set(l.id, l);
+    const discoveredLeads = [...byId.values()];
+    await sb.from('research_projects')
+      .update({ analysis_metadata: { ...meta, discoveredLeads, discoveredLeadsAt: new Date().toISOString(), researchRound: round } })
+      .eq('id', projectId);
+    console.log(`[DeepRead] ${projectId}: ${fresh.length} new lead(s) from AI deep-read (${discoveredLeads.length} total).`);
+    res.json({ projectId, round, newLeads: fresh.length, leads: discoveredLeads });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── POST /research/pause/:projectId ───────────────────────────────────────
 // Pause the timeline tracker for a running pipeline. Note: the pipeline
 // itself continues running (we can't pause Playwright mid-action), but the

@@ -12958,6 +12958,7 @@
   color: var(--color-info-text, #175CD3);
   cursor: pointer;
 }
+.leads-panel__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .leads-panel__compile:hover { background: var(--color-info-surface, #EFF6FF); }
 .leads-panel__compile:disabled { opacity: 0.6; cursor: default; }
 

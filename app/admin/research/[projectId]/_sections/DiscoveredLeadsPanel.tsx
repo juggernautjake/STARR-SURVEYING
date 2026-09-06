@@ -59,6 +59,7 @@ export default function DiscoveredLeadsPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [compiling, setCompiling] = useState(false);
+  const [deepReading, setDeepReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [compiledOnce, setCompiledOnce] = useState(false);
 
@@ -95,6 +96,17 @@ export default function DiscoveredLeadsPanel({
     setCompiling(false);
   }, [projectId, applyLeads]);
 
+  const deepRead = useCallback(async () => {
+    setDeepReading(true); setError(null);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/deep-read`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Deep-read failed'); }
+      else { applyLeads(data.leads ?? [], data.round ?? round); setCompiledOnce(true); }
+    } catch { setError('Could not reach the research worker'); }
+    setDeepReading(false);
+  }, [projectId, applyLeads, round]);
+
   const toggle = (id: string) => setSelected((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -109,9 +121,14 @@ export default function DiscoveredLeadsPanel({
     <div className="leads-panel">
       <div className="leads-panel__head">
         <h4 className="leads-panel__title"><Search size={15} strokeWidth={2} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />Follow-up research leads</h4>
-        <button className="leads-panel__compile" onClick={compile} disabled={compiling}>
-          {compiling ? <><Loader2 size={13} className="leads-panel__spin" aria-hidden="true" /> Compiling…</> : compiledOnce ? 'Re-compile from analysis' : 'Compile leads from analysis'}
-        </button>
+        <div className="leads-panel__actions">
+          <button className="leads-panel__compile" onClick={compile} disabled={compiling || deepReading}>
+            {compiling ? <><Loader2 size={13} className="leads-panel__spin" aria-hidden="true" /> Compiling…</> : compiledOnce ? 'Re-compile from analysis' : 'Compile leads from analysis'}
+          </button>
+          <button className="leads-panel__compile" onClick={deepRead} disabled={compiling || deepReading} title="Run one AI pass over the captured documents to find identifiers the structured read missed. Costs AI time, shown on the run spend.">
+            {deepReading ? <><Loader2 size={13} className="leads-panel__spin" aria-hidden="true" /> Deep-reading…</> : 'Deep-read for more clues (AI)'}
+          </button>
+        </div>
       </div>
       <p className="leads-panel__desc">
         The clues analysis surfaced that the research has not chased yet — referenced deeds and plats, prior
