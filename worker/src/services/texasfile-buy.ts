@@ -167,6 +167,83 @@ export async function searchTexasFile(page: Page, input: TexasFileBuyInput, log:
   return { searchId, results };
 }
 
+/** What drives a PLAT search (plan 1.1). A subdivision name is the usual key; cabinet/volume + slide/page
+ *  pin an exact plat. All plats are $10 flat on TexasFile regardless of page count. */
+export interface TexasFilePlatInput {
+  county: string;
+  subdivision?: string;
+  volume?: string;   // "Volume or Cabinet"
+  page?: string;     // "Page, Slide or Sleeve"
+  fileNumber?: string;
+}
+
+/**
+ * Search TexasFile's PLAT records (`/plat-records/`), NOT the clerk deed records (plan 1.1). This is the
+ * gap the 1401 North East St run exposed: the engine only searched county-clerk records, so subdivision
+ * plats — which the free plat repo could not get (403) — were invisible. Fills the plat form by its visible
+ * placeholder labels (resilient to id changes), submits, and parses the plat purchase buttons into
+ * `TexasFileResult`s typed 'plat'. Never buys, never throws, returns `[]` on any failure. The live path is
+ * exercised in the supervised run; the parsing is unit-tested against a fixture.
+ */
+export async function searchTexasFilePlats(page: Page, input: TexasFilePlatInput, log: PipelineLogger = noLog): Promise<{ searchId: string | null; results: TexasFileResult[] }> {
+  const slug = texasFileCountySlug(input.county);
+  await page.goto(`${TF}/search/texas/${slug}/plat-records/`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForTimeout(1200);
+
+  const filled = await page.evaluate((inp: TexasFilePlatInput) => {
+    const vis = (el: Element | null) => !!el && (el as HTMLElement).offsetParent !== null;
+    const setNative = (el: HTMLInputElement, v: string) => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    // Find a text input by any of the placeholder fragments it might carry, visible only.
+    const byPlaceholder = (frags: string[]): HTMLInputElement | undefined =>
+      Array.from(document.querySelectorAll('input[type="text"], input:not([type])'))
+        .filter(vis)
+        .find((el) => {
+          const p = ((el as HTMLInputElement).placeholder || '').toLowerCase();
+          return frags.some((f) => p.includes(f));
+        }) as HTMLInputElement | undefined;
+    let any = false;
+    if (inp.subdivision) { const el = byPlaceholder(['subdivision', 'name']); if (el) { setNative(el, inp.subdivision); any = true; } }
+    if (inp.volume)      { const el = byPlaceholder(['volume', 'cabinet']);   if (el) { setNative(el, inp.volume); any = true; } }
+    if (inp.page)        { const el = byPlaceholder(['page', 'slide', 'sleeve']); if (el) { setNative(el, inp.page); any = true; } }
+    if (inp.fileNumber)  { const el = byPlaceholder(['file number', 'file']);  if (el) { setNative(el, inp.fileNumber); any = true; } }
+    if (!any) return 'no plat input';
+    const btn = Array.from(document.querySelectorAll('button, input[type="submit"]'))
+      .filter(vis)
+      .find((b) => /search/i.test((b.textContent || (b as HTMLInputElement).value || ''))) as HTMLElement | undefined;
+    btn?.click();
+    return 'plat';
+  }, input);
+  if (filled !== 'plat') { log.warn('TexasFile', `Plat search not submitted: ${filled}`); return { searchId: null, results: [] }; }
+
+  await page.waitForTimeout(3500);
+  const url = page.url();
+  const m = url.match(/plat-records\/(\d+)\//);
+  const searchId = m ? m[1] : null;
+
+  const results = await page.evaluate(() => {
+    const out: Array<{ guid: string; instrument: string | null; bookVolPage: string | null; pages: number | null; type: string | null; date: string | null; text: string }> = [];
+    const btns = Array.from(document.querySelectorAll('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]'));
+    for (const b of btns) {
+      const dataFor = b.getAttribute('data-for') || '';
+      const guid = (dataFor.replace(/^Purchase-/, '') || (b.closest('[id^="purchaseButton"]')?.id || '').replace('purchaseButton', ''));
+      if (!/^[0-9a-f-]{30,}$/i.test(guid)) continue;
+      const row = b.closest('tr');
+      const detail = row?.nextElementSibling;
+      const txt = ((row?.textContent || '') + ' ' + (detail?.textContent || '')).replace(/\s+/g, ' ').trim();
+      const vm = txt.match(/(?:Cabinet|Volume)\s*[:#]?\s*([A-Za-z0-9]+)[,\s]+(?:Slide|Page|Sleeve)\s*[:#]?\s*([A-Za-z0-9-]+)/i);
+      const dm = txt.match(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/);
+      out.push({ guid: guid.toUpperCase(), instrument: null, bookVolPage: vm ? `${vm[1]}/${vm[2]}` : null, pages: null, type: 'plat', date: dm ? dm[1] : null, text: txt.slice(0, 160) });
+    }
+    const seen = new Set<string>();
+    return out.filter((r) => (seen.has(r.guid) ? false : (seen.add(r.guid), true)));
+  });
+  log.info('TexasFile', `Plat search "${input.subdivision ?? `${input.volume}/${input.page}`}" → ${results.length} plat(s), searchId=${searchId ?? '?'}.`);
+  return { searchId, results };
+}
+
 /** Purchase (or re-fetch if already owned) a document by GUID and return its page image URLs. */
 export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog): Promise<{ pages: string[]; purchaseId?: number; balance?: string } | null> {
   try {
@@ -270,5 +347,29 @@ export async function searchTexasFileDocuments(input: TexasFileBuyInput, log: Pi
     return [];
   } finally {
     // acquireBrowser leases are pooled; do not close the shared browser here.
+  }
+}
+
+/** Search-only wrapper for PLATS (plan 1.2): acquire a browser, log in, run `searchTexasFilePlats`, return
+ *  the plats. Mirrors `searchTexasFileDocuments`; never buys, never throws, returns `[]` on failure. */
+export async function searchTexasFilePlatsDocuments(input: TexasFilePlatInput, log: PipelineLogger = noLog): Promise<TexasFileResult[]> {
+  let browser: Browser | null = null;
+  try {
+    browser = await acquireBrowser({ adapterId: 'texasfile', targetUrl: TF });
+    const context = await browser.newContext({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36' });
+    const page = await context.newPage();
+    try {
+      if (!(await loginTexasFile(page, log))) {
+        log.warn('TexasFile', 'plat search-only: could not sign in');
+        return [];
+      }
+      const { results } = await searchTexasFilePlats(page, input, log);
+      return results;
+    } finally {
+      await context.close().catch(() => {});
+    }
+  } catch (err) {
+    log.warn('TexasFile', `plat search-only failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
   }
 }
