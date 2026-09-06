@@ -2412,6 +2412,21 @@
   text-decoration: underline;
 }
 
+/* G6 — the "Source ↗" external link beside the in-app view button, opening the original
+   TexasFile/CAD/clerk page a data point came from. */
+.research-review__dp-source-link {
+  margin-top: 0.5rem;
+  margin-left: 0.75rem;
+  color: var(--color-info-text, #175CD3);
+  font-size: 0.8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.research-review__dp-source-link:hover {
+  text-decoration: underline;
+}
+
 /* ── Discrepancy Panel ───────────────────────────────────────────────────── */
 
 .research-disc-panel__summary {

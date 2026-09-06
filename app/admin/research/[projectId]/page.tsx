@@ -1943,6 +1943,10 @@ export default function ResearchProjectPage() {
             loadDocuments();
             loadProject();
             handleStatusUpdate('review');
+            // G4 — gather is done, but nothing is analyzed yet. Land on ANALYSIS (where the AI review
+            // + per-file analyze live), not Review (the finished-results screen), even though both
+            // share the one `review` DB state. The reader steps Analysis → Review when ready.
+            setViewStage('analysis');
             // The worker persists artifacts asynchronously after reporting completion, so
             // documents may still be writing to the DB. Retry after short delays to catch
             // late arrivals.
@@ -1961,28 +1965,45 @@ export default function ResearchProjectPage() {
           ════════════════════════════════════════════════════════════ */}
       {(currentStage === 'analysis' || currentStage === 'review') && (
         <div className="research-review">
-          {/* ── Header ── */}
+          {/* ── Header (G3/G4 — Analysis and Review are distinct screens) ── */}
           <div className="research-step-header">
             <span className="research-step-header__icon"><ClipboardList size={18} strokeWidth={1.75} /></span>
             <div className="research-step-header__body">
-              <h2 className="research-step-header__title">Review Results</h2>
+              <h2 className="research-step-header__title">
+                {currentStage === 'analysis' ? 'Analysis' : 'Review Results'}
+              </h2>
               <p className="research-step-header__desc">
-                Review the complete research summary, extracted data, discrepancies, source documents, and logs.
+                {currentStage === 'analysis'
+                  ? 'Analyze the documents the research found — run the AI review across everything, or analyze a single file — and open or trace any source before you pay.'
+                  : 'Review the complete research summary, extracted data, discrepancies, source documents, and logs.'}
               </p>
             </div>
           </div>
 
-          {/* ── Navigation ── */}
+          {/* ── Navigation (G3/G4) — Research → Analysis → Review → Job Prep ──
+              Moving between Analysis and Review is a VIEW change (setViewStage) — both live in the
+              one `review` DB state, so this writes nothing and deletes nothing. Only the step back to
+              Research (a revert) and the step forward to Job Prep (a status change) touch the DB. */}
           <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button className="research-back-btn" style={{ margin: 0 }} onClick={() => handleRevertToStep('configure')}>
-              ← Back to Research &amp; Analysis
-            </button>
-            <button
-              className="research-page__new-btn"
-              onClick={() => handleStatusUpdate('drawing')}
-            >
-              Continue to Job Prep →
-            </button>
+            {currentStage === 'analysis' ? (
+              <>
+                <button className="research-back-btn" style={{ margin: 0 }} onClick={() => handleRevertToStep('configure')}>
+                  ← Back to Research
+                </button>
+                <button className="research-page__new-btn" onClick={() => setViewStage('review')}>
+                  Continue to Review →
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="research-back-btn" style={{ margin: 0 }} onClick={() => setViewStage('analysis')}>
+                  ← Back to Analysis
+                </button>
+                <button className="research-page__new-btn" onClick={() => handleStatusUpdate('drawing')}>
+                  Continue to Job Prep →
+                </button>
+              </>
+            )}
             <div style={{ flex: 1 }} />
             <button
               onClick={() => setShowRerunConfirm(true)}
@@ -1996,29 +2017,37 @@ export default function ResearchProjectPage() {
             </button>
           </div>
 
-          {/* U4 (plan GATHER_AND_REVIEW_SPLIT) — the analysis is a SEPARATE run the operator starts
-              here, with its own cost cap. A gather run files documents with no AI; this is where the
-              user, having reviewed them, pays to analyse. */}
-          <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
-
-          {/* F2/U — the project's TRUE all-phases spend (gather + analyze) from the usage ledger. */}
+          {/* F2/U — the project's TRUE all-phases spend (gather + analyze) from the usage ledger.
+              Relevant on BOTH screens: Analysis is where you spend, Review is where you read the total. */}
           <div style={{ margin: '0 0 1rem' }}><ProjectCostBadge projectId={projectId} /></div>
 
-          {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a
-              per-file price with "Analyze this") now also carries View + Source ↗ on each row, so the
-              old separate "Documents & Sources" list is folded in. "Analyze everything" is the Run AI
-              Review control above. */}
-          <AnalysisEstimatePanel
-            projectId={projectId}
-            onStarted={() => loadProject()}
-            docs={documents}
-            onView={(doc) => {
-              setViewerDoc(doc);
-              setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
-              setViewerHighlight(undefined);
-            }}
-          />
+          {/* ══ ANALYSIS stage only (G4) — where the documents get analyzed ══ */}
+          {currentStage === 'analysis' && (
+            <>
+              {/* U4 (plan GATHER_AND_REVIEW_SPLIT) — the analysis is a SEPARATE run the operator starts
+                  here, with its own cost cap. A gather run files documents with no AI; this is where the
+                  user, having reviewed them, pays to analyse. */}
+              <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
 
+              {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a
+                  per-file price with "Analyze this") now also carries View + Source ↗ on each row, so the
+                  old separate "Documents & Sources" list is folded in. "Analyze everything" is the Run AI
+                  Review control above. */}
+              <AnalysisEstimatePanel
+                projectId={projectId}
+                onStarted={() => loadProject()}
+                docs={documents}
+                onView={(doc) => {
+                  setViewerDoc(doc);
+                  setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                  setViewerHighlight(undefined);
+                }}
+              />
+            </>
+          )}
+
+          {/* ══ REVIEW stage only (G3) — the finished results ══ */}
+          {currentStage === 'review' && (<>
           {/* R4 — One place to export results: data (JSON/CSV), printable PDF,
               and a path to the drawing/CAD export in Job Prep. */}
           <div className="research-export-bar" data-testid="research-export-bar">
@@ -2592,6 +2621,7 @@ export default function ResearchProjectPage() {
                             setViewerHighlight(excerpt);
                           }
                         }}
+                        sourceUrlFor={(docId) => documents.find(d => d.id === docId)?.source_url ?? undefined}
                       />
                     </div>
                   </div>
@@ -2809,9 +2839,10 @@ export default function ResearchProjectPage() {
               )}
             </div>
           </div>
+          </>)}
 
           {/* ══════════════════════════════════════════════════════════
-              SECTION 2 — Raw Log Viewer (always visible)
+              SECTION 2 — Raw Log Viewer (always visible on BOTH Analysis + Review)
               ══════════════════════════════════════════════════════ */}
           <div className="review-log-section">
             <div className="review-log-section__header">

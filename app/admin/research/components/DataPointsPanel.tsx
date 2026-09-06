@@ -11,6 +11,11 @@ import { reviewMeta, reviewProgress, type ReviewStatus } from '@/lib/research/fa
 interface DataPointsPanelProps {
   projectId: string;
   onViewSource?: (documentId: string, excerpt?: string) => void;
+  // G6 — resolve the document's ORIGINAL source URL (the TexasFile/CAD/clerk page it came from) so a
+  // data point can link straight to where it was extracted, in a new tab. Distinct from
+  // `onViewSource`, which opens the captured copy in the in-app viewer. Returns undefined when the
+  // source document has no recorded URL (an uploaded file, say) — the link is then not shown.
+  sourceUrlFor?: (documentId: string) => string | undefined;
 }
 
 // `Record`, not `Partial<Record>`: a new member of `DataCategory` should be a TYPE ERROR here, not
@@ -88,7 +93,7 @@ const EVIDENCE_TONE: Record<string, string> = {
   asserted: 'var(--color-error, #DC2626)',
 };
 
-export default function DataPointsPanel({ projectId, onViewSource }: DataPointsPanelProps) {
+export default function DataPointsPanel({ projectId, onViewSource, sourceUrlFor }: DataPointsPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ExtractedDataPoint[]>>({});
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -427,6 +432,24 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
                               </span>
                             )
                           )}
+                          {/* G6 — link to the ORIGINAL source page (TexasFile/CAD/clerk) this value
+                              was extracted from, in a new tab. Only when the source document records
+                              a URL; the in-app viewer button above always covers the captured copy. */}
+                          {(() => {
+                            const url = sourceUrlFor?.(dp.document_id);
+                            return url ? (
+                              <a
+                                className="research-review__dp-source-link"
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Open the original source page in a new tab"
+                              >
+                                Source ↗
+                              </a>
+                            ) : null;
+                          })()}
                         </div>
                       )}
                     </div>

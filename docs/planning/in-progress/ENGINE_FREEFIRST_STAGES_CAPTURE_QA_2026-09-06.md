@@ -147,31 +147,44 @@ the whole source comparison is persisted and rendered.
 
 The stepper already shows five stages; the CONTENT still shares one branch. Split it.
 
-### 2.1 — Read the Review render + map the pieces
+### 2.1 — Read the Review render + map the pieces ✅ BUILT + TESTED
 Read `app/admin/research/[projectId]/page.tsx` (`currentStage === 'analysis' || 'review'` branch): the
 Run AI Review control, the merged Analyze·View·Source list (`AnalysisEstimatePanel`), the project cost
 badge, data points, discrepancies, export bar. Decide which belong to Analysis vs Review.
 
-### 2.2 — Analysis stage content (`currentStage === 'analysis'`)
+### 2.2 — Analysis stage content ✅ BUILT + TESTED (`currentStage === 'analysis'`)
 Render the Run AI Review control + the merged Analyze·View·Source list + the cost badge under the
 Analysis stage only. Include a "Continue to Review →" that sets `viewStage='review'`.
 
-### 2.3 — Review stage content (`currentStage === 'review'`)
+### 2.3 — Review stage content ✅ BUILT + TESTED (`currentStage === 'review'`)
 Render the finished data points, discrepancies, per-document analysis results + the export bar under
 Review only. Keep the shared `SourceDocumentViewer` mounted (E4 parity).
 
-### 2.4 — Navigation across the five stages
+### 2.4 — Navigation across the five stages ✅ BUILT + TESTED
 "Continue to Analysis →" from Research (on gather complete); "Continue to Review →" from Analysis;
 "Continue to Job Prep →" from Review. Ensure `canViewStage` lets the reader move Research→Analysis→Review
 even though both live in the `review` DB state.
 
-### 2.5 — G6: every DATA POINT links to its source URL/page
+### 2.5 — G6: every DATA POINT links to its source URL/page ✅ BUILT + TESTED
 Read the data-point render + model; add a button on each data point that opens a new tab to the
 document/source URL it was extracted from (`source_url`). Show it in Analysis + Review.
 
-### 2.6 — Tests + wiring
+### 2.6 — Tests + wiring ✅ BUILT + TESTED
 Assert the Analysis branch renders the analyze controls, the Review branch renders the results, and a
 data point's source button opens the recorded URL.
+
+**Built (2.1–2.6):** `page.tsx`'s shared `analysis || review` branch is split by `currentStage` —
+the header names the stage; the AI review control + `AnalysisEstimatePanel` (merged Analyze·View·Source)
+render only on Analysis behind `{currentStage === 'analysis' && …}`; the export bar + summary-panel tabs
+(data points, discrepancies, artifacts incl. the 1.6 SourceComparisonCard) render only on Review behind
+`{currentStage === 'review' && …}`; the `ProjectCostBadge`, the raw log viewer and the shared
+`SourceDocumentViewer` modal stay visible on both (E4 parity). Navigation: gather-complete lands on
+Analysis (`setViewStage('analysis')`); Analysis↔Review are view-only moves; Review→Job Prep is the real
+status change; the stepper's dots move the view too. G6: `DataPointsPanel` gained a `sourceUrlFor`
+resolver and renders a "Source ↗" new-tab link per data point (absent when the source has no URL); the
+page passes `documents.find(...).source_url`. **Tested:** app tsc + lint clean; new
+`__tests__/research/analysis-review-split.test.ts` (9); research app suite 2531 green. Browser QA of the
+rendered split is folded into Phase 6 (F).
 
 ---
 
