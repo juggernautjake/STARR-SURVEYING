@@ -59,7 +59,9 @@ describe('the Analysis stage draws its own bar and counters (check the CALLER)',
   const ctl = read('app/admin/research/components/RunAiReviewControl.tsx');
   it('AiReviewProgressBar is mounted under the control once the review has reported', () => {
     expect(ctl).toContain('export function AiReviewProgressBar({ p, now = Date.now() }: { p: ReviewProgress; now?: number }) {');
-    expect(ctl).toContain('{started && !error && progress?.review && <AiReviewProgressBar p={progress} />}');
+    expect(ctl).toContain('{!error && progress?.review && (started || progress.review.finishedAt) && <AiReviewProgressBar p={progress} />}');
+    // A page opened after the review finished still shows its bar, clock and spend.
+    expect(ctl).toContain('if (live && j?.review) setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd, review: j.review });');
     expect(ctl).toContain('aria-label={`AI review progress: ${pct}%`}');
     expect(ctl).toContain('<Counter label="Documents"');
     expect(ctl).toContain('<Counter label="Elapsed"');

@@ -116,6 +116,18 @@ export default function RunAiReviewControl({
     return () => clearInterval(t);
   }, [progress?.status]);
 
+  // The LAST review's bar and counters, for a page opened after it finished: one read on mount, and
+  // the bar shows when the route has a stamped review. Without this the review's cost and time
+  // vanished the moment it ended, and the only place they existed was the ledger.
+  useEffect(() => {
+    if (started) return;
+    let live = true;
+    fetch(`/api/admin/research/${projectId}/analyze`).then((r) => r.json()).then((j) => {
+      if (live && j?.review) setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd, review: j.review });
+    }).catch(() => { /* nothing to show yet */ });
+    return () => { live = false; };
+  }, [started, projectId]);
+
   // After the review starts, poll its status so the operator sees spend against the cap they set.
   useEffect(() => {
     if (!started) return;
@@ -207,7 +219,7 @@ export default function RunAiReviewControl({
           {reviewStatusLine(progress)}
         </span>
       )}
-      {started && !error && progress?.review && <AiReviewProgressBar p={progress} />}
+      {!error && progress?.review && (started || progress.review.finishedAt) && <AiReviewProgressBar p={progress} />}
     </div>
   );
 }
