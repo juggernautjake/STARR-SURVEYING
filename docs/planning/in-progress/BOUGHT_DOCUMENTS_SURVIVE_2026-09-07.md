@@ -68,7 +68,7 @@ as `summary.unrelated`; Bell carries it on `deedsAndRecords.unrelated`; the pers
 the Analysis rows and the Review Documents tab; the whole-project quote and the worker's read pass leave
 them out (`relevance.is.null,relevance.neq.unrelated`).
 
-### F — Verify, merge, deploy ⏳
+### F — Verify, merge, deploy ✅ (main c55ae3ff9, 2026-09-07)
 Worker + app suites, tsc both, `npm run build`, merge to `main`, watch Vercel (`/api/app/version`) and the
 worker (`/healthz buildSha`, timer defers while a run is in flight).
 
@@ -89,5 +89,5 @@ anything with metes and bounds.
 | C final pass knows the early buys | ✅ built + tested |
 | D failed Analyze restores `review` | ✅ built + tested |
 | E unrelated = marked + badge (seed 631 already live — no new seed) | ✅ built + tested |
-| F verify + merge + deploy | ⏳ |
+| F verify + merge + deploy | ✅ merged to main c55ae3ff9 (worker 2983 tests, app 2615 + ratchets, tsc both, lint, next build); Vercel + worker rebuild watched |
 | G run 4 + the loop | ⏳ |
