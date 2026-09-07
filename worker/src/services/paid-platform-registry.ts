@@ -78,7 +78,7 @@ export const PAID_PLATFORM_CATALOG: PaidPlatformDescriptor[] = [
     paymentMethods: ['free'],
     typicalDeliveryMinutes: 2,
     cleansImages: true,
-    carries: ['easement', 'right_of_way', 'row', 'row_map'],
+    carries: ['right_of_way', 'row', 'row_map'],
     notes: 'Free access to TxDOT ROW maps and documents. No account needed. Automation via Playwright.',
   },
 

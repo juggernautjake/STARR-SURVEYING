@@ -73,3 +73,23 @@ describe('the Analysis stage draws its own bar and counters (check the CALLER)',
     expect(rv).toContain('export function Counter({ label, value, live, hint }: {');
   });
 });
+
+describe('run 6 (2026-09-07) — the review is visible while it runs, and its stamp survives the hand-off', () => {
+  it('the analyze route stamps the review BEFORE calling the worker, then touches only the status', () => {
+    const route = read('app/api/admin/research/[projectId]/analyze/route.ts');
+    const stamp = route.indexOf("analysis_metadata: { ...meta, review: { startedAt: new Date().toISOString(), costCapUsd: config?.maxCostUsd ?? null, finishedAt: null } },");
+    const call = route.indexOf('const workerRes = await fetch(`${workerUrl}/research/read-documents/${projectId}`');
+    expect(stamp).toBeGreaterThan(-1);
+    expect(stamp).toBeLessThan(call);
+    expect(route).toContain(".update({ status: 'analyzing', updated_at: new Date().toISOString() })");
+    expect(route.split('await restoreReview();').length - 1).toBe(2);
+  });
+  it('the page shows the Analysis stage while the worker holds the review', () => {
+    const page = read('app/admin/research/[projectId]/page.tsx');
+    expect(page).toContain("const reviewInProgress = project.status === 'analyzing' && !!reviewStamp?.startedAt && !reviewStamp?.finishedAt;");
+    expect(page).toContain("const reached = reviewInProgress ? 'analysis' : (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;");
+    // …and follows the project off it when the review ends, because nothing else polls the row.
+    expect(page).toContain('onFinished={() => loadProject()}');
+    expect(read('app/admin/research/components/RunAiReviewControl.tsx')).toContain('else onFinished?.();');
+  });
+});

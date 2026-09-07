@@ -1611,8 +1611,16 @@ export default function ResearchProjectPage() {
   // a navigation choice — and folding it into `viewStage` would make 'finished but not acknowledged'
   // indistinguishable from 'went back for a look'.
   const dbStage = workflowStepToStage(project.status);
-  const reached = (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;
-  const currentStage = resolveViewStage(viewStage, project.status) === reached
+  // `analyzing` is ALSO the status of a project whose AI review the worker is running (the analyze
+  // route parks it there). That is Analysis-stage work: its bar and counters live on the Analysis
+  // stage, and until 2026-09-07 the page showed the finished RESEARCH run instead — the review ran
+  // out of sight. A review in progress is one the route stamped and nothing has finished.
+  const reviewStamp = (project.analysis_metadata as { review?: { startedAt?: string; finishedAt?: string | null } } | null)?.review;
+  const reviewInProgress = project.status === 'analyzing' && !!reviewStamp?.startedAt && !reviewStamp?.finishedAt;
+  const reached = reviewInProgress ? 'analysis' : (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;
+  const currentStage = reviewInProgress
+    ? 'analysis'
+    : resolveViewStage(viewStage, project.status) === reached
     ? reached
     : resolveViewStage(viewStage, project.status);
   const viewingBehind = currentStage !== reached;
@@ -2009,7 +2017,7 @@ export default function ResearchProjectPage() {
               {/* U4 (plan GATHER_AND_REVIEW_SPLIT) — the analysis is a SEPARATE run the operator starts
                   here, with its own cost cap. A gather run files documents with no AI; this is where the
                   user, having reviewed them, pays to analyse. */}
-              <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} analyzing={project.status === 'analyzing'} />
+              <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} onFinished={() => loadProject()} analyzing={project.status === 'analyzing'} />
 
               {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a
                   per-file price with "Analyze this") now also carries View + Source ↗ on each row, so the

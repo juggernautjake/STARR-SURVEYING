@@ -90,6 +90,9 @@ export interface RunAiReviewControlProps {
   onStarted?: () => void;
   /** The project is already at `analyzing` (a review in progress when the page opened) — poll it. */
   analyzing?: boolean;
+  /** The review has ended (the poll saw the project leave `analyzing`) — the page reloads the project
+   *  so its stage follows; nothing else polls the project row while a review runs. */
+  onFinished?: () => void;
 }
 
 export default function RunAiReviewControl({
@@ -97,6 +100,7 @@ export default function RunAiReviewControl({
   defaultMaxCostUsd = 5,
   onStarted,
   analyzing = false,
+  onFinished,
 }: RunAiReviewControlProps) {
   const [maxCost, setMaxCost] = useState<number>(defaultMaxCostUsd);
   const [busy, setBusy] = useState(false);
@@ -122,6 +126,7 @@ export default function RunAiReviewControl({
         if (!live) return;
         setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd, review: j.review ?? null });
         if (j.status === 'analyzing') setTimeout(tick, 4000);
+        else onFinished?.();
       } catch { /* transient; the next tick retries */ }
     };
     void tick();

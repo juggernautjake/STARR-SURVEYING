@@ -117,6 +117,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const workerApiKey = process.env.WORKER_API_KEY || '';
   const wholeProject = !isWorker && !isResume && !config?.documentId && !config?.benchmark;
   if (wholeProject && workerUrl && workerApiKey) {
+    // The review's own start is stamped BEFORE the hand-off (owner, 2026-09-07: "a separate counter
+    // for the AI review and a separate cost counter"). It used to be stamped after the worker's 202,
+    // and the worker's first progress stamp (a read-merge-write on the same bag) landed in between
+    // — run 6's review carried progress but no startedAt, so its clock and cap never showed. A
+    // hand-off that fails puts the previous review back.
+    const { data: cur } = await supabaseAdmin.from('research_projects').select('analysis_metadata').eq('id', projectId).maybeSingle();
+    const meta = ((cur as { analysis_metadata?: Record<string, unknown> } | null)?.analysis_metadata ?? {}) as Record<string, unknown>;
+    const priorReview = meta.review;
+    await supabaseAdmin.from('research_projects')
+      .update({
+        updated_at: new Date().toISOString(),
+        analysis_metadata: { ...meta, review: { startedAt: new Date().toISOString(), costCapUsd: config?.maxCostUsd ?? null, finishedAt: null } },
+      })
+      .eq('id', projectId);
+    const restoreReview = async () => {
+      const { data: now } = await supabaseAdmin.from('research_projects').select('analysis_metadata').eq('id', projectId).maybeSingle();
+      const m = ((now as { analysis_metadata?: Record<string, unknown> } | null)?.analysis_metadata ?? {}) as Record<string, unknown>;
+      await supabaseAdmin.from('research_projects').update({ analysis_metadata: { ...m, review: priorReview ?? null } }).eq('id', projectId);
+    };
     try {
       const workerRes = await fetch(`${workerUrl}/research/read-documents/${projectId}`, {
         method: 'POST',
@@ -126,17 +145,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       });
       if (workerRes.ok) {
         // Parked at `analyzing` so the Analysis stage shows the run; the worker's callback moves it
-        // on through analyzeProject, which ends at `review`.
-        // The review's own start is stamped here (owner, 2026-09-07: "a separate counter for the AI
-        // review and a separate cost counter") — the research run's clock and spend are its own.
-        const { data: cur } = await supabaseAdmin.from('research_projects').select('analysis_metadata').eq('id', projectId).maybeSingle();
-        const meta = ((cur as { analysis_metadata?: Record<string, unknown> } | null)?.analysis_metadata ?? {}) as Record<string, unknown>;
+        // on through analyzeProject, which ends at `review`. ONLY the status: the review bag is the
+        // worker's to write from here on, and a write of the whole bag now would clobber its stamps.
         await supabaseAdmin.from('research_projects')
-          .update({
-            status: 'analyzing',
-            updated_at: new Date().toISOString(),
-            analysis_metadata: { ...meta, review: { startedAt: new Date().toISOString(), costCapUsd: config?.maxCostUsd ?? null, finishedAt: null } },
-          })
+          .update({ status: 'analyzing', updated_at: new Date().toISOString() })
           .eq('id', projectId);
         return NextResponse.json({
           message: 'Analysis started — the worker is reading the documents first (OCR, chain of title), then the data-point analysis follows.',
@@ -146,8 +158,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         }, { status: 202 });
       }
       console.warn(`[Analysis API] worker read-documents returned HTTP ${workerRes.status} for ${projectId} — analysing in-process instead`);
+      await restoreReview();
     } catch (err) {
       console.warn(`[Analysis API] worker unreachable for ${projectId} (${err instanceof Error ? err.message : String(err)}) — analysing in-process instead`);
+      await restoreReview();
     }
   }
 

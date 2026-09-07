@@ -22,7 +22,7 @@ describe('the review control shows the review\'s own time and money', () => {
   });
   it('polls when the page opens on a review already in progress (check the CALLER)', () => {
     const page = read('app/admin/research/[projectId]/page.tsx');
-    expect(page).toContain("<RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} analyzing={project.status === 'analyzing'} />");
+    expect(page).toContain("<RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} onFinished={() => loadProject()} analyzing={project.status === 'analyzing'} />");
     const ctl = read('app/admin/research/components/RunAiReviewControl.tsx');
     expect(ctl).toContain('const [started, setStarted] = useState(analyzing);');
     expect(ctl).toContain('review: j.review ?? null');

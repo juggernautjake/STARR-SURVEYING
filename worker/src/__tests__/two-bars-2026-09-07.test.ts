@@ -97,9 +97,9 @@ describe('X4 — run-5 log review', () => {
     expect(orch).toContain("} else if (filedPlat) {\n    found.push({ category: 'plat', label: 'Plat / subdivision plat', detail: `Filed from a paid source earlier in this run — ${filedPlat}` });");
   });
   it('L2: the TxDOT library carries right-of-way only, so it is no "cheaper" choice for a plat or a deed', () => {
-    const txdot = choosePlatform(BELL, { configured: ['texasfile'], documentType: 'easement' }).platform;
+    const txdot = choosePlatform(BELL, { configured: ['texasfile'], documentType: 'right_of_way' }).platform;
     expect(txdot?.id).toBe('txdot_docs');
-    for (const t of ['plat', 'deed', 'Deed', 'warranty-deed']) {
+    for (const t of ['plat', 'deed', 'Deed', 'warranty-deed', 'easement']) {
       const c = choosePlatform(BELL, { configured: ['texasfile'], documentType: t });
       expect(c.platform?.id, t).not.toBe('txdot_docs');
       expect(mayPurchaseFrom(BELL, 'texasfile', { configured: ['texasfile'], documentType: t }).reason).not.toMatch(/TxDOT/);
