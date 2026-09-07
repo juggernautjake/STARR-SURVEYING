@@ -67,3 +67,16 @@ other $5 (run 6 is the last); delete the old project and do a fresh run each tim
   Fixed: each coherence pass is its own finalize stage (`coherence1` → `coherence2` → `coherence3`), the earlier
   passes carried on `analysis_metadata.coherence_passes`; the worker drives five finalize stages.
 - The Analysis stage now shows the LAST review's bar, clock and spend on open (not only while it runs).
+- Re-ran the review on the deployed split (11:24–11:57 CDT): 21 documents analysed, chain → crossref →
+  coherence 1 → 2 → 3 all completed, project at `review`, the bar reached 100% with "AI review complete —
+  32:53 · $0.00 of $7.00". The **$0.00 was wrong**: no app-side AI call was ever booked to
+  `research_usage_events` (the worker's are), so the review's counter and the project cost badge only ever
+  saw the worker's OCR calls. Fixed (`7a718e848`): `callAI`/`callVision`/`callDocumentAI` book every call to
+  the project under `withAiLedger`, which the analyze route sets for the worker-driven review ('review') and
+  the in-process path ('analysis'); pricing from `lib/ai/usage`'s table by model family; unknown models are
+  booked at $0 and flagged `unpriced_model`. Coherence passes 2 and 3 had stopped at exactly 4,096 output
+  tokens (truncated JSON parsed as a bare array → "unknown (0/100), 0 issues"): 8192 tokens now, and a
+  non-object answer is named in the log and shaped, not read as a verdict.
+- Not done: a follow-up research round from the Discovered Leads. It is a fourth research run and the owner
+  authorised three (runs 4, 5, 6 used). Leads were compiled and are listed on the Analysis stage for the
+  owner to choose from.
