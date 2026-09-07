@@ -177,3 +177,39 @@ document). Both built + tested; not yet merged.
 Run 5's review read the FERRELL deed (163k chars, "good") and then spent its tiles on the ten-page
 affidavit the relevance check had rejected, ahead of the plat and the bought deed. The re-read selection
 now carries the same `relevance.is.null,relevance.neq.unrelated` filter as the chunk list and the quote.
+
+## Run 5's review (2026-09-07) — the owner's three questions, answered
+
+**"The plat is unreadable — is there more than one?"** TexasFile lists two rows for WINNIE MAE ADDITION,
+both Cabinet A / Slide 166A filed 09/21/1954: one owned (GUID 0FE0A9D8…, document 126110904), one not
+($10, GUID D5C38C1F…) — the same recording twice in the index. "WINNIE" also returns WINNIE SCARBROUGH
+ADDITION (unrelated). The clerk's plat repository answers 403 from the worker and from Browserbase; the
+clerk's public search runs on Property Records (no plat department reachable). **The unreadable image was
+OURS, not the county's:** an owned re-open's begin body carries the viewer's PREVIEW PNGs (940×612,
+watermarked) in `pages`, and that is what runs 3–5 filed — "55 effective DPI". The viewer at
+`/document/viewer/126110904/` (the `preview_url` of an owned begin) serves the real PDF
+("Bell_1954-09-21_V_A_P_166A.pdf", a 3000×1954 image at 186 ppi): still a 1954 scan, but the lot grid,
+lot numbers and many dimensions are legible at 120 dpi. **V** files the viewer PDF first and falls back
+to the previews.
+
+**"Double check the actual cost."** Ledger for project 74dc0e02: $3.42 — $0.00 purchases, $3.42 AI
+(388 calls), all of it the review; the research run itself was $0.02.
+
+**"Why did the run go so long?"** It did not — the research run took 581 s. The REVIEW ran 80+ minutes,
+and the run view's ELAPSED kept counting from the research run's start because the worker's completed
+payloads never carried `finishedAt` (**T**). The review's minutes went to the tiled reader: 48 calls
+(13 min) on the subject deed, 112 calls (22 min) on the unrelated affidavit (**S** stops that), most of
+them depth-2 zooms into scans whose resolution was the limit — a zoom re-sends the same pixels larger
+(**U**: no escalation of a piece already at native resolution; 24 calls per page). The review honoured
+only its cost cap, never the 30-minute wall clock (**W**). And the review now has ITS OWN clock and cost
+counter (**T′**: `analysis_metadata.review.startedAt` stamped when the worker takes it; the status route
+returns `review { startedAt, finishedAt, elapsedMs, spendUsd, costCapUsd }` from the ledger's AI calls in
+that window; the control shows "AI review running — 12:34 elapsed · $3.42 of $7.00 spent"; the run
+console's SPENT is scoped to the research run's own window).
+
+| T finishedAt on completed payloads | ✅ |
+| T′ the review's own clock + cost | ✅ |
+| U tiled reader: no zoom at native resolution; 24 calls/page | ✅ |
+| V owned re-open files the viewer PDF, not the preview PNGs | ✅ |
+| W the review honours the wall clock | ✅ |
+| Re-file the plat on 74dc0e02 at full resolution | ⏳ after the merge |

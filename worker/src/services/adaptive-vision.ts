@@ -95,6 +95,10 @@ const ZOOM_OVERLAP_PCT = 0.08;
 const CONFIDENCE_ZOOM_THRESHOLD = 60;
 /** Confidence below this flags for manual surveyor review */
 const CONFIDENCE_MANUAL_THRESHOLD = 50;
+/** Vision calls one PAGE may spend before escalation stops (run 5's review, 2026-09-07: 112 calls on
+ *  a ten-page affidavit, 48 on a three-page deed, most of them depth-2 zooms into scans whose
+ *  resolution was the limit). Four pieces plus one round of zooms is the honest ceiling. */
+const MAX_CALLS_PER_PAGE = 24;
 /** Base64 byte threshold below which segmentation is skipped (~600 KB decoded) */
 const SMALL_IMAGE_BYTES = 800_000;
 /** Anthropic Vision API hard limit: 5 MiB per image. Use 4.5 MiB as safety margin. */
@@ -655,7 +659,21 @@ export async function adaptiveVisionOcr(
     };
 
     // Phase 6: Escalation — low-confidence segments get 2×2 sub-division
-    if (score.needsZoom) {
+    // A zoom re-sends the SAME pixels larger. It only helps when the piece was being scaled DOWN to
+    // fit the API limit; a piece already at native resolution gains nothing from being split — the
+    // readability check's "MORE TILES CANNOT FIX IT". And a page has a call budget: run 5's review
+    // (2026-09-07) spent 112 calls on one document, most of them depth-2 zooms into a scan whose
+    // resolution was the limit.
+    const pieceWasDownscaled = Math.max(box.width, box.height) > CLAUDE_MAX_PIXELS;
+    const pageCallsLeft = MAX_CALLS_PER_PAGE - totalApiCalls;
+    if (score.needsZoom && !pieceWasDownscaled) {
+      logger.info('AdaptiveVision',
+        `${label} [${box.segmentId}]: confidence ${score.confidence} is low but the piece is already at native resolution (${box.width}×${box.height}px fits the API limit) — zooming would re-send the same pixels; not escalating.`);
+    } else if (score.needsZoom && pageCallsLeft < 4) {
+      logger.info('AdaptiveVision',
+        `${label} [${box.segmentId}]: confidence ${score.confidence} is low but this page has spent ${totalApiCalls} of its ${MAX_CALLS_PER_PAGE} calls — not escalating.`);
+    }
+    if (score.needsZoom && pieceWasDownscaled && pageCallsLeft >= 4) {
       logger.info('AdaptiveVision',
         `${label} [${box.segmentId}]: escalating — confidence ${score.confidence} < ${CONFIDENCE_ZOOM_THRESHOLD} ` +
         `(${score.uncertainMarkers} [?] markers, ${score.uncertainWords} uncertainty words) — ` +
@@ -690,7 +708,9 @@ export async function adaptiveVisionOcr(
         // split it into 2x2 again for maximum extraction depth
         let finalText = zText;
         let finalConfidence = zScore.confidence;
-        if (zScore.needsZoom && zbox.width > 200 && zbox.height > 200) {
+        // Depth 2 only when the zoom piece was itself downscaled for the API and the page still has
+        // calls to spend (2026-09-07).
+        if (zScore.needsZoom && zbox.width > 200 && zbox.height > 200 && Math.max(zbox.width, zbox.height) > CLAUDE_MAX_PIXELS && MAX_CALLS_PER_PAGE - totalApiCalls >= 4) {
           logger.info('AdaptiveVision',
             `${label} [${zId}]: depth-2 escalation — confidence ${zScore.confidence} still low, splitting again`);
           const z2Boxes = computeCropBoxes(zbox.width, zbox.height, 2, 2, ZOOM_OVERLAP_PCT);

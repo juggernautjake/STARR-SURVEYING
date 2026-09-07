@@ -2548,6 +2548,10 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   // R3 — the analyze run's own spend vs the cap the operator set, so the UI can draw a cost bar.
   estimatedCostUsd?: number;
   costCapUsd?: number | null;
+  /** The AI review's OWN clock and cost (owner, 2026-09-07): from the moment the worker took the
+   *  review until it ended, and the AI spend the ledger booked in that window — not the research
+   *  run's, which has its own. */
+  review?: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null };
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
     supabaseAdmin.from('research_projects').select('status, analysis_metadata, updated_at').eq('id', projectId).single(),
@@ -2567,6 +2571,24 @@ export async function getAnalysisStatus(projectId: string): Promise<{
 
   const metadata = projectRes.data?.analysis_metadata as Record<string, unknown> | null;
   const status = projectRes.data?.status || 'unknown';
+
+  // The review's own window and spend.
+  let review: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null } | undefined;
+  const rv = metadata?.review as { startedAt?: string; finishedAt?: string | null; costCapUsd?: number | null } | undefined;
+  if (rv?.startedAt) {
+    const finishedAt = rv.finishedAt
+      ?? (typeof metadata?.completed_at === 'string' && metadata.completed_at >= rv.startedAt ? metadata.completed_at : null)
+      ?? (status !== 'analyzing' && projectRes.data?.updated_at ? String(projectRes.data.updated_at) : null);
+    const endMs = finishedAt ? Date.parse(finishedAt) : Date.now();
+    const { data: spendRows } = await supabaseAdmin
+      .from('research_usage_events')
+      .select('cost_usd')
+      .eq('research_project_id', projectId)
+      .eq('event_type', 'ai_call')
+      .gte('created_at', rv.startedAt);
+    const spendUsd = ((spendRows ?? []) as Array<{ cost_usd: number | string | null }>).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+    review = { startedAt: rv.startedAt, finishedAt, elapsedMs: Math.max(0, endMs - Date.parse(rv.startedAt)), spendUsd: Number(spendUsd.toFixed(4)), costCapUsd: rv.costCapUsd ?? null };
+  }
 
   // Freeze detection: if still analyzing but updated_at hasn't moved in 90 s,
   // the background process has likely crashed or is stuck on an AI call.
@@ -2588,5 +2610,6 @@ export async function getAnalysisStatus(projectId: string): Promise<{
     ...(Array.isArray(metadata?.logs) ? { logs: metadata.logs as AnalysisLogEntry[] } : {}),
     ...(typeof metadata?.estimated_cost_usd === 'number' ? { estimatedCostUsd: metadata.estimated_cost_usd } : {}),
     ...(metadata?.cost_cap_usd !== undefined ? { costCapUsd: (metadata.cost_cap_usd as number | null) } : {}),
+    ...(review ? { review } : {}),
   };
 }

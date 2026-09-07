@@ -58,7 +58,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Usage is an enhancement to the console, not its precondition: a failed usage read must not hide
   // the phase and the cancel button. It IS reported, so a broken spend writer stays visible.
   const usageFailed = !!usageRes.error;
-  const events = (usageRes.data ?? []) as UsageRow[];
+  // The research RUN's spend is what happened between its start and its finish. The AI review that
+  // follows books its own AI calls to the same project, and until 2026-09-07 they showed up here as
+  // the run's "SPENT" ($3.30 on a $0.02 run) — the review has its own counter now.
+  const runStart = String((run as { started_at?: string }).started_at ?? '');
+  const runEnd = (run as { finished_at?: string | null }).finished_at ?? null;
+  const events = ((usageRes.data ?? []) as UsageRow[]).filter((e) => {
+    const at = String((e as { created_at?: string }).created_at ?? '');
+    return (!runStart || at >= runStart) && (!runEnd || at <= runEnd);
+  });
 
   return NextResponse.json(
     {

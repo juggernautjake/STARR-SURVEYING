@@ -17,6 +17,6 @@ describe('analyze cost is exposed + surfaced', () => {
     const ctrl = read('app/admin/research/components/RunAiReviewControl.tsx');
     expect(ctrl).toMatch(/data-testid="ai-review-progress"/);
     expect(ctrl).toMatch(/j\.estimatedCostUsd/);
-    expect(ctrl).toMatch(/spent.*of \$/);
+    expect(ctrl).toMatch(/(spent[\s\S]{0,120}of \$)|(of \$[\s\S]{0,120}spent)/) // the review line reads "$x of $cap spent" since 2026-09-07;
   });
 });

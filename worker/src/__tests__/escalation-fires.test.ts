@@ -76,7 +76,8 @@ describe('what a bad read looks like, and what a good one looks like', () => {
 describe('both paths act on it — assert the CALLERS', () => {
   it('the generic pipeline escalates, and re-splits 2×2', () => {
     const s = code('services/adaptive-vision.ts');
-    expect(s).toContain('if (score.needsZoom)');
+    // Gated since 2026-09-07 (slice U): only a piece that was downscaled for the API, within the page's call budget.
+    expect(s).toContain('if (score.needsZoom && pieceWasDownscaled && pageCallsLeft >= 4) {');
     expect(s).toContain('computeCropBoxes(box.width, box.height, 2, 2, ZOOM_OVERLAP_PCT)');
   });
 

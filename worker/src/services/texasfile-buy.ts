@@ -467,12 +467,33 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
     }
 
     // ── STEP 3: THE PAGES ────────────────────────────────────────────────────────────────────
+    // The VIEWER's PDF first, whenever the body names a viewer (`purchase_url`, or an owned
+    // document's `preview_url` of the form /document/viewer/<id>/): it carries the document at
+    // its scanned resolution (the 1954 plat: a 3000×1954 image), while an owned re-open's
+    // `pages` are the viewer's PREVIEW PNGs (940×612, watermarked) — what runs 3–5 filed, and why
+    // the plat read as "55 effective DPI — unreadable" (2026-09-07). The PNGs remain the fallback.
+    if (!viewerUrl && typeof body.preview_url === 'string' && /\/document\/viewer\//.test(body.preview_url)) {
+      viewerUrl = `${TF}${body.preview_url}`;
+    }
+    if (viewerUrl) {
+      const captured = await capturePdfPages(page, viewerUrl, log);
+      if (captured.pages.length > 0 && captured.method !== 'none') {
+        return {
+          pages: [], pageImages: captured.pages, pdfUrl: captured.pdfUrl,
+          purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined,
+          balance: body.user_balance, method: captured.method, charged,
+        };
+      }
+      if (Array.isArray(body.pages) && body.pages.length > 0) {
+        log.warn('TexasFile', `Document ${documentId ?? guid}: the viewer gave no PDF (${captured.note ?? 'no pages'}) — falling back to the ${body.pages.length} preview page image(s).`);
+      }
+    }
     // A deed: page-image URLs in the body. A plat: nothing here — the viewer serves one PDF.
     if (Array.isArray(body.pages) && body.pages.length > 0) {
       return { pages: body.pages, purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined, balance: body.user_balance, method: 'page-urls', charged };
     }
-    if (viewerUrl || documentId != null) {
-      const captured = await capturePdfPages(page, viewerUrl ?? `${TF}/document/viewer/${documentId}/`, log);
+    if (documentId != null && !viewerUrl) {
+      const captured = await capturePdfPages(page, `${TF}/document/viewer/${documentId}/`, log);
       if (captured.pages.length > 0) {
         return {
           pages: [], pageImages: captured.pages, pdfUrl: captured.pdfUrl,

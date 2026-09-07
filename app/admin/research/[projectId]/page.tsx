@@ -2009,7 +2009,7 @@ export default function ResearchProjectPage() {
               {/* U4 (plan GATHER_AND_REVIEW_SPLIT) — the analysis is a SEPARATE run the operator starts
                   here, with its own cost cap. A gather run files documents with no AI; this is where the
                   user, having reviewed them, pays to analyse. */}
-              <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} />
+              <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} analyzing={project.status === 'analyzing'} />
 
               {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a
                   per-file price with "Analyze this") now also carries View + Source ↗ on each row, so the

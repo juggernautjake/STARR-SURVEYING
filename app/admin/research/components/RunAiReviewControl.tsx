@@ -17,25 +17,63 @@ export function analyzeRequestBody(maxCostUsd: number): { maxCostUsd: number } {
   return { maxCostUsd: clamped };
 }
 
+/** What the status route says about the review — its OWN clock and cost, beside the research run's. */
+interface ReviewProgress {
+  status: string;
+  spent?: number;
+  cap?: number | null;
+  review?: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null } | null;
+}
+
+/** "12:34" / "1:02:05" — the review's elapsed time, live while it runs. */
+export function formatReviewElapsed(startedAt: string, finishedAt: string | null, now = Date.now()): string {
+  const start = Date.parse(startedAt);
+  const end = finishedAt ? Date.parse(finishedAt) : now;
+  const s = Math.max(0, Math.floor((end - start) / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+/** The one line under the button: the review's own elapsed time and spend (owner, 2026-09-07:
+ *  "a separate counter for the AI review and a separate cost counter"). */
+export function reviewStatusLine(p: ReviewProgress | null, now = Date.now()): string {
+  if (!p) return 'AI review started — its progress and cost will appear as it runs.';
+  const rv = p.review;
+  const money = rv ? `$${rv.spendUsd.toFixed(2)}${rv.costCapUsd != null ? ` of $${Number(rv.costCapUsd).toFixed(2)}` : ''}` : (typeof p.spent === 'number' ? `~$${p.spent.toFixed(2)}` : '');
+  if (p.status === 'analyzing') return rv ? `AI review running — ${formatReviewElapsed(rv.startedAt, null, now)} elapsed · ${money} spent` : `AI review running${money ? ` — ${money} spent` : '…'}`;
+  if (p.status === 'review') return rv ? `AI review complete — ${formatReviewElapsed(rv.startedAt, rv.finishedAt, now)} · ${money}.` : `AI review complete${money ? ` — ${money}` : ''}.`;
+  return 'AI review started — its progress and cost will appear as it runs.';
+}
+
 export interface RunAiReviewControlProps {
   projectId: string;
   /** Default cost cap shown in the input. */
   defaultMaxCostUsd?: number;
   /** Called after the analyze run is accepted, so the page can refresh/poll. */
   onStarted?: () => void;
+  /** The project is already at `analyzing` (a review in progress when the page opened) — poll it. */
+  analyzing?: boolean;
 }
 
 export default function RunAiReviewControl({
   projectId,
   defaultMaxCostUsd = 5,
   onStarted,
+  analyzing = false,
 }: RunAiReviewControlProps) {
   const [maxCost, setMaxCost] = useState<number>(defaultMaxCostUsd);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
-  // R3 — live analyze spend vs the cap the operator set.
-  const [progress, setProgress] = useState<{ status: string; spent?: number; cap?: number | null } | null>(null);
+  const [started, setStarted] = useState(analyzing);
+  // R3 — live analyze spend vs the cap the operator set; the review's own clock rides with it.
+  const [progress, setProgress] = useState<ReviewProgress | null>(null);
+  // A one-second tick so the review's clock advances between polls.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (progress?.status !== 'analyzing') return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [progress?.status]);
 
   // After the review starts, poll its status so the operator sees spend against the cap they set.
   useEffect(() => {
@@ -45,7 +83,7 @@ export default function RunAiReviewControl({
       try {
         const j = await fetch(`/api/admin/research/${projectId}/analyze`).then((r) => r.json());
         if (!live) return;
-        setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd });
+        setProgress({ status: j.status, spent: j.estimatedCostUsd, cap: j.costCapUsd, review: j.review ?? null });
         if (j.status === 'analyzing') setTimeout(tick, 4000);
       } catch { /* transient; the next tick retries */ }
     };
@@ -124,11 +162,7 @@ export default function RunAiReviewControl({
       {error && <span role="alert" style={{ color: '#DC2626', fontSize: '0.8rem', flexBasis: '100%' }}>{error}</span>}
       {started && !error && (
         <span role="status" data-testid="ai-review-progress" style={{ color: '#166534', fontSize: '0.8rem', flexBasis: '100%' }}>
-          {progress?.status === 'analyzing'
-            ? `AI review running${typeof progress.spent === 'number' ? ` — ~$${progress.spent.toFixed(2)} spent${progress.cap != null ? ` of $${Number(progress.cap).toFixed(2)}` : ''}` : '…'}`
-            : progress?.status === 'review'
-              ? `AI review complete${typeof progress.spent === 'number' ? ` — ~$${progress.spent.toFixed(2)}` : ''}.`
-              : 'AI review started — its progress and cost will appear as it runs.'}
+          {reviewStatusLine(progress)}
         </span>
       )}
     </div>

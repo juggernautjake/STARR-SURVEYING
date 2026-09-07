@@ -89,7 +89,7 @@ describe('N — the review cap is the REVIEW\'s spend, not the project\'s', () =
   it('the read pass measures spend from its own start', () => {
     const src = read('index.ts');
     expect(src).toContain('const spendAtStart = spendForRun(projectId);');
-    expect(src).toContain("const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded !== 'cost';");
+    expect(src).toContain("const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded == null;"); // W (2026-09-07): the wall clock counts too
     expect(src).not.toContain("checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost'");
   });
 });

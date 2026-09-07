@@ -127,8 +127,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       if (workerRes.ok) {
         // Parked at `analyzing` so the Analysis stage shows the run; the worker's callback moves it
         // on through analyzeProject, which ends at `review`.
+        // The review's own start is stamped here (owner, 2026-09-07: "a separate counter for the AI
+        // review and a separate cost counter") — the research run's clock and spend are its own.
+        const { data: cur } = await supabaseAdmin.from('research_projects').select('analysis_metadata').eq('id', projectId).maybeSingle();
+        const meta = ((cur as { analysis_metadata?: Record<string, unknown> } | null)?.analysis_metadata ?? {}) as Record<string, unknown>;
         await supabaseAdmin.from('research_projects')
-          .update({ status: 'analyzing', updated_at: new Date().toISOString() })
+          .update({
+            status: 'analyzing',
+            updated_at: new Date().toISOString(),
+            analysis_metadata: { ...meta, review: { startedAt: new Date().toISOString(), costCapUsd: config?.maxCostUsd ?? null, finishedAt: null } },
+          })
           .eq('id', projectId);
         return NextResponse.json({
           message: 'Analysis started — the worker is reading the documents first (OCR, chain of title), then the data-point analysis follows.',

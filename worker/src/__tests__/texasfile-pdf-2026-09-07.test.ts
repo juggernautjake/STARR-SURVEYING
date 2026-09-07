@@ -63,7 +63,9 @@ describe('WIRED: the purchase completes via preview_url and takes pages from the
   });
   it('keeps the deed path (page URLs) and adds the PDF path (viewer → rasterise)', () => {
     expect(fn).toContain("method: 'page-urls'");
-    expect(fn).toContain('capturePdfPages(page, viewerUrl ?? `${TF}/document/viewer/${documentId}/`, log)');
+    // Since 2026-09-07 (slice V) the viewer PDF is captured FIRST when a viewer URL is known, and by document id otherwise.
+    expect(fn).toContain('const captured = await capturePdfPages(page, viewerUrl, log);');
+    expect(fn).toContain('capturePdfPages(page, `${TF}/document/viewer/${documentId}/`, log)');
   });
   it('buyDocument uses the rasterised pages when present', () => {
     expect(src).toContain('const pages = bought.pageImages ?? await downloadTexasFilePages(page, bought.pages);');

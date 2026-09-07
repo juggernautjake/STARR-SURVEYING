@@ -3579,6 +3579,9 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         resultType: 'generic-pipeline',
         county: unified.county,
         status: result.status,
+        // When it finished — the screen's clock stops here instead of counting on through the
+        // review that follows (run 5, 2026-09-07: "1:36:09 / 25:00" over a 9-minute run).
+        finishedAt: result.completedAt ?? new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),
         result: {
           propertyId: result.propertyId,
           geoId: result.geoId,
@@ -3636,6 +3639,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         resultType: 'county-specific',
         county: unified.county,
         status: 'complete',
+        finishedAt: new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),
         result: {
           researchId: result.researchId,
           propertyId: result.property.propertyId,
@@ -4362,7 +4366,9 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
       // of deeds against a $7 review cap → "8 left unread because the run reached its ceiling"
       // with nothing read — the deeds and the plat stayed pending and were never analysed).
       const spendAtStart = spendForRun(projectId);
-      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded !== 'cost';
+      // Cost OR the 30-minute wall clock (run 5's review ran 80+ minutes, 2026-09-07); a benchmark
+      // read is uncapped on purpose.
+      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded == null;
       const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue));
       log(report ? `Read pass: ${report.reanalysed} read, ${report.leftUnread ?? 0} left, ${report.failed ?? 0} failed of ${report.considered}.` : 'Read pass returned nothing.');
 
