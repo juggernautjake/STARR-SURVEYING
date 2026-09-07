@@ -177,7 +177,7 @@ describe('the two dedicated gather budgets (W1)', () => {
     expect(dialog).toMatch(/otherBudgetUsd: form\.otherBudgetUsd/);
   });
   it('defaults to $10 TexasFile (the owner\'s floor, 2026-09-07 — one plat) and $5 other', () => {
-    expect(dialog).toMatch(/texasfileBudget: 10/);
+    expect(dialog).toMatch(/texasfileBudget: 20/); // the owner's working budget (2026-09-07); the $10 floor lives in gather-budget.ts
     expect(dialog).toMatch(/otherBudget: 5/);
   });
 });

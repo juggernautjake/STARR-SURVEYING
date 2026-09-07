@@ -1,8 +1,8 @@
 # Plats first, the correct plat, and a viewer you never leave — 2026-09-07
 
-<!-- HOOK:BLOCKED Phases 1–5 are BUILT, tested, pushed and green (worker 222 files/2959, app 28k, npm run build). Phase 6 (delete project 7b2ca89c…, recreate 1401 North East St, the supervised run, Analyze, one follow-up round) is LIVE-ONLY and needs the OWNER to MERGE claude/plats-first-viewer-2026-09-07 into main — the standing rule is explicit say-so per merge, and the Dockerfile change (poppler) needs the image rebuild the merge triggers. Nothing is deferred for cost. Remove this marker (or say "merge") to resume. -->
-
-**Started** 2026-09-07 · **Branch** `claude/plats-first-viewer-2026-09-07` (from `main` @ `03910c888`)
+**Started** 2026-09-07 · **Branch** `claude/plats-first-viewer-2026-09-07` (from `main` @ `03910c888`) —
+**MERGED to main (`c3fd5e1d6`) 2026-09-07**; Vercel + the netcup worker (poppler 22.02) deployed it.
+**Follow-up branch** `claude/review-documents-tab-2026-09-07` (2 commits, see Phase 8) — awaiting the owner's merge.
 
 Driven by the stop-hook slice loop, **in order**. Ship the smallest meaningful slice, `tsc` + lint + test,
 commit, **push to the BRANCH**. Read the live code each slice touches first. Standing constraints:
@@ -63,10 +63,15 @@ fixed); `npm run build` green; tsc + eslint clean on both sides.
 | 4.1–4.3 ‹ title › arrows, every stage's list, every file viewable | ✅ | `SourceDocumentViewer`, three mounts, `AnalysisEstimatePanel` |
 | 4.4 aligned row buttons | ✅ | fixed grid columns |
 | 5.1 Activity "Copy all" | ✅ | `ResearchRunView` |
-| 6.1–6.3 delete + recreate + the new run + the loop | ⏳ **needs the merge** (Dockerfile change → image rebuild) | owner |
+| 4.5 Review stage: a Documents tab, every file with View + Source (branch 2) | ✅ | `ReviewDocumentsList.tsx`; `page.tsx` review tab `'documents'` |
+| 6.1 archive 7b2ca89c…, recreate 1401 North East St (project `d799e026…`) | ✅ 2026-09-07 | product UI |
+| 6.2 the supervised run (run 3) | ✅ ran 591 s — see Phase 8 for what it proved and exposed | worker log + product |
+| 6.3 Analyze → leads → follow-up | ⏳ in progress | product |
+| 8.1–8.4 what run 3 exposed (wrong deed, bought twice, $3 booked as $6, bought after "complete") | ✅ built + tested on branch 2 | Phase 8 |
 
-**Owner: say "merge"** → main fast-forwards, Vercel deploys the app, the netcup timer rebuilds the
-worker image (now with poppler); then 6.1–6.3 run in the product with the log watched.
+**Owner: say "merge"** for `claude/review-documents-tab-2026-09-07` → Vercel deploys the Review Documents
+tab + the run-log guard; the netcup timer rebuilds the worker (the purchase fixes). Until then the live
+worker still carries the four Phase 8 defects.
 
 ## What the 2026-09-07 run (run 2, project 7b2ca89c…, PID 64567, "WINNIE MAE ADDITION, BLOCK 001, LOT 4")
 ## proved, and what it exposed — every item below is a slice
@@ -253,3 +258,59 @@ Then the Analyze button (worker-driven), the Discovered Leads panel, and one fol
 ## PHASE 7 — Verification
 Full worker + app suites green; tsc + lint; `npm run build`; then the owner merges, the worker auto-updates
 (Dockerfile change → image rebuild), and 6.x runs. Move this doc to `completed/` when 6.3 is done.
+
+---
+
+## PHASE 8 — What run 3 (project `d799e026…`, 2026-09-07, 591 s) proved, and what it exposed
+
+**Proved, live, in this order:** "Buy order: 1 plat/drawing(s) first, newest first — WINNIE MAE ADDITION
+A/166A (09/21/1954)" → TexasFile plat search hit → "already owned by this account — re-opening it for
+free" → "Plat verified: the index names WINNIE MAE ADDITION, the CAD legal description names WINNIE MAE
+ADDITION — cabinet/slide A/166A, filed 09/21/1954" → filed as "Plat — WINNIE MAE ADDITION (Bell) ·
+Cabinet A, Slide 166A" and rendered in the viewer from the TexasFile PDF (pdftoppm). Then 6 imagery /
+GIS / call-sheet captures, the free clerk's deed 2004034968 + affidavit 2015014567, spend line scoped
+to the run, 11 documents each with View. In the product: ‹ › arrows walked 11 → 10 → 9 of 11 (click
+and `[`), "Copy all" copied the log. **Wallet: $57 → $54.**
+
+**Exposed (the final purchase pass, after the plat):**
+
+### 8.1 — It bought a deed about ANOTHER property ✅
+TexasFile's deed table glues its legal cell — `Lot: 2Block: 5Subdivision: FRENCH ADDITION, W L` — so
+`parseLegal` read the lot as "2BLOCK" and no subdivision; the chooser's subdivision filter never engaged
+and it fell back to the newest filing for "CAFFREY BARBARA": warranty deed 2020064728, Lot 2 Block 5
+FRENCH ADDITION — not Lot 4 Block 1 WINNIE MAE ADDITION. Fix: `parseLegal` un-glues Title-case labels
+(case-sensitive, so "Abstract:" is not "Abs tract:"); `chooseTexasFileResult` never returns a row whose
+legal names another subdivision (blank legal → bought with a warning; nothing left → null and
+`describeNoChoice` says "no TexasFile results on WINNIE MAE ADDITION among 39 row(s) for … — the rest
+name other properties"); lot/block ride from the county branch (`lotBlockOf`, via `parseLotBlock`) →
+recommendation → adapter → buy, with "001" ≡ "1".
+**The wrong deed is still FILED on project d799e026 (3 pages, $3) — the owner may want to drop it.**
+
+### 8.2 — It bought the same deed twice ✅
+Three `search_required` wants ("most recent deed", "all deeds", "most recent easement") ran the same
+name search and resolved to the same top row. Fix: the orchestrator keeps `boughtThisRun` (instrument
+numbers + GUIDs) and passes `excludeInstruments`/`excludeGuids`; the chooser filters them out first.
+
+### 8.3 — The re-buy booked $3 the wallet never lost ✅
+Second time round the row showed Download / Cart / Extract Text / My File / "Purchased on: 9-7-2026" —
+but its Download button carries only `value="14:<GUID>"` (the plat table's carries `data-for`), so
+`owned` was false; TexasFile's begin body then named the EXISTING purchase (`purchase_id: 17446112`,
+numeric) and charged nothing, while the code completed "document 17446112 (receipt ?)" and priced 3
+pages. Fix: the extractor reads the button's word and the row's "Purchased on:"; `purchaseTexasFile`
+treats a numeric begin `purchase_id` as owned (`beginNamesExistingPurchase`), skips the complete call
+and returns `charged: false`; `buyDocument` prices $0 when not charged.
+
+### 8.4 — It bought AFTER "Research complete", and the Activity tab lost the run ✅
+Both final purchase passes sat after "Spend by budget", the Research Complete handshake, `endRun` and
+`activePipelines.delete` — so the screen said "$0.00 of the $10.00 budget / Research complete" while $3
+was being spent, the run row settled without it, and a status poll in the gap (no live pipeline, no
+cached log yet) answered `log: []`, which the hook adopted: 302 entries → 4. Fix: one
+`finalPurchasePass()` (generic Phase 7→8→9 + county checklist) awaited BEFORE `endFiling`, the meters
+and the handshake; `useRunState` never replaces a non-empty log with an empty one.
+
+Tests: `texasfile-right-document-2026-09-07.test.ts` (15), `run-log-survives-finish-2026-09-07.test.ts`,
+`county-specific-run-buys-documents` re-pointed at `finalPurchasePass`. Worker 223 files / 2976; app
+158 research files / 2577 + ratchets; tsc both sides.
+
+**Not yet proved live** (needs the branch-2 merge + worker rebuild): a run where the name search refuses
+the other-property row and the second want is told "already held by this run".

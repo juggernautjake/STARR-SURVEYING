@@ -87,7 +87,10 @@ interface FormState {
  *  defaults rather than presenting them as the operator's own past choices. */
 // TexasFile $10: the owner's floor (2026-09-07) — one plat is $10 flat, and the plat is the first
 // thing every run buys. The input's min is 10 too; the worker floors it at 10 (gather-budget.ts).
-const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const, texasfileBudget: 10, otherBudget: 5 };
+// The owner's working budgets (2026-09-07): TexasFile $20 (the floor stays $10 — gather-budget's
+// MIN_TEXASFILE_BUDGET_USD), everything else $5. A fresh dialog opens on these; the estimate line
+// beside them says when the checklist would cost more.
+const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const, texasfileBudget: 20, otherBudget: 5 };
 
 /** The run length an operator may choose. Mirrors RUN_MINUTES in worker/src/research/run-phases.ts
  *  — the progress bar paces itself to this number, so the two must agree or the bar is calibrated
