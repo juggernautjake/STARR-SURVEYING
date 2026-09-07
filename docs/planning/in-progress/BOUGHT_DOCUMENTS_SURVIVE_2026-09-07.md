@@ -212,4 +212,7 @@ console's SPENT is scoped to the research run's own window).
 | U tiled reader: no zoom at native resolution; 24 calls/page | ✅ |
 | V owned re-open files the viewer PDF, not the preview PNGs | ✅ |
 | W the review honours the wall clock | ✅ |
-| Re-file the plat on 74dc0e02 at full resolution | ⏳ after the merge |
+| Re-file the plat on 74dc0e02 at full resolution | ✗ superseded — the owner wants a fresh project per run; run 6 on the deployed build files it at 3000×1954 (V) |
+| 0912adc32 failed the worker Docker build (tsc: `result.completedAt`); host rolled back | ✅ hotfix 67bcbb32c |
+| Two loading bars + two cost counters (research = retrieval; the review has its own bar) + run-5 log fixes L1–L5 | ✅ 7bdc766af — see `TWO_BARS_TWO_COUNTERS_2026-09-07.md` |
+| `GET /research/active` 500 "circular structure" while a run is in flight (the updater deferred on it) | ✅ 4b905af52 |
