@@ -60,3 +60,10 @@ other $5 (run 6 is the last); delete the old project and do a fresh run each tim
   flight was invisible to `/research/active`, so the host updater could rebuild over it — counted now.
 - The dialog's "How long this run may take: 30" is ignored by design for a gather run (25-minute cap,
   owner B2.3) — the run view's "/ 25:00" is right; the dialog copy is not (left for a later slice).
+- Run 6's AI review (cap $7): read pass 4 documents at "good" (the plat 11,110 chars, the TexasFile deed 37,533,
+  the clerk deed 25,404), 11 already had text; 15 of 15 analysed; finalize chain ✓ crossref ✓ — the 3-pass
+  COHERENCE stage returned HTTP 504 (Vercel's 300 s) and the unpark stamped the review `stopped` with its clock;
+  the project came back to `review` with its data points. Review spend $0.63 (52 AI calls) vs run 5's $3.42.
+  Fixed: each coherence pass is its own finalize stage (`coherence1` → `coherence2` → `coherence3`), the earlier
+  passes carried on `analysis_metadata.coherence_passes`; the worker drives five finalize stages.
+- The Analysis stage now shows the LAST review's bar, clock and spend on open (not only while it runs).
