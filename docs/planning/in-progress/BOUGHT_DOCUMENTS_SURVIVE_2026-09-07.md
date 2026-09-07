@@ -89,8 +89,8 @@ anything with metes and bounds.
 | C final pass knows the early buys | ✅ built + tested |
 | D failed Analyze restores `review` | ✅ built + tested |
 | E unrelated = marked + badge (seed 631 already live — no new seed) | ✅ built + tested |
-| F verify + merge + deploy | ✅ merged to main c55ae3ff9 (worker 2983 tests, app 2615 + ratchets, tsc both, lint, next build); Vercel + worker rebuild watched |
-| G run 4 + the loop | ⏳ |
+| F verify + merge + deploy | ✅ main c55ae3ff9 → d319e8dc0 (H–N) → f62eb4c63 (O, P); Q/R committed on the branch, merge after the run-5 loop |
+| G run 4 ✅ (2321a1f7, archived) → run 5 ✅ (74dc0e02: H–P proved at $0) → Analyze (in progress: deeds read by the tiled reader, staged finalize) → leads → follow-up | ⏳ |
 
 ## Run 4 (project `2321a1f7…`, 2026-09-07, 558 s, TexasFile $8 of $20, other $0.02 of $5) — proved and exposed
 
