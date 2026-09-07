@@ -73,7 +73,8 @@ describe('D — a failed worker-driven Analyze does not strand the project', () 
     expect(src).toContain('if (!r.finalized) await unparkAnalyzing(projectId, log, r.statement);');
     expect(src).toContain('await unparkAnalyzing(projectId, log, e instanceof Error ? e.message : String(e));');
     expect(src).toContain("if (data?.status !== 'analyzing') return;");
-    expect(src).toContain(".update({ status: 'review', updated_at: new Date().toISOString() })");
+    // The unpark also stamps the review's finishedAt + a 'stopped' progress (two bars, 2026-09-07).
+    expect(src).toContain("        status: 'review',\n        analysis_metadata: { ...meta, review: { ...review, finishedAt: now, progress: { ...prior, stage: 'stopped',");
   });
   it('the read pass and the quote leave unrelated documents out', () => {
     expect(src).toContain(".or('relevance.is.null,relevance.neq.unrelated')");

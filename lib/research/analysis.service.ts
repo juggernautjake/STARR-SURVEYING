@@ -37,6 +37,7 @@ import type {
   ProbableCause,
   DataCategory,
 } from '@/types/research';
+import { normaliseReviewProgress, reviewPercent, type ReviewStatus } from './review-progress';
 
 // ── Analysis Configuration ──────────────────────────────────────────────────
 
@@ -650,9 +651,14 @@ export async function analyzeProject(
       .eq('id', projectId)
       .single();
     const existing = (current?.analysis_metadata as Record<string, unknown>) || {};
+    // `review` is shared with the worker (its progress stamps) and the analyze route (startedAt,
+    // costCapUsd): a shallow spread would drop whichever side wrote last. Merge it a level down.
+    const reviewMerge = extraMeta?.review && typeof extraMeta.review === 'object'
+      ? { review: { ...((existing.review as Record<string, unknown>) ?? {}), ...(extraMeta.review as Record<string, unknown>) } }
+      : {};
     await supabaseAdmin.from('research_projects').update({
       ...rowPatch,
-      analysis_metadata: { ...existing, ...extraMeta, logs },
+      analysis_metadata: { ...existing, ...extraMeta, logs, ...reviewMerge },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
   }
@@ -1597,6 +1603,8 @@ export async function analyzeProject(
       // Estimated (an upper bound, priced at the dearest model) because token pricing varies by model.
       estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
       cost_cap_usd: analyzeCostCapUsd ?? null,
+      // The review's own clock stops here, and its bar reaches 100 (owner, 2026-09-07).
+      review: { finishedAt: completedAt, progress: { stage: 'done', documentsDone: allDocuments.length, documentsTotal: allDocuments.length, label: 'Analysis complete', at: completedAt } },
       coherence_review: coherenceReview,
       // Benchmark result (the calibration run): total cost ÷ total pages = the standardized rate the
       // owner sets ANALYSIS_RATE_USD_PER_PAGE to. Only present on a benchmark run.
@@ -2551,7 +2559,7 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   /** The AI review's OWN clock and cost (owner, 2026-09-07): from the moment the worker took the
    *  review until it ended, and the AI spend the ledger booked in that window — not the research
    *  run's, which has its own. */
-  review?: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null };
+  review?: ReviewStatus;
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
     supabaseAdmin.from('research_projects').select('status, analysis_metadata, updated_at').eq('id', projectId).single(),
@@ -2573,8 +2581,8 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   const status = projectRes.data?.status || 'unknown';
 
   // The review's own window and spend.
-  let review: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null } | undefined;
-  const rv = metadata?.review as { startedAt?: string; finishedAt?: string | null; costCapUsd?: number | null } | undefined;
+  let review: ReviewStatus | undefined;
+  const rv = metadata?.review as { startedAt?: string; finishedAt?: string | null; costCapUsd?: number | null; progress?: unknown } | undefined;
   if (rv?.startedAt) {
     const finishedAt = rv.finishedAt
       ?? (typeof metadata?.completed_at === 'string' && metadata.completed_at >= rv.startedAt ? metadata.completed_at : null)
@@ -2587,7 +2595,13 @@ export async function getAnalysisStatus(projectId: string): Promise<{
       .eq('event_type', 'ai_call')
       .gte('created_at', rv.startedAt);
     const spendUsd = ((spendRows ?? []) as Array<{ cost_usd: number | string | null }>).reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
-    review = { startedAt: rv.startedAt, finishedAt, elapsedMs: Math.max(0, endMs - Date.parse(rv.startedAt)), spendUsd: Number(spendUsd.toFixed(4)), costCapUsd: rv.costCapUsd ?? null };
+    // The worker's stamps → the review's own bar (owner, 2026-09-07).
+    const progress = normaliseReviewProgress(rv.progress);
+    review = {
+      startedAt: rv.startedAt, finishedAt, elapsedMs: Math.max(0, endMs - Date.parse(rv.startedAt)),
+      spendUsd: Number(spendUsd.toFixed(4)), costCapUsd: rv.costCapUsd ?? null,
+      progress, percent: reviewPercent(status, progress, finishedAt),
+    };
   }
 
   // Freeze detection: if still analyzing but updated_at hasn't moved in 90 s,

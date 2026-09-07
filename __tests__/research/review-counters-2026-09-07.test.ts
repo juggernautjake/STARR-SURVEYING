@@ -15,7 +15,7 @@ describe('the review control shows the review\'s own time and money', () => {
     expect(formatReviewElapsed(start, '2026-09-07T13:29:56.000Z', Date.parse('2026-09-07T20:00:00.000Z'))).toBe('1:18:05');
   });
   it('the status line names the review\'s spend against its cap, not the project\'s', () => {
-    const rv = { startedAt: '2026-09-07T12:11:51.000Z', finishedAt: null, elapsedMs: 0, spendUsd: 3.42, costCapUsd: 7 };
+    const rv = { startedAt: '2026-09-07T12:11:51.000Z', finishedAt: null, elapsedMs: 0, spendUsd: 3.42, costCapUsd: 7, progress: null, percent: 3 };
     expect(reviewStatusLine({ status: 'analyzing', review: rv }, Date.parse('2026-09-07T12:21:51.000Z'))).toBe('AI review running — 10:00 elapsed · $3.42 of $7.00 spent');
     expect(reviewStatusLine({ status: 'review', review: { ...rv, finishedAt: '2026-09-07T13:29:56.000Z' } })).toBe('AI review complete — 1:18:05 · $3.42 of $7.00.');
     expect(reviewStatusLine(null)).toContain('AI review started');
@@ -36,7 +36,7 @@ describe('the status route and the service supply the review window', () => {
   });
   it('getAnalysisStatus sums the ledger\'s AI calls since that start and returns the window', () => {
     const svc = read('lib/research/analysis.service.ts');
-    expect(svc).toContain("review?: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null };");
+    expect(svc).toContain('review?: ReviewStatus;');
     expect(svc).toContain(".eq('event_type', 'ai_call')");
     expect(svc).toContain(".gte('created_at', rv.startedAt);");
     expect(svc).toContain('...(review ? { review } : {}),');

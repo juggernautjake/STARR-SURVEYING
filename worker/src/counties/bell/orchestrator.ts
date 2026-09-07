@@ -41,6 +41,7 @@ import { assessDegradation } from '../../research/run-degradation.js';
 import { expandSubdivisionTerms } from '../../research/plat-search-terms.js';
 import { computeCentroid } from './analyzers/adjacent-analyzer.js';
 import { describeAbort } from '../../research/abort-reason.js';
+import { normaliseSubdivisionName } from '../../services/texasfile-rows.js';
 import { visualReadiness } from '../../research/run-order.js';
 import { geocodeWithGoogle } from '../../research/google-geocode.js';
 import { writePropertySummary, summaryInputFromBell } from '../../research/property-summary.js';
@@ -2059,10 +2060,16 @@ export async function orchestrateBellResearch(
   );
 
   // ── Build research completeness summary ──────────────────────────
+  // A plat the run FILED from a paid source (the early TexasFile pass) is a plat found, even when
+  // the free repository and the clerk had none — run 5 (2026-09-07) reported "NOT FOUND [plat]:
+  // property may be unplatted" over a plat it had filed two minutes earlier.
+  const filedPlat = (platSection?.plats.length ?? 0) === 0
+    ? await filedPlatLabel(input.projectId, property.subdivisionName ?? null)
+    : null;
   const completeness = buildResearchCompleteness(
     deeds, platSection, fema?.result ?? null, txdot?.result ?? null,
     easementRecords, adjacentProperties, gisScreenshots ?? [],
-    deedRecords, property,
+    deedRecords, property, filedPlat,
   );
   progress('Phase 4', `Research completeness: ${completeness.found.length} found, ${completeness.notFound.length} not found, ${completeness.partial.length} partial`);
   // Log each completeness item for full audit trail
@@ -2180,7 +2187,11 @@ export async function orchestrateBellResearch(
   // One model call over the result assembled above — no new fetches. Behind the same gate as
   // every other paid step, so a run at its ceiling skips it and says so rather than writing it
   // off-budget. `writePropertySummary` never throws.
-  if (mayStep('property summary')) {
+  if (isGatherRun) {
+    // The key is blanked on purpose for a gather run (no AI); the old line said "ANTHROPIC_API_KEY is
+    // not set", which reads as a misconfiguration (run 5's log, 2026-09-07).
+    progress('Phase 4', '  Property summary deferred — a gather run writes no summary; the AI review writes it from what it reads.');
+  } else if (mayStep('property summary')) {
     progress('Phase 4', 'Writing the property summary with document references...');
     // Budget-gated AND time-bounded: a step that is only gated can still outlive the run once it
     // has started (second review pass, merge-diff MD-5).
@@ -2630,6 +2641,29 @@ export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[
 //  that a surveyor needs. This makes gaps obvious in the review.
 // ══════════════════════════════════════════════════════════════════════
 
+/** The label of a plat already filed on this project for the subdivision (a paid pass files it
+ *  under `document_type = 'plat'` before the free plat search runs). Null when none, or on any error. */
+async function filedPlatLabel(projectId: string | undefined, subdivision: string | null): Promise<string | null> {
+  if (!projectId || !subdivision) return null;
+  try {
+    const sb = await getSupabase();
+    if (!sb) return null;
+    const key = normaliseSubdivisionName(subdivision).replace(/[%_]/g, '');
+    if (!key) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any).from('research_documents')
+      .select('document_label')
+      .eq('research_project_id', projectId)
+      .eq('document_type', 'plat')
+      .is('superseded_at', null)
+      .ilike('document_label', `%${key}%`)
+      .limit(1);
+    return ((data ?? [])[0] as { document_label?: string } | undefined)?.document_label ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function buildResearchCompleteness(
   deeds: { records: DeedRecord[]; chainOfTitle: ChainLink[]; summary: string } | null,
   plats: { plats: PlatRecord[]; crossValidation: string[] } | null,
@@ -2640,6 +2674,8 @@ function buildResearchCompleteness(
   gisScreenshots: ScreenshotCapture[],
   rawDeedRecords: DeedRecord[],
   property: ResolvedProperty,
+  /** The label of a plat FILED on the project by a paid pass, when the free sources found none. */
+  filedPlat: string | null = null,
 ): ResearchCompleteness {
   const found: ResearchItem[] = [];
   const notFound: ResearchItem[] = [];
@@ -2691,6 +2727,8 @@ function buildResearchCompleteness(
     if (latestPlat.aiAnalysis?.bearingsAndDistances && latestPlat.aiAnalysis.bearingsAndDistances.length > 0) {
       found.push({ category: 'plat', label: 'Plat bearings/distances', detail: `${latestPlat.aiAnalysis.bearingsAndDistances.length} call(s) extracted from plat` });
     }
+  } else if (filedPlat) {
+    found.push({ category: 'plat', label: 'Plat / subdivision plat', detail: `Filed from a paid source earlier in this run — ${filedPlat}` });
   } else {
     notFound.push({ category: 'plat', label: 'Plat / subdivision plat', detail: 'No plat records found — property may be unplatted metes-and-bounds tract' });
   }

@@ -249,17 +249,10 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
   next();
 }
 
-/** Progress toward the run ENDING (owner, 2026-09-04): cost is primary, but a run also stops at the
- *  one-hour cap — so the bar shows whichever ceiling it is closer to, i.e. how close it is to done.
- *  Capped at 99 until the run truly finishes (finish() sets 100). */
-function costProgressPercent(projectId: string): number {
-  const status = checkBudget(projectId, spendForRun(projectId));
-  const costPct = Number.isFinite(status.limitUsd) && status.limitUsd > 0
-    ? (status.spentUsd / status.limitUsd) * 100 : 0;
-  const timePct = Number.isFinite(status.limitMs) && status.limitMs > 0
-    ? (status.elapsedMs / status.limitMs) * 100 : 0;
-  return Math.min(99, Math.max(0, Math.round(Math.max(costPct, timePct))));
-}
+// The bar was "cost proximity" from 2026-09-04 to 2026-09-07 — max(cost ÷ cap, time ÷ cap), i.e. how
+// close the run was to being STOPPED. The owner then asked for the research bar to be about
+// file/doc/image retrieval and for cost to have its own counter, so the status endpoint and the
+// heartbeat now report the phase ladder's percentage (research/run-phases.ts).
 
 // ── In-Memory State ────────────────────────────────────────────────────────
 
@@ -2074,7 +2067,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         spendForRun(projectId),
         0,
         pipeline?.runId ?? null,
-        costProgressPercent(projectId), // the bar is cost, not time (owner, 2026-09-04)
+        snapshot?.percent, // retrieval progress from the ladder (owner, 2026-09-07), not cost
       );
       // Push the latest phase message to the running-message cache so the status
       // endpoint can return it as the `message` field. Without this, Bell County
@@ -2722,7 +2715,12 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             documents: unifiedResult.data.documents?.length ?? 0,
             durationMs: unifiedResult.data.duration_ms ?? 0,
           })
-        : describeRunOutcome('complete', { documents: 0, durationMs: 0 });
+        // The county result's own counts and clock — run 5's log (2026-09-07) said "Finished in 0.0s
+        // with 0 documents" about a 581-second run that kept a deed.
+        : describeRunOutcome('complete', {
+            documents: (unifiedResult.data.deedsAndRecords?.records?.length ?? 0) + (unifiedResult.data.plats?.plats?.length ?? 0),
+            durationMs: unifiedResult.data.durationMs ?? 0,
+          });
 
       const lifecycleDetail = unifiedResult.resultType === 'generic-pipeline'
         ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
@@ -3489,7 +3487,11 @@ async function respondWithLivePipeline(projectId: string, res: Response): Promis
     phaseLabel: snapshot?.phaseLabel ?? null,
     phaseIndex: snapshot?.phaseIndex ?? 0,
     phaseCount: snapshot?.phaseCount ?? 0,
-    percent: costProgressPercent(projectId), // cost proximity, not time (owner, 2026-09-04)
+    // Retrieval progress from the phase ladder (owner, 2026-09-07: "one loading bar for the research
+    // stage that just deals with file/doc/image retrieval"). Cost has its own counter. Until today this
+    // was max(cost ÷ cap, time ÷ cap) — how close the run was to STOPPING, which said nothing about
+    // what it had retrieved.
+    percent: snapshot?.percent ?? 0,
     log: liveLog,
     timeline: timelineEntries,
   };
@@ -4311,11 +4313,20 @@ async function unparkAnalyzing(projectId: string, log: (m: string) => void, why:
     const sb = await getSupabase();
     if (!sb) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (sb as any).from('research_projects').select('status').eq('id', projectId).single();
+    const { data } = await (sb as any).from('research_projects').select('status, analysis_metadata').eq('id', projectId).single();
     if (data?.status !== 'analyzing') return;
+    // The review ended here, short of its finalize — its clock stops and its bar says why.
+    const now = new Date().toISOString();
+    const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
+    const review = (meta.review as Record<string, unknown>) ?? {};
+    const prior = (review.progress as Record<string, unknown>) ?? {};
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (sb as any).from('research_projects')
-      .update({ status: 'review', updated_at: new Date().toISOString() })
+      .update({
+        status: 'review',
+        analysis_metadata: { ...meta, review: { ...review, finishedAt: now, progress: { ...prior, stage: 'stopped', from: prior.stage ?? null, label: `Stopped short — ${why.slice(0, 160)}`, at: now } } },
+        updated_at: now,
+      })
       .eq('id', projectId);
     log(error
       ? `The project stays parked at "analyzing" — could not restore "review": ${error.message}`
@@ -4323,6 +4334,29 @@ async function unparkAnalyzing(projectId: string, log: (m: string) => void, why:
   } catch (e) {
     log(`Could not restore the project's status after the failed analysis: ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+/** The AI review's OWN progress (owner, 2026-09-07: "a seperate loading bar for the analysis stage"),
+ *  stamped on `analysis_metadata.review.progress` as the worker reads, analyses and finalizes —
+ *  `{ stage: reading | analyzing | finalizing | done, documentsDone, documentsTotal, label, at }`.
+ *  MERGED into the review the app stamped when it accepted the run (startedAt, costCapUsd), never
+ *  replacing it. A courtesy to the screen: it never throws and the review is not gated on it. The
+ *  `updated_at` bump also keeps the app's 90-second freeze detector quiet through a long read. */
+async function stampReviewProgress(projectId: string, patch: Record<string, unknown>): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    if (!sb) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any).from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+    const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
+    const review = (meta.review as Record<string, unknown>) ?? {};
+    const prior = (review.progress as Record<string, unknown>) ?? {};
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).from('research_projects')
+      .update({ analysis_metadata: { ...meta, review: { ...review, progress: { ...prior, ...patch, at: now } } }, updated_at: now })
+      .eq('id', projectId);
+  } catch { /* progress is a courtesy to the screen; the review itself does not depend on it */ }
 }
 
 // ── POST /research/read-documents/:projectId — the WORKER-SIDE analysis (plan A1/A2/BW/F1) ──────────
@@ -4369,7 +4403,9 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
       // Cost OR the 30-minute wall clock (run 5's review ran 80+ minutes, 2026-09-07); a benchmark
       // read is uncapped on purpose.
       const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded == null;
-      const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue));
+      await stampReviewProgress(projectId, { stage: 'reading', documentsDone: 0, documentsTotal: null, label: 'Listing the documents to read' });
+      const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue,
+        (done, total, label) => stampReviewProgress(projectId, { stage: 'reading', documentsDone: done, documentsTotal: total, label })));
       log(report ? `Read pass: ${report.reanalysed} read, ${report.leftUnread ?? 0} left, ${report.failed ?? 0} failed of ${report.considered}.` : 'Read pass returned nothing.');
 
       if (benchmark) {
@@ -4431,6 +4467,7 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
             },
             call: (opts) => triggerAppAnalysis(projectId, { allow: true, ...opts, awaitCompletion: true, timeoutMs: 330_000 }),
             spentSoFar: () => ledgerSpendForRun(projectId),
+            onProgress: (p) => stampReviewProgress(projectId, { stage: p.stage, documentsDone: p.done, documentsTotal: p.total, label: p.label }),
             log,
           });
           log(r.statement);
@@ -5583,6 +5620,8 @@ async function reanalyseProjectDocuments(
   log: (line: string) => void,
   /** The run's budget, asked between documents and between pages. See the tail in property-lookup. */
   mayContinue: () => boolean = () => true,
+  /** Per-document progress for the review's OWN bar (owner, 2026-09-07). */
+  onProgress?: (done: number, total: number, label: string) => void | Promise<void>,
 ): Promise<import('./research/reanalyze-documents.js').ReanalysisReport | null> {
   const supabase = await getSupabase();
   if (!supabase) {
@@ -5666,6 +5705,7 @@ async function reanalyseProjectDocuments(
         .eq('id', doc.id);
       if (upErr) log(`  summary for ${doc.document_label ?? doc.id} not saved: ${upErr.message}`);
     },
+    onProgress,
   );
 
   log(describeReanalysis(report));

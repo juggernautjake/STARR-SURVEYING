@@ -173,11 +173,16 @@ export async function reanalyseFiledDocuments(
   /** Called after a document's text is written, so the caller can summarise it in the same pass —
    *  the owner's "OCR then produce the summary and results … for every single file". */
   onRead: (doc: FiledDocument, result: ReadResult) => Promise<void> = async () => {},
+  /** Where the pass is — `(done, total, label)` before each document and once at the end — for the
+   *  review's own loading bar (owner, 2026-09-07). Never fatal. */
+  onProgress: (done: number, total: number, label: string) => void | Promise<void> = () => {},
 ): Promise<ReanalysisReport> {
   const report: ReanalysisReport = { considered: docs.length, reanalysed: 0, skipped: 0, failed: 0, leftUnread: 0, leftUnreadIds: [], lines: [] };
 
+  let position = 0;
   for (const doc of docs) {
     const decision = decideReanalysis(doc);
+    try { await onProgress(position++, docs.length, decision.label); } catch { /* a courtesy to the screen */ }
     if (decision.reanalyse && !mayContinue()) {
       report.leftUnread++;
       report.leftUnreadIds.push(doc.id);
@@ -249,6 +254,7 @@ export async function reanalyseFiledDocuments(
     try { await onRead(doc, result); } catch { /* onRead logs its own failure */ }
   }
 
+  try { await onProgress(docs.length, docs.length, 'All documents read'); } catch { /* a courtesy to the screen */ }
   return report;
 }
 

@@ -78,6 +78,7 @@ export const PAID_PLATFORM_CATALOG: PaidPlatformDescriptor[] = [
     paymentMethods: ['free'],
     typicalDeliveryMinutes: 2,
     cleansImages: true,
+    carries: ['easement', 'right_of_way', 'row', 'row_map'],
     notes: 'Free access to TxDOT ROW maps and documents. No account needed. Automation via Playwright.',
   },
 
@@ -94,6 +95,7 @@ export const PAID_PLATFORM_CATALOG: PaidPlatformDescriptor[] = [
     paymentMethods: ['free'],
     typicalDeliveryMinutes: 5,
     cleansImages: true,
+    carries: ['land_grant', 'patent', 'survey_abstract', 'abstract', 'field_notes', 'glo_map'],
     notes: 'Free access to historical land grants and survey plats. REST API available.',
   },
 

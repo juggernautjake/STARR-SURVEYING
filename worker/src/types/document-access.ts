@@ -98,6 +98,12 @@ export interface PaidPlatformDescriptor {
   cleansImages: boolean;
   /** Notes for operators */
   notes?: string;
+  /** The kinds of document this source carries, when it is NOT a general county record — the TxDOT
+   *  library holds right-of-way maps and easements and nothing else, so it is no alternative for a
+   *  deed or a plat (run 5, 2026-09-07: "Cheapest-first not honoured … TxDOT … covers this county
+   *  at $0.00" was logged for a plat). Absent = carries every kind. Matched against the wanted
+   *  document type, lower-cased with non-letters folded to `_`. */
+  carries?: string[];
 }
 
 export type PlatformPaymentMethod =

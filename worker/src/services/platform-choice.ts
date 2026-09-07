@@ -35,6 +35,17 @@ export interface ChoiceOptions {
    *  still returned when this is false, because paying for a TxDOT page that is free is the most
    *  embarrassing way to lose money. */
   includeFree?: boolean;
+  /** The kind of document wanted ('plat', 'deed', 'easement' …). A source that carries only some
+   *  kinds (the TxDOT right-of-way library) is not a choice for the others. */
+  documentType?: string;
+}
+
+/** Does this source carry the wanted kind of document? Absent `carries` = everything. */
+export function carriesDocumentType(p: PaidPlatformDescriptor, documentType?: string): boolean {
+  if (!p.carries || p.carries.length === 0 || !documentType) return true;
+  const fold = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const want = fold(documentType);
+  return p.carries.some((c) => fold(c) === want);
 }
 
 /** Does a platform need credentials at all? Free/anonymous sources do not, and requiring them would
@@ -55,7 +66,8 @@ export function choosePlatform(countyFIPS: string, opts: ChoiceOptions = {}): Pl
   const includeFree = opts.includeFree ?? true;
 
   const covering = PaidPlatformRegistry.getPlatformsForCounty(countyFIPS)
-    .filter((p) => (includeFree ? true : p.costPerPage > 0));
+    .filter((p) => (includeFree ? true : p.costPerPage > 0))
+    .filter((p) => carriesDocumentType(p, opts.documentType));
 
   if (covering.length === 0) {
     return {

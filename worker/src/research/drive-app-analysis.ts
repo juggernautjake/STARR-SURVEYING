@@ -37,6 +37,9 @@ export interface DriveAppAnalysisInput {
   call: (opts: AnalysisCallOptions) => Promise<{ ok: boolean; statement: string }>;
   /** The project's ledger spend right now — the cap is measured against what it grows by. */
   spentSoFar: () => Promise<number>;
+  /** Where the drive is, for the review's own loading bar (owner, 2026-09-07): before each document
+   *  and before each finalize stage. Never fatal. */
+  onProgress?: (p: { stage: 'analyzing' | 'finalizing'; done: number; total: number; label: string }) => void | Promise<void>;
   log?: (line: string) => void;
 }
 
@@ -78,6 +81,7 @@ export async function driveAppAnalysis(input: DriveAppAnalysisInput): Promise<Dr
       log(`Analyze cap $${cap!.toFixed(2)} reached after ${chunks} of ${docs.length} document(s) — the rest are skipped; finalising over what was read.`);
       break;
     }
+    try { await input.onProgress?.({ stage: 'analyzing', done: chunks, total: docs.length, label: doc.label ?? doc.id }); } catch { /* a courtesy */ }
     const r = await input.call({ documentId: doc.id, resume: true, skipFinalization: true, maxCostUsd: left });
     chunks += 1;
     if (!r.ok) chunkFailures += 1;
@@ -90,7 +94,9 @@ export async function driveAppAnalysis(input: DriveAppAnalysisInput): Promise<Dr
   // inside the limit; the last one ends the project at `review`. A stage that fails stops the rest.
   const stages: Array<'chain' | 'crossref' | 'coherence'> = ['chain', 'crossref', 'coherence'];
   let fin: { ok: boolean; statement: string } = { ok: true, statement: '' };
-  for (const stage of stages) {
+  const stageLabel = { chain: 'Chain of title', crossref: 'Cross-reference and discrepancies', coherence: 'Coherence review' } as const;
+  for (const [i, stage] of stages.entries()) {
+    try { await input.onProgress?.({ stage: 'finalizing', done: i, total: stages.length, label: stageLabel[stage] }); } catch { /* a courtesy */ }
     fin = await input.call({ resume: true, finalizeStage: stage, maxCostUsd: await remaining() });
     log(fin.statement);
     if (!fin.ok) break;

@@ -78,6 +78,13 @@ export interface RunPhase {
  * `research_runs`. The old list contained rungs whose names nothing ever emitted, which is its own
  * kind of lie: a bar that cannot reach a milestone it displays.
  */
+// ── RETUNED FOR A GATHER RUN (2026-09-07) ──────────────────────────────────────────────────────
+//
+// Since the gather/review split the research run does NO AI work: the OCR, extraction, geometry and
+// cross-check rungs below take seconds (their phase names are still emitted, so they stay on the
+// ladder as milestones), and the report rung now spans the report, the end-of-run purchase pass and
+// the filing. The owner asked that this bar be about file/doc/image RETRIEVAL — the AI review has
+// its own bar on the Analysis stage — so the durations say so: ~1,350 s, retrieval the long pole.
 export const RUN_PHASES: RunPhase[] = [
   {
     id: 'precheck',
@@ -160,15 +167,15 @@ export const RUN_PHASES: RunPhase[] = [
   {
     id: 'ocr',
     label: 'Reading the document text',
-    // Conditional in the same way — see 'purchase' above. Only a run that retrieved page images
-    // OCRs them, so the ladder carries the average rather than the when-it-happens duration.
-    expectedSec: 45,
+    // A gather run reads nothing at cost (the AI review does) — seconds, kept as a milestone.
+    expectedSec: 10,
     match: [/^ocr$/i, /^stage\s*3:\s*ocr/i, /^phase\s*3b$/i],
   },
   {
     id: 'extraction',
     label: 'Extracting the deed and plat data',
-    expectedSec: 240,
+    // Heuristics only on a gather run (no model calls) — seconds.
+    expectedSec: 15,
     // `(?!\.\d)` so "Stage 3.5" is not swallowed here — it is reconciliation, a later rung. The old
     // file had this same guard and it was still defeated, because the loose `/extract/i` beside it
     // matched anything.
@@ -180,13 +187,13 @@ export const RUN_PHASES: RunPhase[] = [
   {
     id: 'reconciliation',
     label: 'Reconciling the geometry',
-    expectedSec: 70,
+    expectedSec: 5,
     match: [/^stage\s*3\.5\b/i, /^phase\s*3d$/i, /^reconciliation$/i],
   },
   {
     id: 'validation',
     label: 'Cross-checking and adjoiners',
-    expectedSec: 70,
+    expectedSec: 15,
     // NOT `/^validation$/i` — that name is taken by the pre-check at the top of this list, which is
     // the whole bug. Bell's late verification step is `Phase 3C`; the adjoiner pass is `Adjacent`.
     match: [/^adjacent$/i, /^phase\s*3c$/i, /^stage\s*4\b/i, /^cross.?valid/i],
@@ -194,7 +201,9 @@ export const RUN_PHASES: RunPhase[] = [
   {
     id: 'reporting',
     label: 'Building the report',
-    expectedSec: 30,
+    // The report, then the end-of-run purchase pass (TexasFile sign-in + searches, ~80 s on run 5)
+    // and the filing of everything captured.
+    expectedSec: 60,
     match: [/^survey plan$/i, /^phase\s*4$/i, /^stage\s*5\b/i, /^report assembly/i],
   },
 ];

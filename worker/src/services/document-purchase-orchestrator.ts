@@ -539,6 +539,8 @@ export class DocumentPurchaseOrchestrator {
         if (intendedPlatform) {
           const verdict = mayPurchaseFrom(countyFIPS, intendedPlatform, {
             configured: configuredPlatformIds,
+            // The TxDOT library is free and carries right-of-way only; it is no alternative for a plat.
+            documentType: rec.documentType,
           });
           if (!verdict.allowed) {
             policyPremiums.push({ instrument: rec.instrument, reason: verdict.reason });

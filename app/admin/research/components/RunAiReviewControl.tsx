@@ -9,6 +9,8 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
+import { Counter, RunViewStyles } from './ResearchRunView';
+import { describeReviewProgress, type ReviewStatus } from '@/lib/research/review-progress';
 
 /** The analyze request body. Pure + exported so the payload (esp. the cost cap) is unit-tested. */
 export function analyzeRequestBody(maxCostUsd: number): { maxCostUsd: number } {
@@ -17,12 +19,47 @@ export function analyzeRequestBody(maxCostUsd: number): { maxCostUsd: number } {
   return { maxCostUsd: clamped };
 }
 
-/** What the status route says about the review — its OWN clock and cost, beside the research run's. */
+/** What the status route says about the review — its OWN clock, cost and bar, beside the research run's. */
 interface ReviewProgress {
   status: string;
   spent?: number;
   cap?: number | null;
-  review?: { startedAt: string; finishedAt: string | null; elapsedMs: number; spendUsd: number; costCapUsd: number | null } | null;
+  review?: ReviewStatus | null;
+}
+
+/** The review's bar and its three counters (owner, 2026-09-07: "a seperate loading bar for the
+ *  analysis stage … two seperate cost counters"). Reuses the run view's bar and counter styles so the
+ *  two stages read the same way; `RunViewStyles` is mounted here because the run view is not on this
+ *  stage. Pure over the status payload, so the harness can render every state. */
+export function AiReviewProgressBar({ p, now = Date.now() }: { p: ReviewProgress; now?: number }) {
+  const rv = p.review;
+  if (!rv) return null;
+  const running = p.status === 'analyzing';
+  const stopped = rv.progress?.stage === 'stopped';
+  const tone = stopped ? 'bad' : running ? 'busy' : 'good';
+  const pct = Math.max(0, Math.min(100, Math.round(rv.percent)));
+  const done = rv.progress?.documentsDone ?? 0;
+  const total = rv.progress?.documentsTotal ?? null;
+  const cap = rv.costCapUsd;
+  return (
+    <div data-testid="ai-review-bar" style={{ flexBasis: '100%' }}>
+      <RunViewStyles />
+      <div className="rrv__bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}
+           aria-label={`AI review progress: ${pct}%`}>
+        <div className={`rrv__bar-fill rrv__bar-fill--${tone}`} style={{ width: `${pct}%` }} />
+        <span className="rrv__bar-pct">{pct}%</span>
+      </div>
+      <p className="rrv__status-phase" data-testid="ai-review-phase">{describeReviewProgress(rv.progress, p.status)}</p>
+      <div className="rrv__counters">
+        <Counter label="Documents" value={`${done}${total != null ? ` / ${total}` : ''}`} live={running}
+                 hint={rv.progress?.stage === 'analyzing' ? 'Documents analysed for data points, of those the read pass left readable.' : 'Documents read by the tiled reader, of those on file that are not marked unrelated.'} />
+        <Counter label="Elapsed" value={formatReviewElapsed(rv.startedAt, rv.finishedAt, now)} live={running}
+                 hint="From the moment the worker took the review. The research run's clock is its own." />
+        <Counter label="Review spent" value={`$${rv.spendUsd.toFixed(2)}${cap != null ? ` / $${Number(cap).toFixed(2)}` : ''}`} live={running}
+                 hint="AI calls booked to this review, against the cost limit you set. The research run's spend is counted separately on the Research stage." />
+      </div>
+    </div>
+  );
 }
 
 /** "12:34" / "1:02:05" — the review's elapsed time, live while it runs. */
@@ -165,6 +202,7 @@ export default function RunAiReviewControl({
           {reviewStatusLine(progress)}
         </span>
       )}
+      {started && !error && progress?.review && <AiReviewProgressBar p={progress} />}
     </div>
   );
 }

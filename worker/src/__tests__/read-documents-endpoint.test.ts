@@ -10,7 +10,7 @@ const index = fs.readFileSync(path.join(process.cwd(), 'src/index.ts'), 'utf8');
 describe('POST /research/read-documents/:projectId', () => {
   it('exists and runs the reading pass over the project\'s filed documents', () => {
     expect(index).toMatch(/app\.post\('\/research\/read-documents\/:projectId'/);
-    expect(index).toMatch(/reanalyseProjectDocuments\(projectId, log, mayContinue\)/);
+    expect(index).toMatch(/reanalyseProjectDocuments\(projectId, log, mayContinue,\s+\(done, total, label\) => stampReviewProgress/);
   });
 
   it('attributes cost to the project (enterRunContext) and returns 202 fire-and-forget', () => {

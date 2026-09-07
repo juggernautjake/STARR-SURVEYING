@@ -282,7 +282,7 @@ export function StatusCard({
       {lifecycle !== 'idle' && (
         <div className="rrv__bar" role="progressbar" aria-valuenow={state.percent}
              aria-valuemin={0} aria-valuemax={100}
-             aria-label={`Research progress: ${state.percent}%`}>
+             aria-label={`Retrieval progress: ${state.percent}%`}>
           <div className={`rrv__bar-fill rrv__bar-fill--${tone}`} style={{ width: `${state.percent}%` }} />
           <span className="rrv__bar-pct">{state.percent}%</span>
         </div>
@@ -322,7 +322,7 @@ function spendBreakdownText(byType: Array<{ type: string; count: number; usd: nu
     : 'Nothing has been charged to this run yet.';
 }
 
-function Counter({ label, value, live, hint }: {
+export function Counter({ label, value, live, hint }: {
   label: string; value: number | string; live?: boolean; hint?: string;
 }) {
   return (

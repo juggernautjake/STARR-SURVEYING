@@ -236,6 +236,16 @@ export class DocumentIndex {
    *  Fails toward BUYING. A false match omits a document we do not have and hides the fact; a false
    *  miss costs a few dollars and shows up in the ledger. */
   decide(candidate: DocumentRef): PurchaseDecision {
+    // A search want (`search_required`) names no instrument yet: the vendor search picks the row, and
+    // the chooser is told what the project already holds. Calling that "uncertainty" put a warning on
+    // every want of every run (run 5, 2026-09-07: three of them, all on $0 re-opens).
+    if (candidate.instrumentNumber === 'search_required') {
+      return {
+        buy: true,
+        underUncertainty: false,
+        reason: 'A search want has no identity yet — the vendor search chooses the row, and the chooser is told what this project already holds.',
+      };
+    }
     const key = identityKey(candidate);
 
     if (!key) {
