@@ -40,9 +40,13 @@ describe('searchTexasFilePlats hits the PLAT product, not the deed records', () 
   });
 
   it('types the results as PLATS and parses the purchase buttons', () => {
-    expect(fn).toContain("type: 'plat'");
-    expect(fn).toContain('btnPurchaseFromSearch');
-    expect(fn).toContain('data-for^="Purchase-"');
+    // Since 2026-09-07 the rows are extracted by column in the page (extractTexasFileRawRows) and
+    // typed 'plat' by the Node-side parser — texasfile-rows-2026-09-07.test.ts pins the parse.
+    expect(fn).toContain("parseTexasFileRow(r, 'plat')");
+    expect(fn).toContain('page.evaluate(extractTexasFileRawRows)');
+    const rows = fs.readFileSync(path.join(process.cwd(), 'src/services/texasfile-rows.ts'), 'utf8');
+    expect(rows).toContain('btnPurchaseFromSearch');
+    expect(rows).toContain('data-for^="Purchase-"');
   });
 
   it('is SEARCH-ONLY — it never purchases', () => {

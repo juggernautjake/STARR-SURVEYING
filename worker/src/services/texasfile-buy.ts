@@ -27,6 +27,7 @@
 import type { Browser, Page } from 'playwright';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import type { PipelineLogger } from '../lib/logger.js';
+import { extractTexasFileRawRows, instrumentsMatch, normaliseSubdivisionName, parseTexasFileRow } from './texasfile-rows.js';
 
 const TF = 'https://www.texasfile.com';
 
@@ -49,12 +50,34 @@ export function purchaseApiUrl(county: string, guid: string, searchId: string, s
 
 export interface TexasFileResult {
   guid: string;
+  /** Canonical (year + six-digit sequence for Bell) — see texasfile-rows.ts. */
   instrument: string | null;
   bookVolPage: string | null;
   pages: number | null;
   type: string | null;
   date: string | null;
   text: string;
+  // ── Parsed by column since 2026-09-07 (the row text used to be CSS) ─────────────────────────────
+  /** The Number column as TexasFile printed it ("34968"). */
+  instrumentRaw?: string | null;
+  /** Record book (OPR / OR / DR …), the volume (or plat cabinet) and the page (or slide). */
+  book?: string | null;
+  volume?: string | null;
+  page?: string | null;
+  priceUsd?: number | null;
+  countyType?: string | null;
+  grantor?: string | null;
+  grantee?: string | null;
+  /** The Legal Desc. column verbatim, and what it parsed to. */
+  legal?: string | null;
+  subdivision?: string | null;
+  lots?: string[];
+  block?: string | null;
+  abstract?: string | null;
+  survey?: string | null;
+  /** Plat rows: the Subdivision Name column (normalised) and the Description column. */
+  name?: string | null;
+  description?: string | null;
 }
 
 export interface TexasFileBuyInput {
@@ -77,8 +100,12 @@ export interface TexasFileBuyInput {
   // the PLAT search (by subdivision or cabinet/slide) and purchases through `/plat/`.
   guid?: string;
   product?: 'instrument' | 'plat';
-  /** The plat search's "Subdivision or Name" key (a subdivision or a survey name). */
+  /** The plat search's "Subdivision or Name" key (a subdivision or a survey name). Also used to
+   *  PICK among deed results by their legal description. */
   subdivision?: string;
+  /** Lot / block of the subject, to pick the right deed among a name search's many rows. */
+  lot?: string;
+  block?: string;
 }
 
 /** Every TexasFile plat is $10 flat, whatever its page count (mapped live 2026-09-05). */
@@ -89,17 +116,40 @@ export const PLAT_FLAT_USD = 10;
  * names the exact document); else the instrument-number match; else the first row (a name/vol-page
  * search is already narrow). Pure, so the choice is unit-tested without a browser.
  */
-export function chooseTexasFileResult(results: TexasFileResult[], input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber'>): TexasFileResult | null {
+export function chooseTexasFileResult(
+  results: TexasFileResult[],
+  input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber' | 'volume' | 'book' | 'page' | 'subdivision' | 'lot' | 'block'>,
+): TexasFileResult | null {
   if (results.length === 0) return null;
   const guid = input.guid?.trim().toUpperCase();
   if (guid) {
     const byGuid = results.find((r) => r.guid.toUpperCase() === guid);
     if (byGuid) return byGuid;
   }
-  const want = input.instrumentNumber?.replace(/\D/g, '');
-  if (want) {
-    const byInstrument = results.find((r) => (r.instrument ?? '').replace(/\D/g, '') === want);
+  // Year-tolerant: the CAD's "2004034968" and TexasFile's "34968" are the same filing.
+  if (input.instrumentNumber) {
+    const byInstrument = results.find((r) => instrumentsMatch(r.instrument, input.instrumentNumber) || instrumentsMatch(r.instrumentRaw, input.instrumentNumber));
     if (byInstrument) return byInstrument;
+  }
+  const vol = (input.volume ?? input.book ?? '').replace(/\D/g, '');
+  const pg = (input.page ?? '').replace(/\D/g, '');
+  if (vol && pg) {
+    const byVolPage = results.find((r) => (r.volume ?? '').replace(/\D/g, '') === vol && (r.page ?? '').replace(/\D/g, '') === pg);
+    if (byVolPage) return byVolPage;
+  }
+  // A name search returns every filing for that name, across every property the person ever owned.
+  // The subject's legal description is what tells the right deed from a lien on a different lot.
+  if (input.subdivision) {
+    const want = normaliseSubdivisionName(input.subdivision);
+    const inSubdivision = results.filter((r) => r.subdivision && (r.subdivision === want || r.subdivision.startsWith(want) || want.startsWith(r.subdivision)));
+    if (inSubdivision.length > 0) {
+      const lot = input.lot?.toUpperCase().replace(/^LOT\s*/, '');
+      const block = input.block?.toUpperCase().replace(/^(?:BLK|BLOCK)\s*/, '');
+      const onLot = lot ? inSubdivision.filter((r) => (r.lots ?? []).includes(lot) && (!block || !r.block || r.block === block)) : [];
+      const pool = onLot.length > 0 ? onLot : inSubdivision;
+      // Prefer a deed (the conveyance) over liens/releases when the type is known.
+      return pool.find((r) => /deed/i.test(r.type ?? '') && !/trust/i.test(r.type ?? '')) ?? pool[0]!;
+    }
   }
   return results[0];
 }
@@ -107,6 +157,8 @@ export function chooseTexasFileResult(results: TexasFileResult[], input: Pick<Te
 /** What a chosen result will cost: a plat is flat-rate; anything else is $1/page (unknown pages → null). */
 export function priceTexasFileResult(r: TexasFileResult, product: 'instrument' | 'plat'): number | null {
   if (product === 'plat' || r.type === 'plat') return PLAT_FLAT_USD;
+  // The Purchase tooltip states the price outright ("3 pages for $3.00"); pages × $1 is the fallback.
+  if (typeof r.priceUsd === 'number' && Number.isFinite(r.priceUsd) && r.priceUsd > 0) return r.priceUsd;
   return r.pages != null ? r.pages : null;
 }
 
@@ -187,26 +239,11 @@ export async function searchTexasFile(page: Page, input: TexasFileBuyInput, log:
   const m = url.match(/county-clerk-records\/(\d+)\//);
   const searchId = m ? m[1] : null;
 
-  const results = await page.evaluate(() => {
-    const out: Array<{ guid: string; instrument: string | null; bookVolPage: string | null; pages: number | null; type: string | null; date: string | null; text: string }> = [];
-    const btns = Array.from(document.querySelectorAll('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]'));
-    for (const b of btns) {
-      const dataFor = b.getAttribute('data-for') || '';
-      const guid = (dataFor.replace(/^Purchase-/, '') || (b.closest('[id^="purchaseButton"]')?.id || '').replace('purchaseButton', ''));
-      if (!/^[0-9a-f-]{30,}$/i.test(guid)) continue;
-      const row = b.closest('tr');
-      const detail = row?.nextElementSibling; // the "Reference Documents: Pages: N …" row
-      const txt = ((row?.textContent || '') + ' ' + (detail?.textContent || '')).replace(/\s+/g, ' ').trim();
-      const pm = txt.match(/Pages?:\s*(\d+)/i);
-      const tm = txt.match(/County Type:\s*([^-][^]*?)(?:Additional|$)/i);
-      const dm = txt.match(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/);
-      const im = txt.match(/\b(\d{7,})\b/);
-      out.push({ guid: guid.toUpperCase(), instrument: im ? im[1] : null, bookVolPage: null, pages: pm ? +pm[1] : null, type: tm ? tm[1].trim().slice(0, 40) : null, date: dm ? dm[1] : null, text: txt.slice(0, 160) });
-    }
-    // de-dup by guid
-    const seen = new Set<string>();
-    return out.filter(r => (seen.has(r.guid) ? false : (seen.add(r.guid), true)));
-  });
+  // By COLUMN (2026-09-07): the rows are read as header-keyed cells in the page and parsed here,
+  // where the parser is unit-tested against rows copied from the live site. The old text scrape read
+  // the tooltip's injected CSS and returned no instrument for any deed.
+  const raws = await page.evaluate(extractTexasFileRawRows);
+  const results = raws.map((r) => parseTexasFileRow(r, 'instrument'));
   log.info('TexasFile', `Search "${input.name ?? `${input.volume}/${input.page}`}" → ${results.length} result(s), searchId=${searchId ?? '?'}.`);
   return { searchId, results };
 }
@@ -267,24 +304,11 @@ export async function searchTexasFilePlats(page: Page, input: TexasFilePlatInput
   const m = url.match(/plat-records\/(\d+)\//);
   const searchId = m ? m[1] : null;
 
-  const results = await page.evaluate(() => {
-    const out: Array<{ guid: string; instrument: string | null; bookVolPage: string | null; pages: number | null; type: string | null; date: string | null; text: string }> = [];
-    const btns = Array.from(document.querySelectorAll('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]'));
-    for (const b of btns) {
-      const dataFor = b.getAttribute('data-for') || '';
-      const guid = (dataFor.replace(/^Purchase-/, '') || (b.closest('[id^="purchaseButton"]')?.id || '').replace('purchaseButton', ''));
-      if (!/^[0-9a-f-]{30,}$/i.test(guid)) continue;
-      const row = b.closest('tr');
-      const detail = row?.nextElementSibling;
-      const txt = ((row?.textContent || '') + ' ' + (detail?.textContent || '')).replace(/\s+/g, ' ').trim();
-      const vm = txt.match(/(?:Cabinet|Volume)\s*[:#]?\s*([A-Za-z0-9]+)[,\s]+(?:Slide|Page|Sleeve)\s*[:#]?\s*([A-Za-z0-9-]+)/i);
-      const dm = txt.match(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/);
-      out.push({ guid: guid.toUpperCase(), instrument: null, bookVolPage: vm ? `${vm[1]}/${vm[2]}` : null, pages: null, type: 'plat', date: dm ? dm[1] : null, text: txt.slice(0, 160) });
-    }
-    const seen = new Set<string>();
-    return out.filter((r) => (seen.has(r.guid) ? false : (seen.add(r.guid), true)));
-  });
-  log.info('TexasFile', `Plat search "${input.subdivision ?? `${input.volume}/${input.page}`}" → ${results.length} plat(s), searchId=${searchId ?? '?'}.`);
+  // By COLUMN (2026-09-07) — Filed Date | Subdivision Name | Number | Cabinet/Volume | Slide/Page |
+  // Description. The old text scrape read the tooltip's CSS and returned no cabinet, slide or date.
+  const raws = await page.evaluate(extractTexasFileRawRows);
+  const results = raws.map((r) => parseTexasFileRow(r, 'plat'));
+  log.info('TexasFile', `Plat search "${input.subdivision ?? `${input.volume}/${input.page}`}" → ${results.length} plat(s), searchId=${searchId ?? '?'}: ${results.slice(0, 4).map((r) => `${r.name ?? '?'} ${r.bookVolPage ?? ''} ${r.date ?? ''}`.trim()).join(' | ')}.`);
   return { searchId, results };
 }
 

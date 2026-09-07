@@ -36,16 +36,26 @@ export function splitBookVolPage(raw?: string | null): { book?: string; page?: s
 export function texasFileResultToManifest(r: TexasFileResult, county: string): ManifestEntry {
   const bvp = splitBookVolPage(r.bookVolPage);
   const pageCount = r.pages ?? undefined;
+  const price = typeof r.priceUsd === 'number' && r.priceUsd > 0 ? r.priceUsd : undefined;
   return {
     sourceId: 'texasfile',
     kind: 'paid',
-    docType: classifyDocType(r.type),
+    docType: classifyDocType(r.type ?? r.countyType),
     instrument: r.instrument ?? undefined,
-    book: bvp.book,
-    page: bvp.page,
+    // Parsed by column since 2026-09-07: the Volume/Page cells outrank a digits-only split.
+    book: r.volume ?? bvp.book,
+    page: r.page ?? bvp.page,
     recordingDate: r.date ?? undefined,
+    grantor: r.grantor ?? undefined,
+    grantee: r.grantee ?? undefined,
+    // The location signals the same-document matcher and the relevance ranking compare on — a name
+    // search's 39 rows span every lot the owner ever held; these say which row is the subject's.
+    legalDescription: r.legal ?? undefined,
+    subdivision: r.subdivision ?? undefined,
+    lot: r.lots?.[0],
+    block: r.block ?? undefined,
     pageCount,
-    unitCostUsd: pageCount && pageCount > 0 ? pageCount : 1, // $1/page, at least $1
+    unitCostUsd: price ?? (pageCount && pageCount > 0 ? pageCount : 1), // stated price, else $1/page, at least $1
     previewRef: r.guid,
     canFreeCapture: false,
     canPurchase: true,
@@ -64,14 +74,21 @@ export function texasFileResultsToManifest(results: TexasFileResult[], county: s
  */
 export function texasFilePlatResultToManifest(r: TexasFileResult, _county: string, subdivision?: string): ManifestEntry {
   const bvp = splitBookVolPage(r.bookVolPage);
+  // A plat cabinet is often a letter ("A") and a slide "166A" — a digits-only split loses both, so the
+  // parsed cells win. Two rows in the same cabinet/slide cluster into ONE plat to buy, not two $10s.
+  const book = r.volume ?? bvp.book;
+  const page = r.page ?? bvp.page;
+  // The recorded name ("WINNIE MAE ADD", normalised) says which subdivision this plat IS; the query
+  // that found it is the fallback, and what the buy re-runs to open a purchase session.
+  const name = r.name ?? r.subdivision ?? subdivision;
   return {
     sourceId: 'texasfile',
     kind: 'paid',
     docType: 'plat',
-    book: bvp.book,
-    page: bvp.page,
-    // The query that found it — the buy re-runs the plat search by this to open a purchase session.
-    ...(subdivision ? { subdivision } : {}),
+    instrument: r.instrument ?? undefined,
+    book,
+    page,
+    ...(name ? { subdivision: name } : {}),
     recordingDate: r.date ?? undefined,
     unitCostUsd: 10, // all TexasFile plats are $10 flat, any page count
     previewRef: r.guid,
