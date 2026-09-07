@@ -93,3 +93,20 @@ describe('N — the review cap is the REVIEW\'s spend, not the project\'s', () =
     expect(src).not.toContain("checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost'");
   });
 });
+
+describe('Q/R — run 5 (2026-09-07): no second plat row, no second screenshot row', () => {
+  it('a plat want is dropped when the project already holds the subdivision\'s plat', () => {
+    const src = read('index.ts');
+    expect(src).toContain('async function projectHoldsPlat(projectId: string, subdivision: string | null): Promise<string | null> {');
+    expect(src).toContain("const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null);");
+    expect(src).toContain("recs = recs.filter((x) => x.documentType !== 'plat');");
+    expect(src).toContain(".eq('document_type', 'plat')");
+  });
+  it('a row with the same label and source on the same project is the same document', () => {
+    const up = read('services/artifact-uploader.ts');
+    expect(up).toContain("if (label && sourceUrl && !row.recording_info) {");
+    expect(up).toContain(".eq('document_label', label)");
+    expect(up).toContain(".eq('source_url', sourceUrl)");
+    expect(up).toContain("return { error: null, id: hit.id, outcome: 'merged' };");
+  });
+});

@@ -31,6 +31,7 @@ import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { parseLotBlock } from './counties/bell/orchestrator.js';
 import { listRunPurchases } from './services/purchase-ledger.js';
+import { normaliseSubdivisionName } from './services/texasfile-rows.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { lookupCountyFIPS } from './lib/county-fips.js';
 import { assessPurchaseReadiness } from './research/purchase-readiness.js';
@@ -2529,7 +2530,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             try {
               // Named `recs` (not `selRecs`) so the skip-ledger structure test sees one row mapped per
               // recommendation, the same shape the generic branch uses.
-              const recs = wantsToPurchaseRecommendations(
+              let recs = wantsToPurchaseRecommendations(
                 selectionsToWants(resolveGatherSelections(runSettings)),
                 {
                   county: county ?? undefined,
@@ -2565,6 +2566,16 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                   ],
                 },
               );
+              // The plat the early pass filed on THIS project satisfies the plat wants. The ledger cannot
+              // say so (its unique key is county + instrument, so a document another project bought has
+              // no row for this one — run 5, 2026-09-07, re-opened and re-filed the plat a second time
+              // at $0). The project's own rows can: a plat row naming the subject's subdivision.
+              const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null);
+              if (heldPlat && recs.some((x) => x.documentType === 'plat')) {
+                handshakeLogger.attempt('[Purchase]', 'info', 'Plat already filed', heldPlat)
+                  .success(0, `The plat for ${r.property?.subdivisionName ?? 'this subdivision'} is already filed on this project (${heldPlat}) — the plat want is satisfied.`);
+                recs = recs.filter((x) => x.documentType !== 'plat');
+              }
               if (recs.length > 0) {
                 const permission = await resolvePurchasePermission(projectId);
                 const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
@@ -4266,6 +4277,28 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     res.status(500).json({ error: `Re-analysis failed: ${msg}` });
   }
 });
+
+/** The label of a plat row this project already holds for the subdivision, or null. Pure lookup. */
+async function projectHoldsPlat(projectId: string, subdivision: string | null): Promise<string | null> {
+  if (!subdivision) return null;
+  try {
+    const sb = await getSupabase();
+    if (!sb) return null;
+    const key = normaliseSubdivisionName(subdivision).replace(/[%_]/g, '');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any).from('research_documents')
+      .select('document_label')
+      .eq('research_project_id', projectId)
+      .eq('document_type', 'plat')
+      .is('superseded_at', null)
+      .ilike('document_label', `%${key}%`)
+      .limit(1);
+    const row = (data ?? [])[0] as { document_label?: string } | undefined;
+    return row?.document_label ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** A project the app parked at `analyzing` for a worker-driven analysis that did not finalize goes
  *  back to `review` — its documents are filed; the person can press Analyze again. Says so. */

@@ -156,3 +156,19 @@ finalize (the gates are open when no stage is named). Route accepts a stage only
 The repo guard `update-filters-cannot-use-or` (PostgREST rejects `.or()` on an UPDATE) caught slice E's
 update; it happened to work on run 4 but the rule stands. Rows are found with the `.or()` on a SELECT and
 updated by id.
+
+## Run 5 (project `74dc0e02…`, 2026-09-07, 581 s, TexasFile $0.00 of $20, other $0.02 of $5) — proved
+
+H: "in the firm's library (bought … by another project) — re-opening it at no charge to file it on this
+project" → the plat filed by the EARLY pass. I: the clerk-held deed 2004034968 was NOT re-bought. J: the
+easement want → "no TexasFile results on WINNIE MAE ADDITION of easement/right-of-way type among 39 row(s)
+… neither is bought"; the deed want took the blank-legal DEED row, which TexasFile named as an existing
+purchase → re-opened at $0. L: "artifact step — 4 new document(s) filed. 1 were already held". P: "marked
+2015014567 unrelated (1 row(s))". 19 rows, wallet unchanged at $46.
+
+Two $0 leaks remained → **Q** (the final pass re-opened + re-filed the plat: the ledger's unique key is
+county + instrument, so the early re-open on a project that does not own it writes no row and
+`listRunPurchases` cannot see it — now a plat want is dropped when the project's own rows already hold the
+subdivision's plat) and **R** (the artifact step re-filed both Google Maps captures: a re-encoded screenshot
+has a different hash and no instrument — now the same label + source on the same project is the same
+document). Both built + tested; not yet merged.

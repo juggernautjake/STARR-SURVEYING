@@ -1144,6 +1144,31 @@ export async function resilientInsertDocument(
 ): Promise<{ error: string | null; id: string | null; outcome: FileOutcome['outcome'] | null }> {
   const ctx = filingContexts.get(projectId);
 
+  // A screenshot has no instrument, no recording date and — re-encoded by the end-of-run artifact
+  // step — a different content hash from the copy the run filed incrementally, so the library
+  // could not tell the two apart (run 5, 2026-09-07: both Google Maps captures filed twice). The
+  // same label from the same page on the same project IS the same document.
+  const label = typeof row.document_label === 'string' ? row.document_label : '';
+  const sourceUrl = typeof row.source_url === 'string' ? row.source_url : '';
+  if (label && sourceUrl && !row.recording_info) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: same } = await (supabase as any).from('research_documents')
+        .select('id')
+        .eq('research_project_id', projectId)
+        .eq('document_label', label)
+        .eq('source_url', sourceUrl)
+        .is('superseded_at', null)
+        .limit(1);
+      const hit = (same ?? [])[0] as { id: string } | undefined;
+      if (hit) {
+        console.log(`[ArtifactUploader] ${projectId}: already filed — same label and source ("${label.slice(0, 60)}")`);
+        ctx?.tally.record({ outcome: 'merged', id: hit.id, reason: 'same label and source' } as never);
+        return { error: null, id: hit.id, outcome: 'merged' };
+      }
+    } catch { /* a lookup that fails must not stop a filing */ }
+  }
+
   if (ctx) {
     // Which research round found this document (plan 3.4, seed 632). Stamped here, in the one
     // place every pipeline document passes through, so no filer has to know about rounds.

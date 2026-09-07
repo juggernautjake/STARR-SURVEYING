@@ -76,7 +76,7 @@ describe('every document is checked for duplicates as it is filed', () => {
 
   it('the writer consults the project library before inserting', () => {
     const at = uploader.indexOf('async function resilientInsertDocument');
-    const body = uploader.slice(at, at + 1500);
+    const body = uploader.slice(at, at + 2800); // widened 2026-09-07: the same-label-and-source check sits first
     expect(body).toContain('filingContexts.get(projectId)');
     expect(body).toContain('fileResearchDocument');
   });
@@ -95,7 +95,7 @@ describe('every document is checked for duplicates as it is filed', () => {
   it('a failed library load degrades to writing, never to dropping', () => {
     // A document lost because its bookkeeping was unavailable is a worse outcome than a duplicate.
     const at = uploader.indexOf('async function resilientInsertDocument');
-    expect(uploader.slice(at, at + 3000)).toMatch(/No filing context: the original behaviour/i);
+    expect(uploader.slice(at, at + 4400)).toMatch(/No filing context: the original behaviour/i); // widened 2026-09-07
   });
 });
 
