@@ -41,3 +41,22 @@ other $5 (run 6 is the last); delete the old project and do a fresh run each tim
   940×612 preview PNGs (V fixes: viewer PDF). A fresh run 6 on the deployed build is the proof.
 - Noise to remove (X4): L1–L5 above. "Deed Relevance error (recovered): REMOVED …" is an info logged into the
   errors list — left as is (it is the relevance verdict, and recovered:true).
+
+## Run 6 (project `a7ef8036-2c01-4b03-b6d6-3b11a559d364`, 2026-09-07 10:17 CDT) — what it proved and exposed
+
+- Research run: 586 s, $0.01 (AI address variants), $0.00 purchases. The plat was re-opened at $0 by the EARLY
+  pass and filed from the viewer PDF at 200 dpi (1,788 KB, V ✓); the final pass said "the plat want is
+  satisfied" (Q ✓) and re-opened the TexasFile deed (5 pages, 200 dpi) at $0; 16 rows, NO duplicates (R ✓);
+  completeness "✓ FOUND [plat]: Filed from a paid source earlier in this run" (L1 ✓); "Property summary
+  deferred" (L4 ✓); lifecycle "Finished in 586.2s with 1 document" (L5 ✓). The research bar walked the
+  ladder (2% "Identifying the property" → 100%) and its counters froze at $0.01 / 10:46 of 25:00 (X1 ✓).
+- The review read the TexasFile deed at "good" (37,533 chars) — the same document was `unreadable` on run 5's
+  preview PNGs.
+- Exposed (fixed in `b19e284b3` + `28faae520`, pushed after the review ended): the page showed the finished
+  RESEARCH run while the worker held the review (`analyzing` maps to the research stage) — now a stamped,
+  unfinished review puts the page on the Analysis stage and `onFinished` reloads it; the route's review stamp
+  raced the worker's first progress stamp (progress without startedAt) — stamped BEFORE the hand-off now;
+  "Cheapest-first … TxDOT" still fired for the easement want — TxDOT carries right-of-way only; a review in
+  flight was invisible to `/research/active`, so the host updater could rebuild over it — counted now.
+- The dialog's "How long this run may take: 30" is ignored by design for a gather run (25-minute cap,
+  owner B2.3) — the run view's "/ 25:00" is right; the dialog copy is not (left for a later slice).
