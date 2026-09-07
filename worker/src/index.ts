@@ -47,6 +47,7 @@ import { discoverAcrossSources } from './research/cross-source-discovery.js';
 import { planAcquisition } from './research/cross-source-acquire-plan.js';
 import { makeSourceSearch, buildDiscoveryTarget } from './research/live-search.js';
 import { clerkDocToManifest } from './research/live-source-adapters.js';
+import { orderPlatsFirstNewestFirst, describeBuyOrder } from './research/plats-first.js';
 import { documentRelevance, type PropertySearchInputs, type DocIdentifiers } from './research/property-search-inputs.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
@@ -1403,7 +1404,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       if (instr?.trim() && normInstrument(instr)) suppRecs.push({ documentType: 'deed', instrument: instr.trim(), source: 'texasfile', estimatedCost: '$3', confidenceImpact: '', callsImproved: 0, reason: 'Operator-supplied instrument number.', priority: 0, roi: 1, county: county ?? undefined });
     }
 
-    const recs = [...suppRecs, ...paidRecs];
+    // Plats/drawings first, newest first, then the rest by relevance (owner, 2026-09-07). The
+    // orchestrator buys down this list until the TexasFile budget is spent.
+    const recs = orderPlatsFirstNewestFirst([...suppRecs, ...paidRecs]);
+    if (recs.length > 0) handshakeLogger.attempt('[Purchase]', 'info', 'Buy order', describeBuyOrder(recs)).success(recs.length, describeBuyOrder(recs));
     if (recs.length === 0) {
       handshakeLogger.attempt('[Purchase]', 'info', 'Nothing to buy (early)', 'every wanted document is available free')
         .success(0, 'Free-first: nothing was paid-exclusive; the free gather captures the rest.');
@@ -1459,17 +1463,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // having already spent 163 minutes and every dollar of a $2 ceiling, only to print
     // "Direct map screenshots skipped — no property ID or coordinates".
     onPropertyIdentified: async (identified) => {
-      try {
-        await captureVisualsAtIdentification(projectId, county, identified);
-      } catch (e) {
-        console.warn(`[Capture] ${projectId}: early visual phase threw — ${String(e)}`);
-      }
-      // A7.5 — buy the paid documents from TexasFile NOW, before the long free document search that a
-      // cut-short run never gets past. Never throws; the research is the point.
+      // The owner's order (2026-09-07): the FIRST thing a run does once the parcel is named is go
+      // to TexasFile for the plats/drawings — newest first, the rest while the budget allows —
+      // then the overhead views and GIS/CAD maps, then the deeds and everything else. The captures
+      // ran first until now (87 s → 222 s on the 2026-09-07 run), so the plat buy was the LAST
+      // thing before the clerk grind rather than the first. Never throws; the research is the point.
       try {
         await runEarlyChecklistPurchase(identified);
       } catch (e) {
         console.warn(`[Purchase:early] ${projectId}: early purchase threw — ${String(e)}`);
+      }
+      try {
+        await captureVisualsAtIdentification(projectId, county, identified);
+      } catch (e) {
+        console.warn(`[Capture] ${projectId}: early visual phase threw — ${String(e)}`);
       }
     },
     uploadedFiles: parsedUserFiles?.map(f => ({

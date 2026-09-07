@@ -38,6 +38,10 @@ export interface PropertyIdentifiers {
   abstractNumber: string | null;
   /** Survey name from legal description (e.g., "A. Manchaca", "Garrett & Hardcastle") */
   surveyName: string | null;
+  /** The CAD's own deed history for THIS parcel (2026-09-07). A deed whose volume/page or instrument
+   *  is listed here is the subject's own deed, whatever else the heuristic can or cannot read — on a
+   *  gather run (no AI) the subject's deed scored 20/100 and was thrown out without this. */
+  deedHistory?: Array<{ instrumentNumber?: string | null; volume?: string | null; page?: string | null }> | null;
 }
 
 export interface RelevanceResult {
@@ -333,6 +337,27 @@ export function preFilterIrrelevantDocuments<T extends {
 
 // ── Heuristic Checks ─────────────────────────────────────────────────
 
+/** Does the CAD's deed history for the parcel list this deed — by instrument (year-tolerant:
+ *  "2004034968" ≡ "34968") or by volume + page? Exported for the unit test. */
+export function inCadDeedHistory(
+  deed: Pick<DeedRecord, 'instrumentNumber' | 'volume' | 'page'>,
+  history: PropertyIdentifiers['deedHistory'],
+): boolean {
+  if (!history || history.length === 0) return false;
+  const digits = (s: string | null | undefined) => (s ?? '').replace(/\D/g, '');
+  const sameInstrument = (a: string | null | undefined, b: string | null | undefined) => {
+    const da = digits(a); const db = digits(b);
+    if (!da || !db) return false;
+    if (da === db) return true;
+    const [long, short] = da.length >= db.length ? [da, db] : [db, da];
+    return long.length >= 10 && short.length >= 4 && short.length <= 6 && (long.endsWith(short.padStart(6, '0')) || long.endsWith(short));
+  };
+  const vol = digits(deed.volume); const pg = digits(deed.page);
+  return history.some((h) =>
+    sameInstrument(deed.instrumentNumber, h.instrumentNumber) ||
+    (!!vol && !!pg && digits(h.volume) === vol && digits(h.page) === pg));
+}
+
 function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers): RelevanceResult {
   let score = 0;
   const reasons: string[] = [];
@@ -342,6 +367,14 @@ function heuristicRelevanceCheck(deed: DeedRecord, property: PropertyIdentifiers
   const deedText = ((deed.legalDescription ?? '') + ' ' + (deed.aiSummary ?? '')).toUpperCase();
   const grantorUpper = (deed.grantor ?? '').toUpperCase();
   const granteeUpper = (deed.grantee ?? '').toUpperCase();
+
+  // ── Check 0: the CAD's deed history names this deed (the strongest signal of all) ─────────
+  // The appraisal district lists the recorded deeds for the parcel by volume/page and, for newer
+  // filings, instrument. A deed found by that citation IS the subject's deed — no text needed.
+  if (inCadDeedHistory(deed, property.deedHistory)) {
+    score += 60;
+    reasons.push('listed in the CAD deed history for this parcel');
+  }
 
   // ── Check 1: Survey/Abstract match (STRONGEST signal) ──────────
   // Different survey abstracts = almost certainly different property

@@ -55,7 +55,9 @@ export function texasFileResultToManifest(r: TexasFileResult, county: string): M
     lot: r.lots?.[0],
     block: r.block ?? undefined,
     pageCount,
-    unitCostUsd: price ?? (pageCount && pageCount > 0 ? pageCount : 1), // stated price, else $1/page, at least $1
+    // Owned already → $0 (re-opened, never re-bought; and the planner then prefers it over a
+    // duplicate row of the same document). Else the stated price, else $1/page, at least $1.
+    unitCostUsd: r.owned ? 0 : (price ?? (pageCount && pageCount > 0 ? pageCount : 1)),
     previewRef: r.guid,
     canFreeCapture: false,
     canPurchase: true,
@@ -90,7 +92,7 @@ export function texasFilePlatResultToManifest(r: TexasFileResult, _county: strin
     page,
     ...(name ? { subdivision: name } : {}),
     recordingDate: r.date ?? undefined,
-    unitCostUsd: 10, // all TexasFile plats are $10 flat, any page count
+    unitCostUsd: r.owned ? 0 : 10, // all TexasFile plats are $10 flat, any page count; $0 once owned
     previewRef: r.guid,
     canFreeCapture: false,
     canPurchase: true,

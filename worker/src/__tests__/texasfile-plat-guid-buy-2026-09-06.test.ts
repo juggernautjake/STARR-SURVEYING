@@ -121,6 +121,6 @@ describe('the thread is WIRED at every hop (check the CALLER, not the module)', 
     expect(body).toContain("product === 'plat'");
     expect(body).toContain('searchTexasFilePlats(page');
     expect(body).toContain('chooseTexasFileResult(results, input)');
-    expect(body).toContain('purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product)');
+    expect(body).toContain('purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product, { owned: chosen.owned === true })');
   });
 });

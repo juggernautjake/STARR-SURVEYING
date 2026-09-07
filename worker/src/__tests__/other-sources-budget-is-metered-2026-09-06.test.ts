@@ -37,7 +37,9 @@ describe('the run hands the other-sources budget to every in-run purchase site',
     expect(count).toBe(3);
   });
   it('settles both meters from the ledger at run finish, onto the run record', () => {
-    expect(src).toContain('const buckets = await ledgerSpendByBucket(projectId);');
+    // Scoped to THIS run's rows since 2026-09-07 — the whole-project sum reported a previous run's
+    // $14.73 as this run's "other sources $15.25 of the $5.00 budget".
+    expect(src).toContain('const buckets = await ledgerSpendByBucket(projectId, undefined, startedAtIso);');
     expect(src).toContain('metersLine = describeSpendByBucket(buckets, runSettings);');
     expect(src).toContain("budgetSummary: [windDown, metersLine].filter((s): s is string => !!s).join(' ') || null");
   });

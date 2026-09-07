@@ -1341,6 +1341,9 @@ export async function orchestrateBellResearch(
     situsAddress: property.situsAddress,
     abstractNumber: legalAbsSurvey.abstractNumber ?? gisAbstractNum,
     surveyName: legalAbsSurvey.surveyName,
+    // The CAD's deed history for the parcel — a deed it lists is the subject's own deed, however
+    // little of its text a gather run (no AI) can read (2026-09-07: 2004034968 scored 20/100, removed).
+    deedHistory: cad?.deedHistory ?? null,
   };
 
   progress('Phase 3',

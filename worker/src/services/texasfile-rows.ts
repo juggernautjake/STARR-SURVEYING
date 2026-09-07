@@ -33,6 +33,10 @@ export interface RawTexasFileRow {
   cells: string[];
   tooltip: string;
   detail: string;
+  /** The row shows a Download button and no Purchase button: the account already owns it
+   *  (2026-09-07 — an owned plat vanished from our results because we keyed on Purchase buttons,
+   *  and the run would have bought the duplicate row for another $10). */
+  owned?: boolean;
 }
 
 export type TexasFileProduct = 'instrument' | 'plat';
@@ -169,12 +173,14 @@ export function parseTexasFileRow(raw: RawTexasFileRow, product: TexasFileProduc
   const date = f.date ?? null;
   const text = [...raw.cells.slice(1), raw.detail].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 240);
 
+  const owned = raw.owned === true;
   if (product === 'plat') {
     const name = f.name ? normaliseSubdivisionName(f.name) : null;
     const cab = f.volume;
     const slide = f.page;
     return {
       guid: raw.guid,
+      owned,
       instrument: canonicalInstrument(f.number, date),
       instrumentRaw: f.number,
       bookVolPage: cab && slide ? `${cab}/${slide}` : null,
@@ -196,6 +202,7 @@ export function parseTexasFileRow(raw: RawTexasFileRow, product: TexasFileProduc
   const countyType = raw.detail.match(/County Type:\s*(.+?)(?:\s+Additional|$)/i)?.[1]?.trim();
   return {
     guid: raw.guid,
+    owned,
     instrument: canonicalInstrument(f.number, date),
     instrumentRaw: f.number,
     bookVolPage: f.volume && f.page ? `${f.volume}/${f.page}` : null,
@@ -232,22 +239,32 @@ export function extractTexasFileRawRows(): RawTexasFileRow[] {
     c.querySelectorAll('style, script, .__react_component_tooltip').forEach((n) => n.remove());
     return (c.textContent || '').replace(/\s+/g, ' ').trim();
   };
-  const buttons = Array.from(document.querySelectorAll('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]'));
+  // Every action button on a result row carries value "14:<GUID>" (Purchase, Cart, My File,
+  // Download). Keying on ANY of them — not only Purchase — is what keeps an already-owned document
+  // (Download button, no Purchase button) in the results.
+  const buttons = Array.from(document.querySelectorAll('button[value^="14:"], button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]'));
+  const rowsSeen = new Set<Element>();
   for (const b of buttons) {
+    const row = b.closest('tr');
+    if (!row || rowsSeen.has(row)) continue;
+    rowsSeen.add(row);
+    const value = b.getAttribute('value') || '';
     const dataFor = b.getAttribute('data-for') || '';
     const holder = b.closest('[id^="purchaseButton"]');
-    const guid = dataFor.replace(/^Purchase-/, '') || (holder ? holder.id.replace('purchaseButton', '') : '');
+    const guid = value.replace(/^\d+:/, '') || dataFor.replace(/^[A-Za-z]+-/, '') || (holder ? holder.id.replace('purchaseButton', '') : '');
     if (!/^[0-9a-f-]{30,}$/i.test(guid)) continue;
-    const row = b.closest('tr');
-    const table = row ? row.closest('table') : null;
+    const purchaseBtn = row.querySelector('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]');
+    const downloadBtn = row.querySelector('button[data-for^="Download-"]');
+    const table = row.closest('table');
     const headers = table ? Array.from(table.querySelectorAll('thead th, tr th')).map((th) => clean(th)) : [];
-    const cells = row ? Array.from(row.children).filter((el) => el.tagName === 'TD').map((td) => clean(td)) : [];
-    const tipEl = b.parentElement ? b.parentElement.querySelector('.__react_component_tooltip') : null;
+    const cells = Array.from(row.children).filter((el) => el.tagName === 'TD').map((td) => clean(td));
+    const tipHost = (purchaseBtn ?? b).parentElement;
+    const tipEl = tipHost ? tipHost.querySelector('.__react_component_tooltip') : null;
     const tipDiv = tipEl ? tipEl.querySelector(':scope > div') : null;
     const tooltip = tipDiv ? (tipDiv.textContent || '').replace(/\s+/g, ' ').trim() : '';
-    const next = row ? row.nextElementSibling : null;
-    const detail = next && !next.querySelector('button[name="btnPurchaseFromSearch"]') ? clean(next) : '';
-    rows.push({ guid: guid.toUpperCase(), headers, cells, tooltip, detail });
+    const next = row.nextElementSibling;
+    const detail = next && !next.querySelector('button[value^="14:"]') ? clean(next) : '';
+    rows.push({ guid: guid.toUpperCase(), headers, cells, tooltip, detail, owned: !purchaseBtn && !!downloadBtn });
   }
   const seen = new Set<string>();
   return rows.filter((r) => (seen.has(r.guid) ? false : (seen.add(r.guid), true)));

@@ -79,6 +79,9 @@ export interface TexasFileResult {
   /** Plat rows: the Subdivision Name column (normalised) and the Description column. */
   name?: string | null;
   description?: string | null;
+  /** The account already owns this document (Download button, no Purchase button): re-open it,
+   *  never pay for it — and never pay for a duplicate row of the same document. */
+  owned?: boolean;
 }
 
 export interface TexasFileBuyInput {
@@ -127,6 +130,8 @@ export function chooseTexasFileResult(
     const byGuid = results.find((r) => r.guid.toUpperCase() === guid);
     if (byGuid) return byGuid;
   }
+  // An owned copy outranks an unowned one of the same document at every step below — it is free.
+  results = [...results].sort((a, b) => Number(b.owned ?? false) - Number(a.owned ?? false));
   // Year-tolerant: the CAD's "2004034968" and TexasFile's "34968" are the same filing.
   if (input.instrumentNumber) {
     const byInstrument = results.find((r) => instrumentsMatch(r.instrument, input.instrumentNumber) || instrumentsMatch(r.instrumentRaw, input.instrumentNumber));
@@ -157,6 +162,7 @@ export function chooseTexasFileResult(
 
 /** What a chosen result will cost: a plat is flat-rate; anything else is $1/page (unknown pages → null). */
 export function priceTexasFileResult(r: TexasFileResult, product: 'instrument' | 'plat'): number | null {
+  if (r.owned) return 0; // already paid for — re-opening it costs nothing
   if (product === 'plat' || r.type === 'plat') return PLAT_FLAT_USD;
   // The Purchase tooltip states the price outright ("3 pages for $3.00"); pages × $1 is the fallback.
   if (typeof r.priceUsd === 'number' && Number.isFinite(r.priceUsd) && r.priceUsd > 0) return r.priceUsd;
@@ -338,16 +344,18 @@ export interface TexasFilePurchaseOutcome {
 }
 
 /** Purchase (or re-fetch if already owned) a document by GUID and return its pages. */
-export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument'): Promise<TexasFilePurchaseOutcome | null> {
+export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument', opts: { owned?: boolean } = {}): Promise<TexasFilePurchaseOutcome | null> {
   try {
-    let res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', product), { timeout: 30_000 });
+    // 90 s, not 30: the begin call prepares the document server-side and took ~20 s on a plat; a
+    // 30 s budget timed out on the live site (2026-09-07).
+    let res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', product), { timeout: 90_000 });
     // Plan 1.5 — the purchase path segment differs by product (`/instrument/` vs `/plat/`) on the
     // redesigned SPA. A 404 means the wrong segment, not a real failure, so try the OTHER one before
     // giving up. A 404 buys nothing, so the retry cannot double-charge.
     if (res.status() === 404) {
       const alt: 'instrument' | 'plat' = product === 'plat' ? 'instrument' : 'plat';
       log.info('TexasFile', `Purchase 404 on /${product}/ for ${guid} — retrying /${alt}/.`);
-      res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', alt), { timeout: 30_000 });
+      res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', alt), { timeout: 90_000 });
     }
     if (!res.ok()) { log.warn('TexasFile', `Purchase API HTTP ${res.status()} for ${guid}.`); return null; }
     let body = await res.json() as TexasFileBeginBody;
@@ -362,7 +370,11 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
     const documentId = documentIdFromBegin(body);
     let receiptId: number | undefined;
     let viewerUrl: string | null = body.purchase_url ? `${TF}${body.purchase_url}` : null;
-    if (documentId != null) {
+    if (documentId != null && opts.owned) {
+      // Already ours (the row showed Download, not Purchase): the begin call named the document and
+      // costs nothing; the COMPLETE call is the one that charges, so it is not made. Straight to the viewer.
+      log.info('TexasFile', `Document ${documentId} is already owned — re-opening it, no charge.`);
+    } else if (documentId != null) {
       const completeUrl = body.preview_url ? `${TF}${body.preview_url}` : purchaseCompleteUrl(documentId, searchId);
       try {
         const done = await page.context().request.get(completeUrl, { timeout: 30_000 });
@@ -456,7 +468,8 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
         return { ok: false, reason: `${what}, over the $${input.maxUsd} limit`, pages: [], pageCount: chosen.pages ?? undefined };
       }
 
-      const bought = await purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product);
+      if (chosen.owned) log.info('TexasFile', `${chosen.guid} is already owned by this account — re-opening it for free.`);
+      const bought = await purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product, { owned: chosen.owned === true });
       if (!bought) return { ok: false, reason: 'purchase did not return images', pages: [], guid: chosen.guid };
 
       // A plat arrives already rasterised from its PDF; a deed as page-image URLs to download.
