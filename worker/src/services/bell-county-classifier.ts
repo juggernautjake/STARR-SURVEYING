@@ -1,6 +1,7 @@
 // worker/src/services/bell-county-classifier.ts
 // Bell County Property Type Classification & Search Strategy Selection
 //
+import { extractSubdivisionName } from '../research/subdivision-name.js';
 // Bell County Appraisal District (BIS) uses a rich set of property type codes.
 // This module detects type from legal descriptions and CAD data, then selects
 // the optimal search strategy for each type.
@@ -238,34 +239,10 @@ export function classifyLegalDescription(
 export function extractSubdivisionNameFromLegal(
   legalDescription: string | null | undefined,
 ): string | null {
-  if (!legalDescription) return null;
-  const desc = legalDescription.trim().toUpperCase();
-
-  // Pattern 1: "ADDITION NAME, BLOCK X, LOT Y" — name ends at ", BLOCK"
-  // Covers "ASH FAMILY TRUST 12.358 ACRE ADDITION, BLOCK 001, LOT 0002"
-  const additionMatch = desc.match(/^(.+?ADDITION(?:\s+(?:NO\.|NO\s*\d+|\d+))?)\s*,\s*BLOCK/);
-  if (additionMatch) return additionMatch[1].trim();
-
-  // Pattern 2: "SUBDIVISION NAME, BLOCK X, LOT Y" — name before ", BLOCK"
-  // Covers "SUNRIDGE ESTATES PHASE 2, BLOCK A, LOT 3"
-  const beforeBlock = desc.match(/^(.+?),\s*BLOCK\s+[\dA-Z]/);
-  if (beforeBlock) {
-    const candidate = beforeBlock[1].trim();
-    // Exclude fragments that are just "LOT X" (reversed format handled below)
-    if (!/^LOT\s+[\dA-Z]+$/i.test(candidate)) return candidate;
-  }
-
-  // Pattern 3: "LOT X, BLOCK Y, SUBDIVISION NAME" — name after "BLOCK Y,"
-  // Covers "LOT 3, BLOCK A, SUNRIDGE ESTATES"
-  const afterBlock = desc.match(/LOT\s+[\dA-Z]+,\s*BLOCK\s+[\dA-Z]+,\s*(.+?)(?:\s*,.*)?$/);
-  if (afterBlock) return afterBlock[1].trim();
-
-  // Pattern 4: Pure SUBDIVISION keyword
-  const subdivMatch = desc.match(/^(.+?SUBDIVISION)\s*,/i);
-  if (subdivMatch) return subdivMatch[1].trim();
-
-  // Not a platted description
-  return null;
+  // ONE parser since 2026-09-07 (research/subdivision-name.ts) — this copy handled the comma forms,
+  // the plat-scraper copy the keyword/space forms; each missed the other's. Names are normalised
+  // (ADD → ADDITION …) so they compare equal with the plat index and TexasFile.
+  return extractSubdivisionName(legalDescription);
 }
 
 // ── Abstract Survey Extraction ────────────────────────────────────────────────

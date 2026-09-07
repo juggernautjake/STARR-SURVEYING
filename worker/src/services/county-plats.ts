@@ -19,6 +19,7 @@
 import type { PipelineLogger } from '../lib/logger.js';
 import { lookupByCounty } from '../research/county-key.js';
 import { detectCaptcha, describeCaptcha } from '../research/captcha-signatures.js';
+import { extractSubdivisionName as extractSubdivisionNameShared } from '../research/subdivision-name.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -334,33 +335,9 @@ export function platSourceStatement(county: string): string {
  *     → null  (survey reference, not a subdivision)
  */
 export function extractSubdivisionName(legalDescription: string): string | null {
-  if (!legalDescription) return null;
-
-  const upper = legalDescription.toUpperCase().trim();
-
-  // Reject non-useful descriptions
-  if (/^BUSINESS\s+PERSONAL\s+PROPERTY/i.test(upper)) return null;
-  if (/^MINERAL/i.test(upper)) return null;
-  if (/^SURVEY\b|^ABSTRACT\b/i.test(upper)) return null;
-
-  // Pattern 1: Name ends with ADDITION / SUBDIVISION / ESTATES / SECTION / PHASE / UNIT [N]
-  const additionMatch = upper.match(
-    /(.+?\b(?:ADDITION|SUBDIVISION|ESTATES?|SECTION|PHASE\s*\d*|UNIT\s*\d*|REPLAT|ANNEX(?:ATION)?|RANCH))\b/i,
-  );
-  if (additionMatch) {
-    const cleaned = additionMatch[1].trim()
-      .replace(/^LOT\s+\d+\s+(?:BLK|BLOCK)\s+\S+\s+/i, '').trim();
-    if (cleaned.length > 5) return cleaned;
-  }
-
-  // Pattern 2: "LOT N BLK M <NAME>" — extract <NAME>
-  const lotBlkMatch = upper.match(/LOT\s+\S+\s+(?:BLK|BLOCK)\s+\S+\s+(.+)/i);
-  if (lotBlkMatch) {
-    const name = lotBlkMatch[1].replace(/,.*$/, '').trim();
-    if (name.length > 5) return name;
-  }
-
-  return null;
+  // ONE parser since 2026-09-07 (research/subdivision-name.ts): the generic pipeline's copy shared
+  // the plat-scraper's blind spot — a subdivision named without a keyword parsed to nothing.
+  return extractSubdivisionNameShared(legalDescription);
 }
 
 // ── Subdivision API Cache (for Hays CAD canonical names) ─────────────────────

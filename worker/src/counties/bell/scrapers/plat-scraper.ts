@@ -29,6 +29,7 @@
 import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture, PlatRecord } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
+import { extractSubdivisionName } from '../../../research/subdivision-name.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -295,32 +296,10 @@ export function extractPlatReferences(legalDesc: string): PlatReference[] {
  * Exported so the orchestrator can pass it to the plat scraper.
  */
 export function extractSubdivisionNameFromLegal(legalDesc: string): string | null {
-  if (!legalDesc) return null;
-  const upper = legalDesc.toUpperCase().trim();
-
-  // Reject personal property / non-plat descriptions
-  if (/^BUSINESS\s+PERSONAL\s+PROPERTY/i.test(upper)) return null;
-  if (/^MINERAL/i.test(upper)) return null;
-  if (/^ABSTRACT\b/i.test(upper) && !/ADDITION|SUBDIVISION|ESTATES?/i.test(upper)) return null;
-
-  // Pattern 1: Ends with ADDITION/SUBDIVISION/ESTATES/etc. keyword
-  const additionMatch = upper.match(
-    /(.+?\b(?:ADDITION|SUBDIVISION|ESTATES?|SECTION|PHASE\s*\d*|UNIT\s*\d*|REPLAT|ANNEX(?:ATION)?|RANCH|VILLAGE|HEIGHTS|ACRES\s+ADDITION))\b/i,
-  );
-  if (additionMatch) {
-    const cleaned = additionMatch[1].trim()
-      .replace(/^LOT\s+\S+\s+(?:BLK|BLOCK)\s+\S+\s+/i, '').trim();
-    if (cleaned.length > 5) return cleaned;
-  }
-
-  // Pattern 2: "LOT N BLK M SUBDIVISION NAME"
-  const lotBlkMatch = upper.match(/LOT\s+\S+\s+(?:BLK|BLOCK)\s+\S+\s+(.+)/i);
-  if (lotBlkMatch) {
-    const name = lotBlkMatch[1].replace(/,.*$/, '').trim();
-    if (name.length > 5 && !/^\d+$/.test(name)) return name;
-  }
-
-  return null;
+  // ONE parser since 2026-09-07 (research/subdivision-name.ts). This copy needed a keyword or the
+  // "LOT N BLK M NAME" space form, so "NORTH BELTON, BLOCK 12, LOT 4" — a residential subdivision
+  // named without a keyword — yielded nothing, and with no subdivision there is no plat search.
+  return extractSubdivisionName(legalDesc);
 }
 
 
