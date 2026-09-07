@@ -28,8 +28,10 @@ describe('TexasFile purchase completes (step 2 of the mapped flow)', () => {
   it('purchaseTexasFile calls complete after a begun purchase and keeps the begun pages if it fails', () => {
     const src = read('src/services/texasfile-buy.ts');
     const fn = src.slice(src.indexOf('export async function purchaseTexasFile('), src.indexOf('export async function downloadTexasFilePages('));
-    expect(fn).toContain('purchaseCompleteUrl(body.purchase_id, searchId)');
-    expect(fn).toContain('if (body.purchase_id != null)');
+    // Since 2026-09-07 the document id comes from the begin body's URLs when purchase_id is null (a
+    // plat), and the complete call is preview_url itself — texasfile-pdf-2026-09-07.test.ts pins it.
+    expect(fn).toContain('const documentId = documentIdFromBegin(body);');
+    expect(fn).toContain('purchaseCompleteUrl(documentId, searchId)');
     expect(fn).toContain("using the begun purchase's pages");
     // the sold instrument rides back on the buy result
     expect(src).toContain('instrument: chosen.instrument ?? undefined,');

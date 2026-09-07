@@ -28,6 +28,7 @@ import type { Browser, Page } from 'playwright';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import type { PipelineLogger } from '../lib/logger.js';
 import { extractTexasFileRawRows, instrumentsMatch, normaliseSubdivisionName, parseTexasFileRow } from './texasfile-rows.js';
+import { capturePdfPages, documentIdFromBegin, type TexasFileBeginBody } from './texasfile-pdf.js';
 
 const TF = 'https://www.texasfile.com';
 
@@ -176,6 +177,10 @@ export interface TexasFileBuyResult {
   /** The county instrument number TexasFile lists for the document actually bought. A
    *  `search_required` want is keyed in the ledger by THIS, not by the placeholder. */
   instrument?: string;
+  /** The signed PDF the viewer served (a plat), TexasFile's document id, and how the pages were made. */
+  pdfUrl?: string;
+  documentId?: number;
+  pageMethod?: 'page-urls' | 'pdftoppm' | 'viewer-canvas';
 }
 
 const noLog = { info: () => {}, warn: () => {}, error: () => {} } as unknown as PipelineLogger;
@@ -318,8 +323,22 @@ export function purchaseCompleteUrl(purchaseId: number | string, searchId: strin
     + `?from_product_content_type=search&from_product_object_id=${encodeURIComponent(searchId)}`;
 }
 
-/** Purchase (or re-fetch if already owned) a document by GUID and return its page image URLs. */
-export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument'): Promise<{ pages: string[]; purchaseId?: number; balance?: string } | null> {
+/** What a purchase hands back: page-image URLs (a deed bought through /instrument/), or the pages
+ *  already rasterised from the document's PDF (a plat — see texasfile-pdf.ts). */
+export interface TexasFilePurchaseOutcome {
+  pages: string[];
+  pageImages?: TexasFilePage[];
+  pdfUrl?: string | null;
+  /** The receipt id (`purchase_id` from the complete step) — what the wallet line refers to. */
+  purchaseId?: number;
+  /** TexasFile's document id (the one in the viewer / status URLs). */
+  documentId?: number;
+  balance?: string;
+  method?: 'page-urls' | 'pdftoppm' | 'viewer-canvas';
+}
+
+/** Purchase (or re-fetch if already owned) a document by GUID and return its pages. */
+export async function purchaseTexasFile(page: Page, county: string, guid: string, searchId: string, log: PipelineLogger = noLog, product: 'instrument' | 'plat' = 'instrument'): Promise<TexasFilePurchaseOutcome | null> {
   try {
     let res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', product), { timeout: 30_000 });
     // Plan 1.5 — the purchase path segment differs by product (`/instrument/` vs `/plat/`) on the
@@ -331,36 +350,60 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
       res = await page.context().request.get(purchaseApiUrl(county, guid, searchId, 'texas', alt), { timeout: 30_000 });
     }
     if (!res.ok()) { log.warn('TexasFile', `Purchase API HTTP ${res.status()} for ${guid}.`); return null; }
-    let body = await res.json() as { pages?: string[]; purchase_id?: number; user_balance?: string; images_available?: boolean };
+    let body = await res.json() as TexasFileBeginBody;
+
     // ── STEP 2: COMPLETE THE PURCHASE ───────────────────────────────────────────────────────
-    // The live flow mapped on 2026-09-05 has two calls: `/purchase/.../{GUID}/` BEGINS a purchase
-    // and returns its id; `/purchase/{purchaseId}/complete/` is what CHARGES THE WALLET and finishes
-    // it. Only the first was ever called here, so a buy could stop at "begun". A completion that
-    // returns pages wins; one that fails is logged and the begun purchase's pages are still used —
-    // a document in hand beats a tidy abort, and the ledger row says what was paid.
-    if (body.purchase_id != null) {
+    // The live flow has two calls: `/purchase/.../{GUID}/` BEGINS a purchase; the COMPLETE call is
+    // what charges the wallet and finishes it. For a deed the begin body names `purchase_id`; for a
+    // PLAT it is null and the document id lives inside `preview_url` (which IS the complete URL) and
+    // `retrieval_url` (2026-09-07, live). Until then a plat the engine had found was begun, never
+    // completed, and reported "no images". A completion that returns pages wins; one that fails is
+    // logged and the begun purchase's pages are still used — a document in hand beats a tidy abort.
+    const documentId = documentIdFromBegin(body);
+    let receiptId: number | undefined;
+    let viewerUrl: string | null = body.purchase_url ? `${TF}${body.purchase_url}` : null;
+    if (documentId != null) {
+      const completeUrl = body.preview_url ? `${TF}${body.preview_url}` : purchaseCompleteUrl(documentId, searchId);
       try {
-        const done = await page.context().request.get(purchaseCompleteUrl(body.purchase_id, searchId), { timeout: 30_000 });
+        const done = await page.context().request.get(completeUrl, { timeout: 30_000 });
         if (done.ok()) {
-          const completed = await done.json().catch(() => null) as typeof body | null;
-          if (completed && Array.isArray(completed.pages) && completed.pages.length > 0) {
-            body = { ...body, ...completed, purchase_id: completed.purchase_id ?? body.purchase_id };
-          } else if (completed?.user_balance) {
-            body = { ...body, user_balance: completed.user_balance };
+          const completed = await done.json().catch(() => null) as TexasFileBeginBody | null;
+          if (completed) {
+            if (Array.isArray(completed.pages) && completed.pages.length > 0) body = { ...body, pages: completed.pages };
+            if (completed.user_balance) body = { ...body, user_balance: completed.user_balance };
+            if (typeof completed.purchase_id === 'number') receiptId = completed.purchase_id;
+            if (completed.purchase_url) viewerUrl = `${TF}${completed.purchase_url}`;
           }
-          log.info('TexasFile', `Purchase ${body.purchase_id} completed — balance ${body.user_balance ?? '?'}.`);
+          log.info('TexasFile', `Purchase of document ${documentId} completed (receipt ${receiptId ?? '?'}) — balance ${body.user_balance ?? '?'}.`);
         } else {
-          log.warn('TexasFile', `Purchase ${body.purchase_id} complete step returned HTTP ${done.status()} — using the begun purchase's pages.`);
+          log.warn('TexasFile', `Document ${documentId} complete step returned HTTP ${done.status()} — using the begun purchase's pages.`);
         }
       } catch (err) {
-        log.warn('TexasFile', `Purchase ${body.purchase_id} complete step threw: ${err instanceof Error ? err.message : String(err)}`);
+        log.warn('TexasFile', `Document ${documentId} complete step threw: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } else {
+      log.warn('TexasFile', `Begin response for ${guid} named no document id (purchase_id/preview_url/retrieval_url all empty) — cannot complete.`);
     }
-    if (!body.images_available || !Array.isArray(body.pages) || body.pages.length === 0) {
-      log.warn('TexasFile', `Purchase returned no images for ${guid} (images_available=${body.images_available}).`);
+
+    // ── STEP 3: THE PAGES ────────────────────────────────────────────────────────────────────
+    // A deed: page-image URLs in the body. A plat: nothing here — the viewer serves one PDF.
+    if (Array.isArray(body.pages) && body.pages.length > 0) {
+      return { pages: body.pages, purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined, balance: body.user_balance, method: 'page-urls' };
+    }
+    if (viewerUrl || documentId != null) {
+      const captured = await capturePdfPages(page, viewerUrl ?? `${TF}/document/viewer/${documentId}/`, log);
+      if (captured.pages.length > 0) {
+        return {
+          pages: [], pageImages: captured.pages, pdfUrl: captured.pdfUrl,
+          purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined,
+          balance: body.user_balance, method: captured.method === 'none' ? undefined : captured.method,
+        };
+      }
+      log.warn('TexasFile', `Document ${documentId ?? guid}: ${captured.note ?? 'no pages could be produced'} (images_available=${body.images_available}).`);
       return null;
     }
-    return { pages: body.pages, purchaseId: body.purchase_id, balance: body.user_balance };
+    log.warn('TexasFile', `Purchase returned no images for ${guid} (images_available=${body.images_available}).`);
+    return null;
   } catch (err) {
     log.warn('TexasFile', `Purchase threw for ${guid}: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -416,14 +459,17 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       const bought = await purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product);
       if (!bought) return { ok: false, reason: 'purchase did not return images', pages: [], guid: chosen.guid };
 
-      const pages = await downloadTexasFilePages(page, bought.pages);
+      // A plat arrives already rasterised from its PDF; a deed as page-image URLs to download.
+      const pages = bought.pageImages ?? await downloadTexasFilePages(page, bought.pages);
       if (pages.length === 0) return { ok: false, reason: 'purchased but no page image downloaded', pages: [], guid: chosen.guid, purchaseId: bought.purchaseId };
+      if (bought.method && bought.method !== 'page-urls') log.info('TexasFile', `Pages produced by ${bought.method}${bought.pdfUrl ? ' from the document PDF' : ''}.`);
 
       log.info('TexasFile', `Bought ${pages.length} page(s) for ${chosen.instrument ?? chosen.guid} — balance now ${bought.balance ?? '?'}.`);
       return {
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
         pageCount: pages.length, costUsd: price ?? pages.length, balanceAfter: bought.balance,
         instrument: chosen.instrument ?? undefined,
+        pdfUrl: bought.pdfUrl ?? undefined, documentId: bought.documentId, pageMethod: bought.method,
       };
     } finally {
       await context.close().catch(() => {});

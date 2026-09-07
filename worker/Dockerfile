@@ -47,6 +47,10 @@ COPY --from=build /app/dist        ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 
+# poppler-utils: `pdftoppm` rasterises the PDFs TexasFile serves for plats (texasfile-pdf.ts). Without
+# it the worker falls back to screenshotting the viewer canvas at screen resolution.
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils && rm -rf /var/lib/apt/lists/*
+
 # Logs directory used by PM2-style logging if the host wants to mount it.
 RUN mkdir -p /app/logs && chown -R pwuser:pwuser /app
 
