@@ -135,6 +135,9 @@ describe('GET /research/active answers with summaries, not the live pipeline obj
     const src = read('index.ts');
     expect(src).not.toContain('res.json({ count: active.length, pipelines: active });');
     expect(src).toContain("const pipelines = Array.from(activePipelines.entries()).map(([projectId, p]) => ({");
-    expect(src).toContain('res.json({ count: pipelines.length, pipelines });');
+    expect(src).toContain('res.json({ count: pipelines.length + reviews.length, pipelines, reviews });');
+    // A review in flight counts too — the updater must not rebuild over it (run 5's review died that way).
+    expect(src).toContain("activeReviews.set(projectId, { startedAt: new Date().toISOString() });");
+    expect(src).toContain('      activeReviews.delete(projectId);\n    }\n  })();');
   });
 });

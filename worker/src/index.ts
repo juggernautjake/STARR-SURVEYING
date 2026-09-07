@@ -257,6 +257,10 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
 // ── In-Memory State ────────────────────────────────────────────────────────
 
 const activePipelines = new Map<string, ActivePipeline>();
+/** AI reviews the worker is running (read pass → driven analysis → finalize), keyed by project. NOT in
+ *  `activePipelines` — and the host auto-updater reads `/research/active` to decide whether a rebuild is
+ *  safe, so until 2026-09-07 a rebuild could land in the middle of a paid review (run 5's did). */
+const activeReviews = new Map<string, { startedAt: string }>();
 /**
  * How far each live run has got, kept OUTSIDE `activePipelines` because it must survive the moment
  * the pipeline is removed from that map — the status endpoint needs a truthful final percentage for
@@ -3749,7 +3753,9 @@ app.get('/research/active', requireAuth, (_req: Request, res: Response) => {
     currentStage: p.currentStage ?? null,
     lastProgressAt: p.lastProgressAt ?? null,
   }));
-  res.json({ count: pipelines.length, pipelines });
+  // A review in flight is work a rebuild would kill, exactly like a research run — it counts.
+  const reviews = Array.from(activeReviews.entries()).map(([projectId, r]) => ({ projectId, ...r }));
+  res.json({ count: pipelines.length + reviews.length, pipelines, reviews });
 });
 
 // ── DELETE /research/result/:projectId ─────────────────────────────────────
@@ -4405,6 +4411,7 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
   res.status(202).json({ status: 'reading', projectId, benchmark, maxCostUsd: benchmark ? null : limits.maxCostUsd });
 
   // Runs in the worker process, which is long-lived — so it completes where the app route cannot.
+  activeReviews.set(projectId, { startedAt: new Date().toISOString() });
   void (async () => {
     enterRunContext(projectId); // attribute every OCR/AI call to this project (usage.ts)
     const log = (line: string) => console.log(`[ReadDocs${benchmark ? ':bench' : ''}] ${projectId}: ${line}`);
@@ -4496,6 +4503,7 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
           await unparkAnalyzing(projectId, log, e instanceof Error ? e.message : String(e));
         }
       }
+      activeReviews.delete(projectId);
     }
   })();
 });
