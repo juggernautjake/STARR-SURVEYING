@@ -4177,12 +4177,33 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
       // worth analysing, and a project parked at `analyzing` with no follow-up is the frozen state
       // the owner had to unstick by hand on 2026-09-05.
       if (thenAnalyze) {
+        // The worker DRIVES the app's analysis (2026-09-06): one awaited call per document, then
+        // one finalize — each inside a Vercel invocation that runs to completion because the route
+        // does not answer until the work is done. A fire-and-forget call was frozen after its 200.
         try {
+          const { driveAppAnalysis } = await import('./research/drive-app-analysis.js');
           const { triggerAppAnalysis } = await import('./research/trigger-app-analysis.js');
-          const r = await triggerAppAnalysis(projectId, { allow: true, maxCostUsd: benchmark ? undefined : body.maxCostUsd });
+          const sb = await getSupabase();
+          const r = await driveAppAnalysis({
+            projectId,
+            maxCostUsd: benchmark ? undefined : body.maxCostUsd,
+            listDocuments: async () => {
+              if (!sb) return [];
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { data } = await (sb as any).from('research_documents')
+                .select('id, document_label')
+                .eq('research_project_id', projectId)
+                .in('processing_status', ['extracted', 'analyzed'])
+                .order('created_at');
+              return ((data ?? []) as Array<{ id: string; document_label: string | null }>).map((d) => ({ id: d.id, label: d.document_label }));
+            },
+            call: (opts) => triggerAppAnalysis(projectId, { allow: true, ...opts, awaitCompletion: true, timeoutMs: 330_000 }),
+            spentSoFar: () => ledgerSpendForRun(projectId),
+            log,
+          });
           log(r.statement);
         } catch (e) {
-          log(`Data-point analysis could not be started after the read pass: ${e instanceof Error ? e.message : String(e)}`);
+          log(`Data-point analysis could not be driven after the read pass: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
     }

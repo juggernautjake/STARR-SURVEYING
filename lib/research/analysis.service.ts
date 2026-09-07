@@ -56,6 +56,14 @@ export interface AnalysisConfig {
    * quoted price. Absent means analyse them all.
    */
   documentId?: string;
+  /**
+   * A CHUNK of the worker-driven analysis (2026-09-06): extract + store this call's document(s) and
+   * return BEFORE chain-of-title, cross-reference, discrepancies and the coherence review, leaving
+   * the project at `analyzing`. The worker calls once per document with this set (each call fits
+   * inside one Vercel invocation, which it awaits), then once more WITHOUT it (`resume: true`) to
+   * finalise over every stored point. Never set by a person; the UI's buttons run whole calls.
+   */
+  skipFinalization?: boolean;
 
   /**
    * BENCHMARK mode — the one-off calibration run that SETS the standardized $/page rate. It runs with
@@ -1377,6 +1385,24 @@ export async function analyzeProject(
       } else {
         addLog('warn', 'No data points were extracted from any document');
       }
+    }
+
+    // ── A chunk of the worker-driven analysis ends here (2026-09-06) ──────────────────────────
+    // The document's points are stored and it is marked `analyzed`; everything that reads ACROSS
+    // documents (chain of title, cross-reference, discrepancies, the 3-pass coherence review) runs
+    // once, in the worker's finalize call, over every point in the table. Status stays
+    // `analyzing` on purpose — the run is not over — and the log carries on into the next call.
+    if (config?.skipFinalization) {
+      const stored = allDataPoints.length - carryoverPoints.length;
+      addLog('info', `Chunk complete — ${stored} new data point(s) stored. Chain of title, cross-reference and the coherence review run in the finalize call.`);
+      await persistLogs({
+        estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
+        cost_cap_usd: analyzeCostCapUsd ?? null,
+        chunk_completed_at: new Date().toISOString(),
+      });
+      clearInterval(heartbeatTimer);
+      clearTimeout(watchdogTimer);
+      return { dataPointCount: allDataPoints.length, discrepancyCount: 0 };
     }
 
     // 4b. Chain-of-title: follow Volume/Page and Instrument references (Layer 2E)

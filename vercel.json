@@ -5,7 +5,7 @@
       "maxDuration": 300
     },
     "app/api/admin/research/[projectId]/analyze/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/cron/receipt-extraction/route.ts": {
       "memory": 1024,

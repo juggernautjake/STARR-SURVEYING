@@ -36,13 +36,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Parse optional config from body early so we can check resume mode for the status check below
-  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean } | undefined;
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean; skipFinalization?: boolean } | undefined;
+  // The worker drives the analysis in awaited chunks (2026-09-06): it asks this route to run ONE
+  // bounded call and answer when it is done, instead of starting a background job Vercel freezes.
+  let awaitCompletion = false;
   try {
-    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean };
-    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId || body.benchmark) {
+    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean; skipFinalization?: boolean; awaitCompletion?: boolean };
+    awaitCompletion = body.awaitCompletion === true;
+    if (body.extractCategories || body.resume || typeof body.maxCostUsd === 'number' || body.documentId || body.benchmark || body.skipFinalization) {
       config = {};
       if (body.extractCategories) config.extractCategories = body.extractCategories;
       if (body.resume) config.resume = true;
+      // Chunk mode is the worker's alone — a person's button never stops short of the review.
+      if (body.skipFinalization === true && isWorker) config.skipFinalization = true;
       // The analyze run's own cost cap (plan R1). Clamped to a sane range; a $0 cap is meaningful
       // ("estimate only, analyse nothing paid") and survives, so clamp rather than reject.
       if (typeof body.maxCostUsd === 'number' && Number.isFinite(body.maxCostUsd)) {
@@ -135,8 +141,26 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // Start analysis asynchronously (in-process: per-file, resume, benchmark, the worker's callback,
-  // or the fallback when the worker cannot be reached).
+  // ── The worker's awaited call (2026-09-06) ───────────────────────────────────────────────────
+  // A background `analyzeProject` on Vercel is frozen the moment this response goes out, which is
+  // how a whole-project analysis parked at `analyzing` for the owner to unstick by hand. The
+  // worker now drives the analysis as a sequence of calls it AWAITS — one document per call
+  // (`skipFinalization`), then one finalize — and each call stays inside this function's
+  // maxDuration (vercel.json, 300 s). The function runs to completion because the response is
+  // not sent until the work is done.
+  if (isWorker && awaitCompletion) {
+    try {
+      const result = await analyzeProject(projectId, config);
+      return NextResponse.json({ message: 'Analysis call complete', projectId, ...result, via: 'worker-awaited' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Analysis API] Awaited analysis call failed for ${projectId}:`, message);
+      return NextResponse.json({ error: message, projectId }, { status: 500 });
+    }
+  }
+
+  // Start analysis asynchronously (in-process: per-file, resume, benchmark, or the fallback when
+  // the worker cannot be reached).
   analyzeProject(projectId, config).catch(err => {
     console.error(`[Analysis API] Background analysis failed for ${projectId}:`, err);
   });
