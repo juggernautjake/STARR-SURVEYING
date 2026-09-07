@@ -22,6 +22,8 @@ export interface AnalysisCallOptions {
   documentId?: string;
   resume?: boolean;
   skipFinalization?: boolean;
+  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → 'coherence'. */
+  finalizeStage?: 'chain' | 'crossref' | 'coherence';
   maxCostUsd?: number;
 }
 
@@ -82,8 +84,17 @@ export async function driveAppAnalysis(input: DriveAppAnalysisInput): Promise<Dr
     log(`[${chunks}/${docs.length}] ${doc.label ?? doc.id}: ${r.statement}`);
   }
 
-  const fin = await input.call({ resume: true, maxCostUsd: await remaining() });
-  log(fin.statement);
+  // The finalize, a STAGE at a time (2026-09-07): the whole thing — chain of title, cross-reference
+  // + discrepancies, the 3-pass coherence review — took longer than one Vercel invocation on run 4
+  // (HTTP 504 at the function limit) and the project sat at `analyzing`. Three awaited calls, each
+  // inside the limit; the last one ends the project at `review`. A stage that fails stops the rest.
+  const stages: Array<'chain' | 'crossref' | 'coherence'> = ['chain', 'crossref', 'coherence'];
+  let fin: { ok: boolean; statement: string } = { ok: true, statement: '' };
+  for (const stage of stages) {
+    fin = await input.call({ resume: true, finalizeStage: stage, maxCostUsd: await remaining() });
+    log(fin.statement);
+    if (!fin.ok) break;
+  }
 
   const statement =
     `Worker-driven analysis: ${chunks} of ${docs.length} document(s) analysed` +

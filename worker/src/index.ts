@@ -655,6 +655,19 @@ async function persistCountyResults(
     const key = gone.instrumentNumber?.trim();
     if (!key) continue;
     try {
+      // SELECT the rows first, then UPDATE by id: PostgREST rejects an `.or()` filter on an UPDATE
+      // (the repo guard `update-filters-cannot-use-or`), and an unmarked row would read as "never
+      // assessed" rather than as an error.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: hits, error: findErr } = await (supabase as any)
+        .from('research_documents')
+        .select('id')
+        .eq('research_project_id', projectId)
+        .is('relevance', null)
+        .or(`recording_info.ilike.%${key}%,document_label.ilike.%${key}%`);
+      const ids = ((hits ?? []) as Array<{ id: string }>).map((h) => h.id);
+      if (findErr) { console.warn(`[Worker] ${projectId}: could not find ${key} to mark unrelated: ${findErr.message}`); continue; }
+      if (ids.length === 0) { console.log(`[Worker] ${projectId}: no filed row for ${key} to mark unrelated`); continue; }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: relErr } = await (supabase as any)
         .from('research_documents')
@@ -663,11 +676,9 @@ async function persistCountyResults(
           relevance_classification: { by: 'bell-relevance-validator', at: now, reason: gone.reason },
           updated_at: now,
         })
-        .eq('research_project_id', projectId)
-        .is('relevance', null)
-        .or(`recording_info.ilike.%${key}%,document_label.ilike.%${key}%`);
+        .in('id', ids);
       if (relErr) console.warn(`[Worker] ${projectId}: could not mark ${key} unrelated: ${relErr.message}`);
-      else console.log(`[Worker] ${projectId}: marked ${key} unrelated — ${gone.reason}`);
+      else console.log(`[Worker] ${projectId}: marked ${key} unrelated (${ids.length} row(s)) — ${gone.reason}`);
     } catch (e) {
       console.warn(`[Worker] ${projectId}: could not mark ${key} unrelated: ${e instanceof Error ? e.message : String(e)}`);
     }

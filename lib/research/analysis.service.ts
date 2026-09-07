@@ -64,6 +64,14 @@ export interface AnalysisConfig {
    * finalise over every stored point. Never set by a person; the UI's buttons run whole calls.
    */
   skipFinalization?: boolean;
+  /**
+   * ONE stage of the finalize, for the worker-driven analysis (2026-09-07). The whole finalize —
+   * chain of title, cross-reference + discrepancies, the 3-pass coherence review — took longer than
+   * one Vercel invocation on run 4 (HTTP 504 at the function limit), so the worker now asks for it
+   * a stage at a time: 'chain' → 'crossref' → 'coherence'. Only the last stage ends the project at
+   * `review`; the others leave it at `analyzing` with the log carried on. Never set by a person.
+   */
+  finalizeStage?: 'chain' | 'crossref' | 'coherence';
 
   /**
    * BENCHMARK mode — the one-off calibration run that SETS the standardized $/page rate. It runs with
@@ -1405,8 +1413,14 @@ export async function analyzeProject(
       return { dataPointCount: allDataPoints.length, discrepancyCount: 0 };
     }
 
+    // Which finalize stages this call runs (2026-09-07): all of them for a person's button or a
+    // resume; exactly one for a worker stage call.
+    const stage = config?.finalizeStage;
+    const runs = (s: 'chain' | 'crossref' | 'coherence') => !stage || stage === s;
+    if (stage) addLog('info', `Finalize stage "${stage}" — the worker runs the finalize a stage at a time so each fits one invocation.`);
+
     // 4b. Chain-of-title: follow Volume/Page and Instrument references (Layer 2E)
-    if (countyKey) {
+    if (countyKey && runs('chain')) {
       const chainPoints = await followChainOfTitle(
         projectId, countyKey, allDataPoints, allDocuments as ResearchDocument[],
         extractCategories, addLog,
@@ -1428,7 +1442,7 @@ export async function analyzeProject(
     const uniqueDocIds = new Set(allDataPoints.map(dp => dp.document_id));
     let aiDiscrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-    if (uniqueDocIds.size > 1 && allDataPoints.length > 0) {
+    if (runs('crossref') && uniqueDocIds.size > 1 && allDataPoints.length > 0) {
       addLog('info', `Running cross-reference analysis across ${uniqueDocIds.size} documents`);
       try {
         // In resume mode, pass allDocuments so every document has a proper label
@@ -1452,7 +1466,7 @@ export async function analyzeProject(
     }
 
     // 6. Mathematical discrepancy detection
-    const mathDiscrepancies = detectMathDiscrepancies(projectId, allDataPoints);
+    const mathDiscrepancies = runs('crossref') ? detectMathDiscrepancies(projectId, allDataPoints) : [];
     addLog('info', `Mathematical checks found ${mathDiscrepancies.length} discrepanc${mathDiscrepancies.length === 1 ? 'y' : 'ies'}`);
     if (mathDiscrepancies.length === 0) {
       addLog('success', 'All boundary calculations pass mathematical validation.');
@@ -1462,7 +1476,7 @@ export async function analyzeProject(
 
     // 7. Store discrepancies
     const allDiscrepancies = [...aiDiscrepancies, ...mathDiscrepancies];
-    if (allDiscrepancies.length > 0) {
+    if (runs('crossref') && allDiscrepancies.length > 0) {
       // Delete previous discrepancies
       try {
         await supabaseAdmin
@@ -1482,6 +1496,19 @@ export async function analyzeProject(
         }
       }
       addLog('success', `Saved ${allDiscrepancies.length} discrepancies to database`);
+    }
+
+    // A stage call that is not the last one ends here: points and discrepancies are stored, the
+    // project stays at `analyzing`, the log carries on into the next stage's call.
+    if (stage && stage !== 'coherence') {
+      addLog('info', `Finalize stage "${stage}" complete.`);
+      await persistLogs({
+        estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
+        cost_cap_usd: analyzeCostCapUsd ?? null,
+      });
+      clearInterval(heartbeatTimer);
+      clearTimeout(watchdogTimer);
+      return { dataPointCount: allDataPoints.length, discrepancyCount: allDiscrepancies.length };
     }
 
     // 8. Final coherence review — 3-pass AI review of ALL data for consistency and quality

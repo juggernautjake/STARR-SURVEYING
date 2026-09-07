@@ -29,6 +29,8 @@ export interface TriggerAppAnalysisOptions {
   resume?: boolean;
   /** Stop after storing this call's points — the finalize call does the cross-document work. */
   skipFinalization?: boolean;
+  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → 'coherence'. */
+  finalizeStage?: 'chain' | 'crossref' | 'coherence';
   /** Ask the route to run the call and answer when it is done (not fire-and-forget). */
   awaitCompletion?: boolean;
   /** How long to wait for the app's answer. An awaited chunk needs the route's full maxDuration. */
@@ -55,8 +57,9 @@ export async function triggerAppAnalysis(
   if (opts.documentId) body.documentId = opts.documentId;
   if (opts.resume) body.resume = true;
   if (opts.skipFinalization) body.skipFinalization = true;
+  if (opts.finalizeStage) body.finalizeStage = opts.finalizeStage;
   if (opts.awaitCompletion) body.awaitCompletion = true;
-  const what = opts.documentId ? `document ${opts.documentId}` : opts.resume ? 'the finalize pass' : 'the analysis';
+  const what = opts.documentId ? `document ${opts.documentId}` : opts.finalizeStage ? `the finalize stage "${opts.finalizeStage}"` : opts.resume ? 'the finalize pass' : 'the analysis';
   try {
     const res = await fetchImpl(url, {
       method: 'POST',

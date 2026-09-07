@@ -143,3 +143,16 @@ Run 4's review: "0 document(s) read … 8 left unread because the run reached it
 (the worker's per-project accumulator) still carried the research run's $8 of purchases against the $7
 review cap, so the deeds and the plat stayed `pending` and only the aerials were analysed. The cap is
 now measured from the review's own start (`spendAtStart`), as the driver already did.
+
+### O — The finalize runs in STAGES, each under one Vercel invocation ✅
+Run 4's review: 14 awaited per-document chunks completed, then the ONE finalize call (chain of title,
+cross-reference + discrepancies, 3-pass coherence review) hit Vercel's function limit → HTTP 504; the
+worker's un-park (slice D) put the project back at `review` with no chain of title. The worker now asks
+for the finalize a stage at a time — `finalizeStage: 'chain' → 'crossref' → 'coherence'` — each an
+awaited call; only the last ends the project at `review`. A person's button still runs the whole
+finalize (the gates are open when no stage is named). Route accepts a stage only from the worker.
+
+### P — "Mark unrelated" is a SELECT then an UPDATE by id ✅
+The repo guard `update-filters-cannot-use-or` (PostgREST rejects `.or()` on an UPDATE) caught slice E's
+update; it happened to work on run 4 but the rule stands. Rows are found with the `.or()` on a SELECT and
+updated by id.
