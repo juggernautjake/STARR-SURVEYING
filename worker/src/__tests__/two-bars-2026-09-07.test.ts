@@ -129,3 +129,12 @@ describe('X4 — run-5 log review', () => {
     expect(src).toContain('durationMs: unifiedResult.data.durationMs ?? 0,');
   });
 });
+
+describe('GET /research/active answers with summaries, not the live pipeline objects', () => {
+  it('never serialises the AbortController/timers (a 500 "circular structure" while any run was in flight)', () => {
+    const src = read('index.ts');
+    expect(src).not.toContain('res.json({ count: active.length, pipelines: active });');
+    expect(src).toContain("const pipelines = Array.from(activePipelines.entries()).map(([projectId, p]) => ({");
+    expect(src).toContain('res.json({ count: pipelines.length, pipelines });');
+  });
+});

@@ -3732,9 +3732,24 @@ app.get('/research/result/:projectId/full', requireAuth, (req: Request, res: Res
 
 // ── GET /research/active ───────────────────────────────────────────────────
 
+// A SUMMARY per pipeline, not the live object: an `ActivePipeline` carries its AbortController, its
+// watchdog timers and its tracker, and `res.json` on that threw "Converting circular structure to
+// JSON" — HTTP 500 — the moment any run was in flight. The host auto-updater reads this endpoint to
+// decide whether a rebuild is safe, and read the 500 as "could not ask" (2026-09-07: it deferred five
+// ticks in a row during a run; harmless by luck, since deferring is what a run needs — but a caller
+// that treated the error as "nothing running" would have rebuilt over a paid run).
 app.get('/research/active', requireAuth, (_req: Request, res: Response) => {
-  const active = Array.from(activePipelines.values());
-  res.json({ count: active.length, pipelines: active });
+  const pipelines = Array.from(activePipelines.entries()).map(([projectId, p]) => ({
+    projectId,
+    runId: p.runId ?? null,
+    runNumber: p.runNumber ?? null,
+    county: p.county ?? null,
+    address: p.address ?? null,
+    startedAt: p.startedAt ?? null,
+    currentStage: p.currentStage ?? null,
+    lastProgressAt: p.lastProgressAt ?? null,
+  }));
+  res.json({ count: pipelines.length, pipelines });
 });
 
 // ── DELETE /research/result/:projectId ─────────────────────────────────────
