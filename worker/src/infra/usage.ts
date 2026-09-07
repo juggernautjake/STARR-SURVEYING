@@ -173,9 +173,13 @@ export interface SpendByBucket {
  */
 export async function ledgerSpendByBucket(
   projectId: string,
-  load?: (projectId: string) => Promise<LedgerRowLike[]>,
+  load?: (projectId: string, since?: string) => Promise<LedgerRowLike[]>,
+  /** ISO timestamp: only rows at or after it — THIS run's spend, not the project's whole history.
+   *  Without it the 2026-09-07 run reported "other sources $15.25 of the $5.00 budget" for a run
+   *  whose own other-sources spend was $0.03: the $15.22 was the previous run. */
+  since?: string,
 ): Promise<SpendByBucket> {
-  const rows = load ? await load(projectId) : await loadLedgerRows(projectId);
+  const rows = load ? await load(projectId, since) : await loadLedgerRows(projectId, since);
   let texasfile = 0;
   let other = 0;
   for (const r of rows) {
@@ -203,13 +207,15 @@ function isTexasFilePurchase(r: LedgerRowLike): boolean {
   return platform.includes('texasfile');
 }
 
-async function loadLedgerRows(projectId: string): Promise<LedgerRowLike[]> {
+async function loadLedgerRows(projectId: string, since?: string): Promise<LedgerRowLike[]> {
   try {
     const supabase = await getSupabase();
     if (!supabase) return [];
-    const { data, error } = await (supabase as unknown as {
-      from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: LedgerRowLike[] | null; error: { message: string } | null }> } };
-    }).from('research_usage_events').select('cost_usd, event_type, metadata').eq('research_project_id', projectId);
+    type Q = { eq: (k: string, v: string) => Q; gte: (k: string, v: string) => Q } & PromiseLike<{ data: LedgerRowLike[] | null; error: { message: string } | null }>;
+    let q = (supabase as unknown as { from: (t: string) => { select: (c: string) => Q } })
+      .from('research_usage_events').select('cost_usd, event_type, metadata').eq('research_project_id', projectId);
+    if (since) q = q.gte('created_at', since);
+    const { data, error } = await q;
     if (error) {
       console.warn(`[usage] ledgerSpendForRun could not read the ledger for ${projectId}: ${error.message}`);
       return [];

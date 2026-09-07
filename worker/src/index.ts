@@ -2245,7 +2245,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       let metersLine: string | null = null;
       if (runSettings.texasfileBudgetUsd != null || runSettings.otherBudgetUsd != null) {
         try {
-          const buckets = await ledgerSpendByBucket(projectId);
+          const buckets = await ledgerSpendByBucket(projectId, undefined, startedAtIso);
           metersLine = describeSpendByBucket(buckets, runSettings);
           handshakeLogger.attempt('[Budget]', 'info', 'Spend by budget', metersLine).success(0, metersLine);
         } catch (e) {

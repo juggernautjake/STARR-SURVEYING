@@ -2021,7 +2021,10 @@ export async function orchestrateBellResearch(
   if (input.includeAdjacentProperties !== false && property.parcelBoundary && property.parcelBoundary.length > 0) {
     progress('Phase 4', 'Finding adjacent properties from GIS...', 92);
     try {
-      const { analyzeAdjacentProperties } = await import('./analyzers/adjacent-analyzer');
+      // `.js` on purpose: the compiled ESM in the container resolves nothing without it. This was
+      // `'./analyzers/adjacent-analyzer'` and threw "Cannot find module" on every Bell run, so the
+      // adjacent-properties step never ran in production (the 2026-09-07 run log, Phase 4).
+      const { analyzeAdjacentProperties } = await import('./analyzers/adjacent-analyzer.js');
       adjacentProperties = await analyzeAdjacentProperties(
         { parcelBoundary: property.parcelBoundary, targetPropertyId: property.propertyId },
         (p) => progress('Phase 4', `Adjacent: ${p.message}`),
