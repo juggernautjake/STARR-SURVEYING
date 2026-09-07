@@ -91,7 +91,7 @@ describe('WIRED on both sides (check the CALLER)', () => {
   it('the read-documents endpoint drives the analysis instead of firing one call', () => {
     const src = read('index.ts');
     const at = src.indexOf('if (thenAnalyze) {');
-    const block = src.slice(at, at + 2200);
+    const block = src.slice(at, at + 3400); // widened 2026-09-07: the read-order sort sits inside this block
     expect(block).toContain("await import('./research/drive-app-analysis.js')");
     expect(block).toContain('awaitCompletion: true, timeoutMs: 330_000');
     expect(block).toContain("in('processing_status', ['extracted', 'analyzed'])");

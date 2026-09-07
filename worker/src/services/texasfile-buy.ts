@@ -116,6 +116,11 @@ export interface TexasFileBuyInput {
    *  "all deeds" wants both resolved to the same top row and it was bought twice (2026-09-07). */
   excludeInstruments?: string[];
   excludeGuids?: string[];
+  /** What the want is FOR. An easement want only takes an easement/right-of-way row; a deed want
+   *  only a conveyance (never a lien or a deed of trust); a row whose legal description is blank is
+   *  taken only when its TYPE matches (run 4, 2026-09-07: the easement want bought a deed, the deed
+   *  want bought a five-page unknown). */
+  wantType?: 'deed' | 'easement' | 'plat';
 }
 
 /** Every TexasFile plat is $10 flat, whatever its page count (mapped live 2026-09-05). */
@@ -128,7 +133,7 @@ export const PLAT_FLAT_USD = 10;
  */
 export function chooseTexasFileResult(
   results: TexasFileResult[],
-  input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber' | 'volume' | 'book' | 'page' | 'subdivision' | 'lot' | 'block' | 'excludeInstruments' | 'excludeGuids'>,
+  input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber' | 'volume' | 'book' | 'page' | 'subdivision' | 'lot' | 'block' | 'excludeInstruments' | 'excludeGuids' | 'wantType'>,
 ): TexasFileResult | null {
   if (results.length === 0) return null;
   const guid = input.guid?.trim().toUpperCase();
@@ -158,13 +163,23 @@ export function chooseTexasFileResult(
   }
   // A name search returns every filing for that name, across every property the person ever owned.
   // The subject's legal description is what tells the right deed from a lien on a different lot.
+  // What the want is FOR decides which TYPES qualify. Unknown types (blank) qualify for a deed want
+  // inside the subject's subdivision only — never as a blind buy.
+  const typeOf = (r: TexasFileResult) => (r.type ?? '').toUpperCase();
+  const isEasementType = (r: TexasFileResult) => /EASEMENT|RIGHT[- ]OF[- ]WAY|\bR\/W\b|\bROW\b|DEDICATION/.test(typeOf(r));
+  const isConveyance = (r: TexasFileResult) => /DEED/.test(typeOf(r)) && !/TRUST|LIEN|RELEASE/.test(typeOf(r));
+  const qualifies = (r: TexasFileResult, lenient: boolean): boolean => {
+    if (input.wantType === 'easement') return isEasementType(r);
+    if (input.wantType === 'deed') return isConveyance(r) || (lenient && !typeOf(r));
+    return true;
+  };
   if (input.subdivision) {
     const want = normaliseSubdivisionName(input.subdivision);
     const sameSubdivision = (r: TexasFileResult) => !!r.subdivision && (r.subdivision === want || r.subdivision.startsWith(want) || want.startsWith(r.subdivision));
-    const inSubdivision = results.filter(sameSubdivision);
+    const inSubdivision = results.filter(sameSubdivision).filter((r) => qualifies(r, true));
     const preferDeed = (pool: TexasFileResult[]) =>
-      // Prefer a deed (the conveyance) over liens/releases when the type is known.
-      pool.find((r) => /deed/i.test(r.type ?? '') && !/trust/i.test(r.type ?? '')) ?? pool[0]!;
+      // Prefer the conveyance over liens/releases when the type is known.
+      pool.find(isConveyance) ?? pool[0]!;
     const unpad = (v: string) => v.replace(/^0+(?=\d)/, '');
     if (inSubdivision.length > 0) {
       const lot = input.lot ? unpad(input.lot.toUpperCase().replace(/^LOT\s*/, '')) : undefined;
@@ -177,24 +192,26 @@ export function chooseTexasFileResult(
     // Nothing names the subject's subdivision. A row whose legal description names ANOTHER
     // subdivision is a document about another property — a name search returns every filing for
     // that person — and is never bought here (the 2026-09-07 run bought a deed on FRENCH ADDITION
-    // for a lot in WINNIE MAE ADDITION). Only a row whose legal is blank is still a candidate; the
-    // caller says it was bought without a legal to check.
-    const unplaced = results.filter((r) => !r.subdivision && (r.lots ?? []).length === 0 && !r.abstract);
+    // for a lot in WINNIE MAE ADDITION). A row whose legal is blank is still a candidate ONLY when
+    // its type is what the want asked for; the caller says it was bought without a legal to check.
+    const unplaced = results.filter((r) => !r.subdivision && (r.lots ?? []).length === 0 && !r.abstract).filter((r) => qualifies(r, false));
     return unplaced.length > 0 ? preferDeed(unplaced) : null;
   }
-  return results[0];
+  const typed = results.filter((r) => qualifies(r, true));
+  return typed[0] ?? null;
 }
 
 /** Why the chooser returned nothing — the sentence the buy reports instead of "purchase failed". */
-export function describeNoChoice(results: TexasFileResult[], input: Pick<TexasFileBuyInput, 'name' | 'subdivision' | 'excludeInstruments' | 'excludeGuids'>): string {
+export function describeNoChoice(results: TexasFileResult[], input: Pick<TexasFileBuyInput, 'name' | 'subdivision' | 'excludeInstruments' | 'excludeGuids' | 'wantType'>): string {
   const n = results.length;
   const who = input.name ? ` for "${input.name}"` : '';
   const excluded = results.filter((r) =>
     (input.excludeGuids ?? []).some((g) => g.toUpperCase() === r.guid.toUpperCase()) ||
     (input.excludeInstruments ?? []).some((x) => instrumentsMatch(r.instrument, x) || instrumentsMatch(r.instrumentRaw, x))).length;
   if (n > 0 && excluded === n) return `no TexasFile results left${who} — all ${n} row(s) are already held by this run`;
-  if (input.subdivision) return `no TexasFile results on ${normaliseSubdivisionName(input.subdivision)} among ${n} row(s)${who} — the rest name other properties, and a document about another lot is not bought`;
-  return `no TexasFile results${who} after excluding what this run holds`;
+  const forWhat = input.wantType === 'easement' ? ' of easement/right-of-way type' : input.wantType === 'deed' ? ' that is a conveyance' : '';
+  if (input.subdivision) return `no TexasFile results on ${normaliseSubdivisionName(input.subdivision)}${forWhat} among ${n} row(s)${who} — the rest name other properties or another kind of instrument, and neither is bought`;
+  return `no TexasFile results${forWhat}${who} after excluding what this run holds`;
 }
 
 /** What a chosen result will cost: a plat is flat-rate; anything else is $1/page (unknown pages → null). */

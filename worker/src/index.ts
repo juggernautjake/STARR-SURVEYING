@@ -369,6 +369,10 @@ function normDocType(rawType: string | null | undefined): string {
 async function persistCountyResults(
   projectId: string,
   r: import('./counties/bell/types/research-result.js').BellResearchResult,
+  /** The run this persist belongs to and its county — so the artifact step below can file through
+   *  the project library like the run itself did (2026-09-07). */
+  runId: string | null = null,
+  county: string = 'Bell',
 ): Promise<void> {
   const supabase = await getSupabase();
   if (!supabase) {
@@ -741,6 +745,22 @@ async function persistCountyResults(
   }
 
   // ── 4. Upload pipeline artifacts (screenshots + page images) ────────
+  //
+  // Runs AFTER the run's filing window closed (`endFiling`), so until 2026-09-07 it filed with no
+  // library to dedupe against and — once the blanket delete above was removed — wrote a second
+  // row for every screenshot and deed the run had already filed incrementally (run 4: three
+  // "research: /results", two of each Google Maps capture, two of deed 2004034968). A filing
+  // context is opened for this step: the library then answers "merged" for what is held.
+  let persistFiling = false;
+  try {
+    if (!filingTallySoFar(projectId)) {
+      const round = await readResearchRound(supabase as never, projectId).catch(() => null);
+      await beginFiling(supabase as never, projectId, county, runId, round);
+      persistFiling = true;
+    }
+  } catch (e) {
+    console.warn(`[Worker] ${projectId}: could not open a filing context for the artifact step — ${e instanceof Error ? e.message : String(e)}`);
+  }
   // This makes captured images viewable on the frontend.
   try {
     console.log(`[Worker] ${projectId}: Preparing artifact upload — ${r.screenshots.length} screenshots, ${r.deedsAndRecords.records.length} deed(s), ${r.plats.plats.length} plat(s)`);
@@ -891,6 +911,11 @@ async function persistCountyResults(
     console.warn(
       `[Worker] ${projectId}: artifact upload failed: ${err instanceof Error ? err.message : String(err)}`,
     );
+  } finally {
+    if (persistFiling) {
+      const tally = endFiling(projectId);
+      if (tally) console.log(`[Worker] ${projectId}: artifact step — ${tally.describe()}`);
+    }
   }
 
   // ── 5. Save discrepancies to discrepancies table ─────────────────────
@@ -2277,6 +2302,9 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         const parsed = parseLotBlock(prop.legalDescription);
         return { lot: parsed.lotNumber ?? undefined, block: parsed.blockNumber ?? undefined };
       };
+      // Captured while the pipeline is still registered — the persist step runs after it leaves
+      // `activePipelines` and needs the run id to file through the library (2026-09-07).
+      const tailRunId = activePipelines.get(projectId)?.runId ?? null;
       const finalPurchasePass = async (): Promise<void> => {
         const ur = unifiedResult; // a const the closure can narrow on
         // What THIS run already bought (the early plats-first pass, an earlier want): the ledger
@@ -3182,7 +3210,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // different and much smaller lie than silently finishing early.
         await settlePersistence(
           projectId,
-          persistCountyResults(projectId, r),
+          persistCountyResults(projectId, r, tailRunId, county ?? 'Bell'),
           handshakeLogger,
         );
 
@@ -4331,13 +4359,20 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
               if (!sb) return [];
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { data } = await (sb as any).from('research_documents')
-                .select('id, document_label')
+                .select('id, document_label, document_type')
                 .eq('research_project_id', projectId)
                 .in('processing_status', ['extracted', 'analyzed'])
                 // What the relevance check marked unrelated is not read at cost (2026-09-07).
                 .or('relevance.is.null,relevance.neq.unrelated')
                 .order('created_at');
-              return ((data ?? []) as Array<{ id: string; document_label: string | null }>).map((d) => ({ id: d.id, label: d.document_label }));
+              // Deeds, plats and easements first: a cost cap that stops the pass short must stop it
+              // on the aerials, not on the instruments the run was for (run 4, 2026-09-07: rows
+              // came back in filing order, aerials first, and the deeds sat at the end).
+              const rank = (t: string | null) => (/^(plat|deed|easement|survey)$/i.test(t ?? '') ? 0 : 1);
+              return ((data ?? []) as Array<{ id: string; document_label: string | null; document_type: string | null }>)
+                .map((d, i) => ({ id: d.id, label: d.document_label, rank: rank(d.document_type), i }))
+                .sort((a, b) => a.rank - b.rank || a.i - b.i)
+                .map((d) => ({ id: d.id, label: d.label }));
             },
             call: (opts) => triggerAppAnalysis(projectId, { allow: true, ...opts, awaitCompletion: true, timeoutMs: 330_000 }),
             spentSoFar: () => ledgerSpendForRun(projectId),

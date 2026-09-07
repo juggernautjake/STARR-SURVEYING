@@ -169,6 +169,9 @@ export interface DocumentPurchaseResult {
   vendor?: PurchaseVendor;
   /** Instrument number purchased */
   instrumentNumber?: string;
+  /** The vendor's own id for what was sold (a TexasFile GUID) — the library key when there is no
+   *  instrument number (a plat), and what a later want must not ask for again (2026-09-07). */
+  vendorRef?: string;
   /** Downloaded file paths on the worker droplet */
   imagePaths?: string[];
   /** Total cost in USD */

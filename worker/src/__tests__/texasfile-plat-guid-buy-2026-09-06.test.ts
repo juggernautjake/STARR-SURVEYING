@@ -106,7 +106,7 @@ describe('the thread is WIRED at every hop (check the CALLER, not the module)', 
     expect(src).toContain('subdivision: rec.subdivision');
     // The prior-round dedup: a GUID-only document is looked up AND recorded under the same key.
     expect(src).toContain('rec.vendorRef ? `texasfile:${rec.vendorRef}` : null');
-    expect(src).toContain('? `texasfile:${rec.vendorRef}` // the same key the library lookup above used');
+    expect(src).toContain('? `texasfile:${soldGuid}` // the same key the library lookup above uses; a plat has no instrument');
   });
   it('the adapter passes them to buyDocument', () => {
     const src = read('services/purchase-adapters/texasfile-purchase-adapter.ts');

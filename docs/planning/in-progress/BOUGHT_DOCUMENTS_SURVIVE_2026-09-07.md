@@ -91,3 +91,49 @@ anything with metes and bounds.
 | E unrelated = marked + badge (seed 631 already live — no new seed) | ✅ built + tested |
 | F verify + merge + deploy | ✅ merged to main c55ae3ff9 (worker 2983 tests, app 2615 + ratchets, tsc both, lint, next build); Vercel + worker rebuild watched |
 | G run 4 + the loop | ⏳ |
+
+## Run 4 (project `2321a1f7…`, 2026-09-07, 558 s, TexasFile $8 of $20, other $0.02 of $5) — proved and exposed
+
+**Proved:** A–E live. The purchase pass ran BEFORE the tally ("14 new document(s) filed"), the meters and
+"Research Complete"; the plat re-opened with "Re-opened 1 page(s) … at no charge"; "Plat verified"; the
+affidavit was "marked 2015014567 unrelated" and kept; the table holds 19 rows INCLUDING the plat (with its
+PDF) and the deeds; the Analysis quote lists 18 files (the unrelated one left out); the worker-driven
+Analyze runs document by document on the app (APP_BASE_URL). The Review Documents tab and its viewer
+walk work on production.
+
+**Exposed (slices H–M, built + tested on the branch):**
+
+### H — A document held by ANOTHER project is re-opened and filed here ✅
+The early pass said "search_required is already in the library (bought … for $0.00) — not buying it
+again" — the plat was owned by the archived project, so nothing was filed on this one until the final
+pass's plat want. TexasFile re-opens an owned document for $0, so `heldElsewhere` (owner ≠ this project,
+platform TexasFile) now proceeds to the vendor with the library's GUID as `vendorRef`; only a document THIS
+project holds is skipped.
+
+### I — What the project already HOLDS is excluded from the vendor search ✅
+The "all deeds" want paid $3 for 2004034968, which the free clerk pass had captured. The orchestrator now
+seeds the chooser's exclusions with the held index's identifiable instruments (`heldDocuments.all()`), not
+only the run's ledger.
+
+### J — The chooser knows what the want is FOR ✅
+The easement want bought a deed; the deed want a five-page unknown with a blank legal. `wantType` rides
+orchestrator → adapter → chooser: an easement want takes only easement/right-of-way rows; a deed want only
+a conveyance (never a lien/deed of trust), and a blank-legal row only when its type is a deed; nothing
+left → null with a sentence naming the kind wanted.
+
+### K — The ledger keys a GUID-only document by its GUID ✅
+"search_required:plat" → `texasfile:<GUID>`: the adapter returns `vendorRef` (the GUID sold), the
+orchestrator keys the ledger and the exclusions on it.
+
+### L — The end-of-run artifact step files inside a filing context ✅
+With the blanket delete gone, step 4 (outside the run's filing window) wrote a second row for every
+screenshot and for the clerk deed. `persistCountyResults(projectId, r, runId, county)` opens a filing
+context (`beginFiling` with the run id + round) around step 4 and closes it with the tally, so the library
+answers "merged" for what the run already filed.
+
+### M — The read pass takes deeds, plats and easements before screenshots ✅
+Rows came back in filing order (aerials first); a cap now lands on the aerials, not the instruments.
+
+**Still to prove live (run 5, fresh project):** H (plat filed by the EARLY pass on a project that does not
+own it), I (no $3 re-buy of the clerk deed), J (easement want → "no TexasFile results … of
+easement/right-of-way type"), L (no duplicate rows), then Analyze → leads → follow-up.

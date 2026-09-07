@@ -51,6 +51,8 @@ export interface TexasFilePurchaseHints {
   /** What this run already bought or holds — never chosen again under another want (2026-09-07). */
   excludeInstruments?: string[];
   excludeGuids?: string[];
+  /** What the want is FOR — an easement want never buys a deed, a deed want never buys a lien. */
+  wantType?: 'deed' | 'easement' | 'plat';
 }
 
 // ── TexasFile Purchase Adapter ──────────────────────────────────────────────
@@ -134,6 +136,7 @@ export class TexasFilePurchaseAdapter {
       block: hints.block,
       excludeInstruments: hints.excludeInstruments,
       excludeGuids: hints.excludeGuids,
+      wantType: hints.wantType,
     };
 
     try {
@@ -173,6 +176,7 @@ export class TexasFilePurchaseAdapter {
       // The instrument TexasFile actually sold — for a `search_required` want this is the first time
       // the document has a real number, and it is what the ledger must be keyed on.
       result.instrumentNumber = buy.instrument ?? instrumentNumber;
+      result.vendorRef = buy.guid;
       result.pages = buy.pageCount ?? buy.pages.length;
       result.costPerPage = 1.0;
       result.totalCost = buy.costUsd ?? buy.pages.length;

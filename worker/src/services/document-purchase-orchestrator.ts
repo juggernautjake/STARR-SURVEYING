@@ -193,6 +193,14 @@ export class DocumentPurchaseOrchestrator {
       instruments: [...(config.alreadyBought?.instruments ?? [])],
       guids: [...(config.alreadyBought?.guids ?? [])],
     };
+    // The project library's identifiable documents — the deed the free clerk pass captured is held
+    // just as much as one that was paid for. Run 4 (2026-09-07) paid $3 for 2004034968, which the
+    // project already held from the clerk: the want was `search_required`, so the held-index check
+    // could not see the instrument until the vendor had already sold it. The chooser sees it now.
+    const heldInstruments = (heldDocuments?.all() ?? [])
+      .map((h) => h.instrumentNumber)
+      .filter((x): x is string => typeof x === 'string' && x.length > 0);
+    if (heldInstruments.length > 0) boughtThisRun.instruments.push(...heldInstruments);
 
     // ── TexasFile budget: metered, min $10 (plan B2) ──────────────────────────────────────────────
     // TexasFile bills $1/page and this run's TexasFile budget is only the CEILING — every buy is gated
@@ -375,7 +383,23 @@ export class DocumentPurchaseOrchestrator {
         const { owned, lookupFailed } = libraryKey
           ? await findOwned(countyFIPS, libraryKey)
           : { owned: null, lookupFailed: false };
-        if (owned) {
+        // "In the library" means the FIRM owns it. If THIS project already holds it, there is nothing
+        // to do. If another project bought it, the pages are not on this project — and TexasFile
+        // re-opens an owned document for $0 (run 4, 2026-09-07: the plat was "already in the
+        // library" from the archived project, so the early pass filed nothing and the plat only
+        // reached this project through the final pass's plat want). A TexasFile document held
+        // elsewhere is therefore re-opened and filed here, not skipped.
+        const heldElsewhere = !!owned && owned.projectId !== projectId && /texasfile/i.test(owned.platformId);
+        if (owned && heldElsewhere) {
+          this.logger.info(
+            'Purchase',
+            `${rec.instrument} is in the firm's library (bought ${owned.purchasedAt.slice(0, 10)} by another project) — re-opening it at no charge to file it on this project`,
+          );
+          // The GUID the library recorded lets a plat be re-found without a search by instrument.
+          const guidHeld = owned.instrumentRaw.match(/^texasfile:(.+)$/)?.[1];
+          if (guidHeld && !rec.vendorRef) rec.vendorRef = guidHeld;
+        }
+        if (owned && !heldElsewhere) {
           reusedFromLibrary.push(owned);
           this.logger.info(
             'Purchase',
@@ -449,12 +473,13 @@ export class DocumentPurchaseOrchestrator {
               block: rec.block,
               excludeInstruments: boughtThisRun.instruments,
               excludeGuids: boughtThisRun.guids,
+              wantType: rec.documentType === 'easement' ? 'easement' : rec.documentType === 'plat' ? 'plat' : 'deed',
             },
           );
           if (r.status === 'purchased' || r.status === 'already_owned') {
             const sold = r.instrumentNumber && r.instrumentNumber !== 'search_required' ? r.instrumentNumber : null;
             if (sold) boughtThisRun.instruments.push(sold);
-            const guidSold = r.transactionId?.match(/^TF-([0-9A-F-]{30,})$/i)?.[1];
+            const guidSold = r.vendorRef ?? r.transactionId?.match(/^TF-([0-9A-F-]{30,})$/i)?.[1];
             if (guidSold) boughtThisRun.guids.push(guidSold);
           }
           if (r.status === 'purchased') {
@@ -620,12 +645,13 @@ export class DocumentPurchaseOrchestrator {
             // Keyed on the instrument the vendor actually sold. For a `search_required` want that is
             // the first real number the document has had; if the vendor named none, a key built from
             // the search (name or book/page) keeps two different wants from colliding in the ledger.
+            const soldGuid = result.vendorRef ?? rec.vendorRef;
             const soldAs = result.instrumentNumber && result.instrumentNumber !== 'search_required'
               ? result.instrumentNumber
               : rec.instrument !== 'search_required'
                 ? rec.instrument
-                : rec.vendorRef
-                  ? `texasfile:${rec.vendorRef}` // the same key the library lookup above used
+                : soldGuid
+                  ? `texasfile:${soldGuid}` // the same key the library lookup above uses; a plat has no instrument
                   : `search_required:${rec.searchName ?? (rec.book && rec.page ? `V${rec.book}P${rec.page}` : rec.documentType)}`;
             const ledger = await recordPurchase({
               projectId,

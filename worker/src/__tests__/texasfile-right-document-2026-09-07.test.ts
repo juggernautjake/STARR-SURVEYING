@@ -72,7 +72,7 @@ describe('the chooser never buys a document about ANOTHER property', () => {
   });
   it('says why nothing was chosen, in the sentence the buy reports', () => {
     expect(describeNoChoice([french], { name: 'CAFFREY BARBARA', subdivision: 'WINNIE MAE ADD' }))
-      .toBe('no TexasFile results on WINNIE MAE ADDITION among 1 row(s) for "CAFFREY BARBARA" — the rest name other properties, and a document about another lot is not bought');
+      .toBe('no TexasFile results on WINNIE MAE ADDITION among 1 row(s) for "CAFFREY BARBARA" — the rest name other properties or another kind of instrument, and neither is bought');
     expect(describeNoChoice([winnie], { excludeInstruments: ['2004034968'] })).toContain('already held by this run');
   });
 });

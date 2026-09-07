@@ -114,7 +114,7 @@ describe('the end-of-run write no longer destroys the previous run', () => {
 describe('the filed-set outlives the sweep that reads it', () => {
   it('is opened before the library, so a library failure cannot cause duplicates', () => {
     const beginAt = index.indexOf('beginGenericFiling(projectId);');
-    const libraryAt = index.indexOf('await beginFiling(');
+    const libraryAt = index.indexOf('await beginFiling(supabaseForFiling as never'); // the RUN's context, not the persist step's (2026-09-07)
     expect(beginAt).toBeGreaterThan(-1);
     expect(libraryAt).toBeGreaterThan(-1);
     expect(beginAt, 'the filed-set opens after the library it must survive').toBeLessThan(libraryAt);
