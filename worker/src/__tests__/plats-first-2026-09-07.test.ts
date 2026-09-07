@@ -117,3 +117,21 @@ describe('the CAD deed history keeps the subject’s own deed', () => {
     expect(v).toContain('score += 60;');
   });
 });
+
+describe('no plat on TexasFile → the comparison pass still runs, and says so (plan 2.3)', () => {
+  it('the early pass compares TexasFile against the free record and buys only what is paid-exclusive; with nothing to buy it states that and moves on', () => {
+    const src = read('index.ts');
+    const at = src.indexOf('async function runEarlyChecklistPurchase(');
+    const fn = src.slice(at, src.indexOf('const researchInput: CountyResearchInput = {', at));
+    // The comparison (discover → cluster → plan) runs regardless of whether a plat was found…
+    expect(fn).toContain('const discovery = await discoverAcrossSources(');
+    expect(fn).toContain('const clusters = await clusterEntries(discovery.entries);');
+    expect(fn).toContain('const plan = planAcquisition(clusters, { paidBudgetUsd: ceiling });');
+    // …and only paid-exclusive documents become purchases; nothing to buy is said, not silent.
+    expect(fn).toContain(".filter((a): a is Extract<typeof a, { kind: 'purchase' }> => a.kind === 'purchase')");
+    expect(fn).toContain("'Nothing to buy (early)'");
+    expect(fn).toContain('Free-first: nothing was paid-exclusive; the free gather captures the rest.');
+    // The plat search is part of that same discovery, so "no plat" is a normal empty result, not a stop.
+    expect(read('research/live-search.ts')).toContain('if (entries.length === 0 && inputs.length === 0 && platInputs.length === 0) return [];');
+  });
+});

@@ -1,5 +1,7 @@
 # Plats first, the correct plat, and a viewer you never leave — 2026-09-07
 
+<!-- HOOK:BLOCKED Phases 1–5 are BUILT, tested, pushed and green (worker 222 files/2959, app 28k, npm run build). Phase 6 (delete project 7b2ca89c…, recreate 1401 North East St, the supervised run, Analyze, one follow-up round) is LIVE-ONLY and needs the OWNER to MERGE claude/plats-first-viewer-2026-09-07 into main — the standing rule is explicit say-so per merge, and the Dockerfile change (poppler) needs the image rebuild the merge triggers. Nothing is deferred for cost. Remove this marker (or say "merge") to resume. -->
+
 **Started** 2026-09-07 · **Branch** `claude/plats-first-viewer-2026-09-07` (from `main` @ `03910c888`)
 
 Driven by the stop-hook slice loop, **in order**. Ship the smallest meaningful slice, `tsc` + lint + test,
@@ -50,7 +52,7 @@ fixed); `npm run build` green; tsc + eslint clean on both sides.
 | 1.5 the RIGHT plat — index name vs CAD subdivision, cabinet/slide, date, logged at buy time | ✅ (page-text read is the Analyze run's) | `platMatchVerdict` |
 | 2.1 buy BEFORE the captures | ✅ | `onPropertyIdentified` in `index.ts` |
 | 2.2 plats first, newest first, then the rest; order said in the log | ✅ | `plats-first.ts` |
-| 2.3 no plat → the comparison pass (unchanged behaviour, now stated) | ✅ | early pass "nothing paid-exclusive" line |
+| 2.3 no plat → the comparison pass runs regardless and states its outcome | ✅ guarded (plats-first test) | discover → cluster → plan; "Nothing to buy (early)" |
 | 2.4 owner-name variants TexasFile answers | ✅ | `texasfile-names.ts`; `buyDocument` retries; discovery submits LAST FIRST per party |
 | 2.5 a held deed is not bought again | ✅ | final pass hands `knownDocuments` + subdivision to the wants |
 | 2.6 $10 TexasFile default | ✅ | `RerunDialog` FALLBACK |
