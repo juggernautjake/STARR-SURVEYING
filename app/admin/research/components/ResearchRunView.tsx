@@ -545,6 +545,10 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
           pagesPdfUrl={viewerDoc.pages_pdf_url ?? (hasStoredFile(viewerDoc) ? storedFileUrl(viewerDoc) : null)}
           projectId={projectId}
           onClose={() => setViewerDoc(null)}
+          // The arrows beside the title walk this stage's list in the order it is shown.
+          documents={docs as unknown as ResearchDocument[]}
+          index={docs.findIndex((d) => d.id === viewerDoc.id)}
+          onNavigate={(i) => { const next = docs[i]; if (next) setViewerDoc(next); }}
         />
       )}
     </>
@@ -562,14 +566,56 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
 // renders; the review-page mount passes no bound. The screen an operator watches DURING a run is
 // this one, and its Activity tab was a raw list of worker entries — no browser half at all. Found
 // by the 2026-09-03 platform audit (logging-progress C1, app-ui C2). Same merge, same bound.
+/** One log entry as a line of text — the same glyphs the list shows, the layer, the text, the time. */
+export function activityLogLine(e: PipelineLogEntry): string {
+  const glyph = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'warn' ? '⚠' : e.status === 'partial' ? '~' : '−';
+  const time = e.timestamp ? `[${new Date(e.timestamp).toLocaleTimeString()}] ` : '';
+  const text = e.details || e.error || e.method || e.source || '';
+  const count = e.dataPointsFound > 0 ? ` [${e.dataPointsFound}]` : '';
+  return `${glyph} ${time}${e.layer}: ${text}${count}`;
+}
+
+/** The whole activity log as text — what "Copy all" puts on the clipboard (owner, 2026-09-07). */
+export function activityLogText(entries: PipelineLogEntry[], exportedAt: Date = new Date()): string {
+  const errors = entries.filter((e) => e.status === 'fail').length;
+  const warnings = entries.filter((e) => e.status === 'warn').length;
+  const sep = '═'.repeat(60);
+  return [
+    sep,
+    'STARR RECON — Activity Log',
+    `Copied: ${exportedAt.toLocaleString()}   Entries: ${entries.length}   Errors: ${errors}   Warnings: ${warnings}`,
+    sep,
+    ...entries.map(activityLogLine),
+  ].join('\n');
+}
+
 function ActivityLog({ logs, active, startedAt }: { logs: PipelineLogEntry[]; active: boolean; startedAt: string | null }) {
   // Recomputed each render on purpose: the browser buffers are mutable module state.
   const browserLog = (typeof window === 'undefined' ? [] : frontendLogEntries(startedAt)) as PipelineLogEntry[];
   const merged = mergeLogEntries(logs, browserLog) ?? [];
+  const [copied, setCopied] = useState<string | null>(null);
   if (merged.length === 0) {
     return <p className="rrv__empty">{active ? 'Waiting for the first activity…' : 'No activity was recorded.'}</p>;
   }
+  // "The activity log in the activity tab needs a copy button to copy all of the activity logs."
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(activityLogText(merged));
+      setCopied(`Copied ${merged.length} line(s)`);
+    } catch {
+      setCopied('Copy failed — your browser blocked clipboard access');
+    }
+    setTimeout(() => setCopied(null), 2500);
+  };
   return (
+    <>
+      <div className="rrv__log-toolbar">
+        <span className="rrv__log-count-total">{merged.length} entries</span>
+        <button type="button" className="rrv__copy-btn" onClick={() => void copyAll()} data-testid="rrv-copy-log" title="Copy every activity line to the clipboard">
+          Copy all
+        </button>
+        {copied && <span className="rrv__copied" role="status">{copied}</span>}
+      </div>
     <ul className="rrv__log">
       {merged.map((e, i) => (
         <li key={i} className={`rrv__log-row rrv__log-row--${e.status}`}>
@@ -584,6 +630,7 @@ function ActivityLog({ logs, active, startedAt }: { logs: PipelineLogEntry[]; ac
         </li>
       ))}
     </ul>
+    </>
   );
 }
 
@@ -895,6 +942,14 @@ export function RunViewStyles() {
 .rrv__doc-reason { display: block; font-size: 0.72rem; line-height: 1.45; color: var(--theme-fg-muted, #6B7280); white-space: normal; }
 
 /* ── Log ─────────────────────────────────────────────────────────────────────────────────── */
+.rrv__log-toolbar { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.4rem; font-size: 0.75rem; color: var(--theme-fg-muted, #6B7280); }
+.rrv__log-count-total { flex: 1 1 auto; }
+.rrv__copy-btn {
+  background: none; border: 1px solid var(--theme-border, #E5E7EB); color: var(--theme-fg-primary, #1F2937);
+  border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+}
+.rrv__copy-btn:hover { background: var(--theme-bg-subtle, #F3F4F6); }
+.rrv__copied { color: var(--theme-success, #047857); }
 .rrv__log {
   list-style: none; margin: 0; padding: 0; max-height: 22rem; overflow-y: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem;

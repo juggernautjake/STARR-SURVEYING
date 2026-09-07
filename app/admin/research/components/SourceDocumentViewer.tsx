@@ -32,6 +32,14 @@ interface SourceDocumentViewerProps {
   /** Needed to address the annotations route (plan R24). Without it the viewer still draws but
    *  cannot save — so the toolbar says so rather than pretending. */
   projectId?: string;
+  // ── Between DOCUMENTS without leaving the viewer (owner, 2026-09-07) ─────────────────────────
+  // "the title of the document at the top of the pop up modal, and then a right and left arrow, one
+  // arrow on each side of the title, that can be used to move to the next document altogether."
+  // The stage passes its whole ordered list; the arrows (and `[` / `]`) call `onNavigate` with the
+  // neighbouring index; zoom persists across documents, the page resets to the first.
+  documents?: ResearchDocument[];
+  index?: number;
+  onNavigate?: (index: number) => void;
 }
 
 type ViewTab = 'images' | 'text';
@@ -95,7 +103,12 @@ export default function SourceDocumentViewer({
   highlightText,
   onClose,
   projectId,
+  documents,
+  index,
+  onNavigate,
 }: SourceDocumentViewerProps) {
+  const canPrev = !!onNavigate && typeof index === 'number' && index > 0;
+  const canNext = !!onNavigate && typeof index === 'number' && !!documents && index < documents.length - 1;
   const pdfUrl = getPdfUrl(doc, pagesPdfUrl);
   const pageImageUrls = getPageImageUrls(doc);
   const hasText = !!(doc.extracted_text);
@@ -109,6 +122,9 @@ export default function SourceDocumentViewer({
 
   // Image viewer state
   const [currentPage, setCurrentPage] = useState(0);
+  // A NEW document opens on its first page; zoom is left where the operator put it (their earlier
+  // ask: zoom persists), which is what the arrows between documents rely on.
+  useEffect(() => { setCurrentPage(0); }, [doc.id]);
   // 1 is a bad default and was the bug: it means 100% of the image's NATURAL size, not "fits the
   // window". A 2550×3300 scan in a 900px-tall panel at zoom 1 shows the top third of the page, and
   // clicking to the next page put you back there every time. `fitZoom` is computed from the real
@@ -987,6 +1003,14 @@ export default function SourceDocumentViewer({
         return;
       }
 
+      // Between documents — works from either tab; a disabled end is a no-op, not a wrap.
+      if (intent === 'prev-doc' || intent === 'next-doc') {
+        if (intent === 'prev-doc' && canPrev) onNavigate!(index! - 1);
+        if (intent === 'next-doc' && canNext) onNavigate!(index! + 1);
+        e.preventDefault();
+        return;
+      }
+
       // Everything below acts on the image viewer. On the text tab they mean nothing, and
       // swallowing them there would break find-in-page and text selection.
       if (activeTab !== 'images' || pageImageUrls.length === 0) return;
@@ -1011,7 +1035,7 @@ export default function SourceDocumentViewer({
       // would eat Tab and the browser's own find.
       e.preventDefault();
     },
-    [requestClose, drawMode, activeTab, pageImageUrls.length, fitToContainer, rotateBy, toggleFullscreen],
+    [requestClose, drawMode, activeTab, pageImageUrls.length, fitToContainer, rotateBy, toggleFullscreen, canPrev, canNext, onNavigate, index],
   );
 
   useEffect(() => {
@@ -1051,10 +1075,41 @@ export default function SourceDocumentViewer({
               {typeInfo?.icon || (hasImages ? '🖼️' : doc.source_type === 'manual_entry' ? '📝' : '📄')}
             </span>
             <div>
-              <div className="research-viewer__header-name">
-                {doc.document_label || doc.original_filename || 'Untitled'}
+              <div className="research-viewer__header-name-row">
+                {onNavigate && (
+                  <button
+                    type="button"
+                    className="research-viewer__doc-nav"
+                    onClick={() => canPrev && onNavigate(index! - 1)}
+                    disabled={!canPrev}
+                    aria-label="Previous document"
+                    title="Previous document  ( [ )"
+                    data-testid="viewer-prev-doc"
+                  >
+                    ‹
+                  </button>
+                )}
+                <div className="research-viewer__header-name" title={doc.document_label || doc.original_filename || 'Untitled'}>
+                  {doc.document_label || doc.original_filename || 'Untitled'}
+                </div>
+                {onNavigate && (
+                  <button
+                    type="button"
+                    className="research-viewer__doc-nav"
+                    onClick={() => canNext && onNavigate(index! + 1)}
+                    disabled={!canNext}
+                    aria-label="Next document"
+                    title="Next document  ( ] )"
+                    data-testid="viewer-next-doc"
+                  >
+                    ›
+                  </button>
+                )}
               </div>
               <div className="research-viewer__header-meta">
+                {documents && typeof index === 'number' && (
+                  <span data-testid="viewer-doc-position">{index + 1} of {documents.length}</span>
+                )}
                 {typeInfo && <span>{typeInfo.label}</span>}
                 {doc.recording_info && <span>{doc.recording_info}</span>}
                 {doc.page_count && (

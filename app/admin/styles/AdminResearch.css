@@ -3042,6 +3042,32 @@
   max-width: 100%;
 }
 
+/* The title with a document arrow on each side (owner, 2026-09-07) — ‹ title › moves between
+   DOCUMENTS; the page controls below the header still move between pages. */
+.research-viewer__header-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.research-viewer__doc-nav {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #1F2937);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.research-viewer__doc-nav:hover:not(:disabled) { background: var(--theme-bg-subtle, #F3F4F6); }
+.research-viewer__doc-nav:disabled { opacity: 0.35; cursor: default; }
+
 /* Container for header-name + meta must also clip overflow */
 .research-viewer__header-info > div {
   min-width: 0;

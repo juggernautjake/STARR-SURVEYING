@@ -470,6 +470,9 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           document={viewingDoc}
           projectId={projectId}
           onClose={() => setViewingDoc(null)}
+          documents={documents}
+          index={documents.findIndex((d) => d.id === viewingDoc.id)}
+          onNavigate={(i) => { const next = documents[i]; if (next) setViewingDoc(next); }}
         />
       )}
     </div>

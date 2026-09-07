@@ -184,6 +184,7 @@ export const WHEEL_STEP = 0.15;
 export type ViewerIntent =
   | 'close'
   | 'prev-page' | 'next-page' | 'first-page' | 'last-page'
+  | 'prev-doc' | 'next-doc'
   | 'zoom-in' | 'zoom-out' | 'fit' | 'actual-size'
   | 'rotate-cw' | 'rotate-ccw'
   | 'fullscreen' | 'download';
@@ -204,6 +205,9 @@ export const VIEWER_SHORTCUTS: readonly ViewerShortcut[] = [
   { intent: 'next-page',   keys: ['ArrowRight'],      shown: '→',   label: 'Next page',     paged: true },
   { intent: 'first-page',  keys: ['Home'],            shown: 'Home', label: 'First page',   paged: true },
   { intent: 'last-page',   keys: ['End'],             shown: 'End',  label: 'Last page',    paged: true },
+  // Between DOCUMENTS, not pages (owner, 2026-09-07): the arrows beside the title in the header.
+  { intent: 'prev-doc',    keys: ['['],               shown: '[',   label: 'Previous document' },
+  { intent: 'next-doc',    keys: [']'],               shown: ']',   label: 'Next document' },
   { intent: 'zoom-in',     keys: ['+', '='],          shown: '+',   label: 'Zoom in' },
   { intent: 'zoom-out',    keys: ['-', '_'],          shown: '−',   label: 'Zoom out' },
   { intent: 'fit',         keys: ['0'],               shown: '0',   label: 'Fit the whole page' },

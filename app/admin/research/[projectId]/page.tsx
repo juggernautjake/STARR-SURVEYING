@@ -3369,6 +3369,16 @@ export default function ResearchProjectPage() {
           pagesPdfUrl={viewerPdfUrl}
           highlightText={viewerHighlight}
           onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); setViewerPdfUrl(null); }}
+          // The arrows beside the title walk the SAME ordered list the stage shows (owner, 2026-09-07).
+          documents={documents}
+          index={documents.findIndex((d) => d.id === viewerDoc.id)}
+          onNavigate={(i) => {
+            const next = documents[i];
+            if (!next) return;
+            setViewerDoc(next);
+            setViewerPdfUrl(next.pages_pdf_url ?? next.storage_url ?? null);
+            setViewerHighlight(undefined);
+          }}
         />
       )}
 
