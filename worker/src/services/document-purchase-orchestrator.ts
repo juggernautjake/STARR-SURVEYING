@@ -186,6 +186,10 @@ export class DocumentPurchaseOrchestrator {
     const reanalyses: DocumentReanalysis[] = [];
     const discrepanciesResolved: DiscrepancyResolution[] = [];
     let totalCharged = 0;
+    // What this run has bought so far, by the number/GUID the vendor sold it under. Every
+    // `search_required` want runs the SAME name search, so without this the "most recent deed" and
+    // "all deeds" wants both resolved to the top row and it was bought twice (2026-09-07).
+    const boughtThisRun = { instruments: [] as string[], guids: [] as string[] };
 
     // ── TexasFile budget: metered, min $10 (plan B2) ──────────────────────────────────────────────
     // TexasFile bills $1/page and this run's TexasFile budget is only the CEILING — every buy is gated
@@ -438,8 +442,18 @@ export class DocumentPurchaseOrchestrator {
               guid: rec.vendorRef,
               product: rec.vendorProduct,
               subdivision: rec.subdivision,
+              lot: rec.lot,
+              block: rec.block,
+              excludeInstruments: boughtThisRun.instruments,
+              excludeGuids: boughtThisRun.guids,
             },
           );
+          if (r.status === 'purchased' || r.status === 'already_owned') {
+            const sold = r.instrumentNumber && r.instrumentNumber !== 'search_required' ? r.instrumentNumber : null;
+            if (sold) boughtThisRun.instruments.push(sold);
+            const guidSold = r.transactionId?.match(/^TF-([0-9A-F-]{30,})$/i)?.[1];
+            if (guidSold) boughtThisRun.guids.push(guidSold);
+          }
           if (r.status === 'purchased') {
             texasFileSpend += r.totalCost ?? 0;
             texasFileFilesFound += 1;

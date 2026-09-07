@@ -21,6 +21,7 @@ export interface SelectionPurchaseContext {
   ownerName?: string;
   subdivision?: string;
   lot?: string;
+  block?: string;
   /** Documents already located this run, so a "most recent X" want can buy the exact instrument. */
   knownDocuments?: Array<{ type: string; instrument?: string; book?: string; page?: string; recordingDate?: string }>;
 }
@@ -75,6 +76,8 @@ export function wantsToPurchaseRecommendations(
       // The subject's subdivision rides along so a name search's many rows can be told apart by
       // their legal description (the chooser prefers the deed on THIS lot, 2026-09-07).
       subdivision: ctx.subdivision,
+      lot: ctx.lot,
+      block: ctx.block,
     });
   }
   // Stable priority order (lower = sooner): plats, then deeds/easements; recent before all.

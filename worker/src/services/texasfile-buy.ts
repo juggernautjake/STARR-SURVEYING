@@ -111,6 +111,11 @@ export interface TexasFileBuyInput {
   /** Lot / block of the subject, to pick the right deed among a name search's many rows. */
   lot?: string;
   block?: string;
+  /** Documents this run has ALREADY bought or holds (instrument numbers, year-tolerant; GUIDs). A
+   *  name search answers the same rows for every want, so without this the "most recent deed" and
+   *  "all deeds" wants both resolved to the same top row and it was bought twice (2026-09-07). */
+  excludeInstruments?: string[];
+  excludeGuids?: string[];
 }
 
 /** Every TexasFile plat is $10 flat, whatever its page count (mapped live 2026-09-05). */
@@ -123,7 +128,7 @@ export const PLAT_FLAT_USD = 10;
  */
 export function chooseTexasFileResult(
   results: TexasFileResult[],
-  input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber' | 'volume' | 'book' | 'page' | 'subdivision' | 'lot' | 'block'>,
+  input: Pick<TexasFileBuyInput, 'guid' | 'instrumentNumber' | 'volume' | 'book' | 'page' | 'subdivision' | 'lot' | 'block' | 'excludeInstruments' | 'excludeGuids'>,
 ): TexasFileResult | null {
   if (results.length === 0) return null;
   const guid = input.guid?.trim().toUpperCase();
@@ -131,6 +136,13 @@ export function chooseTexasFileResult(
     const byGuid = results.find((r) => r.guid.toUpperCase() === guid);
     if (byGuid) return byGuid;
   }
+  // What this run already holds is not bought again under another want's name.
+  const exGuids = new Set((input.excludeGuids ?? []).map((g) => g.toUpperCase()));
+  const exInstruments = input.excludeInstruments ?? [];
+  results = results.filter((r) =>
+    !exGuids.has(r.guid.toUpperCase()) &&
+    !exInstruments.some((x) => instrumentsMatch(r.instrument, x) || instrumentsMatch(r.instrumentRaw, x)));
+  if (results.length === 0) return null;
   // An owned copy outranks an unowned one of the same document at every step below — it is free.
   results = [...results].sort((a, b) => Number(b.owned ?? false) - Number(a.owned ?? false));
   // Year-tolerant: the CAD's "2004034968" and TexasFile's "34968" are the same filing.
@@ -148,17 +160,41 @@ export function chooseTexasFileResult(
   // The subject's legal description is what tells the right deed from a lien on a different lot.
   if (input.subdivision) {
     const want = normaliseSubdivisionName(input.subdivision);
-    const inSubdivision = results.filter((r) => r.subdivision && (r.subdivision === want || r.subdivision.startsWith(want) || want.startsWith(r.subdivision)));
-    if (inSubdivision.length > 0) {
-      const lot = input.lot?.toUpperCase().replace(/^LOT\s*/, '');
-      const block = input.block?.toUpperCase().replace(/^(?:BLK|BLOCK)\s*/, '');
-      const onLot = lot ? inSubdivision.filter((r) => (r.lots ?? []).includes(lot) && (!block || !r.block || r.block === block)) : [];
-      const pool = onLot.length > 0 ? onLot : inSubdivision;
+    const sameSubdivision = (r: TexasFileResult) => !!r.subdivision && (r.subdivision === want || r.subdivision.startsWith(want) || want.startsWith(r.subdivision));
+    const inSubdivision = results.filter(sameSubdivision);
+    const preferDeed = (pool: TexasFileResult[]) =>
       // Prefer a deed (the conveyance) over liens/releases when the type is known.
-      return pool.find((r) => /deed/i.test(r.type ?? '') && !/trust/i.test(r.type ?? '')) ?? pool[0]!;
+      pool.find((r) => /deed/i.test(r.type ?? '') && !/trust/i.test(r.type ?? '')) ?? pool[0]!;
+    const unpad = (v: string) => v.replace(/^0+(?=\d)/, '');
+    if (inSubdivision.length > 0) {
+      const lot = input.lot ? unpad(input.lot.toUpperCase().replace(/^LOT\s*/, '')) : undefined;
+      const block = input.block ? unpad(input.block.toUpperCase().replace(/^(?:BLK|BLOCK)\s*/, '')) : undefined;
+      const onLot = lot
+        ? inSubdivision.filter((r) => (r.lots ?? []).map(unpad).includes(lot) && (!block || !r.block || unpad(r.block) === block))
+        : [];
+      return preferDeed(onLot.length > 0 ? onLot : inSubdivision);
     }
+    // Nothing names the subject's subdivision. A row whose legal description names ANOTHER
+    // subdivision is a document about another property — a name search returns every filing for
+    // that person — and is never bought here (the 2026-09-07 run bought a deed on FRENCH ADDITION
+    // for a lot in WINNIE MAE ADDITION). Only a row whose legal is blank is still a candidate; the
+    // caller says it was bought without a legal to check.
+    const unplaced = results.filter((r) => !r.subdivision && (r.lots ?? []).length === 0 && !r.abstract);
+    return unplaced.length > 0 ? preferDeed(unplaced) : null;
   }
   return results[0];
+}
+
+/** Why the chooser returned nothing — the sentence the buy reports instead of "purchase failed". */
+export function describeNoChoice(results: TexasFileResult[], input: Pick<TexasFileBuyInput, 'name' | 'subdivision' | 'excludeInstruments' | 'excludeGuids'>): string {
+  const n = results.length;
+  const who = input.name ? ` for "${input.name}"` : '';
+  const excluded = results.filter((r) =>
+    (input.excludeGuids ?? []).some((g) => g.toUpperCase() === r.guid.toUpperCase()) ||
+    (input.excludeInstruments ?? []).some((x) => instrumentsMatch(r.instrument, x) || instrumentsMatch(r.instrumentRaw, x))).length;
+  if (n > 0 && excluded === n) return `no TexasFile results left${who} — all ${n} row(s) are already held by this run`;
+  if (input.subdivision) return `no TexasFile results on ${normaliseSubdivisionName(input.subdivision)} among ${n} row(s)${who} — the rest name other properties, and a document about another lot is not bought`;
+  return `no TexasFile results${who} after excluding what this run holds`;
 }
 
 /** What a chosen result will cost: a plat is flat-rate; anything else is $1/page (unknown pages → null). */
@@ -336,12 +372,20 @@ export interface TexasFilePurchaseOutcome {
   pages: string[];
   pageImages?: TexasFilePage[];
   pdfUrl?: string | null;
+  /** False when TexasFile named an EXISTING purchase at the begin step (the document was already
+   *  owned) and no complete call was made — nothing was charged, whatever the row said. */
+  charged?: boolean;
   /** The receipt id (`purchase_id` from the complete step) — what the wallet line refers to. */
   purchaseId?: number;
   /** TexasFile's document id (the one in the viewer / status URLs). */
   documentId?: number;
   balance?: string;
   method?: 'page-urls' | 'pdftoppm' | 'viewer-canvas';
+}
+
+/** Does the begin body name a purchase that already exists (numeric `purchase_id`)? Pure. */
+export function beginNamesExistingPurchase(body: TexasFileBeginBody | null | undefined): boolean {
+  return !!body && typeof body.purchase_id === 'number' && Number.isFinite(body.purchase_id);
 }
 
 /** Purchase (or re-fetch if already owned) a document by GUID and return its pages. */
@@ -371,11 +415,18 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
     const documentId = documentIdFromBegin(body);
     let receiptId: number | undefined;
     let viewerUrl: string | null = body.purchase_url ? `${TF}${body.purchase_url}` : null;
-    if (documentId != null && opts.owned) {
-      // Already ours (the row showed Download, not Purchase): the begin call named the document and
-      // costs nothing; the COMPLETE call is the one that charges, so it is not made. Straight to the viewer.
-      log.info('TexasFile', `Document ${documentId} is already owned — re-opening it, no charge.`);
+    // A begin body that already carries a numeric `purchase_id` names an EXISTING purchase — the
+    // document is owned, whatever the search row said. A fresh begin carries purchase_id: null and
+    // the id in preview_url/retrieval_url; the receipt only appears from the complete call (live,
+    // both forms, 2026-09-07). Treating the existing purchase as new logged "$3" for a $0 re-open.
+    const owned = opts.owned || beginNamesExistingPurchase(body);
+    let charged = false;
+    if (documentId != null && owned) {
+      // Already ours: the begin call named the document and costs nothing; the COMPLETE call is the
+      // one that charges, so it is not made. Straight to the viewer.
+      log.info('TexasFile', `Document ${documentId} is already owned${opts.owned ? '' : ' (TexasFile named the existing purchase)'} — re-opening it, no charge.`);
     } else if (documentId != null) {
+      charged = true;
       const completeUrl = body.preview_url ? `${TF}${body.preview_url}` : purchaseCompleteUrl(documentId, searchId);
       try {
         const done = await page.context().request.get(completeUrl, { timeout: 30_000 });
@@ -401,7 +452,7 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
     // ── STEP 3: THE PAGES ────────────────────────────────────────────────────────────────────
     // A deed: page-image URLs in the body. A plat: nothing here — the viewer serves one PDF.
     if (Array.isArray(body.pages) && body.pages.length > 0) {
-      return { pages: body.pages, purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined, balance: body.user_balance, method: 'page-urls' };
+      return { pages: body.pages, purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined, balance: body.user_balance, method: 'page-urls', charged };
     }
     if (viewerUrl || documentId != null) {
       const captured = await capturePdfPages(page, viewerUrl ?? `${TF}/document/viewer/${documentId}/`, log);
@@ -409,7 +460,7 @@ export async function purchaseTexasFile(page: Page, county: string, guid: string
         return {
           pages: [], pageImages: captured.pages, pdfUrl: captured.pdfUrl,
           purchaseId: receiptId ?? documentId ?? undefined, documentId: documentId ?? undefined,
-          balance: body.user_balance, method: captured.method === 'none' ? undefined : captured.method,
+          balance: body.user_balance, method: captured.method === 'none' ? undefined : captured.method, charged,
         };
       }
       log.warn('TexasFile', `Document ${documentId ?? guid}: ${captured.note ?? 'no pages could be produced'} (images_available=${body.images_available}).`);
@@ -469,7 +520,15 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       }
       if (!searchId || results.length === 0) return { ok: false, reason: 'no TexasFile results for that search', pages: [] };
 
-      const chosen = chooseTexasFileResult(results, input)!;
+      const chosen = chooseTexasFileResult(results, input);
+      if (!chosen) {
+        const why = describeNoChoice(results, input);
+        log.warn('TexasFile', why);
+        return { ok: false, reason: why, pages: [] };
+      }
+      if (input.subdivision && !chosen.subdivision && (chosen.lots ?? []).length === 0) {
+        log.warn('TexasFile', `No row names ${normaliseSubdivisionName(input.subdivision)}; buying ${chosen.instrument ?? chosen.guid} whose legal description is blank — check it against the subject.`);
+      }
       if (input.guid && chosen.guid.toUpperCase() !== input.guid.toUpperCase()) {
         log.warn('TexasFile', `Result ${input.guid} not in this search's ${results.length} row(s) — buying the best match ${chosen.guid} instead.`);
       }
@@ -489,7 +548,8 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       if (pages.length === 0) return { ok: false, reason: 'purchased but no page image downloaded', pages: [], guid: chosen.guid, purchaseId: bought.purchaseId };
       if (bought.method && bought.method !== 'page-urls') log.info('TexasFile', `Pages produced by ${bought.method}${bought.pdfUrl ? ' from the document PDF' : ''}.`);
 
-      log.info('TexasFile', `Bought ${pages.length} page(s) for ${chosen.instrument ?? chosen.guid} — balance now ${bought.balance ?? '?'}.`);
+      const costUsd = bought.charged === false ? 0 : (price ?? pages.length);
+      log.info('TexasFile', `${bought.charged === false ? 'Re-opened' : 'Bought'} ${pages.length} page(s) for ${chosen.instrument ?? chosen.guid}${bought.charged === false ? ' at no charge' : ''} — balance now ${bought.balance ?? '?'}.`);
       // Is it the RIGHT plat? The index's own name against the CAD's subdivision (plan 1.5). The
       // page text itself is read in the Analyze run; this is what can be said at buy time.
       if (product === 'plat') {
@@ -498,7 +558,7 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       }
       return {
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
-        pageCount: pages.length, costUsd: price ?? pages.length, balanceAfter: bought.balance,
+        pageCount: pages.length, costUsd, balanceAfter: bought.balance,
         instrument: chosen.instrument ?? undefined,
         pdfUrl: bought.pdfUrl ?? undefined, documentId: bought.documentId, pageMethod: bought.method,
       };

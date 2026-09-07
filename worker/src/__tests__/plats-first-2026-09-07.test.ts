@@ -73,11 +73,11 @@ describe('an owned document (Download button, no Purchase button)', () => {
   it('the extractor keys rows on any action button and flags Download-without-Purchase', () => {
     const src = read('services/texasfile-rows.ts');
     expect(src).toContain(`document.querySelectorAll('button[value^="14:"], button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]')`);
-    expect(src).toContain('owned: !purchaseBtn && !!downloadBtn');
+    expect(src).toContain('owned: !purchaseBtn && (!!downloadBtn || purchasedNote)');
   });
   it('the buy re-opens an owned document without the charging step', () => {
     const src = read('services/texasfile-buy.ts');
-    expect(src).toContain('if (documentId != null && opts.owned) {');
+    expect(src).toContain('if (documentId != null && owned) {');
     expect(src).toContain("purchaseTexasFile(page, input.county, chosen.guid, searchId, log, product, { owned: chosen.owned === true })");
     expect(src).toContain('timeout: 90_000');
   });

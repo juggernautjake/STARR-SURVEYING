@@ -123,12 +123,24 @@ export interface ParsedLegal {
   survey?: string;
 }
 
-/** "Lot: 3 Block: 1 Subdivision: WINNIE MAE ADDITION Lot: 4 More Info" → the identifiers. */
+/** "Lot: 3 Block: 1 Subdivision: WINNIE MAE ADDITION Lot: 4 More Info" → the identifiers.
+ *
+ *  The deed table's legal cell arrives GLUED — "Lot: 2Block: 5Subdivision: FRENCH ADDITION, W L"
+ *  (live, 2026-09-07) — because each label is its own element and the text is joined with no space.
+ *  Read as one string, "2Block" was the lot and no subdivision parsed at all, so the chooser could
+ *  not tell a deed on this lot from one on another property, and bought the other one. */
 export function parseLegal(text: string | null | undefined): ParsedLegal {
-  const t = (text ?? '').replace(/\s+/g, ' ').replace(/\bMore Info\b/gi, '').trim();
+  const t = (text ?? '')
+    .replace(/\s+/g, ' ')
+    // A label glued to the previous value gets its space back: "2Block:" → "2 Block:". Labels are
+    // Title-case and values are all-caps, so this is case-SENSITIVE — "Abstract:" must not be read
+    // as "Abs" + "tract:".
+    .replace(/(\S)(Lots?|Block|Subdivision|Abstract|Survey|Acres|Tract|Section|Phase|Unit|Reference Documents|Pages|Purchased on|County Type|Additional Information):/g, '$1 $2:')
+    .replace(/\bMore Info\b/gi, '')
+    .trim();
   const lots = [...t.matchAll(/\bLots?:\s*([A-Z0-9][A-Z0-9-]*)/gi)].map((m) => m[1]!.toUpperCase());
   const block = t.match(/\bBlock:\s*([A-Z0-9][A-Z0-9-]*)/i)?.[1]?.toUpperCase();
-  const stop = '(?=\\s+(?:Lots?|Block|Abstract|Survey|Acres|Tract|Section|Phase|Unit|Subdivision):|$)';
+  const stop = '(?=\\s+(?:Lots?|Block|Abstract|Survey|Acres|Tract|Section|Phase|Unit|Subdivision|Reference Documents|Pages|Purchased on|County Type|Additional Information):|$)';
   const subdivision = t.match(new RegExp(`\\bSubdivision:\\s*(.+?)${stop}`, 'i'))?.[1]?.trim();
   const abstract = t.match(new RegExp(`\\bAbstract:\\s*(.+?)${stop}`, 'i'))?.[1]?.trim();
   const survey = t.match(new RegExp(`\\bSurvey:\\s*(.+?)${stop}`, 'i'))?.[1]?.trim();
@@ -282,7 +294,14 @@ export function extractTexasFileRawRows(): RawTexasFileRow[] {
     const guid = value.replace(/^\d+:/, '') || dataFor.replace(/^[A-Za-z]+-/, '') || (holder ? holder.id.replace('purchaseButton', '') : '');
     if (!/^[0-9a-f-]{30,}$/i.test(guid)) continue;
     const purchaseBtn = row.querySelector('button[name="btnPurchaseFromSearch"], button[data-for^="Purchase-"]');
-    const downloadBtn = row.querySelector('button[data-for^="Download-"]');
+    // The Download button is the owned marker. On the PLAT table it carries data-for="Download-…";
+    // on the DEED table it carries only value="14:<GUID>" and the word (live, 2026-09-07 — a deed
+    // bought minutes earlier read as unowned and was "bought" again). Either form counts, as does
+    // the row's own "Purchased on:" note.
+    const downloadBtn = row.querySelector('button[data-for^="Download-"]')
+      ?? Array.from(row.querySelectorAll('button')).find((x) => /^\s*download\s*$/i.test(x.textContent || ''))
+      ?? null;
+    const purchasedNote = /Purchased on:/i.test(row.textContent || '');
     const table = row.closest('table');
     const headers = table ? Array.from(table.querySelectorAll('thead th, tr th')).map((th) => clean(th)) : [];
     const cells = Array.from(row.children).filter((el) => el.tagName === 'TD').map((td) => clean(td));
@@ -292,7 +311,7 @@ export function extractTexasFileRawRows(): RawTexasFileRow[] {
     const tooltip = tipDiv ? (tipDiv.textContent || '').replace(/\s+/g, ' ').trim() : '';
     const next = row.nextElementSibling;
     const detail = next && !next.querySelector('button[value^="14:"]') ? clean(next) : '';
-    rows.push({ guid: guid.toUpperCase(), headers, cells, tooltip, detail, owned: !purchaseBtn && !!downloadBtn });
+    rows.push({ guid: guid.toUpperCase(), headers, cells, tooltip, detail, owned: !purchaseBtn && (!!downloadBtn || purchasedNote) });
   }
   const seen = new Set<string>();
   return rows.filter((r) => (seen.has(r.guid) ? false : (seen.add(r.guid), true)));

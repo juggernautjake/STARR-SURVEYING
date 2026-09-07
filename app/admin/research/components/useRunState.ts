@@ -260,7 +260,11 @@ export function useRunState(projectId: string): UseRunStateResult {
       if (data.runId && !expectedRunIdRef.current) expectedRunIdRef.current = data.runId;
 
       setPoll(data);
-      if (data.log) setLogs(data.log);
+      // A terminal payload can arrive with an EMPTY log for a moment — the worker clears its live
+      // log and caches the run's entries a beat later (2026-09-07: the Activity tab dropped from
+      // 302 entries to the 4 browser ones the instant the run finished). Nothing on this screen is
+      // improved by forgetting what the run said, so an empty answer never replaces a full one.
+      if (Array.isArray(data.log) && data.log.length > 0) setLogs(data.log);
 
       // The console carries cost and ceiling, which change slowly. Fetched on a slower cadence
       // rather than on its own timer, so the two can never be read from different moments.

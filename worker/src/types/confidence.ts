@@ -176,6 +176,9 @@ export interface PurchaseRecommendation {
   vendorRef?: string;
   vendorProduct?: 'instrument' | 'plat';
   subdivision?: string;
+  /** The subject's lot / block — with the subdivision, what tells this lot's deed from another. */
+  lot?: string;
+  block?: string;
 }
 
 // ── Surveyor Decision Matrix ─────────────────────────────────────────────────

@@ -45,6 +45,12 @@ export interface TexasFilePurchaseHints {
   product?: 'instrument' | 'plat';
   /** The plat search key (subdivision or survey name) when `product` is `'plat'`. */
   subdivision?: string;
+  /** The subject's lot / block, to pick the right deed among a name search's rows. */
+  lot?: string;
+  block?: string;
+  /** What this run already bought or holds — never chosen again under another want (2026-09-07). */
+  excludeInstruments?: string[];
+  excludeGuids?: string[];
 }
 
 // ── TexasFile Purchase Adapter ──────────────────────────────────────────────
@@ -124,6 +130,10 @@ export class TexasFilePurchaseAdapter {
       guid: hints.guid,
       product: hints.product,
       subdivision: hints.subdivision,
+      lot: hints.lot,
+      block: hints.block,
+      excludeInstruments: hints.excludeInstruments,
+      excludeGuids: hints.excludeGuids,
     };
 
     try {

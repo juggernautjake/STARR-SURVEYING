@@ -29,6 +29,7 @@ import { uploadPipelineArtifacts, beginFiling, endFiling, filingTallySoFar, type
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
+import { parseLotBlock } from './counties/bell/orchestrator.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { lookupCountyFIPS } from './lib/county-fips.js';
 import { assessPurchaseReadiness } from './research/purchase-readiness.js';
@@ -2231,6 +2232,318 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         console.warn(`[Reading] ${projectId}: pass threw — ${String(e)}`);
       }
 
+
+      // ── The paid top-up runs BEFORE the run is settled (2026-09-07) ─────────────────────────
+      //
+      // Both final purchase passes (the generic Phase 7 → 8 → 9 chain and the dedicated-county
+      // checklist buy) used to sit AFTER "Spend by budget", after the Research Complete handshake,
+      // after `endRun` and after the pipeline left `activePipelines`. Measured on the 1401 North
+      // East St run: the screen said "TexasFile $0.00 of the $10.00 budget" and "Research complete"
+      // while the worker was still buying $3 of deeds; the run row's cost was settled without them;
+      // and the status poll, finding no live pipeline and no cached log yet, answered with an empty
+      // log — the Activity tab dropped from 302 entries to 4. Buying is part of the run, so it
+      // happens inside it: before the filing window closes (the bought pages count in the tally),
+      // before the meters are read from the ledger, and before anything announces a finish.
+      const lotBlockOf = (p: unknown): { lot?: string; block?: string } => {
+        const prop = (p ?? null) as { lotNumber?: string | null; blockNumber?: string | null; legalDescription?: string | null } | null;
+        if (!prop) return {};
+        if (prop.lotNumber) return { lot: prop.lotNumber, block: prop.blockNumber ?? undefined };
+        const parsed = parseLotBlock(prop.legalDescription);
+        return { lot: parsed.lotNumber ?? undefined, block: parsed.blockNumber ?? undefined };
+      };
+      const finalPurchasePass = async (): Promise<void> => {
+        const ur = unifiedResult; // a const the closure can narrow on
+        if (ur.resultType === 'generic-pipeline') {
+          const r = ur.data;
+          // ── C2b: write the run's reconciliation where every reader already looks ──────────
+          //
+          // `/tmp/analysis/{id}/reconciled_boundary.json` is read by the boundary viewer, by
+          // `GET /research/boundary/:id`, by the master orchestrator, and — as its INPUT — by
+          // Phase 8. Only the Testing Lab ever wrote it, so all four read nothing for every real
+          // run, and Phase 8 could not run at all. Phase 9 takes its purchase recommendations from
+          // Phase 8, which is why no run has ever bought a document.
+          //
+          // The run was not missing the work — it reconciles at Stage 3.5 and kept the answer in
+          // memory. This writes it down.
+          try {
+            const p7 = buildPhase7Document(
+              projectId,
+              (r.boundary?.calls ?? []) as never,
+              {
+                // Closure lives on the VALIDATION result, not the boundary.
+                closureError: r.validation?.closureError_ft ?? null,
+                // `precisionRatio` is a string — "1:5000" — and the schema wants a number whose
+                // units are not stated. Parsing it would be guessing at what the number means, and
+                // a wrong closure ratio on a survey is a confident wrong answer with a surveyor's
+                // authority behind it. Omitted until something needs it and can say what it is.
+                closureRatio: null,
+              },
+            );
+            const wrote = writePhase7Document(ANALYSIS_DIR, p7);
+            console.log(
+              `[Worker] ${projectId}: reconciled_boundary.json ` +
+                (wrote.written ? `written — ${wrote.reason}` : `not written — ${wrote.reason}`),
+            );
+
+            // ── C2c: Phase 8 can finally run, and it is free ────────────────────────────────
+            //
+            // The confidence engine takes the reconciled boundary as its INPUT, which is why it
+            // has never run outside the Testing Lab: the file did not exist. It is pure
+            // computation — no model calls, measured — so there is nothing to gate and no reason
+            // to make an operator ask for it.
+            //
+            // It writes confidence_report.json beside the reconciled file, which is what the
+            // boundary viewer reads for per-call scores and what Phase 9 reads for its purchase
+            // recommendations. Both have been reading an absent file.
+            if (wrote.written) {
+              try {
+                const reconciledPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
+                const report = await new ConfidenceScoringEngine().score(projectId, reconciledPath);
+                handshakeLogger
+                  .attempt('[Confidence]', 'info', 'Scored the boundary',
+                    `${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'})`)
+                  .success(
+                    report.documentPurchaseRecommendations?.length ?? 0,
+                    `Confidence ${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'}). ` +
+                    `${report.documentPurchaseRecommendations?.length ?? 0} document(s) would raise it if bought.`,
+                  );
+
+                // ── D1: buy the documents the report says are worth buying ──────────────────
+                //
+                // The last link. Phase 9 has existed, complete, with one caller: the Testing Lab.
+                // It needs recommendations, which come from Phase 8, which needed the reconciled
+                // boundary, which nothing wrote. Three phases were never "unwired" — they were
+                // waiting on a file.
+                //
+                // Every safeguard this needs was built for it and has never run: `decidePurchase`
+                // (which refuses when permission cannot be READ, not just when it is denied), the
+                // per-run spend ceiling, the cross-run library that will not buy a page twice, and
+                // the skip ledger.
+                let recs = report.documentPurchaseRecommendations ?? [];
+                // W2 — the checklist DRIVES what is bought. When the operator picked items (any run with
+                // an explicit `gatherSelections`), turn the paid selections into purchase targets and put
+                // them FIRST (plats before deeds), so TexasFile is asked for the plats/recent deeds the
+                // owner wanted — not only what a boundary discrepancy happened to flag. Runs without a
+                // selection are unchanged (they keep the discrepancy-driven recs alone).
+                // `resolveGatherSelections` supplies the default checklist when none was sent, so
+                // this is no longer gated on the checklist's PRESENCE (see the early purchase).
+                {
+                  const selRecs = wantsToPurchaseRecommendations(
+                    selectionsToWants(resolveGatherSelections(runSettings)),
+                    { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
+                  );
+                  if (selRecs.length > 0) {
+                    recs = [...selRecs, ...recs];
+                    handshakeLogger.attempt('[Purchase]', 'info', 'Checklist targets',
+                      `${selRecs.length} item(s) from the run's what-to-find list, plats first`).success(selRecs.length, '');
+                  }
+                }
+                if (recs.length > 0) {
+                  const permission = await resolvePurchasePermission(projectId);
+                  const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+
+                  if (!permission.allowed) {
+                    // Recorded, not just logged — the notice on the screen counts these rows, and
+                    // for months there were none to count.
+                    if (permission.skipStatus) {
+                      const skipRec = await recordSkippedPurchases(
+                        recs.map((rec: { instrument: string; documentType: string; source: string }) => ({
+                          projectId,
+                          runId: activePipelines.get(projectId)?.runId ?? null,
+                          countyFips: countyFIPS,
+                          instrument: rec.instrument,
+                          documentType: rec.documentType,
+                          platformId: rec.source,
+                          pages: 0,
+                        })),
+                        permission.skipStatus,
+                        permission.reason,
+                      );
+                      if (skipRec.error) {
+                        // A run that correctly declined to spend must not fail because it could not
+                        // file the note saying so — but the note going missing is why the notice on
+                        // screen was empty for months, so it is reported rather than swallowed.
+                        console.warn(
+                          `[Worker] ${projectId}: Could not record the skipped documents — ${skipRec.error}`,
+                        );
+                      }
+                    }
+                    handshakeLogger
+                      .attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
+                      .success(0, describeSkippedPurchase(permission, recs.length));
+                  } else {
+                    // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
+                    // told the operator nothing they could have acted on.
+                    // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget is the
+                    // dedicated TexasFile budget the operator set ($15 in the run-start UI), floored to
+                    // $10 by gather-budget; the separate other-sources budget covers free capture. Falls
+                    // back to the run's cost cap when no dedicated TexasFile budget was given.
+                    const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
+                    handshakeLogger
+                      .attempt('[Purchase]', 'info', 'Buying documents',
+                        `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)
+                      .success(recs.length,
+                        `Buying up to ${recs.length} document(s) that would raise this boundary’s ` +
+                        `confidence, within the $${ceiling.toFixed(2)} ceiling this run was given.`);
+
+                    const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+                    const purchaseResult = await orchestrator.executePurchases(
+                      projectId,
+                      recs,
+                      {
+                        kofileCredentials: process.env.KOFILE_USERNAME ? {
+                          username: process.env.KOFILE_USERNAME,
+                          password: process.env.KOFILE_PASSWORD!,
+                          paymentOnFile: true,
+                        } : undefined,
+                        texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+                          username: process.env.TEXASFILE_USERNAME,
+                          password: process.env.TEXASFILE_PASSWORD!,
+                          accountType: 'pay_per_page',
+                        } : undefined,
+                        budget: ceiling,
+                        otherBudgetUsd: runSettings.otherBudgetUsd,
+                        autoReanalyze: false,
+                        runId: activePipelines.get(projectId)?.runId ?? null,
+                      },
+                      countyFIPS,
+                      county ?? '',
+                    );
+
+                    const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+                    const spent = purchaseResult.billing?.totalCharged ?? 0;
+                    handshakeLogger
+                      .attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
+                        `${bought.length} bought, $${spent.toFixed(2)}`)
+                      .success(bought.length,
+                        `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ` +
+                        `${purchaseResult.purchases.length - bought.length} were not obtained.`);
+                  }
+                }
+              } catch (err) {
+                // Scoring is an enhancement to a run that has already succeeded.
+                console.warn(`[Worker] ${projectId}: confidence scoring failed:`, err);
+              }
+            }
+          } catch (err) {
+            // Bookkeeping must not fail a run whose research succeeded.
+            console.warn(`[Worker] ${projectId}: could not write the reconciled boundary:`, err);
+          }
+        } else {
+          const r = ur.data;
+          // ── Gather buys the checklist's paid documents for dedicated-county runs (plan W2/W4) ──
+          //
+          // The generic-pipeline branch buys inside confidence scoring (Phase 8 → Phase 9). A county
+          // with a DEDICATED module (Bell, …) produces a `county-specific` result and NEVER entered
+          // that branch, so a dedicated-county gather captured its free documents and bought NOTHING
+          // from TexasFile — the $15 budget went unspent and no `document_purchase` ever reached the
+          // ledger. This runs the same checklist-driven purchase here, keyed on the owner the run
+          // actually discovered, so a dedicated-county gather fills its paid gaps within budget.
+          // Runs without a checklist get the DEFAULT one (all files, no adjoiners) exactly as the
+          // generic branch does — a dedicated-county run is no longer silently $0 for lack of a dialog.
+          {
+            try {
+              // Named `recs` (not `selRecs`) so the skip-ledger structure test sees one row mapped per
+              // recommendation, the same shape the generic branch uses.
+              const recs = wantsToPurchaseRecommendations(
+                selectionsToWants(resolveGatherSelections(runSettings)),
+                {
+                  county: county ?? undefined,
+                  // Prefer the owner the run DISCOVERED over the (often blank) entered value: a
+                  // `search_required` want needs a real name to search TexasFile by, and an empty
+                  // form submits nothing and buys nothing — the silent-$0 bug this whole block fixes.
+                  ownerName: r.property?.ownerName ?? researchInput.ownerName ?? undefined,
+                  // The subject's subdivision, so a name search's rows can be told apart by legal
+                  // description; and the documents this run already HOLDS, so a "most recent deed"
+                  // want resolves to the instrument the free clerk captured (2004034968 on the
+                  // 2026-09-07 run) and the library says "already held" instead of buying blind.
+                  subdivision: r.property?.subdivisionName ?? undefined,
+                  // The subject's lot/block — from the property record when it carries them, else
+                  // parsed from the CAD legal ("WINNIE MAE ADDITION, BLOCK 001, LOT 4, PT 3").
+                  lot: lotBlockOf(r.property).lot,
+                  block: lotBlockOf(r.property).block,
+                  knownDocuments: [
+                    ...((r.deedsAndRecords?.records ?? []).map((d) => ({
+                      type: d.documentType || 'deed',
+                      instrument: d.instrumentNumber ?? undefined,
+                      book: d.volume ?? undefined,
+                      page: d.page ?? undefined,
+                      recordingDate: d.recordingDate ?? undefined,
+                    }))),
+                    ...(((r.property as { deedHistory?: Array<{ instrumentNumber?: string; volume?: string; page?: string; deedDate?: string }> } | null)?.deedHistory ?? []).map((d) => ({
+                      type: 'deed',
+                      instrument: d.instrumentNumber,
+                      book: d.volume,
+                      page: d.page,
+                      recordingDate: d.deedDate,
+                    }))),
+                  ],
+                },
+              );
+              if (recs.length > 0) {
+                const permission = await resolvePurchasePermission(projectId);
+                const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+                if (!permission.allowed) {
+                  if (permission.skipStatus) {
+                    await recordSkippedPurchases(
+                      recs.map((rec) => ({
+                        projectId,
+                        runId: activePipelines.get(projectId)?.runId ?? null,
+                        countyFips: countyFIPS,
+                        instrument: rec.instrument,
+                        documentType: rec.documentType,
+                        platformId: rec.source,
+                        pages: 0,
+                      })),
+                      permission.skipStatus,
+                      permission.reason,
+                    ).catch((e) => console.warn(`[Worker] ${projectId}: could not record skipped purchases — ${e instanceof Error ? e.message : String(e)}`));
+                  }
+                  handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
+                    .success(0, describeSkippedPurchase(permission, recs.length));
+                } else {
+                  // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget IS the
+                  // dedicated TexasFile budget the operator set ($15 in the UI), falling back to the
+                  // run's cost cap when none was given.
+                  const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
+                  handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents',
+                    `${recs.length} from the what-to-find list, plats first, ceiling $${ceiling.toFixed(2)}`)
+                    .success(recs.length, `Buying up to ${recs.length} document(s) within the $${ceiling.toFixed(2)} TexasFile budget this run was given.`);
+                  const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+                  const purchaseResult = await orchestrator.executePurchases(
+                    projectId,
+                    recs,
+                    {
+                      texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+                        username: process.env.TEXASFILE_USERNAME,
+                        password: process.env.TEXASFILE_PASSWORD!,
+                        accountType: 'pay_per_page',
+                      } : undefined,
+                      budget: ceiling,
+                      otherBudgetUsd: runSettings.otherBudgetUsd,
+                      autoReanalyze: false,
+                      runId: activePipelines.get(projectId)?.runId ?? null,
+                    },
+                    countyFIPS,
+                    county ?? '',
+                  );
+                  const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+                  const spent = purchaseResult.billing?.totalCharged ?? 0;
+                  handshakeLogger.attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
+                    `${bought.length} bought, $${spent.toFixed(2)}`)
+                    .success(bought.length, `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ${purchaseResult.purchases.length - bought.length} were not obtained.`);
+                }
+              }
+            } catch (err) {
+              // A gather that researched successfully must not be reported as failed because the
+              // paid top-up threw. Loud in the server log, non-fatal to the run.
+              console.warn(`[Worker] ${projectId}: county-specific checklist purchase failed:`, err);
+            }
+          }
+        }
+      };
+      await finalPurchasePass();
+
       resetFlushClock(projectId);
       const filing = endFiling(projectId);
       if (filing) {
@@ -2423,180 +2736,6 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // duplicate check Bell uses. What remains here is a safety net for anything the incremental
         // path could not write — a transient Supabase failure mid-run should not cost the document.
         // Anything already filed this run is skipped, so the net cannot double-write.
-        // ── C2b: write the run's reconciliation where every reader already looks ──────────
-        //
-        // `/tmp/analysis/{id}/reconciled_boundary.json` is read by the boundary viewer, by
-        // `GET /research/boundary/:id`, by the master orchestrator, and — as its INPUT — by
-        // Phase 8. Only the Testing Lab ever wrote it, so all four read nothing for every real
-        // run, and Phase 8 could not run at all. Phase 9 takes its purchase recommendations from
-        // Phase 8, which is why no run has ever bought a document.
-        //
-        // The run was not missing the work — it reconciles at Stage 3.5 and kept the answer in
-        // memory. This writes it down.
-        try {
-          const p7 = buildPhase7Document(
-            projectId,
-            (r.boundary?.calls ?? []) as never,
-            {
-              // Closure lives on the VALIDATION result, not the boundary.
-              closureError: r.validation?.closureError_ft ?? null,
-              // `precisionRatio` is a string — "1:5000" — and the schema wants a number whose
-              // units are not stated. Parsing it would be guessing at what the number means, and
-              // a wrong closure ratio on a survey is a confident wrong answer with a surveyor's
-              // authority behind it. Omitted until something needs it and can say what it is.
-              closureRatio: null,
-            },
-          );
-          const wrote = writePhase7Document(ANALYSIS_DIR, p7);
-          console.log(
-            `[Worker] ${projectId}: reconciled_boundary.json ` +
-              (wrote.written ? `written — ${wrote.reason}` : `not written — ${wrote.reason}`),
-          );
-
-          // ── C2c: Phase 8 can finally run, and it is free ────────────────────────────────
-          //
-          // The confidence engine takes the reconciled boundary as its INPUT, which is why it
-          // has never run outside the Testing Lab: the file did not exist. It is pure
-          // computation — no model calls, measured — so there is nothing to gate and no reason
-          // to make an operator ask for it.
-          //
-          // It writes confidence_report.json beside the reconciled file, which is what the
-          // boundary viewer reads for per-call scores and what Phase 9 reads for its purchase
-          // recommendations. Both have been reading an absent file.
-          if (wrote.written) {
-            try {
-              const reconciledPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
-              const report = await new ConfidenceScoringEngine().score(projectId, reconciledPath);
-              handshakeLogger
-                .attempt('[Confidence]', 'info', 'Scored the boundary',
-                  `${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'})`)
-                .success(
-                  report.documentPurchaseRecommendations?.length ?? 0,
-                  `Confidence ${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'}). ` +
-                  `${report.documentPurchaseRecommendations?.length ?? 0} document(s) would raise it if bought.`,
-                );
-
-              // ── D1: buy the documents the report says are worth buying ──────────────────
-              //
-              // The last link. Phase 9 has existed, complete, with one caller: the Testing Lab.
-              // It needs recommendations, which come from Phase 8, which needed the reconciled
-              // boundary, which nothing wrote. Three phases were never "unwired" — they were
-              // waiting on a file.
-              //
-              // Every safeguard this needs was built for it and has never run: `decidePurchase`
-              // (which refuses when permission cannot be READ, not just when it is denied), the
-              // per-run spend ceiling, the cross-run library that will not buy a page twice, and
-              // the skip ledger.
-              let recs = report.documentPurchaseRecommendations ?? [];
-              // W2 — the checklist DRIVES what is bought. When the operator picked items (any run with
-              // an explicit `gatherSelections`), turn the paid selections into purchase targets and put
-              // them FIRST (plats before deeds), so TexasFile is asked for the plats/recent deeds the
-              // owner wanted — not only what a boundary discrepancy happened to flag. Runs without a
-              // selection are unchanged (they keep the discrepancy-driven recs alone).
-              // `resolveGatherSelections` supplies the default checklist when none was sent, so
-              // this is no longer gated on the checklist's PRESENCE (see the early purchase).
-              {
-                const selRecs = wantsToPurchaseRecommendations(
-                  selectionsToWants(resolveGatherSelections(runSettings)),
-                  { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
-                );
-                if (selRecs.length > 0) {
-                  recs = [...selRecs, ...recs];
-                  handshakeLogger.attempt('[Purchase]', 'info', 'Checklist targets',
-                    `${selRecs.length} item(s) from the run's what-to-find list, plats first`).success(selRecs.length, '');
-                }
-              }
-              if (recs.length > 0) {
-                const permission = await resolvePurchasePermission(projectId);
-                const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
-
-                if (!permission.allowed) {
-                  // Recorded, not just logged — the notice on the screen counts these rows, and
-                  // for months there were none to count.
-                  if (permission.skipStatus) {
-                    const skipRec = await recordSkippedPurchases(
-                      recs.map((rec: { instrument: string; documentType: string; source: string }) => ({
-                        projectId,
-                        runId: activePipelines.get(projectId)?.runId ?? null,
-                        countyFips: countyFIPS,
-                        instrument: rec.instrument,
-                        documentType: rec.documentType,
-                        platformId: rec.source,
-                        pages: 0,
-                      })),
-                      permission.skipStatus,
-                      permission.reason,
-                    );
-                    if (skipRec.error) {
-                      // A run that correctly declined to spend must not fail because it could not
-                      // file the note saying so — but the note going missing is why the notice on
-                      // screen was empty for months, so it is reported rather than swallowed.
-                      console.warn(
-                        `[Worker] ${projectId}: Could not record the skipped documents — ${skipRec.error}`,
-                      );
-                    }
-                  }
-                  handshakeLogger
-                    .attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
-                    .success(0, describeSkippedPurchase(permission, recs.length));
-                } else {
-                  // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
-                  // told the operator nothing they could have acted on.
-                  // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget is the
-                  // dedicated TexasFile budget the operator set ($15 in the run-start UI), floored to
-                  // $10 by gather-budget; the separate other-sources budget covers free capture. Falls
-                  // back to the run's cost cap when no dedicated TexasFile budget was given.
-                  const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
-                  handshakeLogger
-                    .attempt('[Purchase]', 'info', 'Buying documents',
-                      `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)
-                    .success(recs.length,
-                      `Buying up to ${recs.length} document(s) that would raise this boundary’s ` +
-                      `confidence, within the $${ceiling.toFixed(2)} ceiling this run was given.`);
-
-                  const orchestrator = new DocumentPurchaseOrchestrator(projectId);
-                  const purchaseResult = await orchestrator.executePurchases(
-                    projectId,
-                    recs,
-                    {
-                      kofileCredentials: process.env.KOFILE_USERNAME ? {
-                        username: process.env.KOFILE_USERNAME,
-                        password: process.env.KOFILE_PASSWORD!,
-                        paymentOnFile: true,
-                      } : undefined,
-                      texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
-                        username: process.env.TEXASFILE_USERNAME,
-                        password: process.env.TEXASFILE_PASSWORD!,
-                        accountType: 'pay_per_page',
-                      } : undefined,
-                      budget: ceiling,
-                      otherBudgetUsd: runSettings.otherBudgetUsd,
-                      autoReanalyze: false,
-                      runId: activePipelines.get(projectId)?.runId ?? null,
-                    },
-                    countyFIPS,
-                    county ?? '',
-                  );
-
-                  const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
-                  const spent = purchaseResult.billing?.totalCharged ?? 0;
-                  handshakeLogger
-                    .attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
-                      `${bought.length} bought, $${spent.toFixed(2)}`)
-                    .success(bought.length,
-                      `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ` +
-                      `${purchaseResult.purchases.length - bought.length} were not obtained.`);
-                }
-              }
-            } catch (err) {
-              // Scoring is an enhancement to a run that has already succeeded.
-              console.warn(`[Worker] ${projectId}: confidence scoring failed:`, err);
-            }
-          }
-        } catch (err) {
-          // Bookkeeping must not fail a run whose research succeeded.
-          console.warn(`[Worker] ${projectId}: could not write the reconciled boundary:`, err);
-        }
 
         const pipelineDocs = r.documents
           .filter((d) => !d.fromUserUpload)
@@ -2943,111 +3082,6 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
           `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
           .success(0, `${bellOutcome.sentence} ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
 
-        // ── Gather buys the checklist's paid documents for dedicated-county runs (plan W2/W4) ──
-        //
-        // The generic-pipeline branch buys inside confidence scoring (Phase 8 → Phase 9). A county
-        // with a DEDICATED module (Bell, …) produces a `county-specific` result and NEVER entered
-        // that branch, so a dedicated-county gather captured its free documents and bought NOTHING
-        // from TexasFile — the $15 budget went unspent and no `document_purchase` ever reached the
-        // ledger. This runs the same checklist-driven purchase here, keyed on the owner the run
-        // actually discovered, so a dedicated-county gather fills its paid gaps within budget.
-        // Runs without a checklist get the DEFAULT one (all files, no adjoiners) exactly as the
-        // generic branch does — a dedicated-county run is no longer silently $0 for lack of a dialog.
-        {
-          try {
-            // Named `recs` (not `selRecs`) so the skip-ledger structure test sees one row mapped per
-            // recommendation, the same shape the generic branch uses.
-            const recs = wantsToPurchaseRecommendations(
-              selectionsToWants(resolveGatherSelections(runSettings)),
-              {
-                county: county ?? undefined,
-                // Prefer the owner the run DISCOVERED over the (often blank) entered value: a
-                // `search_required` want needs a real name to search TexasFile by, and an empty
-                // form submits nothing and buys nothing — the silent-$0 bug this whole block fixes.
-                ownerName: r.property?.ownerName ?? researchInput.ownerName ?? undefined,
-                // The subject's subdivision, so a name search's rows can be told apart by legal
-                // description; and the documents this run already HOLDS, so a "most recent deed"
-                // want resolves to the instrument the free clerk captured (2004034968 on the
-                // 2026-09-07 run) and the library says "already held" instead of buying blind.
-                subdivision: r.property?.subdivisionName ?? undefined,
-                knownDocuments: [
-                  ...((r.deedsAndRecords?.records ?? []).map((d) => ({
-                    type: d.documentType || 'deed',
-                    instrument: d.instrumentNumber ?? undefined,
-                    book: d.volume ?? undefined,
-                    page: d.page ?? undefined,
-                    recordingDate: d.recordingDate ?? undefined,
-                  }))),
-                  ...(((r.property as { deedHistory?: Array<{ instrumentNumber?: string; volume?: string; page?: string; deedDate?: string }> } | null)?.deedHistory ?? []).map((d) => ({
-                    type: 'deed',
-                    instrument: d.instrumentNumber,
-                    book: d.volume,
-                    page: d.page,
-                    recordingDate: d.deedDate,
-                  }))),
-                ],
-              },
-            );
-            if (recs.length > 0) {
-              const permission = await resolvePurchasePermission(projectId);
-              const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
-              if (!permission.allowed) {
-                if (permission.skipStatus) {
-                  await recordSkippedPurchases(
-                    recs.map((rec) => ({
-                      projectId,
-                      runId: activePipelines.get(projectId)?.runId ?? null,
-                      countyFips: countyFIPS,
-                      instrument: rec.instrument,
-                      documentType: rec.documentType,
-                      platformId: rec.source,
-                      pages: 0,
-                    })),
-                    permission.skipStatus,
-                    permission.reason,
-                  ).catch((e) => console.warn(`[Worker] ${projectId}: could not record skipped purchases — ${e instanceof Error ? e.message : String(e)}`));
-                }
-                handshakeLogger.attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
-                  .success(0, describeSkippedPurchase(permission, recs.length));
-              } else {
-                // W3 — the orchestrator only buys paid vendors (TexasFile), so its budget IS the
-                // dedicated TexasFile budget the operator set ($15 in the UI), falling back to the
-                // run's cost cap when none was given.
-                const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
-                handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents',
-                  `${recs.length} from the what-to-find list, plats first, ceiling $${ceiling.toFixed(2)}`)
-                  .success(recs.length, `Buying up to ${recs.length} document(s) within the $${ceiling.toFixed(2)} TexasFile budget this run was given.`);
-                const orchestrator = new DocumentPurchaseOrchestrator(projectId);
-                const purchaseResult = await orchestrator.executePurchases(
-                  projectId,
-                  recs,
-                  {
-                    texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
-                      username: process.env.TEXASFILE_USERNAME,
-                      password: process.env.TEXASFILE_PASSWORD!,
-                      accountType: 'pay_per_page',
-                    } : undefined,
-                    budget: ceiling,
-                    otherBudgetUsd: runSettings.otherBudgetUsd,
-                    autoReanalyze: false,
-                    runId: activePipelines.get(projectId)?.runId ?? null,
-                  },
-                  countyFIPS,
-                  county ?? '',
-                );
-                const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
-                const spent = purchaseResult.billing?.totalCharged ?? 0;
-                handshakeLogger.attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
-                  `${bought.length} bought, $${spent.toFixed(2)}`)
-                  .success(bought.length, `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ${purchaseResult.purchases.length - bought.length} were not obtained.`);
-              }
-            }
-          } catch (err) {
-            // A gather that researched successfully must not be reported as failed because the
-            // paid top-up threw. Loud in the server log, non-fatal to the run.
-            console.warn(`[Worker] ${projectId}: county-specific checklist purchase failed:`, err);
-          }
-        }
 
         // ── Capture live logs NOW (after summary entries) and cache ──────────
         // capturedLiveLog includes ALL entries: progress events from the
