@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { reviewPercent, normaliseReviewProgress, describeReviewProgress } from '../../lib/research/review-progress';
+import { priceCallUsd, withAiLedger, currentAiLedger } from '../../lib/research/ai-client';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n');
 
@@ -93,5 +94,35 @@ describe('run 6 (2026-09-07) — the review is visible while it runs, and its st
     // …and follows the project off it when the review ends, because nothing else polls the row.
     expect(page).toContain('onFinished={() => loadProject()}');
     expect(read('app/admin/research/components/RunAiReviewControl.tsx')).toContain('else onFinished?.();');
+  });
+});
+
+describe('the review\'s cost counter sees the app\'s own AI calls (run 6: "$0.00 of $7.00" over 30 calls)', () => {
+  it('callAI books every call, and the analyze route runs the analysis under the project\'s ledger context', () => {
+    const client = read('lib/research/ai-client.ts');
+    expect(client).toContain('recordResearchAiCall({');
+    expect(client).toContain(".from('research_usage_events')");
+    expect(client).toContain("event_type: 'ai_call',");
+    const route = read('app/api/admin/research/[projectId]/analyze/route.ts');
+    expect(route).toContain("const result = await withAiLedger({ projectId, source: 'review' }, () => analyzeProject(projectId, config));");
+    expect(route).toContain("withAiLedger({ projectId, source: 'analysis', userEmail: session?.user?.email ?? null }, () => analyzeProject(projectId, config)).catch(err => {");
+  });
+  it('the context follows the async chain, and pricing falls back to the model family', async () => {
+    expect(currentAiLedger()).toBeUndefined();
+    const seen = await withAiLedger({ projectId: 'p1', source: 'review' }, async () => {
+      await new Promise((r) => setTimeout(r, 1));
+      return currentAiLedger();
+    });
+    expect(seen).toEqual({ projectId: 'p1', source: 'review' });
+    expect(priceCallUsd('claude-opus-5', { input: 1_000_000, output: 0 })).toEqual({ usd: 5, priced: true });
+    expect(priceCallUsd('claude-opus-5-20260301', { input: 1_000_000, output: 0 })).toEqual({ usd: 5, priced: true });
+    expect(priceCallUsd('some-unknown-model', { input: 1_000_000, output: 0 })).toEqual({ usd: 0, priced: false });
+  });
+  it('the coherence passes get 8192 output tokens, and a bare-array answer is named, not read as a verdict', () => {
+    const svc = read('lib/research/analysis.service.ts');
+    expect(svc.split('maxTokens: 8192,').length - 1).toBeGreaterThanOrEqual(3);
+    expect(svc).not.toContain('maxTokens: 4096,');
+    expect(svc).toContain("const finalReview = asReviewObject(pass3Result.response, 'Pass 3', pass3Result.tokensUsed?.output, addLog);");
+    expect(svc).toContain('if (coherenceReview && (!coherencePass || coherencePass === 3)) {');
   });
 });

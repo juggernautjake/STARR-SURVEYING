@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { mayBuyDocuments, paidDocumentsNotice } from '@/lib/research/paid-documents';
 import { analyzeProject, getAnalysisStatus, type FinalizeStage } from '@/lib/research/analysis.service';
+import { withAiLedger } from '@/lib/research/ai-client';
 
 const FINALIZE_STAGES: readonly FinalizeStage[] = ['chain', 'crossref', 'coherence', 'coherence1', 'coherence2', 'coherence3'];
 const isFinalizeStage = (s: unknown): s is FinalizeStage => FINALIZE_STAGES.includes(s as FinalizeStage);
@@ -177,7 +178,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // not sent until the work is done.
   if (isWorker && awaitCompletion) {
     try {
-      const result = await analyzeProject(projectId, config);
+      // Booked to the project as the REVIEW's spend — the review's own cost counter sums these rows.
+      const result = await withAiLedger({ projectId, source: 'review' }, () => analyzeProject(projectId, config));
       return NextResponse.json({ message: 'Analysis call complete', projectId, ...result, via: 'worker-awaited' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -188,7 +190,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Start analysis asynchronously (in-process: per-file, resume, benchmark, or the fallback when
   // the worker cannot be reached).
-  analyzeProject(projectId, config).catch(err => {
+  withAiLedger({ projectId, source: 'analysis', userEmail: session?.user?.email ?? null }, () => analyzeProject(projectId, config)).catch(err => {
     console.error(`[Analysis API] Background analysis failed for ${projectId}:`, err);
   });
 

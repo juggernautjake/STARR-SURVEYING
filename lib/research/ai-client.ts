@@ -4,6 +4,9 @@
 // - Retry with exponential backoff for transient failures
 // - Request timeout handling
 import Anthropic from '@anthropic-ai/sdk';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { estimateCostCents, recordAiUsage } from '@/lib/ai/usage';
+import { supabaseAdmin } from '@/lib/supabase';
 import { PROMPTS, type PromptKey } from './prompts';
 import { modelFor } from '../ai/models';
 
@@ -28,6 +31,73 @@ export interface AICallOptions {
   maxRetries?: number;
   /** Override timeout in ms for this call (default: 120000) */
   timeoutMs?: number;
+}
+
+// ── THE LEDGER ──────────────────────────────────────────────────────────────────────────────
+//
+// Every worker AI call is booked to `research_usage_events`; until 2026-09-07 no app-side call was
+// booked anywhere, so the AI review's own cost counter (which sums that ledger) read $0.00 for a
+// review that made 30 model calls on the app, and the project cost badge undercounted every run.
+// A route that works for a project wraps its work in `withAiLedger`, and every call below books
+// itself to that project. Calls made outside any context are still logged to `ai_usage_log`
+// (surface 'research') so they are at least countable per surface.
+
+export interface AiLedgerContext {
+  projectId: string;
+  /** Which app path made the calls — 'review' (the worker-driven AI review), 'analysis', 'leads'… */
+  source: string;
+  userEmail?: string | null;
+}
+
+const aiLedger = new AsyncLocalStorage<AiLedgerContext>();
+
+/** Run `fn` with every AI call inside it booked to `ctx.projectId`. */
+export function withAiLedger<T>(ctx: AiLedgerContext, fn: () => Promise<T>): Promise<T> {
+  return aiLedger.run(ctx, fn);
+}
+
+/** The context a call is running under, if any (exported for tests). */
+export function currentAiLedger(): AiLedgerContext | undefined {
+  return aiLedger.getStore();
+}
+
+/** Dollars for one call. Prices come from `lib/ai/usage`'s table; a dated model id
+ *  ('claude-opus-5-20260301') is priced by its family. Unknown = $0 and SAID SO in the row. */
+export function priceCallUsd(model: string, tokens: { input: number; output: number }): { usd: number; priced: boolean } {
+  const tryModel = (m: string) => estimateCostCents({ model: m, inputTokens: tokens.input, outputTokens: tokens.output, cacheReadTokens: 0 });
+  const exact = tryModel(model);
+  if (exact != null) return { usd: exact / 100, priced: true };
+  const family = model.replace(/-\d{8}$/, '').replace(/-latest$/, '');
+  const byFamily = family !== model ? tryModel(family) : null;
+  if (byFamily != null) return { usd: byFamily / 100, priced: true };
+  return { usd: 0, priced: false };
+}
+
+/** Book one finished call: to `ai_usage_log` always, and to the project's ledger when a context is
+ *  set. Never throws, never awaited — a failed write is logged, not fatal to the analysis. */
+export function recordResearchAiCall(input: { promptKey: string; promptVersion: string; model: string; tokens: { input: number; output: number }; latencyMs: number }): void {
+  try {
+    recordAiUsage({ role: 'reasoning', model: input.model, surface: 'research', inputTokens: input.tokens.input, outputTokens: input.tokens.output, latencyMs: input.latencyMs });
+  } catch { /* the surface log is best-effort */ }
+  const ctx = aiLedger.getStore();
+  if (!ctx) return;
+  const { usd, priced } = priceCallUsd(input.model, input.tokens);
+  void supabaseAdmin
+    .from('research_usage_events')
+    .insert({
+      research_project_id: ctx.projectId,
+      user_email: ctx.userEmail ?? 'app@system',
+      event_type: 'ai_call',
+      model: input.model,
+      prompt_tokens: Math.round(input.tokens.input),
+      completion_tokens: Math.round(input.tokens.output),
+      total_tokens: Math.round(input.tokens.input + input.tokens.output),
+      cost_usd: Number(usd.toFixed(6)),
+      metadata: { source: ctx.source, prompt_key: input.promptKey, prompt_version: input.promptVersion, ...(priced ? {} : { unpriced_model: true }) },
+    })
+    .then((res: { error: { message: string } | null }) => {
+      if (res.error) console.error(`[ai-client] ledger row not written for ${ctx.projectId}:`, res.error.message);
+    });
 }
 
 export interface AICallResult {
@@ -291,6 +361,14 @@ export async function callAI(options: AICallOptions): Promise<AICallResult> {
       const textBlock = response.content.find(c => c.type === 'text');
       const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '';
 
+      recordResearchAiCall({
+        promptKey: options.promptKey,
+        promptVersion: prompt.version,
+        model: AI_MODEL,
+        tokens: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+        latencyMs,
+      });
+
       return {
         response: parseResponse(rawText),
         raw: rawText,
@@ -364,6 +442,14 @@ export async function callVision(
 
       const textBlock = response.content.find(c => c.type === 'text');
       const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '';
+
+      recordResearchAiCall({
+        promptKey: promptKey,
+        promptVersion: prompt.version,
+        model: AI_MODEL,
+        tokens: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+        latencyMs,
+      });
 
       return {
         response: parseResponse(rawText),
@@ -446,6 +532,14 @@ export async function callDocumentAI(
 
       const textBlock = response.content.find(c => c.type === 'text');
       const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '';
+
+      recordResearchAiCall({
+        promptKey: promptKey,
+        promptVersion: prompt.version,
+        model: AI_MODEL,
+        tokens: { input: response.usage.input_tokens, output: response.usage.output_tokens },
+        latencyMs,
+      });
 
       return {
         response: parseResponse(rawText),

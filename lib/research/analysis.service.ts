@@ -1548,7 +1548,9 @@ export async function analyzeProject(
         accumulateTokens,
         { onlyPass: coherencePass, prior: priorPasses },
       );
-      if (coherenceReview) {
+      // Only a FULL review carries a verdict; a per-pass call (1 or 2) returns that pass alone, and
+      // reading a verdict off it logged "unknown (0/100)" as an error on run 6.
+      if (coherenceReview && (!coherencePass || coherencePass === 3)) {
         const verdict = coherenceReview.overall_verdict as string || 'unknown';
         const score = coherenceReview.overall_score as number || 0;
         const coherenceIssues = (coherenceReview.coherence_issues as unknown[]) || [];
@@ -2094,6 +2096,28 @@ function buildCoherenceInput(
   return { text: sections.join('\n'), byCategory };
 }
 
+/** A coherence pass must answer with an OBJECT. Run 6 (2026-09-07) got a bare array back from passes
+ *  2 and 3 — the answer had been cut off at max_tokens and the parser salvaged the first complete
+ *  array inside it — and the finalize then read "unknown (0/100), 0 issues" off it. Said out loud
+ *  and shaped so the rest of the review can still run. */
+function asReviewObject(
+  raw: unknown,
+  label: string,
+  outputTokens: number | undefined,
+  addLog: (level: AnalysisLogEntry['level'], message: string, detail?: string) => void,
+): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  const why = outputTokens != null && outputTokens >= 4096 ? ` — the answer ran to ${outputTokens} output tokens and was probably cut off` : '';
+  addLog('warn', `${label}: the model's answer was not the expected object (${Array.isArray(raw) ? 'a bare array' : typeof raw})${why}; recorded as unknown.`);
+  return {
+    overall_verdict: 'unknown',
+    overall_score: 0,
+    coherence_issues: Array.isArray(raw) ? raw : [],
+    _malformed: true,
+    ...(typeof raw === 'string' ? { _raw: raw.slice(0, 2000) } : {}),
+  };
+}
+
 /** Truncate content to a max char length with a note. */
 function truncateForAI(content: string, maxChars: number): string {
   if (content.length <= maxChars) return content;
@@ -2139,10 +2163,12 @@ async function runFinalCoherenceReview(
     const pass1Result = await callAI({
       promptKey: 'FINAL_COHERENCE_REVIEWER',
       userContent: truncateForAI(baseInput, 30_000),
-      maxTokens: 4096,
+      // 8192, not 4096: run 6's passes 2 and 3 stopped at exactly 4,096 output tokens, and the
+      // truncated JSON parsed as a bare array — "unknown (0/100), 0 issues" over a real review.
+      maxTokens: 8192,
       timeoutMs: 120_000,
     });
-    pass1 = pass1Result.response as Record<string, unknown>;
+    pass1 = asReviewObject(pass1Result.response, 'Pass 1', pass1Result.tokensUsed?.output, addLog);
     if (pass1Result.tokensUsed) {
       accumulateTokens(pass1Result.tokensUsed);
       addLog('info', `Pass 1 tokens: ${pass1Result.tokensUsed.input} in / ${pass1Result.tokensUsed.output} out`);
@@ -2226,11 +2252,11 @@ async function runFinalCoherenceReview(
   const pass2Result = await callAI({
     promptKey: 'COHERENCE_DEEP_ANALYSIS',
     userContent: truncateForAI(pass2Input, 40_000),
-    maxTokens: 4096,
+    maxTokens: 8192,
     timeoutMs: 150_000,
   });
 
-  pass2 = pass2Result.response as Record<string, unknown>;
+  pass2 = asReviewObject(pass2Result.response, 'Pass 2', pass2Result.tokensUsed?.output, addLog);
   if (pass2Result.tokensUsed) {
     accumulateTokens(pass2Result.tokensUsed);
     addLog('info', `Pass 2 tokens: ${pass2Result.tokensUsed.input} in / ${pass2Result.tokensUsed.output} out`);
@@ -2261,11 +2287,11 @@ async function runFinalCoherenceReview(
   const pass3Result = await callAI({
     promptKey: 'COHERENCE_SYNTHESIS',
     userContent: truncateForAI(pass3Input, 40_000),
-    maxTokens: 4096,
+    maxTokens: 8192,
     timeoutMs: 120_000,
   });
 
-  const finalReview = pass3Result.response as Record<string, unknown>;
+  const finalReview = asReviewObject(pass3Result.response, 'Pass 3', pass3Result.tokensUsed?.output, addLog);
   if (pass3Result.tokensUsed) {
     accumulateTokens(pass3Result.tokensUsed);
     addLog('info', `Pass 3 tokens: ${pass3Result.tokensUsed.input} in / ${pass3Result.tokensUsed.output} out`);
