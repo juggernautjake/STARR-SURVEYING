@@ -17,8 +17,10 @@ const read = (rel: string) => fs.readFileSync(path.join(here, '..', rel), 'utf8'
 describe('T — a completed run says when it finished', () => {
   const src = read('index.ts');
   it('both cached completed payloads carry finishedAt', () => {
-    expect(src).toContain("finishedAt: result.completedAt ?? new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),");
-    expect(src).toContain("finishedAt: new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),");
+    // `PipelineResult` has no completedAt (the county result does) — the 0912adc32 build failed on
+    // the worker host for exactly that, so the generic branch stamps the cache time.
+    expect(src).not.toContain('finishedAt: result.completedAt');
+    expect(src.split("finishedAt: new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),").length - 1).toBe(2);
   });
 });
 

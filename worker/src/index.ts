@@ -3581,7 +3581,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         status: result.status,
         // When it finished — the screen's clock stops here instead of counting on through the
         // review that follows (run 5, 2026-09-07: "1:36:09 / 25:00" over a 9-minute run).
-        finishedAt: result.completedAt ?? new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),
+        finishedAt: new Date(completedResultsCachedAt.get(projectId) ?? Date.now()).toISOString(),
         result: {
           propertyId: result.propertyId,
           geoId: result.geoId,
