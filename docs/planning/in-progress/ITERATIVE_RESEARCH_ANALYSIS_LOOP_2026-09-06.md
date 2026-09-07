@@ -97,11 +97,16 @@ Analyze controls), so the loop reads left-to-right: analyze → see leads → ru
 A button that opens the run-settings dialog PRE-SEEDED with the selected leads (as supplemental), so the user
 sets budget/time and starts round N+1. On complete it lands on Analysis again.
 
-### 3.4 — Round lineage ✅ BUILT (round shown) / per-document lineage deferred
+### 3.4 — Round lineage ✅ BUILT (round shown) → per-document lineage ✅ BUILT 2026-09-06 (evening)
 The panel surfaces the current research round ("Currently on round N"), and the worker bumps + persists
-`researchRound` each follow-up. Tagging each individual DOCUMENT with the round it was found in needs a
-`research_round` column on `research_documents` (a schema change) — deferred until the owner wants
-per-document provenance; the round-level indicator covers the user's "which round am I on" need today.
+`researchRound` each follow-up. **Per-document provenance now too:** seed `632_research_documents_round.sql`
+adds `research_documents.research_round` (nullable, ≥ 1). The run resolves its round once (a follow-up's
+bump — the bookkeeping now RETURNS the round — else the project's current round via
+`research/research-round.ts`), hands it to `beginFiling`, and `resilientInsertDocument` stamps it on every
+row through the one filing path; the fallback row drops the column so a DB without the seed still files.
+The app type carries it; the live document list badges a follow-up's find ("Round N"; round 1 unmarked).
+`research-round-lineage-2026-09-06.test.ts` (10). **Owner: apply seed 632 to live Supabase** (node-pg +
+`SUPABASE_DB_URL`, as for 630/631) — until then the column is absent and every document files without it.
 
 ### 3.5 — Tests ✅ BUILT + TESTED
 The panel renders leads from analysis_metadata; the follow-up button seeds the dialog; the caller wires the
@@ -182,27 +187,74 @@ after the begun purchase, keeping the begun pages if it fails; a `search_require
 collapses to one ledger key per county (lookup skipped for the placeholder, row keyed on the
 instrument the vendor sold, or a per-want key); `run_id` written on purchase rows; the orchestrator
 loads the project library itself when no held index is passed, so prior-round dedup is ON for the
-in-run sites; the early refusal files skip rows. **Noted for the owner:** `run-gather-pipeline.ts`
-/ `gather-orchestrator.ts` / `texasfile-want-buyer.ts` are authored with zero callers; `otherBudgetUsd`
-is only summed into the cap, not metered separately; a plat GUID found by the plat search is
-discarded before the buy (re-searched as an instrument); `coerceRunSettings` drops the budgets;
-the app-side data-point analysis still runs on Vercel after the worker's read pass.
+in-run sites; the early refusal files skip rows. **The five "noted for the owner" items — ALL BUILT
+2026-09-06 (evening), each with tests + caller guards:**
+- **Plat GUID discarded before the buy → FIXED** (`c0b0bdac2`). The search result's GUID rides the
+  manifest (`previewRef`) → `PurchaseRecommendation.vendorRef/vendorProduct/subdivision` → orchestrator
+  hints → adapter → `buyDocument`, which runs the PLAT search for a plat, picks the row by GUID
+  (`chooseTexasFileResult`), prices it flat ($10) and buys through `/plat/`. Library lookup + ledger row
+  key a GUID-only document on `texasfile:<guid>` so a prior round's plat is reused. Review labels use
+  the subdivision + cabinet/slide, never `search_required`. `texasfile-plat-guid-buy-2026-09-06` (17).
+- **`coerceRunSettings` drops the budgets → FIXED** (same commit). purchase-gate now uses the POST's own
+  `normaliseRunSettings`, so the dedicated budgets, the checklist and the phase survive the run-record
+  fallback (the common case at purchase time). purchase-gate +1.
+- **`otherBudgetUsd` not metered → FIXED** (`6111cde72`). `mayBuyFromOtherSource` gates every non-TexasFile
+  vendor (Kofile) in the orchestrator on the second meter; both meters are logged + on the billing
+  summary; the three in-run sites pass `otherBudgetUsd`; the run finish settles both meters from the
+  LEDGER (`ledgerSpendByBucket`) onto `research_runs.budget_summary`; the app's run console, cost route
+  and cost badge split TexasFile from other sources. `other-sources-budget-is-metered-2026-09-06` (8) +
+  gather-budget +4, ledger-spend +3, run-console +1.
+- **Zero-caller gather engine → RETIRED** (`aebbcca4b`). `run-gather-pipeline` / `gather-orchestrator` /
+  `texasfile-want-buyer` / `acquisition-wantlist` + their 4 tests deleted; superseded by the checklist
+  wants + cross-source engine + the orchestrator with both meters. `gather-budget.ts` stays (reached).
+- **App-side analysis frozen on Vercel → FIXED** (worker-driven, see the commit
+  "the worker DRIVES the app's data-point analysis"). `analyzeProject` gains `skipFinalization` (a chunk
+  stops before chain-of-title / cross-ref / coherence, project stays `analyzing`); the analyze route
+  AWAITS a worker call with `awaitCompletion` (maxDuration 60 → 300); `drive-app-analysis.ts` runs one
+  awaited call per readable document with the REMAINING cap from the ledger, then one `{resume}`
+  finalize that ends at `review`. A spent cap skips the rest and still finalises; a failed chunk is
+  counted and the run goes on. `drive-app-analysis-2026-09-06` (10).
 
 ### 6.8 — Still in the log, not changed
 Bell CAD (`esearch.bellcad.org`) and the Bell plat repository (`bellcountytx.com`, 403 on both
 egress routes — "unreachable-by-policy") did not answer; FEMA returned no zone (likely Zone X); the
-tax scraper failed on the CAD host; the CAD deed row logged `Instr#undefined`; Stage1D still spends
-one AI call (13 s) on address variants inside the CAD scraper (search assistance, left on).
+tax scraper failed on the CAD host; ~~the CAD deed row logged `Instr#undefined`~~ (**FIXED** `c0b0bdac2`:
+an older deed has a volume/page and no instrument; the log prints the reference the row has); Stage1D
+still spends one AI call (13 s) on address variants inside the CAD scraper (search assistance, left on).
+
+### 6.9 — What retiring the dead code found (2026-09-06 evening, `8f97cab8c`)
+Plan 6.6's dead code is gone: the `{false && …}` review-doc-list, `ReviewDocCard.tsx`, `getNextStep` /
+`canAdvance`, the unused imports (98 lines off `page.tsx`). Retiring the card THROUGH ITS GUARDS found the
+live list (`AnalysisEstimatePanel`) had dropped the card's readability badges — "Unreadable" / "Thin text"
+with the reason as tooltip + the OCR confidence label — so an unreadable deed rendered like one still
+waiting. Ported onto the live row; the two source guards re-pointed. Cleaning the dead imports then exposed
+two components the page had imported and never rendered since 2026-03-16 (`b675d5d30`): `AnalysisSummary`
+(deleted — `DataPointsPanel` superseded it) and **`DocumentDeepAnalysisPanel` — the ONLY caller of the
+980-line `/documents/[docId]/deep-analyze` route** (structured legal-description + plat AI reading, per
+document). Recorded in the reachability allowlist as an **OWNER CALL: mount it on the Analysis stage as a
+third per-document action, or drop the route + `document-analysis.service` with it.** Not wired blind.
+Two pre-existing red guards on this branch were REAL, not debt: the rendered-classes ratchet (455 > 454:
+the new View button + `leads-panel__group` had no CSS rule — styled, baseline now 452) and the
+pipeline-note guard (pinned "analyze never contacts the worker", which 6.2 changed on purpose — re-pinned
+to the new truth in both directions).
 
 ## PHASE 5 — Verification (then owner merge + worker rebuild)
 
-### 5.1 — Green + build
-Full worker + app suites green; tsc + lint clean; `npm run build` clean.
+### 5.1 — Green + build ✅ 2026-09-06 (evening)
+Worker suite 215 files / 2861 green; app `__tests__/research` 156 files / 2559 green; worker + app tsc clean;
+eslint clean on every edited file. Full app suite + `npm run build` run at the end of the session — result
+recorded in the READY note below.
 
-### 5.2 — Self-review (check the CALLER)
-Analysis actually compiles + persists leads; the panel mounts + reads them; the follow-up run seeds the target;
-the deep-read is user-only. No authored-but-not-wired gaps.
+### 5.2 — Self-review (check the CALLER) ✅
+Every slice this evening ships with a caller guard (the file that USES the module, not the module): the
+plat GUID at every hop, the other-sources meter at the three purchase sites + run finish + app routes,
+the round at run → filing context → insert → type → badge, the worker-driven analysis on both sides of
+the HTTP boundary. Two guards that were green against DEAD code (ReviewDocCard) now point at the live
+list. One authored-but-unrendered component remains, by decision, recorded (6.9).
 
 ### 5.3 — Ready-for-owner note
-Annotate READY; owner merges, rebuilds the worker (only when `activePipelines=0`), and drives the loop on 1401
-North East St. Then move this doc to `completed/`.
+**READY 2026-09-06 (evening).** Nine commits on the branch this evening (`c0b0bdac2` → the worker-driven
+analysis). Owner: (1) merge (compare URL in the handoff); (2) rebuild the worker **only when
+`/healthz activePipelines=0`**; (3) apply seed 632 to live Supabase; (4) drive the loop on 1401 North East
+St — the first paid plat buy is the live proof of the GUID thread; (5) decide `DocumentDeepAnalysisPanel`
+(6.9). Then move this doc to `completed/`.
