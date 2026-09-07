@@ -60,6 +60,13 @@ export async function beginFiling(
   return ctx;
 }
 
+/** What the run has filed SO FAR, without ending the filing — for a summary written before the
+ *  run's tail closes the context (plan PLATS_FIRST_AND_VIEWER 3.3: "Finished with 0 documents"
+ *  was said of a run that filed five). */
+export function filingTallySoFar(projectId: string): FilingTally | null {
+  return filingContexts.get(projectId)?.tally ?? null;
+}
+
 /** End a run's filing and hand back what deduplication actually did. */
 export function endFiling(projectId: string): FilingTally | null {
   const ctx = filingContexts.get(projectId);

@@ -157,6 +157,34 @@ export function normaliseSubdivisionName(name: string | null | undefined): strin
     .trim();
 }
 
+/**
+ * Is this plat row the plat for the parcel's subdivision? (plan PLATS_FIRST_AND_VIEWER 1.5 — "really
+ * determine if we are finding the correct subdivision plat".) At buy time the evidence is the plat
+ * index itself: its Subdivision Name against the CAD's legal-description subdivision, both
+ * normalised ("WINNIE MAE ADD" ≡ "WINNIE MAE ADDITION"), plus the cabinet/slide and filing date the
+ * row states. `exact` = the names agree; `partial` = one contains the other (a replat / phase of the
+ * same subdivision, or a survey-name hit); `none` = a different name — logged, and left for the
+ * Analyze run's reading of the page itself to confirm.
+ */
+export function platMatchVerdict(
+  row: Pick<TexasFileResult, 'name' | 'subdivision' | 'bookVolPage' | 'date'>,
+  targetSubdivision: string | null | undefined,
+): { verdict: 'exact' | 'partial' | 'none' | 'unchecked'; line: string } {
+  const rowName = normaliseSubdivisionName(row.name ?? row.subdivision ?? '');
+  const target = normaliseSubdivisionName(targetSubdivision ?? '');
+  const where = [row.bookVolPage ? `cabinet/slide ${row.bookVolPage}` : null, row.date ? `filed ${row.date}` : null].filter(Boolean).join(', ');
+  if (!target || !rowName) {
+    return { verdict: 'unchecked', line: `Plat filed (${rowName || 'unnamed'}${where ? `; ${where}` : ''}) — no subdivision to check it against; the Analyze run reads the page.` };
+  }
+  if (rowName === target) {
+    return { verdict: 'exact', line: `Plat verified: the index names "${rowName}", the CAD legal description names "${target}"${where ? ` — ${where}` : ''}.` };
+  }
+  if (rowName.includes(target) || target.includes(rowName)) {
+    return { verdict: 'partial', line: `Plat likely right: the index names "${rowName}" vs the CAD's "${target}" (a phase/replat or a wider name)${where ? ` — ${where}` : ''}; the Analyze run confirms from the page.` };
+  }
+  return { verdict: 'none', line: `Plat NOT verified: the index names "${rowName}" but the CAD legal description names "${target}"${where ? ` — ${where}` : ''}. Check it before relying on it.` };
+}
+
 /** Pages + price from the Purchase tooltip or the detail row. */
 export function parsePagesAndPrice(tooltip: string, detail: string): { pages: number | null; priceUsd: number | null } {
   const tip = tooltip.match(/purchase\s+(\d+)\s+pages?\s+for\s+\$\s*([\d,]+(?:\.\d+)?)/i);

@@ -78,6 +78,12 @@ export function extractSubdivisionName(legalDescription: string | null | undefin
     const name = accept(spaceBefore[1]);
     if (name) return name;
   }
+  // "LOT 1 MEADOWBROOK SECTION 4" — a lot (or block) alone, then the name.
+  const spaceAfterOne = desc.match(new RegExp(`^(?:${LOT}|${BLOCK})\\s+(.+?)(?:\\s*,.*)?$`));
+  if (spaceAfterOne) {
+    const name = accept(spaceAfterOne[1]);
+    if (name) return name;
+  }
 
   // 4. A keyword name with no lot/block clause at all ("OAK CREEK ADDITION" / "… SUBDIVISION, ACRES 2").
   const keyword = desc.match(/^(.+?\b(?:ADDITION|ADDN?|SUBDIVISION|SUBD?|ESTATES?|ESTS?|HEIGHTS|HTS|VILLAGE|RANCH|REPLAT)(?:\s+(?:NO\.?\s*)?\d+[A-Z]?)?(?:\s+(?:PHASE|PH|SECTION|SEC|UNIT)\s*\d+[A-Z]?)?)\b/);

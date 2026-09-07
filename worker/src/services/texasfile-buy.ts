@@ -27,7 +27,7 @@
 import type { Browser, Page } from 'playwright';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import type { PipelineLogger } from '../lib/logger.js';
-import { extractTexasFileRawRows, instrumentsMatch, normaliseSubdivisionName, parseTexasFileRow } from './texasfile-rows.js';
+import { extractTexasFileRawRows, instrumentsMatch, normaliseSubdivisionName, parseTexasFileRow, platMatchVerdict } from './texasfile-rows.js';
 import { capturePdfPages, documentIdFromBegin, type TexasFileBeginBody } from './texasfile-pdf.js';
 import { texasFileNameVariants } from './texasfile-names.js';
 
@@ -490,6 +490,12 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       if (bought.method && bought.method !== 'page-urls') log.info('TexasFile', `Pages produced by ${bought.method}${bought.pdfUrl ? ' from the document PDF' : ''}.`);
 
       log.info('TexasFile', `Bought ${pages.length} page(s) for ${chosen.instrument ?? chosen.guid} — balance now ${bought.balance ?? '?'}.`);
+      // Is it the RIGHT plat? The index's own name against the CAD's subdivision (plan 1.5). The
+      // page text itself is read in the Analyze run; this is what can be said at buy time.
+      if (product === 'plat') {
+        const check = platMatchVerdict(chosen, input.subdivision);
+        if (check.verdict === 'none') log.warn('TexasFile', check.line); else log.info('TexasFile', check.line);
+      }
       return {
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
         pageCount: pages.length, costUsd: price ?? pages.length, balanceAfter: bought.balance,

@@ -34,6 +34,38 @@ Also: **"The activity log in the activity tab needs a copy button to copy all of
 And (screenshot): **the Analysis-stage rows' "Analyze this" / "View" buttons must line up** whether or not
 the row has a "Source ↗" link.
 
+## STATUS — 2026-09-07, end of the build session
+
+**Phases 1–5 are BUILT, tested and pushed** on `claude/plats-first-viewer-2026-09-07` (ten commits,
+`d32477680` → the last). Worker suite 222 files / 2959 green; app suite 28k green (the one red,
+`phase1-discovery › handles section names`, was the unified parser missing "LOT 1 NAME SECTION 4" —
+fixed); `npm run build` green; tsc + eslint clean on both sides.
+
+| Slice | State | Where |
+|---|---|---|
+| 1.1 ids from `preview_url`/`retrieval_url`; complete via `preview_url` | ✅ | `texasfile-pdf.ts`, `purchaseTexasFile` |
+| 1.2 pages from the viewer's PDF — `pdftoppm` (Dockerfile) + viewer-canvas fallback | ✅ | `capturePdfPages`; `Dockerfile` (`poppler-utils`) |
+| 1.3 owned document re-opens for $0, never re-bought | ✅ live-proved: 1 page, cost $0, wallet $57 unchanged | `owned` on rows; `purchaseTexasFile(... { owned })` |
+| 1.4 two index rows = one plat | ✅ | cluster by cabinet/slide; planner takes the $0 owned source |
+| 1.5 the RIGHT plat — index name vs CAD subdivision, cabinet/slide, date, logged at buy time | ✅ (page-text read is the Analyze run's) | `platMatchVerdict` |
+| 2.1 buy BEFORE the captures | ✅ | `onPropertyIdentified` in `index.ts` |
+| 2.2 plats first, newest first, then the rest; order said in the log | ✅ | `plats-first.ts` |
+| 2.3 no plat → the comparison pass (unchanged behaviour, now stated) | ✅ | early pass "nothing paid-exclusive" line |
+| 2.4 owner-name variants TexasFile answers | ✅ | `texasfile-names.ts`; `buyDocument` retries; discovery submits LAST FIRST per party |
+| 2.5 a held deed is not bought again | ✅ | final pass hands `knownDocuments` + subdivision to the wants |
+| 2.6 $10 TexasFile default | ✅ | `RerunDialog` FALLBACK |
+| 3.1 CAD deed history keeps the subject's deed | ✅ | `inCadDeedHistory` (+60) |
+| 3.2 host circuit per transport | ✅ | `host-circuit.ts` `direct`/`browser` |
+| 3.3 the summary counts what was FILED | ✅ | `filingTallySoFar`; Results line + `documentCount` |
+| 3.4 `.js` import; run-scoped meter | ✅ | commit 1 |
+| 4.1–4.3 ‹ title › arrows, every stage's list, every file viewable | ✅ | `SourceDocumentViewer`, three mounts, `AnalysisEstimatePanel` |
+| 4.4 aligned row buttons | ✅ | fixed grid columns |
+| 5.1 Activity "Copy all" | ✅ | `ResearchRunView` |
+| 6.1–6.3 delete + recreate + the new run + the loop | ⏳ **needs the merge** (Dockerfile change → image rebuild) | owner |
+
+**Owner: say "merge"** → main fast-forwards, Vercel deploys the app, the netcup timer rebuilds the
+worker image (now with poppler); then 6.1–6.3 run in the product with the log watched.
+
 ## What the 2026-09-07 run (run 2, project 7b2ca89c…, PID 64567, "WINNIE MAE ADDITION, BLOCK 001, LOT 4")
 ## proved, and what it exposed — every item below is a slice
 

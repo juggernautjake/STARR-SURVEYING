@@ -32,6 +32,7 @@ const cases: Array<[string, string | null]> = [
   ['LOT 5 BLK 2 OAK CREEK ADDN', 'OAK CREEK ADDITION'],
   ['WINNIE MAE ADDITION LOT 4 BLK 1', 'WINNIE MAE ADDITION'],
   ['LAKESIDE VILLAGE BLK 3 LOT 12', 'LAKESIDE VILLAGE'],
+  ['LOT 1 MEADOWBROOK SECTION 4', 'MEADOWBROOK SECTION 4'],
   // No block
   ['WINNIE MAE ADDITION, LOT 4', 'WINNIE MAE ADDITION'],
   // Keyword name with no lot/block clause

@@ -25,7 +25,7 @@ import { runAdjacentResearch, type FullCrossValidationReport } from './services/
 import { describePersist, persistAdjoiners, type AdjoinerInput } from './infra/adjoiner-persistence.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
-import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
+import { uploadPipelineArtifacts, beginFiling, endFiling, filingTallySoFar, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
@@ -538,7 +538,9 @@ async function persistCountyResults(
       surveyName: property.surveyName || null,
       // E1 — the county's parcel polygon, so the review page can draw the actual lot outline.
       parcelBoundary: property.parcelBoundary ?? null,
-      documentCount: deedCount + platCount,
+      // Never fewer than the run actually FILED (plan 3.3): the relevance check may keep 0 of the
+      // deeds it read while five documents sit on the shelf — the screen then said "0 documents".
+      documentCount: Math.max(deedCount + platCount, (filingTallySoFar(projectId)?.filed ?? 0) + (filingTallySoFar(projectId)?.merged ?? 0)),
       duration_ms: r.durationMs,
       deedSummary: r.deedsAndRecords.summary || null,
       platSummary: r.plats.summary || null,
@@ -2866,8 +2868,16 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         const discrepancyCount = r.discrepancies?.length ?? 0;
         const screenshotCount = r.screenshots?.length ?? 0;
 
+        // What the run FILED, beside what the relevance check kept: on 2026-09-07 the summary said
+        // "0 deed record(s)" and "Finished with 0 documents" of a run that had filed five (the
+        // heuristic had removed both deeds; the files were on the shelf regardless).
+        const tallySoFar = filingTallySoFar(projectId);
+        const filedNow = (tallySoFar?.filed ?? 0) + (tallySoFar?.merged ?? 0);
+        const filedNote = tallySoFar
+          ? ` — ${filedNow} document(s) filed this run (${tallySoFar.filed} new, ${tallySoFar.merged} already held)`
+          : '';
         handshakeLogger.attempt('Results', 'info', 'Documents Found', `${deedCount} deeds, ${platCount} plats`)
-          .success(deedCount + platCount, `${deedCount} deed record(s) and ${platCount} plat record(s) retrieved from county clerk`);
+          .success(Math.max(deedCount + platCount, filedNow), `${deedCount} deed record(s) and ${platCount} plat record(s) kept from county clerk${filedNote}`);
 
         if (femaResult) {
           handshakeLogger.attempt('Results', 'info', 'FEMA Flood Zone', `Zone: ${femaResult.floodZone}`)

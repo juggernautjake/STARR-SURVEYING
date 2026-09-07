@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   canonicalInstrument, instrumentsMatch, normaliseSubdivisionName, parseLegal, parsePagesAndPrice,
-  parseTexasFileRow, fieldsOf, type RawTexasFileRow,
+  parseTexasFileRow, fieldsOf, platMatchVerdict, type RawTexasFileRow,
 } from '../services/texasfile-rows.js';
 import { chooseTexasFileResult, priceTexasFileResult, type TexasFileResult } from '../services/texasfile-buy.js';
 import { texasFileResultToManifest, texasFilePlatResultToManifest } from '../research/live-source-adapters.js';
@@ -205,3 +205,28 @@ describe('WIRED: the live searches use the column extractor, not the text scrape
 // The literal shape the fixtures assert on, so a future TexasFileResult change is a conscious one.
 const _shape: TexasFileResult = parseTexasFileRow(subjectDeed, 'instrument');
 void _shape;
+
+describe('platMatchVerdict — is it the RIGHT plat? (plan 1.5)', () => {
+  const row = { name: 'WINNIE MAE ADDITION', subdivision: 'WINNIE MAE ADDITION', bookVolPage: 'A/166A', date: '09/21/1954' };
+  it('exact when the index name equals the CAD subdivision (abbreviations normalised)', () => {
+    const v = platMatchVerdict({ ...row, name: 'WINNIE MAE ADDITION' }, 'WINNIE MAE ADD');
+    expect(v.verdict).toBe('exact');
+    expect(v.line).toContain('Plat verified');
+    expect(v.line).toContain('cabinet/slide A/166A, filed 09/21/1954');
+  });
+  it('partial for a phase/replat of the same subdivision', () => {
+    expect(platMatchVerdict({ ...row, name: 'WINNIE MAE ADDITION REPLAT' }, 'WINNIE MAE ADDITION').verdict).toBe('partial');
+  });
+  it('none for a different subdivision, said as a warning', () => {
+    const v = platMatchVerdict({ ...row, name: 'FRENCH ADDITION' }, 'WINNIE MAE ADDITION');
+    expect(v.verdict).toBe('none');
+    expect(v.line).toContain('NOT verified');
+  });
+  it('unchecked when there is no subdivision to compare against', () => {
+    expect(platMatchVerdict(row, null).verdict).toBe('unchecked');
+  });
+  it('buyDocument logs the verdict after a plat purchase (check the CALLER)', () => {
+    const src = read('services/texasfile-buy.ts');
+    expect(src.replace(/\r\n/g, '\n')).toContain("if (product === 'plat') {\n        const check = platMatchVerdict(chosen, input.subdivision);");
+  });
+});
