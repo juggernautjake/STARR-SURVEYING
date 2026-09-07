@@ -107,3 +107,28 @@ describe('the Activity tab copies the whole log', () => {
     expect(text).toContain('TexasFile: Purchase returned no images');
   });
 });
+
+describe('the Review stage: a Documents tab lists every file with View (owner, 2026-09-07)', () => {
+  const page = read('app/admin/research/[projectId]/page.tsx');
+  const list = read('app/admin/research/components/ReviewDocumentsList.tsx');
+  it('page.tsx mounts ReviewDocumentsList on a review tab and opens the shared viewer (check the CALLER)', () => {
+    expect(page).toContain("import ReviewDocumentsList from '../components/ReviewDocumentsList';");
+    expect(page).toContain("reviewTab === 'documents' && (");
+    expect(page).toContain('<ReviewDocumentsList');
+    expect(page).toContain("tab === 'documents'");
+    // The tab strip offers it.
+    expect(page).toContain("(['summary', 'documents', 'property', 'survey', 'easements', 'neighbours', 'discrepancies', 'artifacts', 'packet'] as const)");
+  });
+  it('every row has a View into the viewer or an honest "no file", plus Source where known', () => {
+    expect(list).toContain('data-testid="review-doc-row"');
+    expect(list).toContain('data-testid="review-doc-view"');
+    expect(list).toContain('onClick={() => onView(doc)}');
+    expect(list).toContain('className="review-docs__pending"');
+    expect(list).toContain('className="rrv__doc-source"');
+  });
+  it('the columns are fixed on the route sheet so the buttons line up', () => {
+    const css = read('app/admin/styles/AdminResearch.css');
+    expect(css).toContain('.review-docs__row {');
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) 3.25rem 4.75rem 4.75rem;');
+  });
+});

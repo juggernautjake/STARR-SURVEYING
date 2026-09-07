@@ -21,6 +21,7 @@ import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas'
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
+import ReviewDocumentsList from '../components/ReviewDocumentsList';
 import ProjectCostBadge from '../components/ProjectCostBadge';
 import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
@@ -177,7 +178,7 @@ export default function ResearchProjectPage() {
   const [pendingRunInput, setPendingRunInput] = useState<StartRunInput | null>(null);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'neighbours' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
+  const [reviewTab, setReviewTab] = useState<'summary' | 'documents' | 'property' | 'survey' | 'easements' | 'neighbours' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
   // Scroll target for the Quick-stats actionable tiles (Slice C4).
   // Tapping Data Points / Discrepancies / Resolved jumps to the
   // review summary panel and switches to the relevant tab so the
@@ -2089,13 +2090,14 @@ export default function ResearchProjectPage() {
           <div className="review-summary-panel" ref={reviewPanelRef}>
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
-              {(['summary', 'property', 'survey', 'easements', 'neighbours', 'discrepancies', 'artifacts', 'packet'] as const).map(tab => (
+              {(['summary', 'documents', 'property', 'survey', 'easements', 'neighbours', 'discrepancies', 'artifacts', 'packet'] as const).map(tab => (
                 <button
                   key={tab}
                   className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
                   onClick={() => setReviewTab(tab as typeof reviewTab)}
                 >
                   {tab === 'summary'       && <><BarChart3 size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Summary</>}
+                  {tab === 'documents'     && <><FileText size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Documents{documents.length > 0 && <span className="review-summary-panel__tab-badge">{documents.length}</span>}</>}
                   {tab === 'property'      && <><Home size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Property Info</>}
                   {tab === 'survey'        && <><DraftingCompass size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Survey Data</>}
                   {tab === 'easements'     && <><Route size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Easements</>}
@@ -2116,6 +2118,21 @@ export default function ResearchProjectPage() {
                   R25 built the packet and R26 put it on the job, but nothing let anybody CHOOSE
                   what goes in one — so the whole deliverable path was unreachable in practice. */}
               {reviewTab === 'packet' && <PacketBuilderPanel projectId={projectId} />}
+
+              {/* ── Tab: Documents (owner, 2026-09-07) — every file the project holds, each with View
+                  into the dedicated viewer (whose ‹ › arrows walk this same list) and Source ↗. Before
+                  this, the Review stage could open a document only from a data point's "view source"
+                  link or the artifact gallery — a deed nobody had extracted from was unreachable. */}
+              {reviewTab === 'documents' && (
+                <ReviewDocumentsList
+                  docs={documents}
+                  onView={(doc) => {
+                    setViewerDoc(doc);
+                    setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                    setViewerHighlight(undefined);
+                  }}
+                />
+              )}
 
               {/* ── Tab: Neighbours ──
                   The adjoiners the run identified, ranked by what is on file for them, with the
