@@ -35,10 +35,11 @@ describe('driveAppAnalysis — one awaited call per document, then one finalize'
   it('chunks in document order, each a resume + skipFinalization call, then finalises', async () => {
     const h = harness();
     const r = await driveAppAnalysis(h.input);
-    // Three finalize STAGES follow the chunks (2026-09-07): chain → crossref → coherence.
-    expect(h.calls.map((c) => c.documentId)).toEqual(['d1', 'd2', 'd3', undefined, undefined, undefined]);
+    // Five finalize STAGES follow the chunks (2026-09-07): chain → crossref → the coherence review a pass
+    // at a time (as ONE stage it outran Vercel's 300 s on run 6).
+    expect(h.calls.map((c) => c.documentId)).toEqual(['d1', 'd2', 'd3', undefined, undefined, undefined, undefined, undefined]);
     expect(h.calls.slice(0, 3).every((c) => c.resume === true && c.skipFinalization === true)).toBe(true);
-    expect(h.calls.slice(3).map((c) => c.finalizeStage)).toEqual(['chain', 'crossref', 'coherence']);
+    expect(h.calls.slice(3).map((c) => c.finalizeStage)).toEqual(['chain', 'crossref', 'coherence1', 'coherence2', 'coherence3']);
     expect(h.calls[3]).toEqual({ resume: true, finalizeStage: 'chain', maxCostUsd: undefined });
     expect(r).toMatchObject({ documents: 3, chunks: 3, chunkFailures: 0, skippedAtCap: 0, finalized: true });
   });
@@ -47,8 +48,8 @@ describe('driveAppAnalysis — one awaited call per document, then one finalize'
     const h = harness({ spendPerCall: 1.5 });
     const r = await driveAppAnalysis({ ...h.input, maxCostUsd: 2 });
     // d1 gets the full $2; d2 gets $0.50; d3 is skipped (cap spent); finalize gets $0.
-    expect(h.calls.map((c) => c.maxCostUsd)).toEqual([2, 0.5, 0, 0, 0]);
-    expect(h.calls.map((c) => c.documentId)).toEqual(['d1', 'd2', undefined, undefined, undefined]);
+    expect(h.calls.map((c) => c.maxCostUsd)).toEqual([2, 0.5, 0, 0, 0, 0, 0]);
+    expect(h.calls.map((c) => c.documentId)).toEqual(['d1', 'd2', undefined, undefined, undefined, undefined, undefined]);
     expect(r).toMatchObject({ chunks: 2, skippedAtCap: 1, finalized: true });
     expect(r.statement).toContain('1 skipped at the cost cap');
   });

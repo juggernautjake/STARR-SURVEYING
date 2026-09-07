@@ -29,8 +29,8 @@ export interface TriggerAppAnalysisOptions {
   resume?: boolean;
   /** Stop after storing this call's points — the finalize call does the cross-document work. */
   skipFinalization?: boolean;
-  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → 'coherence'. */
-  finalizeStage?: 'chain' | 'crossref' | 'coherence';
+  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → 'coherence1' → 'coherence2' → 'coherence3'. */
+  finalizeStage?: 'chain' | 'crossref' | 'coherence' | 'coherence1' | 'coherence2' | 'coherence3';
   /** Ask the route to run the call and answer when it is done (not fire-and-forget). */
   awaitCompletion?: boolean;
   /** How long to wait for the app's answer. An awaited chunk needs the route's full maxDuration. */

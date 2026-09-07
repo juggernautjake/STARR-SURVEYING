@@ -41,6 +41,13 @@ import { normaliseReviewProgress, reviewPercent, type ReviewStatus } from './rev
 
 // ── Analysis Configuration ──────────────────────────────────────────────────
 
+/** One stage of the finalize the worker asks for at a time (2026-09-07). The coherence review is three
+ *  model passes over everything extracted; as ONE stage it outran Vercel's 300-second function on run 6
+ *  (HTTP 504 after chain and crossref had landed), so each pass is its own stage — the earlier passes'
+ *  results ride on `analysis_metadata.coherence_passes` between calls. Plain 'coherence' still runs all
+ *  three in one call for the in-app path. */
+export type FinalizeStage = 'chain' | 'crossref' | 'coherence' | 'coherence1' | 'coherence2' | 'coherence3';
+
 export interface AnalysisConfig {
   extractCategories: Record<string, boolean>;
   templateId?: string;
@@ -72,7 +79,7 @@ export interface AnalysisConfig {
    * a stage at a time: 'chain' → 'crossref' → 'coherence'. Only the last stage ends the project at
    * `review`; the others leave it at `analyzing` with the log carried on. Never set by a person.
    */
-  finalizeStage?: 'chain' | 'crossref' | 'coherence';
+  finalizeStage?: FinalizeStage;
 
   /**
    * BENCHMARK mode — the one-off calibration run that SETS the standardized $/page rate. It runs with
@@ -1422,7 +1429,9 @@ export async function analyzeProject(
     // Which finalize stages this call runs (2026-09-07): all of them for a person's button or a
     // resume; exactly one for a worker stage call.
     const stage = config?.finalizeStage;
-    const runs = (s: 'chain' | 'crossref' | 'coherence') => !stage || stage === s;
+    const runs = (s: FinalizeStage) => !stage || stage === s;
+    // Which coherence pass this call runs, when the worker asks for one pass at a time.
+    const coherencePass: 1 | 2 | 3 | undefined = stage === 'coherence1' ? 1 : stage === 'coherence2' ? 2 : stage === 'coherence3' ? 3 : undefined;
     if (stage) addLog('info', `Finalize stage "${stage}" — the worker runs the finalize a stage at a time so each fits one invocation.`);
 
     // 4b. Chain-of-title: follow Volume/Page and Instrument references (Layer 2E)
@@ -1506,7 +1515,7 @@ export async function analyzeProject(
 
     // A stage call that is not the last one ends here: points and discrepancies are stored, the
     // project stays at `analyzing`, the log carries on into the next stage's call.
-    if (stage && stage !== 'coherence') {
+    if (stage && stage !== 'coherence' && !coherencePass) {
       addLog('info', `Finalize stage "${stage}" complete.`);
       await persistLogs({
         estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
@@ -1522,6 +1531,12 @@ export async function analyzeProject(
     await persistLogs();
 
     let coherenceReview: Record<string, unknown> | null = null;
+    // The passes an earlier stage call already ran, for a per-pass call.
+    let priorPasses: { pass1?: Record<string, unknown>; pass2?: Record<string, unknown> } = {};
+    if (coherencePass) {
+      const { data: passRow } = await supabaseAdmin.from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+      priorPasses = ((passRow?.analysis_metadata as Record<string, unknown> | null)?.coherence_passes ?? {}) as typeof priorPasses;
+    }
     try {
       coherenceReview = await runFinalCoherenceReview(
         projectId,
@@ -1531,6 +1546,7 @@ export async function analyzeProject(
         logs,
         addLog,
         accumulateTokens,
+        { onlyPass: coherencePass, prior: priorPasses },
       );
       if (coherenceReview) {
         const verdict = coherenceReview.overall_verdict as string || 'unknown';
@@ -1585,6 +1601,21 @@ export async function analyzeProject(
       }
     } catch (err) {
       addLog('warn', 'Coherence review failed — continuing without it', err instanceof Error ? err.message : String(err));
+    }
+
+    // A per-pass call ends here: the pass result is kept for the next stage call and the project stays
+    // at `analyzing`. Only pass 3 (or the whole review in one call) completes the analysis below.
+    if (coherencePass === 1 || coherencePass === 2) {
+      const key = `pass${coherencePass}` as 'pass1' | 'pass2';
+      await persistLogs({
+        coherence_passes: { ...priorPasses, [key]: (coherenceReview?.[key] as Record<string, unknown> | undefined) ?? null },
+        estimated_cost_usd: estimateAnalysisCostUsd(tokenUsage),
+        cost_cap_usd: analyzeCostCapUsd ?? null,
+      });
+      addLog('info', `Finalize stage "${stage}" complete.`);
+      clearInterval(heartbeatTimer);
+      clearTimeout(watchdogTimer);
+      return { dataPointCount: allDataPoints.length, discrepancyCount: allDiscrepancies.length };
     }
 
     const completedAt = new Date().toISOString();
@@ -2085,6 +2116,9 @@ async function runFinalCoherenceReview(
   logs: AnalysisLogEntry[],
   addLog: (level: AnalysisLogEntry['level'], message: string, detail?: string) => void,
   accumulateTokens: (used: { input: number; output: number }) => void,
+  /** Run ONE pass (the worker's per-stage calls, 2026-09-07) with the earlier passes' results carried in;
+   *  absent = all three passes in this call. Pass 1 and 2 return `{ _pass, pass1 | pass2 }`. */
+  opts: { onlyPass?: 1 | 2 | 3; prior?: { pass1?: Record<string, unknown>; pass2?: Record<string, unknown> } } = {},
 ): Promise<Record<string, unknown> | null> {
   if (dataPoints.length === 0 && documents.length === 0) {
     addLog('info', 'Skipping coherence review — no data to review');
@@ -2096,26 +2130,36 @@ async function runFinalCoherenceReview(
   addLog('info', `Coherence review input: ${documents.length} docs, ${dataPoints.length} data points, ${discrepancies.length} discrepancies, ${logs.length} log entries`);
 
   // ── Pass 1: Broad quality assessment ──────────────────────────────────
-  addLog('info', 'Coherence Pass 1/3 — broad quality assessment...');
-
-  const pass1Result = await callAI({
-    promptKey: 'FINAL_COHERENCE_REVIEWER',
-    userContent: truncateForAI(baseInput, 30_000),
-    maxTokens: 4096,
-    timeoutMs: 120_000,
-  });
-
-  const pass1 = pass1Result.response as Record<string, unknown>;
-  if (pass1Result.tokensUsed) {
-    accumulateTokens(pass1Result.tokensUsed);
-    addLog('info', `Pass 1 tokens: ${pass1Result.tokensUsed.input} in / ${pass1Result.tokensUsed.output} out`);
+  let pass1: Record<string, unknown>;
+  if (opts.prior?.pass1 && opts.onlyPass !== 1) {
+    pass1 = opts.prior.pass1;
+    addLog('info', 'Coherence Pass 1/3 — carried over from the previous stage call.');
+  } else {
+    addLog('info', 'Coherence Pass 1/3 — broad quality assessment...');
+    const pass1Result = await callAI({
+      promptKey: 'FINAL_COHERENCE_REVIEWER',
+      userContent: truncateForAI(baseInput, 30_000),
+      maxTokens: 4096,
+      timeoutMs: 120_000,
+    });
+    pass1 = pass1Result.response as Record<string, unknown>;
+    if (pass1Result.tokensUsed) {
+      accumulateTokens(pass1Result.tokensUsed);
+      addLog('info', `Pass 1 tokens: ${pass1Result.tokensUsed.input} in / ${pass1Result.tokensUsed.output} out`);
+    }
   }
 
   const pass1Score = (pass1.overall_score ?? 0) as number;
   const pass1Verdict = (pass1.overall_verdict ?? 'unknown') as string;
   addLog('info', `Pass 1 result: ${pass1Verdict} (${pass1Score}/100), ${((pass1.coherence_issues ?? []) as unknown[]).length} issues, ${((pass1.pipeline_issues ?? []) as unknown[]).length} pipeline issues`);
+  if (opts.onlyPass === 1) return { _pass: 1, pass1 };
 
   // ── Pass 2: Deep analysis focused on weak areas ───────────────────────
+  let pass2: Record<string, unknown>;
+  if (opts.prior?.pass2 && opts.onlyPass === 3) {
+    pass2 = opts.prior.pass2;
+    addLog('info', 'Coherence Pass 2/3 — carried over from the previous stage call.');
+  } else {
   addLog('info', 'Coherence Pass 2/3 — deep boundary/legal/deed analysis...');
 
   // Build focused input for Pass 2: Pass 1 findings + all relevant data
@@ -2186,7 +2230,7 @@ async function runFinalCoherenceReview(
     timeoutMs: 150_000,
   });
 
-  const pass2 = pass2Result.response as Record<string, unknown>;
+  pass2 = pass2Result.response as Record<string, unknown>;
   if (pass2Result.tokensUsed) {
     accumulateTokens(pass2Result.tokensUsed);
     addLog('info', `Pass 2 tokens: ${pass2Result.tokensUsed.input} in / ${pass2Result.tokensUsed.output} out`);
@@ -2195,6 +2239,8 @@ async function runFinalCoherenceReview(
   const newIssues = (pass2.new_issues_found ?? []) as unknown[];
   const revisedRisks = (pass2.revised_risk_areas ?? []) as string[];
   addLog('info', `Pass 2 result: ${newIssues.length} new issues found, ${revisedRisks.length} revised risk areas`);
+  }
+  if (opts.onlyPass === 2) return { _pass: 2, pass2 };
 
   // ── Pass 3: Synthesis — produce final authoritative report ────────────
   addLog('info', 'Coherence Pass 3/3 — synthesizing final report...');

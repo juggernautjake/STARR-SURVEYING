@@ -13,13 +13,14 @@ const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8')
 describe('the finalize runs in stages under one Vercel invocation each', () => {
   const svc = read('lib/research/analysis.service.ts');
   it('the service gates each stage on finalizeStage and ends early on a non-final stage', () => {
-    expect(svc).toContain("finalizeStage?: 'chain' | 'crossref' | 'coherence';");
-    expect(svc).toContain("const runs = (s: 'chain' | 'crossref' | 'coherence') => !stage || stage === s;");
+    expect(svc).toContain('finalizeStage?: FinalizeStage;');
+    expect(svc).toContain("export type FinalizeStage = 'chain' | 'crossref' | 'coherence' | 'coherence1' | 'coherence2' | 'coherence3';");
+    expect(svc).toContain('const runs = (s: FinalizeStage) => !stage || stage === s;');
     expect(svc).toContain("if (countyKey && runs('chain')) {");
     expect(svc).toContain("if (runs('crossref') && uniqueDocIds.size > 1 && allDataPoints.length > 0) {");
     expect(svc).toContain("const mathDiscrepancies = runs('crossref') ? detectMathDiscrepancies(projectId, allDataPoints) : [];");
     expect(svc).toContain("if (runs('crossref') && allDiscrepancies.length > 0) {");
-    expect(svc).toContain("if (stage && stage !== 'coherence') {");
+    expect(svc).toContain("if (stage && stage !== 'coherence' && !coherencePass) {");
   });
   it('a person\'s button (no stage) still runs every stage — the gates are open when stage is unset', () => {
     // `runs()` answers true for every stage when `stage` is undefined; nothing else gates the path.
@@ -27,11 +28,11 @@ describe('the finalize runs in stages under one Vercel invocation each', () => {
   });
   it('the route accepts a stage only from the worker', () => {
     const route = read('app/api/admin/research/[projectId]/analyze/route.ts');
-    expect(route).toContain("if (isWorker && (body.finalizeStage === 'chain' || body.finalizeStage === 'crossref' || body.finalizeStage === 'coherence')) config.finalizeStage = body.finalizeStage;");
+    expect(route).toContain('if (isWorker && isFinalizeStage(body.finalizeStage)) config.finalizeStage = body.finalizeStage;');
   });
   it('the worker asks for the three stages in order and stops on a failure', () => {
     const drive = read('worker/src/research/drive-app-analysis.ts');
-    expect(drive).toContain("const stages: Array<'chain' | 'crossref' | 'coherence'> = ['chain', 'crossref', 'coherence'];");
+    expect(drive).toContain("const stages: FinalizeStage[] = ['chain', 'crossref', 'coherence1', 'coherence2', 'coherence3'];");
     expect(drive).toContain('fin = await input.call({ resume: true, finalizeStage: stage, maxCostUsd: await remaining() });');
     expect(drive).toContain('if (!fin.ok) break;');
     const trigger = read('worker/src/research/trigger-app-analysis.ts');

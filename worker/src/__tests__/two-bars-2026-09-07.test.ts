@@ -47,11 +47,13 @@ describe('X2 — the worker stamps the review\'s own progress', () => {
     expect(seen).toEqual([
       { stage: 'analyzing', done: 0, total: 2, label: 'Deed one' },
       { stage: 'analyzing', done: 1, total: 2, label: 'Plat two' },
-      { stage: 'finalizing', done: 0, total: 3, label: 'Chain of title' },
-      { stage: 'finalizing', done: 1, total: 3, label: 'Cross-reference and discrepancies' },
-      { stage: 'finalizing', done: 2, total: 3, label: 'Coherence review' },
+      { stage: 'finalizing', done: 0, total: 5, label: 'Chain of title' },
+      { stage: 'finalizing', done: 1, total: 5, label: 'Cross-reference and discrepancies' },
+      { stage: 'finalizing', done: 2, total: 5, label: 'Coherence review — pass 1 of 3' },
+      { stage: 'finalizing', done: 3, total: 5, label: 'Coherence review — pass 2 of 3' },
+      { stage: 'finalizing', done: 4, total: 5, label: 'Coherence review — pass 3 of 3' },
     ]);
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(7);
   });
   it('a progress callback that throws never stops the drive', async () => {
     const r = await driveAppAnalysis({

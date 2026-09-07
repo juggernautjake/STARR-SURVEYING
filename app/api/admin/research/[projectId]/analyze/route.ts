@@ -4,7 +4,10 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { mayBuyDocuments, paidDocumentsNotice } from '@/lib/research/paid-documents';
-import { analyzeProject, getAnalysisStatus } from '@/lib/research/analysis.service';
+import { analyzeProject, getAnalysisStatus, type FinalizeStage } from '@/lib/research/analysis.service';
+
+const FINALIZE_STAGES: readonly FinalizeStage[] = ['chain', 'crossref', 'coherence', 'coherence1', 'coherence2', 'coherence3'];
+const isFinalizeStage = (s: unknown): s is FinalizeStage => FINALIZE_STAGES.includes(s as FinalizeStage);
 import { checkScope, scopeRefusal } from '@/lib/research/scope';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -36,7 +39,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
   // Parse optional config from body early so we can check resume mode for the status check below
-  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean; skipFinalization?: boolean; finalizeStage?: 'chain' | 'crossref' | 'coherence' } | undefined;
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean; maxCostUsd?: number; documentId?: string; benchmark?: boolean; skipFinalization?: boolean; finalizeStage?: FinalizeStage } | undefined;
   // The worker drives the analysis in awaited chunks (2026-09-06): it asks this route to run ONE
   // bounded call and answer when it is done, instead of starting a background job Vercel freezes.
   let awaitCompletion = false;
@@ -50,7 +53,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // Chunk mode is the worker's alone — a person's button never stops short of the review.
       if (body.skipFinalization === true && isWorker) config.skipFinalization = true;
       // So is a finalize STAGE (2026-09-07): the worker runs the finalize a stage at a time.
-      if (isWorker && (body.finalizeStage === 'chain' || body.finalizeStage === 'crossref' || body.finalizeStage === 'coherence')) config.finalizeStage = body.finalizeStage;
+      if (isWorker && isFinalizeStage(body.finalizeStage)) config.finalizeStage = body.finalizeStage;
       // The analyze run's own cost cap (plan R1). Clamped to a sane range; a $0 cap is meaningful
       // ("estimate only, analyse nothing paid") and survives, so clamp rather than reject.
       if (typeof body.maxCostUsd === 'number' && Number.isFinite(body.maxCostUsd)) {

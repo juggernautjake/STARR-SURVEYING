@@ -18,12 +18,15 @@
 // runs, so a capped run ends at `review` with what it could afford — never parked. Pure over the
 // injected pieces so the sequence, the cap and the failure handling are unit-tested.
 
+export type FinalizeStage = 'chain' | 'crossref' | 'coherence' | 'coherence1' | 'coherence2' | 'coherence3';
+
 export interface AnalysisCallOptions {
   documentId?: string;
   resume?: boolean;
   skipFinalization?: boolean;
-  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → 'coherence'. */
-  finalizeStage?: 'chain' | 'crossref' | 'coherence';
+  /** Run ONE stage of the finalize (2026-09-07): 'chain' → 'crossref' → the coherence review a PASS at a
+   *  time ('coherence1' → 'coherence2' → 'coherence3'): as one stage it outran Vercel's 300 s on run 6. */
+  finalizeStage?: FinalizeStage;
   maxCostUsd?: number;
 }
 
@@ -92,9 +95,12 @@ export async function driveAppAnalysis(input: DriveAppAnalysisInput): Promise<Dr
   // + discrepancies, the 3-pass coherence review — took longer than one Vercel invocation on run 4
   // (HTTP 504 at the function limit) and the project sat at `analyzing`. Three awaited calls, each
   // inside the limit; the last one ends the project at `review`. A stage that fails stops the rest.
-  const stages: Array<'chain' | 'crossref' | 'coherence'> = ['chain', 'crossref', 'coherence'];
+  const stages: FinalizeStage[] = ['chain', 'crossref', 'coherence1', 'coherence2', 'coherence3'];
   let fin: { ok: boolean; statement: string } = { ok: true, statement: '' };
-  const stageLabel = { chain: 'Chain of title', crossref: 'Cross-reference and discrepancies', coherence: 'Coherence review' } as const;
+  const stageLabel: Record<FinalizeStage, string> = {
+    chain: 'Chain of title', crossref: 'Cross-reference and discrepancies', coherence: 'Coherence review',
+    coherence1: 'Coherence review — pass 1 of 3', coherence2: 'Coherence review — pass 2 of 3', coherence3: 'Coherence review — pass 3 of 3',
+  };
   for (const [i, stage] of stages.entries()) {
     try { await input.onProgress?.({ stage: 'finalizing', done: i, total: stages.length, label: stageLabel[stage] }); } catch { /* a courtesy */ }
     fin = await input.call({ resume: true, finalizeStage: stage, maxCostUsd: await remaining() });
