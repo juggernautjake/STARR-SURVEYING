@@ -64,6 +64,15 @@ export default function ReviewDocumentsList({ docs, onView }: ReviewDocumentsLis
                     Thin text
                   </span>
                 )}
+                {/* The relevance check's verdict, kept beside the file instead of deleting it (2026-09-07). */}
+                {doc.relevance === 'unrelated' && (
+                  <span
+                    className="review-doc-card__badge review-doc-card__badge--warn"
+                    title={doc.relevance_classification?.reason ?? 'The relevance check found nothing tying this document to the subject tract.'}
+                  >
+                    Unrelated
+                  </span>
+                )}
                 {ocr && <span className="review-docs__ocr" title="OCR confidence">OCR {ocr}</span>}
                 {doc.research_round != null && doc.research_round > 1 && (
                   <span className="review-doc-card__badge review-doc-card__badge--ok" title={`Found by follow-up research round ${doc.research_round}`}>

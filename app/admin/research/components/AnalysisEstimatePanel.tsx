@@ -158,6 +158,16 @@ export default function AnalysisEstimatePanel({ projectId, onStarted, docs, onVi
                         Thin text
                       </span>
                     )}
+                    {/* The relevance check's verdict (2026-09-07): the row stays, says so, and is not
+                        in the whole-project quote. */}
+                    {doc?.relevance === 'unrelated' && (
+                      <span
+                        className="review-doc-card__badge review-doc-card__badge--warn"
+                        title={doc.relevance_classification?.reason ?? 'The relevance check found nothing tying this document to the subject tract.'}
+                      >
+                        Unrelated
+                      </span>
+                    )}
                     {ocr && <span style={{ opacity: 0.7, whiteSpace: 'nowrap' }} title="OCR confidence">OCR {ocr}</span>}
                     {/* Round lineage (plan 3.4): a follow-up's find is marked so the reviewer can tell it
                         from the original run's. Round 1 is the norm and carries no badge. */}

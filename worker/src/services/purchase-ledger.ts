@@ -164,6 +164,34 @@ export interface RecordResult {
  *  Both, not either: the ledger answers "do we own it", the usage event answers "what has this run
  *  spent". R4 made model spend visible; a $1.00 page that never reached `research_usage_events` was
  *  money the cost view could not see, so a run's reported spend was quietly wrong. */
+/** Every completed purchase THIS run made (by `run_id`), oldest first — what a later pass in the same
+ *  run must not buy again (2026-09-07: the early plats-first pass and the final checklist pass could
+ *  not see each other). Empty on any error: a lookup that fails must not stop a run from buying. */
+export async function listRunPurchases(
+  projectId: string,
+  runId: string,
+): Promise<Array<{ instrumentRaw: string; documentType: string; platformId: string; pages: number; costUsd: number; purchasedAt: string }>> {
+  const supabase = await getSupabase();
+  if (!supabase) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('research_document_purchases')
+    .select('instrument_raw, document_type, platform_id, pages, cost_usd, purchased_at, status')
+    .eq('research_project_id', projectId)
+    .eq('run_id', runId)
+    .eq('status', 'completed')
+    .order('purchased_at', { ascending: true });
+  if (error || !Array.isArray(data)) return [];
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    instrumentRaw: String(row.instrument_raw ?? ''),
+    documentType: String(row.document_type ?? 'deed'),
+    platformId: String(row.platform_id ?? ''),
+    pages: Number(row.pages ?? 0),
+    costUsd: Number(row.cost_usd ?? 0),
+    purchasedAt: String(row.purchased_at ?? ''),
+  })).filter((p) => p.instrumentRaw);
+}
+
 export async function recordPurchase(rec: PurchaseRecord): Promise<RecordResult> {
   // The run's paid-page ceiling counts what THIS function records, or it counts nothing.
   // `notePaidPages` was the only thing that advanced `paidPages` and it had no caller, so

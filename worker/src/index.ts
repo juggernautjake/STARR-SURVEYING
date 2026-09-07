@@ -30,6 +30,7 @@ import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocum
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { parseLotBlock } from './counties/bell/orchestrator.js';
+import { listRunPurchases } from './services/purchase-ledger.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { lookupCountyFIPS } from './lib/county-fips.js';
 import { assessPurchaseReadiness } from './research/purchase-readiness.js';
@@ -632,16 +633,41 @@ async function persistCountyResults(
     console.log(`[Worker] ${projectId}: saved county analysis_metadata to Supabase`);
   }
 
-  // ── 2. Delete previous property_search document rows ─────────────────
-  // The artifact uploader (step 4) creates fresh rows with page images,
-  // PDF URLs, AND the rich metadata (labels, recording info, AI text).
-  // We no longer create separate text-only rows here — that caused duplicates.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any)
-    .from('research_documents')
-    .delete()
-    .eq('research_project_id', projectId)
-    .eq('source_type', 'property_search');
+  // ── 2. (REMOVED 2026-09-07) This deleted every `property_search` row for the project, then step 4
+  // re-created only what the county RESULT carries. Documents are now filed DURING the run — the
+  // TexasFile plat bought at identification, the deeds the final purchase pass buys — and none of
+  // those are in the county result, so this delete destroyed them at the end of every
+  // dedicated-county run (run 3, 2026-09-07: the plat and a $3 deed vanished; the tally said "13
+  // filed", the table held 11). The generic branch lost the same delete on 2026-09-02 (B2). Step 4
+  // goes through the project library, which answers "merged" for a row the run already filed, so
+  // nothing is written twice. Documents the relevance check removed are MARKED below (step 2b), not
+  // deleted — the affidavit it dropped names the CAD owner's family and may be part of this chain.
+
+  // ── 2b. Mark what the relevance check removed ──────────────────────────
+  // The validator trims the in-memory list; the rows it filed during the run stay, flagged
+  // `relevance = 'unrelated'` with the reason (seed 631's vocabulary), so the reviewer sees the
+  // verdict and can overturn it instead of never knowing the document existed.
+  for (const gone of r.deedsAndRecords.unrelated ?? []) {
+    const key = gone.instrumentNumber?.trim();
+    if (!key) continue;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: relErr } = await (supabase as any)
+        .from('research_documents')
+        .update({
+          relevance: 'unrelated',
+          relevance_classification: { by: 'bell-relevance-validator', at: now, reason: gone.reason },
+          updated_at: now,
+        })
+        .eq('research_project_id', projectId)
+        .is('relevance', null)
+        .or(`recording_info.ilike.%${key}%,document_label.ilike.%${key}%`);
+      if (relErr) console.warn(`[Worker] ${projectId}: could not mark ${key} unrelated: ${relErr.message}`);
+      else console.log(`[Worker] ${projectId}: marked ${key} unrelated — ${gone.reason}`);
+    } catch (e) {
+      console.warn(`[Worker] ${projectId}: could not mark ${key} unrelated: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   // ── 3. Insert documents that have NO page images (metadata-only) ─────
   // Deeds/plats with page images are handled by the artifact uploader.
@@ -2253,6 +2279,24 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       };
       const finalPurchasePass = async (): Promise<void> => {
         const ur = unifiedResult; // a const the closure can narrow on
+        // What THIS run already bought (the early plats-first pass, an earlier want): the ledger
+        // rows for the run. Seeds the orchestrator's exclusions and the wants' known documents, so
+        // a plat re-opened at identification answers "already held by this run" here, and a second
+        // want cannot resolve a name search to the same row (2026-09-07).
+        const runId = activePipelines.get(projectId)?.runId ?? null;
+        const boughtEarlier = runId ? await listRunPurchases(projectId, runId).catch(() => []) : [];
+        const alreadyBought = {
+          instruments: boughtEarlier.map((p) => p.instrumentRaw).filter((k) => !k.startsWith('texasfile:')),
+          guids: boughtEarlier.map((p) => p.instrumentRaw.match(/^texasfile:(.+)$/)?.[1] ?? '').filter(Boolean),
+        };
+        const boughtEarlierKnown = boughtEarlier.map((p) => ({
+          type: p.documentType,
+          instrument: p.instrumentRaw,
+          recordingDate: p.purchasedAt,
+        }));
+        if (boughtEarlier.length > 0) {
+          console.log(`[Purchase] ${projectId}: ${boughtEarlier.length} document(s) already bought this run — not bought again: ${boughtEarlier.map((p) => p.instrumentRaw).join(', ')}`);
+        }
         if (ur.resultType === 'generic-pipeline') {
           const r = ur.data;
           // ── C2b: write the run's reconciliation where every reader already looks ──────────
@@ -2330,7 +2374,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 {
                   const selRecs = wantsToPurchaseRecommendations(
                     selectionsToWants(resolveGatherSelections(runSettings)),
-                    { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined },
+                    { county: county ?? undefined, ownerName: researchInput.ownerName ?? undefined, knownDocuments: boughtEarlierKnown },
                   );
                   if (selRecs.length > 0) {
                     recs = [...selRecs, ...recs];
@@ -2404,7 +2448,8 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                         budget: ceiling,
                         otherBudgetUsd: runSettings.otherBudgetUsd,
                         autoReanalyze: false,
-                        runId: activePipelines.get(projectId)?.runId ?? null,
+                        runId,
+                        alreadyBought,
                       },
                       countyFIPS,
                       county ?? '',
@@ -2477,6 +2522,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                       page: d.page,
                       recordingDate: d.deedDate,
                     }))),
+                    ...boughtEarlierKnown,
                   ],
                 },
               );
@@ -2522,7 +2568,8 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                       budget: ceiling,
                       otherBudgetUsd: runSettings.otherBudgetUsd,
                       autoReanalyze: false,
-                      runId: activePipelines.get(projectId)?.runId ?? null,
+                      runId,
+                      alreadyBought,
                     },
                     countyFIPS,
                     county ?? '',
@@ -4181,6 +4228,27 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
   }
 });
 
+/** A project the app parked at `analyzing` for a worker-driven analysis that did not finalize goes
+ *  back to `review` — its documents are filed; the person can press Analyze again. Says so. */
+async function unparkAnalyzing(projectId: string, log: (m: string) => void, why: string): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    if (!sb) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any).from('research_projects').select('status').eq('id', projectId).single();
+    if (data?.status !== 'analyzing') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb as any).from('research_projects')
+      .update({ status: 'review', updated_at: new Date().toISOString() })
+      .eq('id', projectId);
+    log(error
+      ? `The project stays parked at "analyzing" — could not restore "review": ${error.message}`
+      : `Analysis did not finish (${why.slice(0, 160)}) — the project is back at "review"; press Analyze to try again.`);
+  } catch (e) {
+    log(`Could not restore the project's status after the failed analysis: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 // ── POST /research/read-documents/:projectId — the WORKER-SIDE analysis (plan A1/A2/BW/F1) ──────────
 //
 // Runs the OCR reading pass over a project's already-FILED documents on demand: it re-reads every
@@ -4266,6 +4334,8 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
                 .select('id, document_label')
                 .eq('research_project_id', projectId)
                 .in('processing_status', ['extracted', 'analyzed'])
+                // What the relevance check marked unrelated is not read at cost (2026-09-07).
+                .or('relevance.is.null,relevance.neq.unrelated')
                 .order('created_at');
               return ((data ?? []) as Array<{ id: string; document_label: string | null }>).map((d) => ({ id: d.id, label: d.document_label }));
             },
@@ -4274,8 +4344,14 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
             log,
           });
           log(r.statement);
+          // The app parked the project at `analyzing` when it handed this run to the worker, and
+          // only a finalize that ran moves it on. A drive that did not finalize (2026-09-07: every
+          // document "skipped — APP_BASE_URL … is not set") left the project parked, and the analyze
+          // route then answered 409 to the person trying again. Put it back where it came from.
+          if (!r.finalized) await unparkAnalyzing(projectId, log, r.statement);
         } catch (e) {
           log(`Data-point analysis could not be driven after the read pass: ${e instanceof Error ? e.message : String(e)}`);
+          await unparkAnalyzing(projectId, log, e instanceof Error ? e.message : String(e));
         }
       }
     }

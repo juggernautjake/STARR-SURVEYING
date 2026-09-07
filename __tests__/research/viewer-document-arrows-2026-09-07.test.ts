@@ -132,3 +132,20 @@ describe('the Review stage: a Documents tab lists every file with View (owner, 2
     expect(css).toContain('grid-template-columns: minmax(0, 1fr) 3.25rem 4.75rem 4.75rem;');
   });
 });
+
+describe('an unrelated document is MARKED on every list, not deleted (2026-09-07)', () => {
+  it('the three lists show the badge with the reason, and the quote leaves such rows out', () => {
+    for (const p of [
+      'app/admin/research/components/ReviewDocumentsList.tsx',
+      'app/admin/research/components/AnalysisEstimatePanel.tsx',
+      'app/admin/research/components/ResearchRunView.tsx',
+    ]) {
+      const src = read(p);
+      expect(src).toContain("relevance === 'unrelated'");
+      expect(src).toContain('Unrelated');
+      expect(src).toContain('relevance_classification?.reason');
+    }
+    expect(read('types/research.ts')).toContain("relevance?: 'subject' | 'adjoiner' | 'unrelated' | 'unknown' | null;");
+    expect(read('app/api/admin/research/[projectId]/analysis-estimate/route.ts')).toContain(".or('relevance.is.null,relevance.neq.unrelated')");
+  });
+});

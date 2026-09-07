@@ -33,6 +33,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .from('research_documents')
     .select('id, document_label, document_type, page_count')
     .eq('research_project_id', projectId)
+    // What the relevance check marked unrelated is not quoted or read at cost (2026-09-07); the
+    // row still shows in the list with its badge, and "Analyze this" on it stays available.
+    .or('relevance.is.null,relevance.neq.unrelated')
     .order('created_at', { ascending: true });
 
   if (error) {

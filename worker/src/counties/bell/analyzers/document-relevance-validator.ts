@@ -59,6 +59,15 @@ export interface ValidationSummary {
   removed: number;
   warnings: string[];
   aiUsage: AiUsageSummary;
+  /** Each document the check removed, by instrument, with the reason — so the row the run FILED
+   *  can be marked `relevance = 'unrelated'` instead of being deleted (2026-09-07). */
+  unrelated: UnrelatedDocument[];
+}
+
+export interface UnrelatedDocument {
+  instrumentNumber: string | null;
+  label: string;
+  reason: string;
 }
 
 // ── Main Validator ───────────────────────────────────────────────────
@@ -78,9 +87,12 @@ export async function validateDeedRelevance(
   const usage = zeroUsage();
   const warnings: string[] = [];
   const relevant: DeedRecord[] = [];
+  const unrelated: UnrelatedDocument[] = [];
+  const drop = (deed: DeedRecord, label: string, reason: string) =>
+    unrelated.push({ instrumentNumber: deed.instrumentNumber ?? null, label, reason });
 
   if (deeds.length === 0) {
-    return { relevant, summary: { total: 0, kept: 0, removed: 0, warnings: [], aiUsage: usage } };
+    return { relevant, summary: { total: 0, kept: 0, removed: 0, warnings: [], aiUsage: usage, unrelated: [] } };
   }
 
   onProgress(`Validating relevance of ${deeds.length} deed(s) to target property...`);
@@ -106,6 +118,7 @@ export async function validateDeedRelevance(
       // Very low score — almost certainly unrelated, skip AI to save cost
       const warning = `REMOVED: Deed ${deedLabel} — clearly unrelated (${heuristic.score}/100): ${heuristic.reasoning}`;
       warnings.push(warning);
+      drop(deed, deedLabel, `clearly unrelated (heuristic ${heuristic.score}/100): ${heuristic.reasoning}`);
       onProgress(`  ✗ ${warning}`);
       continue;
     }
@@ -128,6 +141,7 @@ export async function validateDeedRelevance(
         } else {
           const warning = `REMOVED: Deed ${deedLabel} — AI determined unrelated (${aiResult.result.score}/100): ${aiResult.result.reasoning}`;
           warnings.push(warning);
+          drop(deed, deedLabel, `AI determined unrelated (${aiResult.result.score}/100): ${aiResult.result.reasoning}`);
           onProgress(`  ✗ ${warning}`);
         }
       } catch (err) {
@@ -139,6 +153,7 @@ export async function validateDeedRelevance(
           warnings.push(`AI check failed for ${deedLabel} — kept based on heuristic (${heuristic.score}/100)`);
         } else {
           warnings.push(`AI check failed, removed: ${deedLabel} (heuristic ${heuristic.score}/100)`);
+          drop(deed, deedLabel, `AI check failed; heuristic ${heuristic.score}/100: ${heuristic.reasoning}`);
         }
       }
     } else {
@@ -150,6 +165,7 @@ export async function validateDeedRelevance(
         }
       } else {
         warnings.push(`REMOVED (heuristic ${heuristic.score}/100): ${deedLabel} — ${heuristic.reasoning}`);
+        drop(deed, deedLabel, `heuristic ${heuristic.score}/100: ${heuristic.reasoning}`);
         onProgress(`  ✗ REMOVED: ${deedLabel} (heuristic ${heuristic.score}/100)`);
       }
     }
@@ -188,6 +204,7 @@ export async function validateDeedRelevance(
       kept: relevant.length,
       removed,
       warnings,
+      unrelated,
       aiUsage: usage,
     },
   };

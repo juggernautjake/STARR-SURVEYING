@@ -60,7 +60,10 @@ describe('purchases carry their run and check what earlier rounds hold', () => {
     const index = read('src/index.ts');
     const sites = index.split('orchestrator.executePurchases(').length - 1;
     expect(sites).toBe(4); // three in-run + the standalone endpoint
-    expect((index.match(/autoReanalyze: false,\s*runId: activePipelines\.get\(projectId\)\?\.runId \?\? null,/g) ?? []).length).toBe(3);
+    // The early plats-first pass reads the run id inline; the two final-pass sites (one
+    // finalPurchasePass, 2026-09-07) pass the local `runId` beside `alreadyBought`.
+    expect((index.match(/autoReanalyze: false,\s*runId: activePipelines\.get\(projectId\)\?\.runId \?\? null,/g) ?? []).length).toBe(1);
+    expect((index.match(/autoReanalyze: false,\s*runId,\s*alreadyBought,/g) ?? []).length).toBe(2);
   });
   it('the orchestrator loads the project library itself when no held index was passed', () => {
     const orch = read('src/services/document-purchase-orchestrator.ts');

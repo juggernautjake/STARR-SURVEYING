@@ -169,6 +169,12 @@ export interface ResearchDocument {
   /** The research round whose run filed this document (seed 632): 1 = the first run, N = the
    *  (N-1)th user-initiated follow-up. Null for user uploads and rows filed before the seed. */
   research_round?: number | null;
+  /** Whether this document concerns the subject tract (seed 631). The worker's relevance check marks
+   *  what it removed from the analysis 'unrelated' instead of deleting the row (2026-09-07); a
+   *  reviewer may overturn it. Null = never assessed. */
+  relevance?: 'subject' | 'adjoiner' | 'unrelated' | 'unknown' | null;
+  /** How the verdict was reached: { by, at, reason }. */
+  relevance_classification?: { by?: string; at?: string; reason?: string } | null;
   created_at: string;
   updated_at: string;
 }

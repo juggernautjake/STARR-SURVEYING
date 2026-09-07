@@ -1675,6 +1675,8 @@ export async function orchestrateBellResearch(
         input.projectId,
       );
 
+      // Carried on the result whatever the count, so the persist step can mark the filed rows.
+      deeds.unrelated = deedValidation.summary.unrelated;
       if (deedValidation.summary.removed > 0) {
         deeds.records = deedValidation.relevant;
         // Also filter chain of title to only include kept instruments

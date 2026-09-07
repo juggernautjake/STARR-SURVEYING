@@ -126,6 +126,9 @@ export interface DeedsAndRecordsSection {
   records: DeedRecord[];
   /** The complete chain of title, if reconstructable */
   chainOfTitle: ChainLink[];
+  /** Documents the relevance check removed from `records` (instrument + reason), so the rows the run
+   *  filed for them can be MARKED unrelated rather than deleted (2026-09-07). */
+  unrelated?: Array<{ instrumentNumber: string | null; label: string; reason: string }>;
   confidence: ConfidenceRating;
 }
 

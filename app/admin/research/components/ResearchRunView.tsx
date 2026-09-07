@@ -438,6 +438,15 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
                 </button>
               ) : label}
               {d.recording_info && <span className="rrv__doc-rec"> · {d.recording_info}</span>}
+              {/* The relevance check's verdict, kept beside the file instead of deleting it (2026-09-07). */}
+              {(d as { relevance?: string | null }).relevance === 'unrelated' && (
+                <span
+                  className="review-doc-card__badge review-doc-card__badge--warn"
+                  title={(d as { relevance_classification?: { reason?: string } | null }).relevance_classification?.reason ?? 'The relevance check found nothing tying this document to the subject tract.'}
+                >
+                  Unrelated
+                </span>
+              )}
               {/* An explicit VIEW button beside Source (owner, 2026-09-06): the underlined title
                   opened the viewer, but nothing said so. This is the control that opens the
                   dedicated multi-page viewer with this document loaded. */}

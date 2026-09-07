@@ -121,6 +121,9 @@ export interface PurchaseOrchestratorConfig {
    *  so a charge can be attributed to the run that made it. Was accepted by the ledger and never
    *  passed, so every purchase row carried a null run. */
   runId?: string | null;
+  /** What this run already bought before this pass (the ledger's rows for the run): instrument
+   *  numbers and TexasFile GUIDs the vendor must not be asked for again (2026-09-07). */
+  alreadyBought?: { instruments: string[]; guids: string[] };
 }
 
 // ── Image Quality ───────────────────────────────────────────────────────────

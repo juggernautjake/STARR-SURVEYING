@@ -72,7 +72,12 @@ export function wantsToPurchaseRecommendations(
       // The search key a `search_required` want carries to the vendor (plan W4). A located instrument
       // buys itself; a want with no instrument searches TexasFile by owner name instead of submitting
       // an empty query — which returned zero results and quietly bought nothing.
-      searchName: known?.instrument ? undefined : ctx.ownerName,
+      // A PLAT is found by its subdivision in TexasFile's plat records, never by an owner-name deed
+      // search — which is how the 2026-09-07 run's "All plats" want bought a deed on another
+      // property and booked it as a plat. `vendorProduct: 'plat'` sends the buy down the plat
+      // search; the name key stays with the deed/easement wants.
+      searchName: known?.instrument || docType === 'plat' ? undefined : ctx.ownerName,
+      ...(docType === 'plat' ? { vendorProduct: 'plat' as const } : {}),
       // The subject's subdivision rides along so a name search's many rows can be told apart by
       // their legal description (the chooser prefers the deed on THIS lot, 2026-09-07).
       subdivision: ctx.subdivision,
