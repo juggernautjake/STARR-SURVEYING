@@ -35,6 +35,8 @@ export interface FilingContext {
   county: string;
   runId: string | null;
   tally: FilingTally;
+  /** The research round this run is (plan 3.4) — stamped on every document it files. */
+  round: number | null;
 }
 
 const filingContexts = new Map<string, FilingContext>();
@@ -45,13 +47,14 @@ export async function beginFiling(
   projectId: string,
   county: string,
   runId: string | null,
+  round: number | null = null,
 ): Promise<FilingContext> {
   const library = await ProjectLibrary.load(
     supabase as unknown as Parameters<typeof ProjectLibrary.load>[0],
     projectId,
     county,
   );
-  const ctx: FilingContext = { library, county, runId, tally: new FilingTally() };
+  const ctx: FilingContext = { library, county, runId, tally: new FilingTally(), round };
   filingContexts.set(projectId, ctx);
   console.log(`[ArtifactUploader] ${projectId}: ${library.describe()}`);
   return ctx;
@@ -1104,6 +1107,9 @@ const ORIGINAL_DOC_TYPES = new Set([
 function narrowRow(row: Record<string, unknown>): Record<string, unknown> {
   const fallbackRow = { ...row };
   delete fallbackRow.pages_pdf_url;
+  // Seed 632's column. A database that has not applied it must still file the document —
+  // losing a deed to its own provenance column would be the worse failure.
+  delete fallbackRow.research_round;
   if (fallbackRow.document_type && !ORIGINAL_DOC_TYPES.has(fallbackRow.document_type as string)) {
     fallbackRow.document_type = 'other';
   }
@@ -1132,6 +1138,9 @@ export async function resilientInsertDocument(
   const ctx = filingContexts.get(projectId);
 
   if (ctx) {
+    // Which research round found this document (plan 3.4, seed 632). Stamped here, in the one
+    // place every pipeline document passes through, so no filer has to know about rounds.
+    if (ctx.round != null && row.research_round == null) row.research_round = ctx.round;
     const derived = refFromRow(row, ctx.county);
     const outcome = await fileResearchDocument(
       supabase as unknown as FileDocumentDb,

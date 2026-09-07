@@ -166,6 +166,9 @@ export interface ResearchDocument {
   readability_signals?: string[] | null;
   recorded_date?: string | null;
   recording_info?: string | null;
+  /** The research round whose run filed this document (seed 632): 1 = the first run, N = the
+   *  (N-1)th user-initiated follow-up. Null for user uploads and rows filed before the seed. */
+  research_round?: number | null;
   created_at: string;
   updated_at: string;
 }
