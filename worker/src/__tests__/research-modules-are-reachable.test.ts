@@ -176,8 +176,16 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // obvious home on the boundary page, which already shows the calls it fetches.
   'app/admin/research/components/InteractiveBoundaryViewer.tsx':
     'SUPERSEDED, not parked. app/admin/research/[projectId]/boundary/page.tsx is a 472-line re-implementation that renders its own SVG inline and imports only RotationPanel; this is the original 689-line version, left behind. The live route works. OWNER CALL: delete it, or replace the page with it — keeping both means the next person edits whichever they find first.',
-  'app/admin/research/components/DocumentDeepAnalysisPanel.tsx':
-    'Dead CAPABILITY since 2026-03-16 (b675d5d30, the Stage 2/3 redesign): the page kept IMPORTING it and never rendered it, which is the only reason this guard was green — surfaced 2026-09-06 when the dead imports were cleaned out. It is the ONLY caller of POST /documents/[docId]/deep-analyze (a 980-line route + document-analysis.service: structured legal-description + plat AI reading, per document, user-initiated, priced per click). Not wired here: the owner’s 2026-09-06 loop already has a user-initiated "deep-read for more clues" and a per-file Analyze, and reviving a 764-line panel blind, without browser QA, is exactly the "looked right, did nothing" shape. OWNER CALL: mount it on the Analysis stage as a third per-document action, or drop the route + service with it. (AnalysisSummary.tsx, orphaned the same way, was deleted — DataPointsPanel superseded it and no route depended on it.)',
+  // DELETED 2026-09-06: `DocumentDeepAnalysisPanel.tsx` (765 lines) and `AnalysisSummary.tsx` (199).
+  // Both had been IMPORTED by the project page and never rendered since the 2026-03-16 redesign
+  // (b675d5d30) — a dead import satisfies this guard exactly like a mounted component, which is
+  // why they stayed green for six months; cleaning the dead imports surfaced them, and the app's
+  // count-only orphan ceiling (verify:orphans, "do NOT raise the ceiling") does not take a note in
+  // place of a fix. AnalysisSummary was superseded by DataPointsPanel. DocumentDeepAnalysisPanel was
+  // the ONLY UI caller of POST /documents/[docId]/deep-analyze (structured legal-description + plat
+  // AI reading, per document, priced per click); the route + document-analysis.service remain,
+  // callable, with NO screen that calls them. OWNER CALL: build a per-document "Deep analyze"
+  // action on the Analysis stage against that route, or drop the route + service.
   'app/admin/research/components/TemplateManager.tsx':
     'Dead CAPABILITY, not dead code: it is the ONLY caller of /api/admin/research/templates (GET, POST, DELETE), which is routed and works. Analysis and drawing templates cannot be managed from anywhere in the product. Not wired here because it has no obvious home — unlike BoundaryCallsPanel, which belonged on the page already showing its data — and picking one is a design decision. OWNER CALL: say where it belongs, or drop the routes with it.',
 

@@ -8,6 +8,7 @@
 // pass; the live document list has a real View button; the re-run's parcel ID is saved.
 
 import { describe, it, expect } from 'vitest';
+import { expectOrder } from '../helpers/expect-order';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -24,7 +25,7 @@ describe('a research run is sent as a GATHER run', () => {
     const merge = route.slice(route.indexOf('const settings: Record<string, unknown> = {'), route.indexOf('...(body.settings ?? {})'));
     expect(merge).toContain("phase: 'gather',");
     // the caller's explicit choice still wins: the spread comes AFTER the default
-    expect(route.indexOf("phase: 'gather',")).toBeLessThan(route.indexOf('...(body.settings ?? {})'));
+    expectOrder(route, "phase: 'gather',", '...(body.settings ?? {})', 'the gather default precedes the spread');
   });
   it('the client settings type still carries phase (mirror of the worker)', () => {
     expect(read('app/admin/research/components/useRunState.ts')).toMatch(/phase\?: 'gather' \| 'analyze';/);

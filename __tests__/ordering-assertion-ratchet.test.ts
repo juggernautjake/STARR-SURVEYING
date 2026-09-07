@@ -36,7 +36,10 @@ import { code } from './helpers/source';
  *  was a guess of 25 and the ratchet immediately rejected it, which is the behaviour wanted: a
  *  baseline nobody measured is a baseline that hides drift. It may go DOWN. If it needs to go UP,
  *  the new assertion should use `expectOrder` instead. */
-const BASELINE = 33;
+// 31 — 2026-09-06: the iterative-loop branch had added one the unsafe way; converting it and two
+// neighbours (discovered-leads-panel, gather-then-analyze-wiring, gather-run-no-ai) to
+// presence-before-order brought the count DOWN from 34.
+const BASELINE = 31;
 
 const ROOTS = ['__tests__', 'worker/src/__tests__'];
 

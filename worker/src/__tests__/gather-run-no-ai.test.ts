@@ -89,16 +89,28 @@ describe('the Analyze run starts on the worker and then runs the app analysis', 
     const handler = index.slice(start, index.indexOf('\napp.', start + 10));
     expect(handler).toContain('thenAnalyze?: boolean');
     expect(handler).toContain('if (thenAnalyze)');
-    expect(handler).toContain('triggerAppAnalysis(projectId, { allow: true, maxCostUsd:');
-    // in finally — a capped read still hands over, and nothing is left parked at `analyzing`
-    expect(handler.indexOf('finally {')).toBeLessThan(handler.indexOf('if (thenAnalyze)'));
+    // Since 2026-09-06 the worker DRIVES the analysis (one awaited call per document, then a
+    // finalize) instead of firing one background call — drive-app-analysis.ts, with the cap.
+    expect(handler).toContain("await import('./research/drive-app-analysis.js')");
+    expect(handler).toContain('maxCostUsd: benchmark ? undefined : body.maxCostUsd,');
+    expect(handler).toContain('triggerAppAnalysis(projectId, { allow: true, ...opts, awaitCompletion: true');
+    // in finally — a capped read still hands over, and nothing is left parked at `analyzing`.
+    // Presence before order: `indexOf` is -1 for an absent needle, and -1 is less than everything.
+    const finallyAt = handler.indexOf('finally {');
+    const thenAnalyzeAt = handler.indexOf('if (thenAnalyze)');
+    expect(finallyAt).toBeGreaterThan(-1);
+    expect(thenAnalyzeAt).toBeGreaterThan(-1);
+    expect(finallyAt).toBeLessThan(thenAnalyzeAt);
     // the benchmark no longer wipes analysis_metadata wholesale
     expect(handler).toContain('...priorMeta, benchmark_total_pages');
   });
   it('triggerAppAnalysis forwards the cost cap only when given one', () => {
     const src = read('src/research/trigger-app-analysis.ts');
     expect(src).toContain('maxCostUsd?: number');
-    expect(src).toContain('{ maxCostUsd: opts.maxCostUsd }');
+    // The body is assembled field by field since the chunk options arrived (2026-09-06); the cap is
+    // still only sent when it is a finite number — the behaviour is pinned by
+    // drive-app-analysis-2026-09-06.test.ts ("a plain call still sends only the cap").
+    expect(src).toContain("if (typeof opts.maxCostUsd === 'number' && Number.isFinite(opts.maxCostUsd)) body.maxCostUsd = opts.maxCostUsd;");
   });
 });
 

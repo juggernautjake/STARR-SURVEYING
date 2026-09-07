@@ -12979,7 +12979,7 @@
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--theme-bg-surface, var(--color-surface));
+  background: var(--theme-bg-surface, #fff);
 }
 
 /* ── Research run view: the View + Source controls on a live document row ─────────────────────

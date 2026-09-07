@@ -229,10 +229,12 @@ live list (`AnalysisEstimatePanel`) had dropped the card's readability badges �
 with the reason as tooltip + the OCR confidence label — so an unreadable deed rendered like one still
 waiting. Ported onto the live row; the two source guards re-pointed. Cleaning the dead imports then exposed
 two components the page had imported and never rendered since 2026-03-16 (`b675d5d30`): `AnalysisSummary`
-(deleted — `DataPointsPanel` superseded it) and **`DocumentDeepAnalysisPanel` — the ONLY caller of the
+(deleted — `DataPointsPanel` superseded it) and **`DocumentDeepAnalysisPanel` — the ONLY UI caller of the
 980-line `/documents/[docId]/deep-analyze` route** (structured legal-description + plat AI reading, per
-document). Recorded in the reachability allowlist as an **OWNER CALL: mount it on the Analysis stage as a
-third per-document action, or drop the route + `document-analysis.service` with it.** Not wired blind.
+document). Also deleted: the app's orphan ceiling is count-only ("do NOT raise the ceiling"), and the
+panel's markup was six months stale against the redesigned page. **The route + `document-analysis.service`
+remain, callable, with no screen that calls them. OWNER CALL: build a per-document "Deep analyze" action on
+the Analysis stage against that route, or drop the route + service.** Not wired blind.
 Two pre-existing red guards on this branch were REAL, not debt: the rendered-classes ratchet (455 > 454:
 the new View button + `leads-panel__group` had no CSS rule — styled, baseline now 452) and the
 pipeline-note guard (pinned "analyze never contacts the worker", which 6.2 changed on purpose — re-pinned

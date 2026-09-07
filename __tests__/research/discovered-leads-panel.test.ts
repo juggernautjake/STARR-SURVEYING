@@ -5,6 +5,7 @@
 // panel, the API route bridges to the worker, and the lead→supplemental mapping is correct.
 
 import { describe, it, expect } from 'vitest';
+import { expectOrder } from '../helpers/expect-order';
 import fs from 'node:fs';
 import path from 'node:path';
 import { leadsToSupplemental, type DiscoveredLead } from '@/app/admin/research/[projectId]/_sections/DiscoveredLeadsPanel';
@@ -94,7 +95,8 @@ describe('the deep-read is a button, bridged to the worker, and never automatic'
     // the pipeline's automatic path does not compile leads either — only the compile-leads endpoint does
     const compileUses = index.split('compileDiscoveredLeads(').length - 1;
     expect(compileUses).toBe(1);
-    expect(index.indexOf('compileDiscoveredLeads(')).toBeGreaterThan(index.indexOf("app.post('/research/:projectId/compile-leads'"));
+    // Presence before order (the ordering ratchet): the compile call sits INSIDE the endpoint.
+    expectOrder(index, "app.post('/research/:projectId/compile-leads'", 'compileDiscoveredLeads(', 'compile-leads endpoint');
   });
   it('every deep-read AI call is recorded on the run spend', () => {
     const index = read(WORKER_INDEX);
