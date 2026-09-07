@@ -137,3 +137,9 @@ Rows came back in filing order (aerials first); a cap now lands on the aerials, 
 **Still to prove live (run 5, fresh project):** H (plat filed by the EARLY pass on a project that does not
 own it), I (no $3 re-buy of the clerk deed), J (easement want → "no TexasFile results … of
 easement/right-of-way type"), L (no duplicate rows), then Analyze → leads → follow-up.
+
+### N — The review's read pass caps on ITS spend, not the project's ✅
+Run 4's review: "0 document(s) read … 8 left unread because the run reached its ceiling" — `spendForRun`
+(the worker's per-project accumulator) still carried the research run's $8 of purchases against the $7
+review cap, so the deeds and the plat stayed `pending` and only the aerials were analysed. The cap is
+now measured from the review's own start (`spendAtStart`), as the driver already did.
