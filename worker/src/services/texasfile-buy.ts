@@ -29,6 +29,7 @@ import { acquireBrowser } from '../lib/browser-factory.js';
 import type { PipelineLogger } from '../lib/logger.js';
 import { extractTexasFileRawRows, instrumentsMatch, normaliseSubdivisionName, parseTexasFileRow } from './texasfile-rows.js';
 import { capturePdfPages, documentIdFromBegin, type TexasFileBeginBody } from './texasfile-pdf.js';
+import { texasFileNameVariants } from './texasfile-names.js';
 
 const TF = 'https://www.texasfile.com';
 
@@ -452,9 +453,20 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
       // through `/plat/`. The deed search cannot find it — which is how a plat the discovery pass had
       // already located was "not available" at buy time.
       const product: 'instrument' | 'plat' = input.product ?? 'instrument';
-      const { searchId, results } = product === 'plat'
+      let { searchId, results } = product === 'plat'
         ? await searchTexasFilePlats(page, { county: input.county, subdivision: input.subdivision, volume: input.volume ?? input.book, page: input.page }, log)
         : await searchTexasFile(page, input, log);
+      // A name search that answers nothing is usually the CAD's owner string, not the person:
+      // "CAFFREY, BARBARA SPEER & ADRIANNE CAFFERY EVERS" → 0 rows, "CAFFREY BARBARA" → 39
+      // (2026-09-07). Try the name the way TexasFile indexes it before giving up.
+      if (product !== 'plat' && input.name && (!searchId || results.length === 0)) {
+        for (const variant of texasFileNameVariants(input.name)) {
+          if (variant === input.name.trim().toUpperCase()) continue;
+          log.info('TexasFile', `No rows for "${input.name}" — trying "${variant}".`);
+          const again = await searchTexasFile(page, { ...input, name: variant }, log);
+          if (again.searchId && again.results.length > 0) { searchId = again.searchId; results = again.results; break; }
+        }
+      }
       if (!searchId || results.length === 0) return { ok: false, reason: 'no TexasFile results for that search', pages: [] };
 
       const chosen = chooseTexasFileResult(results, input)!;

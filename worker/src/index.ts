@@ -2955,6 +2955,27 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 // `search_required` want needs a real name to search TexasFile by, and an empty
                 // form submits nothing and buys nothing — the silent-$0 bug this whole block fixes.
                 ownerName: r.property?.ownerName ?? researchInput.ownerName ?? undefined,
+                // The subject's subdivision, so a name search's rows can be told apart by legal
+                // description; and the documents this run already HOLDS, so a "most recent deed"
+                // want resolves to the instrument the free clerk captured (2004034968 on the
+                // 2026-09-07 run) and the library says "already held" instead of buying blind.
+                subdivision: r.property?.subdivisionName ?? undefined,
+                knownDocuments: [
+                  ...((r.deedsAndRecords?.records ?? []).map((d) => ({
+                    type: d.documentType || 'deed',
+                    instrument: d.instrumentNumber ?? undefined,
+                    book: d.volume ?? undefined,
+                    page: d.page ?? undefined,
+                    recordingDate: d.recordingDate ?? undefined,
+                  }))),
+                  ...(((r.property as { deedHistory?: Array<{ instrumentNumber?: string; volume?: string; page?: string; deedDate?: string }> } | null)?.deedHistory ?? []).map((d) => ({
+                    type: 'deed',
+                    instrument: d.instrumentNumber,
+                    book: d.volume,
+                    page: d.page,
+                    recordingDate: d.deedDate,
+                  }))),
+                ],
               },
             );
             if (recs.length > 0) {

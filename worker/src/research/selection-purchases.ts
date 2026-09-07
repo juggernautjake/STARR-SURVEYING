@@ -72,6 +72,9 @@ export function wantsToPurchaseRecommendations(
       // buys itself; a want with no instrument searches TexasFile by owner name instead of submitting
       // an empty query — which returned zero results and quietly bought nothing.
       searchName: known?.instrument ? undefined : ctx.ownerName,
+      // The subject's subdivision rides along so a name search's many rows can be told apart by
+      // their legal description (the chooser prefers the deed on THIS lot, 2026-09-07).
+      subdivision: ctx.subdivision,
     });
   }
   // Stable priority order (lower = sooner): plats, then deeds/easements; recent before all.

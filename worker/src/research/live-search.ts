@@ -11,6 +11,7 @@ import type { SourceSearchFn, DiscoveryTarget, ManifestEntry } from './cross-sou
 import type { AcquisitionSource } from './acquisition-sources.js';
 import { texasFileResultToManifest, texasFilePlatResultToManifest } from './live-source-adapters.js';
 import { searchTexasFileDocuments, searchTexasFilePlatsDocuments, type TexasFileBuyInput, type TexasFilePlatInput, type TexasFileResult } from './../services/texasfile-buy.js';
+import { primaryNameQueries } from '../services/texasfile-names.js';
 
 export interface LiveSearchConfig {
   county: string;
@@ -92,7 +93,9 @@ export function buildDiscoveryTarget(params: {
  *  Each is a narrow query; the engine de-dups the union by GUID. */
 export function buildTexasFileSearchInputs(target: DiscoveryTarget, county: string): TexasFileBuyInput[] {
   const inputs: TexasFileBuyInput[] = [];
-  if (target.ownerName?.trim()) inputs.push({ county, name: target.ownerName.trim() });
+  // One query per owner party in TexasFile's "LAST FIRST" order — the CAD's full owner string
+  // ("CAFFREY, BARBARA SPEER & ADRIANNE CAFFERY EVERS") answered 0 rows on 2026-09-07.
+  for (const name of primaryNameQueries(target.ownerName)) inputs.push({ county, name });
   for (const bp of target.bookPages ?? []) {
     const vol = (bp.volume ?? bp.book ?? '').trim();
     const pg = (bp.page ?? '').trim();
