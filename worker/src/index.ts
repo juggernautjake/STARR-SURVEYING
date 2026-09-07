@@ -5587,7 +5587,11 @@ async function reanalyseProjectDocuments(
   const { data, error } = await (supabase as any)
     .from('research_documents')
     .select('id, document_type, document_label, extracted_text, extracted_text_method, page_count, processing_status, ocr_regions')
-    .eq('research_project_id', projectId);
+    .eq('research_project_id', projectId)
+    // What the relevance check marked unrelated is not read at cost: run 5's review (2026-09-07)
+    // spent its tiles on the ten-page affidavit the check had already rejected, ahead of the plat
+    // and the bought deed.
+    .or('relevance.is.null,relevance.neq.unrelated');
 
   if (error) {
     // A failed read is not "nothing to do". Said out loud rather than reported as a clean pass.

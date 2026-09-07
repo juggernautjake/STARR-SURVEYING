@@ -172,3 +172,8 @@ county + instrument, so the early re-open on a project that does not own it writ
 subdivision's plat) and **R** (the artifact step re-filed both Google Maps captures: a re-encoded screenshot
 has a different hash and no instrument — now the same label + source on the same project is the same
 document). Both built + tested; not yet merged.
+
+### S — The read pass leaves unrelated documents out ✅
+Run 5's review read the FERRELL deed (163k chars, "good") and then spent its tiles on the ten-page
+affidavit the relevance check had rejected, ahead of the plat and the bought deed. The re-read selection
+now carries the same `relevance.is.null,relevance.neq.unrelated` filter as the chunk list and the quote.

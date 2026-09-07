@@ -110,3 +110,12 @@ describe('Q/R — run 5 (2026-09-07): no second plat row, no second screenshot r
     expect(up).toContain("return { error: null, id: hit.id, outcome: 'merged' };");
   });
 });
+
+describe('S — the read pass does not spend tiles on an unrelated document', () => {
+  it('the re-read selection leaves relevance = unrelated out', () => {
+    const src = read('index.ts');
+    const at = src.indexOf('async function reanalyseProjectDocuments');
+    const head = src.slice(at, at + 1400);
+    expect(head).toContain(".or('relevance.is.null,relevance.neq.unrelated')");
+  });
+});
