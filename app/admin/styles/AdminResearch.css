@@ -12973,6 +12973,38 @@
 .leads-panel__empty { color: var(--theme-fg-secondary, #4B5563); font-size: 0.85rem; margin: 0.25rem 0; }
 
 .leads-panel__groups { display: grid; gap: 0.75rem; margin-bottom: 0.9rem; }
+/* One kind of lead (citations, grantor names, adjoiners, …). Had no rule until 2026-09-06 — the
+   rendered-classes ratchet caught it: the group rendered as an unstyled div between styled titles. */
+.leads-panel__group {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, var(--color-surface));
+}
+
+/* ── Research run view: the View + Source controls on a live document row ─────────────────────
+   The View button (owner, 2026-09-06) shipped with its look inline and its class with no rule —
+   the rendered-classes ratchet counted it. The look lives here now, next to the Source link. */
+.rrv__doc-view {
+  margin-left: 8px;
+  background: none;
+  border: 1px solid var(--color-info, #2563EB);
+  color: var(--color-info, #2563EB);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.rrv__doc-view:hover { background: var(--color-info-surface); }
+.rrv__doc-source {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--color-info, #2563EB);
+  white-space: nowrap;
+}
 
 .leads-panel__group-title {
   font-size: 0.75rem;

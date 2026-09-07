@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import type { ResearchDocument } from '@/types/research';
+import { confidencePercentLabel } from '@/lib/research/confidence-scale';
 
 interface PerFileQuote {
   documentId: string;
@@ -116,9 +117,43 @@ export default function AnalysisEstimatePanel({ projectId, onStarted, docs, onVi
 
       {est.perFile.length > 0 && (
         <ul style={{ listStyle: 'none', margin: '0.6rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          {est.perFile.map((q) => (
+          {est.perFile.map((q) => {
+            const doc = docById.get(q.documentId);
+            const ocr = confidencePercentLabel(doc?.ocr_confidence);
+            return (
             <li key={q.documentId} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem' }}>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={q.label}>{q.label}</span>
+              {/* Readability badges — carried over from the retired ReviewDocCard (2026-09-06) so
+                  "we could not read this deed" stays VISIBLE on the one list that is live. Without
+                  them an unreadable document renders identically to one still waiting (plan R18).
+                  The reason is the tooltip: re-scan, or go and read the page yourself. */}
+              {doc?.processing_status === 'unreadable' && (
+                <span
+                  className="review-doc-card__badge review-doc-card__badge--err"
+                  title={doc.readability_reason ?? 'The extracted text was not usable.'}
+                >
+                  Unreadable
+                </span>
+              )}
+              {doc?.readability === 'partial' && (
+                <span
+                  className="review-doc-card__badge review-doc-card__badge--warn"
+                  title={doc.readability_reason ?? 'Less text than a recorded instrument usually contains.'}
+                >
+                  Thin text
+                </span>
+              )}
+              {ocr && <span style={{ opacity: 0.7 }} title="OCR confidence">OCR {ocr}</span>}
+              {/* Round lineage (plan 3.4): a follow-up's find is marked so the reviewer can tell it
+                  from the original run's. Round 1 is the norm and carries no badge. */}
+              {doc?.research_round != null && doc.research_round > 1 && (
+                <span
+                  className="review-doc-card__badge review-doc-card__badge--ok"
+                  title={`Found by follow-up research round ${doc.research_round}`}
+                >
+                  Round {doc.research_round}
+                </span>
+              )}
               <span style={{ opacity: 0.7 }}>{q.pages} pg</span>
               <span style={{ fontWeight: 600, minWidth: 52, textAlign: 'right' }}>{usd(q.costUsd)}</span>
               <button
@@ -131,7 +166,6 @@ export default function AnalysisEstimatePanel({ projectId, onStarted, docs, onVi
               </button>
               {/* Plan G8 — View + Source on the SAME row, merging the old "Documents & Sources" list. */}
               {(() => {
-                const doc = docById.get(q.documentId);
                 const viewable = !!(doc && (doc.pages_pdf_url || doc.storage_url));
                 return (
                   <>
@@ -159,7 +193,8 @@ export default function AnalysisEstimatePanel({ projectId, onStarted, docs, onVi
                 );
               })()}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

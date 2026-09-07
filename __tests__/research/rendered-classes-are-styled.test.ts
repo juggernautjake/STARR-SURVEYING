@@ -143,7 +143,10 @@ function unstyled(): Map<string, string> {
 // cards, which page.tsx had been rendering against no rule at all. The chain-of-title table being
 // unstyled is exactly why its text sat on #fff and was invisible — the two ratchets were measuring
 // the same defect from opposite sides.
-const UNSTYLED_BASELINE = 454;
+// 452 — 2026-09-06: two classes added on the iterative-loop branch had no rule (rrv__doc-view, the
+// View button beside Source; leads-panel__group) and one file was retired (ReviewDocCard). The
+// breach was real, not debt: an unstyled button and an unstyled group, styled now.
+const UNSTYLED_BASELINE = 452;
 
 describe('rendered classes resolve to a rule that loads on the route', () => {
   it('finds the sheets and the components — a broken scan would pass everything', () => {

@@ -6,7 +6,7 @@ import {
   Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera, PackageCheck,
   ScrollText, Map as MapIcon, Scale, Notebook, Ruler, Landmark, DollarSign, Satellite,
   Mountain, Plug, Waves, Link2, Printer, Loader2, Sparkles, CheckCircle2,
-  Check, AlertTriangle, X, Inbox, type LucideIcon,
+  Inbox, type LucideIcon,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
@@ -14,13 +14,10 @@ import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
 import { confirm as confirmDialog } from '../components/ConfirmDialog';
-import DocumentUploadPanel from '../components/DocumentUploadPanel';
-import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
-import AnalysisSummary from '../components/AnalysisSummary';
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
@@ -42,7 +39,6 @@ import DiscoveredLeadsPanel from './_sections/DiscoveredLeadsPanel';
 import type { SupplementalLine } from '../components/SupplementalInfoFields';
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
-import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
@@ -90,7 +86,6 @@ import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
 import type { PipelineStage } from '@/types/research';
-import { JOB_NOTES_PLACEHOLDER, RESEARCH_SOURCES, ReviewDocCard } from './ReviewDocCard';
 
 // ── Page-level constants ─────────────────────────────────────────────────────
 
@@ -207,7 +202,6 @@ export default function ResearchProjectPage() {
     },
     []
   );
-  const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
   /** Extra PDF URL from the worker pipeline result (populated after deep search) */
@@ -1587,31 +1581,6 @@ export default function ResearchProjectPage() {
     });
   }, [drawingSvg]);
 
-  function getNextStep(): { key: WorkflowStep; label: string } | null {
-    if (!project) return null;
-    const currentIndex = WORKFLOW_STEPS.findIndex(s => s.key === project.status);
-    if (currentIndex < WORKFLOW_STEPS.length - 1) {
-      return WORKFLOW_STEPS[currentIndex + 1];
-    }
-    return null;
-  }
-
-  function canAdvance(): boolean {
-    if (!project) return false;
-    switch (project.status) {
-      case 'upload':
-        return documents.length > 0 && documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
-      case 'configure':
-        return false; // Must use "Run Analysis" button instead
-      case 'review':
-        return true;
-      case 'drawing':
-        return true;
-      default:
-        return false;
-    }
-  }
-
   // Show skeleton only on the very first load. Once we have a project loaded,
   // never unmount the page — this prevents ResearchRunPanel from losing its
   // timer, logs, and polling state when useSession re-validates on window focus.
@@ -1646,8 +1615,6 @@ export default function ResearchProjectPage() {
     ? reached
     : resolveViewStage(viewStage, project.status);
   const viewingBehind = currentStage !== reached;
-  // Count only manually uploaded documents (excludes internet-sourced pipeline imports)
-  const uploadedDocumentCount = documents.filter(d => d.source_type === 'user_upload').length;
 
   return (
     <div className="research-page">
@@ -2963,20 +2930,8 @@ export default function ResearchProjectPage() {
               const path = (doc.storage_url || '').toLowerCase();
               return label.includes('misc screenshot') || label.startsWith('misc:') || path.includes('/screenshots-misc/');
             };
-            const regularDocs = documents.filter(doc => !isMiscDoc(doc));
             const miscDocs = documents.filter(doc => isMiscDoc(doc));
 
-            const grouped = regularDocs.reduce<Record<string, typeof documents>>((acc, doc) => {
-              const key = doc.source_type || 'other';
-              if (!acc[key]) acc[key] = [];
-              acc[key].push(doc);
-              return acc;
-            }, {});
-            const sourceOrder = ['property_search', 'user_upload', 'linked_reference', 'manual_entry'];
-            const sortedKeys = [
-              ...sourceOrder.filter(k => grouped[k]),
-              ...Object.keys(grouped).filter(k => !sourceOrder.includes(k)),
-            ];
             if (documents.length === 0) {
               return (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #4B5563)', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
@@ -2988,58 +2943,6 @@ export default function ResearchProjectPage() {
             }
             return (
               <>
-                {/* Plan G8 — the "Documents & Sources" list is now MERGED into the single combined
-                    Analyze · View · Source ↗ list above (AnalysisEstimatePanel). Kept here, disabled,
-                    so its grouping logic is one edit away if a source-grouped view is wanted again. */}
-                {false && (
-                <div className="review-doc-list">
-                  <div className="review-doc-list__header">
-                    <span className="review-doc-list__title"><FolderOpen size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Documents &amp; Sources</span>
-                    <span className="review-doc-list__count">{regularDocs.length}</span>
-                  </div>
-                  {sortedKeys.map(sourceKey => {
-                    const docs = grouped[sourceKey];
-                    const { label, icon: SrcIcon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: Paperclip };
-                    return (
-                      <div key={sourceKey} className="review-doc-group">
-                        <div className="review-doc-group__header">
-                          <span><SrcIcon size={15} strokeWidth={1.75} /></span>
-                          <span className="review-doc-group__label">{label}</span>
-                          <span className="review-doc-group__count">{docs.length}</span>
-                        </div>
-                        {docs.map(doc => {
-                          const typeIcon = (doc.document_type ? docTypeIcons[doc.document_type] : null) || Paperclip;
-                          const typeName = doc.document_type
-                            ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-                            : 'Document';
-                          const title = doc.document_label || doc.original_filename || typeName;
-                          const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
-                          const excerpt = doc.extracted_text
-                            ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
-                            : null;
-                          return (
-                            <ReviewDocCard
-                              key={doc.id}
-                              typeIcon={typeIcon}
-                              title={title}
-                              typeName={typeName}
-                              doc={doc}
-                              excerpt={excerpt}
-                              hasViewable={hasViewable}
-                              onView={() => {
-                                setViewerDoc(doc);
-                                setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
-                                setViewerHighlight(undefined);
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-                )}
-
                 {/* MISC documents are excluded from display — they are error pages,
                    empty results, auth walls, and other non-useful captures */}
                 {miscDocs.length > 0 && (

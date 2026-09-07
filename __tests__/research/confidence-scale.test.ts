@@ -60,9 +60,12 @@ describe('the callers, not the helper', () => {
     expect(viewer).toContain('confidencePercentLabel(doc.ocr_confidence)');
     expect(viewer).not.toContain('{doc.ocr_confidence}%');
 
-    const card = readCode('app/admin/research/[projectId]/ReviewDocCard.tsx');
-    expect(card).toContain('confidencePercentLabel(doc.ocr_confidence)');
+    // ReviewDocCard was retired 2026-09-06 (dead behind `{false && …}` since plan G8); the live
+    // document list is AnalysisEstimatePanel, which shows the same OCR label through the helper.
+    const card = readCode('app/admin/research/components/AnalysisEstimatePanel.tsx');
+    expect(card).toContain('confidencePercentLabel(doc?.ocr_confidence)');
     expect(card).not.toContain('Math.round(doc.ocr_confidence * 100)');
+    expect(card).not.toMatch(/ocr_confidence\s*\*\s*100/);
   });
 
   it('both app writers normalise on the way in', () => {

@@ -109,13 +109,24 @@ describe('the project page says which engine its button starts', () => {
 });
 
 describe('the claim the note makes is still true', () => {
-  it('the app analyze path still never contacts the worker', () => {
-    // If this fails, the project page HAS been wired to the worker — good news, and the note is
-    // now wrong. Update both together; do not silence this.
+  // ── THE GOOD NEWS THIS WAS WAITING FOR ARRIVED ─────────────────────────────────────────────
+  //
+  // Until 2026-09-06 this pinned "the app analyze path never contacts the worker". Plan 6.2 wired
+  // it: a whole-project Analyze POSTs the worker's read-documents pass (OCR + chain of title on the
+  // long-lived process) and the worker calls the app's data-point analysis back; an unreachable
+  // worker falls back in-process. The note on the screen only ever described the START button —
+  // which has run on the worker since 2026-09-03 — so the note stayed true; this assertion, kept
+  // as written, would have demanded the old, frozen-on-Vercel analysis back. Pinned to the new
+  // truth instead, in both directions.
+  it('the whole-project analyze path goes to the worker, and falls back in-process', () => {
     const route = read('app/api/admin/research/[projectId]/analyze/route.ts');
-    const service = read('lib/research/analysis.service.ts');
-    expect(route, 'analyze route now references the worker — the note is stale').not.toContain('WORKER_URL');
-    expect(service, 'analysis.service now references the worker — the note is stale').not.toContain('WORKER_URL');
+    expect(route).toContain('WORKER_URL');
+    expect(route).toContain('/research/read-documents/');
+    expect(route).toContain('thenAnalyze: true');
+    // The fallback, so an unreachable worker does not strand the button.
+    expect(route).toContain('analyzeProject(projectId, config)');
+    // The service itself stays engine-agnostic: the routing lives in the route, not the analysis.
+    expect(read('lib/research/analysis.service.ts')).not.toContain('WORKER_URL');
   });
 
   it('the batch path DOES contact the worker — so the note sends people somewhere real', () => {

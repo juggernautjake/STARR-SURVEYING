@@ -175,14 +175,16 @@ describe('unreadable is not an error', () => {
   it('is visible on the document card', () => {
     // Without a badge an unreadable document renders identically to one still waiting to be
     // processed — which is how "we could not read this deed" stayed invisible.
-    const card = read('app/admin/research/[projectId]/ReviewDocCard.tsx');
+    // ReviewDocCard was retired 2026-09-06 (dead behind `{false && …}` since plan G8, so this
+    // guard was passing against a card nothing rendered). The live list is AnalysisEstimatePanel.
+    const card = read('app/admin/research/components/AnalysisEstimatePanel.tsx');
     expect(card).toContain("processing_status === 'unreadable'");
     expect(card).toContain('readability_reason');
   });
 
   it('does not colour "thin text" like an error', () => {
     // The document is usable; facts from it are incomplete rather than absent.
-    const card = read('app/admin/research/[projectId]/ReviewDocCard.tsx');
+    const card = read('app/admin/research/components/AnalysisEstimatePanel.tsx');
     expect(card).toContain('review-doc-card__badge--warn');
     expect(read('app/admin/styles/AdminResearch.css')).toContain('.review-doc-card__badge--warn');
   });

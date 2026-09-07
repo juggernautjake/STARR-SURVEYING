@@ -448,14 +448,13 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
                   onClick={() => setViewerDoc(d)}
                   title="View — open this document in the viewer and page through it"
                   data-testid="rrv-doc-view"
-                  style={{ marginLeft: 8, background: 'none', border: '1px solid #2563EB', color: '#2563EB', borderRadius: 6, padding: '0.15rem 0.5rem', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
                 >
                   <Eye size={12} aria-hidden style={{ verticalAlign: '-2px', marginRight: 4 }} />View
                 </button>
               )}
               {d.source_url && (
                 <a href={d.source_url} target="_blank" rel="noopener noreferrer" className="rrv__doc-source"
-                   title="Open the page this was retrieved from" style={{ marginLeft: 6, fontSize: 12 }}>
+                   title="Open the page this was retrieved from">
                   Source ↗
                 </a>
               )}
