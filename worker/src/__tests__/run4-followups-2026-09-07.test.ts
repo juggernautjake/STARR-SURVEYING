@@ -84,3 +84,12 @@ describe('the wiring (check the CALLER)', () => {
     expect(src).toContain('.sort((a, b) => a.rank - b.rank || a.i - b.i)');
   });
 });
+
+describe('N — the review cap is the REVIEW\'s spend, not the project\'s', () => {
+  it('the read pass measures spend from its own start', () => {
+    const src = read('index.ts');
+    expect(src).toContain('const spendAtStart = spendForRun(projectId);');
+    expect(src).toContain("const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded !== 'cost';");
+    expect(src).not.toContain("checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost'");
+  });
+});

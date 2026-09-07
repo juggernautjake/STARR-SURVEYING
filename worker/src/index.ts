@@ -4313,7 +4313,12 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
     const log = (line: string) => console.log(`[ReadDocs${benchmark ? ':bench' : ''}] ${projectId}: ${line}`);
     try {
       // Benchmark reads everything; a normal read stops at the cost cap.
-      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId)).exceeded !== 'cost';
+      // The cap is THIS review's spend, not the project's. `spendForRun` is the worker's per-project
+      // accumulator and still carries the research run's document purchases (run 4, 2026-09-07: $8
+      // of deeds against a $7 review cap → "8 left unread because the run reached its ceiling"
+      // with nothing read — the deeds and the plat stayed pending and were never analysed).
+      const spendAtStart = spendForRun(projectId);
+      const mayContinue = () => benchmark || checkBudget(projectId, spendForRun(projectId) - spendAtStart).exceeded !== 'cost';
       const report = await withRunContext(projectId, () => reanalyseProjectDocuments(projectId, log, mayContinue));
       log(report ? `Read pass: ${report.reanalysed} read, ${report.leftUnread ?? 0} left, ${report.failed ?? 0} failed of ${report.considered}.` : 'Read pass returned nothing.');
 
