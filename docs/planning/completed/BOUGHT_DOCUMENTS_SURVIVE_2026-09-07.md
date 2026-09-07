@@ -216,3 +216,14 @@ console's SPENT is scoped to the research run's own window).
 | 0912adc32 failed the worker Docker build (tsc: `result.completedAt`); host rolled back | ✅ hotfix 67bcbb32c |
 | Two loading bars + two cost counters (research = retrieval; the review has its own bar) + run-5 log fixes L1–L5 | ✅ 7bdc766af — see `TWO_BARS_TWO_COUNTERS_2026-09-07.md` |
 | `GET /research/active` 500 "circular structure" while a run is in flight (the updater deferred on it) | ✅ 4b905af52 |
+
+## Closed 2026-09-07 (moved to completed/)
+
+Every engineering slice is built, merged and deployed (last: `7a718e848`). Run 6 (project
+`a7ef8036-2c01-4b03-b6d6-3b11a559d364`) proved the whole chain live: plats first (the 1954 WINNIE MAE plat
+re-opened at $0 from the viewer PDF at 200 dpi and read "good"), the TexasFile deed at $0, no duplicate rows,
+the research bar as retrieval progress with its own $0.01 / 10:46 counters, and the AI review with its own bar,
+clock and cap on the Analysis stage — five finalize stages to `review`, 527 data points (calls, distances,
+monuments from the deed and plat). Plan G's last step — a follow-up research round from the Discovered Leads
+(Vol. 9251 Pg. 668, Vol. 1462 Pg. 182/187, Ref. 04-4312) — is a fourth research run; the owner authorised
+three, so the leads are compiled on the Analysis stage and the round is left to the owner's button.

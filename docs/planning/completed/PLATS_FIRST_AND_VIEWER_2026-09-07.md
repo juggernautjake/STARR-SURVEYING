@@ -314,3 +314,9 @@ Tests: `texasfile-right-document-2026-09-07.test.ts` (15), `run-log-survives-fin
 
 **Not yet proved live** (needs the branch-2 merge + worker rebuild): a run where the name search refuses
 the other-property row and the second want is told "already held by this run".
+
+## Closed 2026-09-07 (moved to completed/)
+
+Continued and finished under `BOUGHT_DOCUMENTS_SURVIVE_2026-09-07.md` and `TWO_BARS_TWO_COUNTERS_2026-09-07.md`
+(same folder). TexasFile holds ONE plat for WINNIE MAE ADDITION (two index rows, both Cabinet A Slide 166A,
+1954); the readable copy is the viewer PDF (3000×1954), which the owned re-open now files at 200 dpi.

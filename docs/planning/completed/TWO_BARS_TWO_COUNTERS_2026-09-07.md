@@ -80,3 +80,7 @@ other $5 (run 6 is the last); delete the old project and do a fresh run each tim
 - Not done: a follow-up research round from the Discovered Leads. It is a fourth research run and the owner
   authorised three (runs 4, 5, 6 used). Leads were compiled and are listed on the Analysis stage for the
   owner to choose from.
+
+## Closed 2026-09-07 (moved to completed/)
+
+X0–X5 built and proved on run 6; the follow-up round is the owner's call (see the survive doc's closing note).
