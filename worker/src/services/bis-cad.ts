@@ -789,7 +789,7 @@ async function searchCadPlaywright(
 ): Promise<{ results: CadSearchResult[]; screenshot: Buffer | null; validation: PropertyValidation | null }> {
   // Playwright pays the largest single timeout of the lot — 70s in the owner's run, on a host that
   // had already refused a TCP connection twice. Check the circuit before launching a browser.
-  const pwCircuit = hostCircuit(baseUrl);
+  const pwCircuit = hostCircuit(baseUrl, undefined, 'browser');
   if (pwCircuit.down) {
     logger.warn(
       'Stage1B',

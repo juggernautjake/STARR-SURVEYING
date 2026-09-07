@@ -203,7 +203,7 @@ async function captureGisViewerScreenshotsInner(
 
   // A viewer host that already failed to answer this run is not asked again at a 60 s timeout
   // (2026-09-06: gis.bisclient.com timed out here, then again in the direct BIS map capture).
-  const viewerCircuit = hostCircuit(GIS_VIEWER_URL);
+  const viewerCircuit = hostCircuit(GIS_VIEWER_URL, undefined, 'browser');
   if (viewerCircuit.down) {
     progress(`Skipping the GIS viewer — ${new URL(GIS_VIEWER_URL).host} did not answer ${Math.round((viewerCircuit.ageMs ?? 0) / 1000)}s ago (${viewerCircuit.reason ?? 'no answer'}).`);
     return [];
@@ -580,7 +580,7 @@ async function captureGisViewerScreenshotsInner(
     });
     progress(`GIS viewer capture error: ${err instanceof Error ? err.message : String(err)}`);
     // A load timeout trips the host so the direct BIS map capture that follows skips it.
-    tripHost(GIS_VIEWER_URL, err);
+    tripHost(GIS_VIEWER_URL, err, undefined, 'browser');
   } finally {
     if (browser) {
       logDetail('cleanup', 'Closing browser');

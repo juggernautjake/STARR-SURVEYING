@@ -120,7 +120,8 @@ describe('the CAD paths actually consult it', () => {
 
   it('guards the Playwright path — the single largest timeout in the run', () => {
     // 70s, on a host that had already refused a TCP connection twice.
-    expect(src).toMatch(/const pwCircuit = hostCircuit\(baseUrl\)/);
+    // The BROWSER circuit since 2026-09-07 — a direct-fetch trip must not skip the Browserbase route.
+    expect(src).toMatch(/const pwCircuit = hostCircuit\(baseUrl, undefined, 'browser'\)/);
   });
 });
 

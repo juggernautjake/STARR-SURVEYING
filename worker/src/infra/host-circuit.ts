@@ -85,13 +85,26 @@ export function isConnectionLevelFailure(err: unknown): boolean {
   return markers.some((m) => msg.includes(m) || code.includes(m));
 }
 
-/** Record that a host did not answer. No-op for failures that are not connection-level. */
-export function tripHost(url: string, err: unknown, now: number = Date.now()): boolean {
+/**
+ * The route a call took to the host. A host that refuses the worker's own IP (Bell CAD is
+ * geo-blocked from the netcup box) answers fine through a Browserbase session — so on 2026-09-07 the
+ * DIRECT fetch's trip also skipped every browser capture of that host ("Skipping … did not answer
+ * 357s ago") although the browser route had just read the legal description. One circuit per host
+ * PER TRANSPORT: a direct failure leaves the browser route open, and vice versa.
+ */
+export type HostTransport = 'direct' | 'browser';
+
+function circuitKey(url: string, transport: HostTransport): string {
+  return `${hostOfUrl(url)}|${transport}`;
+}
+
+/** Record that a host did not answer on this transport. No-op for failures that are not connection-level. */
+export function tripHost(url: string, err: unknown, now: number = Date.now(), transport: HostTransport = 'direct'): boolean {
   if (!isConnectionLevelFailure(err)) return false;
-  const host = hostOfUrl(url);
-  if (!tripped.has(host)) {
+  const key = circuitKey(url, transport);
+  if (!tripped.has(key)) {
     const reason = err instanceof Error ? err.message : String(err);
-    tripped.set(host, { reason, trippedAt: now });
+    tripped.set(key, { reason, trippedAt: now });
   }
   return true;
 }
@@ -104,15 +117,15 @@ export interface CircuitState {
   ageMs?: number;
 }
 
-/** Should we skip contacting this host? Expired entries are cleared as they are read. */
-export function hostCircuit(url: string, now: number = Date.now()): CircuitState {
-  const host = hostOfUrl(url);
-  const entry = tripped.get(host);
+/** Should we skip contacting this host on this transport? Expired entries are cleared as they are read. */
+export function hostCircuit(url: string, now: number = Date.now(), transport: HostTransport = 'direct'): CircuitState {
+  const key = circuitKey(url, transport);
+  const entry = tripped.get(key);
   if (!entry) return { down: false };
 
   const ageMs = now - entry.trippedAt;
   if (ageMs >= HOST_CIRCUIT_TTL_MS) {
-    tripped.delete(host);
+    tripped.delete(key);
     return { down: false };
   }
   return { down: true, reason: entry.reason, ageMs };

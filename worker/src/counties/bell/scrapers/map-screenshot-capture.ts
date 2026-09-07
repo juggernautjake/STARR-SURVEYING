@@ -382,7 +382,7 @@ async function captureBisGisParcel(
 
     // The viewer host already failed to answer this run (the GIS viewer capture runs first and trips
     // it) — do not spend another 45 s finding that out.
-    const circuit = hostCircuit(url);
+    const circuit = hostCircuit(url, undefined, 'browser');
     if (circuit.down) {
       progress(`[BIS GIS] Skipped — ${new URL(url).host} did not answer ${Math.round((circuit.ageMs ?? 0) / 1000)}s ago (${circuit.reason ?? 'no answer'}).`);
       await page.close().catch(() => {});
@@ -394,7 +394,7 @@ async function captureBisGisParcel(
         timeout: TIMEOUTS.playwrightNavigation,
       });
     } catch (err) {
-      tripHost(url, err);
+      tripHost(url, err, undefined, 'browser');
       throw err;
     }
 

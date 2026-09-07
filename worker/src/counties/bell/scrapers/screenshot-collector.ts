@@ -77,7 +77,7 @@ export async function captureScreenshots(
       // On 2026-09-06 the CAD circuit had been open since Phase 1 (esearch.bellcad.org never
       // answered), yet this loop still tried three CAD screenshots at the full navigation
       // timeout each — 135 s of a capped run spent on a host the run already knew was down.
-      const circuit = hostCircuit(req.url);
+      const circuit = hostCircuit(req.url, undefined, 'browser');
       if (circuit.down) {
         progress(`Skipping ${req.description} — ${new URL(req.url).host} did not answer ${Math.round((circuit.ageMs ?? 0) / 1000)}s ago (${circuit.reason ?? 'no answer'}); not retrying until the circuit reopens.`);
         continue;
@@ -131,7 +131,7 @@ export async function captureScreenshots(
       } catch (err) {
         progress(`Failed to capture ${req.description}: ${err instanceof Error ? err.message : String(err)}`);
         // A navigation timeout trips the host's circuit so the NEXT request to it is skipped.
-        tripHost(req.url, err);
+        tripHost(req.url, err, undefined, 'browser');
       }
     }
 

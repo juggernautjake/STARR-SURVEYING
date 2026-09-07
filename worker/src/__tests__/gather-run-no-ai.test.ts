@@ -67,18 +67,24 @@ describe('screenshot capture respects the host circuit', () => {
   it('the Bell screenshot collector skips a tripped host and trips it on a timeout', () => {
     const src = read('src/counties/bell/scrapers/screenshot-collector.ts');
     expect(src).toContain("from '../../../infra/host-circuit.js'");
-    expect(src).toContain('hostCircuit(req.url)');
-    expect(src).toContain('tripHost(req.url, err)');
+    // Per transport since 2026-09-07: the collector drives a browser, so it checks and trips the
+    // browser circuit — a geo-blocked direct fetch no longer skips these captures.
+    expect(src).toContain("hostCircuit(req.url, undefined, 'browser')");
+    expect(src).toContain("tripHost(req.url, err, undefined, 'browser')");
     // The skip happens BEFORE the navigation, inside the request loop.
-    expect(src.indexOf('hostCircuit(req.url)')).toBeLessThan(src.indexOf('await page.goto(req.url'));
+    const check = src.indexOf("hostCircuit(req.url, undefined, 'browser')");
+    const nav = src.indexOf('await page.goto(req.url');
+    expect(check).toBeGreaterThan(-1);
+    expect(nav).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(nav);
   });
   it('the GIS viewer capture and the direct BIS map capture both consult and trip the circuit', () => {
     const gis = read('src/counties/bell/scrapers/gis-viewer-capture.ts');
-    expect(gis).toContain('hostCircuit(GIS_VIEWER_URL)');
-    expect(gis).toContain('tripHost(GIS_VIEWER_URL, err)');
+    expect(gis).toContain("hostCircuit(GIS_VIEWER_URL, undefined, 'browser')");
+    expect(gis).toContain("tripHost(GIS_VIEWER_URL, err, undefined, 'browser')");
     const map = read('src/counties/bell/scrapers/map-screenshot-capture.ts');
-    expect(map).toContain('const circuit = hostCircuit(url);');
-    expect(map).toContain('tripHost(url, err);');
+    expect(map).toContain("const circuit = hostCircuit(url, undefined, 'browser');");
+    expect(map).toContain("tripHost(url, err, undefined, 'browser');");
   });
 });
 
