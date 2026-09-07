@@ -260,3 +260,15 @@ analysis). Owner: (1) merge (compare URL in the handoff); (2) rebuild the worker
 `/healthz activePipelines=0`**; (3) apply seed 632 to live Supabase; (4) drive the loop on 1401 North East
 St — the first paid plat buy is the live proof of the GUID thread; (5) decide `DocumentDeepAnalysisPanel`
 (6.9). Then move this doc to `completed/`.
+
+---
+
+## COMPLETED 2026-09-06 (evening) — moved to `completed/`
+
+Every action item in this doc is shipped on `claude/paid-first-rich-capture-viewer-2026-09-05` (Phases 1–4,
+the 6.x audit fixes, the five "noted for the owner" defects, 3.4's per-document lineage, Phase 5 verification:
+worker suite 216 files green, full app suite 28k green after the three whole-suite guards were satisfied,
+worker + app tsc + eslint clean, `npm run build` green). Nothing is deferred for cost. What remains is
+owner-gated and live-only, listed in 5.3: merge, worker rebuild when `activePipelines=0`, apply seed 632,
+the supervised loop on 1401 North East St, and the `deep-analyze` route decision (6.9 — the route is recorded
+in `api-routes-are-reachable`'s KNOWN_UNCALLED with the owner call).

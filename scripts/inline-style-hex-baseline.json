@@ -139,7 +139,6 @@
   "app/admin/research/components/BriefingPanel.tsx": 1,
   "app/admin/research/components/DiscrepancyCard.tsx": 1,
   "app/admin/research/components/DiscrepancyPanel.tsx": 4,
-  "app/admin/research/components/DocumentDeepAnalysisPanel.tsx": 19,
   "app/admin/research/components/DocumentUploadPanel.tsx": 9,
   "app/admin/research/components/DrawingToolsSidebar.tsx": 2,
   "app/admin/research/components/ExportPanel.tsx": 3,

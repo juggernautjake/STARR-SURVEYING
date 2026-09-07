@@ -48,6 +48,9 @@ const API_ROOT = 'app/api/admin/research';
 const CALLER_DIRS = ['app', 'lib', 'scripts'];
 
 const KNOWN_UNCALLED: Record<string, string> = {
+  // ── DEAD CAPABILITY, RECORDED FOR THE OWNER (2026-09-06) ─────────────────────────
+  '/api/admin/research/[projectId]/documents/[docId]/deep-analyze':
+    'NO UI CALLER since 2026-03-16. Its only caller, DocumentDeepAnalysisPanel, was imported by the project page and never rendered after the Stage 2/3 redesign (b675d5d30) — a dead import kept every reachability guard green for six months. The panel was deleted on 2026-09-06 (the app orphan ceiling is count-only, and its markup was stale against the redesigned page). The route (980 lines: structured legal-description + plat AI reading, per document, priced per click) and lib/research/document-analysis.service remain, callable and working. OWNER CALL: build a per-document "Deep analyze" action on the Analysis stage against this route, or drop the route + service. Plan: ITERATIVE_RESEARCH_ANALYSIS_LOOP_2026-09-06 §6.9.',
   // ── CALLED, BUT NOT FROM THIS HALF OF THE REPOSITORY ─────────────────────────────
   '/api/admin/research/requests/claim':
     'CALLED BY THE WORKER, not by the UI. worker/src/infra/queue-client.ts fetches this to claim queued research requests; the worker is excluded from CALLER_DIRS because its own /research/* route names collide with the app routes that proxy them. Reachable and in daily use.',
