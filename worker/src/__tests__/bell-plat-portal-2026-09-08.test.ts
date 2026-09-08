@@ -58,3 +58,20 @@ describe('E3 — the free plat is filed before the paid pass, and the plat want 
     expect(orch).toContain('const platDocLabel = `Subdivision Plat: ${plat.name}${platInstrStr}`;');
   });
 });
+
+describe('E3b — a plat the portal names but no server address can fetch is recorded, not lost', () => {
+  it('locateBestMatchingPlat returns the name + URL without the bytes, and the early pass records it as a lead', () => {
+    const cp = read('services/county-plats.ts');
+    expect(cp).toContain('export async function locateBestMatchingPlat(');
+    expect(cp).toContain("return best ? { name: best.name, url: best.url, source: config.countyDisplayName } : null;");
+    const src = read('index.ts');
+    expect(src).toContain('const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId)).catch(() => null);');
+    expect(src).toContain('await recordFreePlatLead(projectId, { name: located.name, url: located.url, source: located.source, subdivision: identified.subdivisionName });');
+    expect(src).toContain("const leads = [...prior.filter((l) => l?.url !== lead.url), { ...lead, locatedAt: new Date().toISOString() }];");
+  });
+  it('the browser route asks Browserbase for a RESIDENTIAL session and names the 402 plainly', () => {
+    const cp = read('services/county-plats.ts');
+    expect(cp).toContain("withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }, async (session) => {");
+    expect(cp).toContain('residential proxies need a paid Browserbase plan');
+  });
+});

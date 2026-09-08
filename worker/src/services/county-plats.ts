@@ -221,7 +221,11 @@ async function fetchThroughBrowser(
   if (!platBrowserRouteEnabled()) return null;
   const { withBrowser } = await import('../lib/browser-factory.js');
   try {
-    return await withBrowser({ adapterId: 'plat-repo' }, async (session) => {
+    // RESIDENTIAL, or it is pointless: the block is on datacentre addresses, and Browserbase's own
+    // datacentre pool is refused exactly like the worker (run 6, 2026-09-07: HTTP 403 either way). A
+    // residential session needs a paid Browserbase plan — the free plan answers "402 Proxies are not
+    // included", which is logged below in those words so the fix (the plan) is obvious.
+    return await withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }, async (session) => {
       const context = await session.browser.newContext({ userAgent: headers['User-Agent'] });
       try {
         const res = await context.request.get(url, { headers, timeout: 30_000, maxRedirects: 5 });
@@ -231,7 +235,10 @@ async function fetchThroughBrowser(
       }
     });
   } catch (err) {
-    console.warn(`[county-plats] browser route to ${url} failed: ${err instanceof Error ? err.message : String(err)}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(/402|not included in the free plan/i.test(msg)
+      ? `[county-plats] browser route to ${url}: Browserbase refused a residential session ("${msg}") — residential proxies need a paid Browserbase plan; until then the site's file host cannot be reached from any address the firm's servers have.`
+      : `[county-plats] browser route to ${url} failed: ${msg}`);
     return null;
   }
 }
@@ -1425,6 +1432,23 @@ export async function searchCountyPlats(
  *
  * Returns null if the county has no repository, no match is found, or all downloads fail.
  */
+/** The best index match for a subdivision — its exact name and file URL — WITHOUT the bytes. For the
+ *  day the index answers (through the app relay) but the file host does not: Bell's plats live on
+ *  cms3.revize.com behind Cloudflare, which refuses every datacentre address the firm's servers have
+ *  (2026-09-08). A located file is something a person in the office can open in one click; a null
+ *  is "the portal does not have it", which is a different fact and must not look the same. */
+export async function locateBestMatchingPlat(
+  county: string,
+  subdivisionName: string,
+  logger: PipelineLogger,
+): Promise<{ name: string; url: string; source: string } | null> {
+  const config = getPlatRepoConfig(county);
+  if (!config) return null;
+  const matches = await searchCountyPlats(county, subdivisionName, logger, 0.5);
+  const best = matches[0];
+  return best ? { name: best.name, url: best.url, source: config.countyDisplayName } : null;
+}
+
 export async function fetchBestMatchingPlat(
   county: string,
   subdivisionName: string,

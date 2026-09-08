@@ -20,6 +20,7 @@ import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
+import FreePlatLeadsNotice from '../components/FreePlatLeadsNotice';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
 import ReviewDocumentsList from '../components/ReviewDocumentsList';
 import ProjectCostBadge from '../components/ProjectCostBadge';
@@ -2017,6 +2018,9 @@ export default function ResearchProjectPage() {
               {/* U4 (plan GATHER_AND_REVIEW_SPLIT) — the analysis is a SEPARATE run the operator starts
                   here, with its own cost cap. A gather run files documents with no AI; this is where the
                   user, having reviewed them, pays to analyse. */}
+              {/* A free plat the county portal names but no server of ours can fetch (2026-09-08): the
+                  person in the office is the one address that can. */}
+              <FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} />
               <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} onFinished={() => loadProject()} analyzing={project.status === 'analyzing'} />
 
               {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a

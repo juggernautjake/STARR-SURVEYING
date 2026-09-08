@@ -1356,11 +1356,21 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     let freePlatFiled: string | null = null;
     if (identified?.subdivisionName && county && platSourceStatus(county).available) {
       try {
-        const { fetchBestMatchingPlat } = await import('./services/county-plats.js');
+        const { fetchBestMatchingPlat, locateBestMatchingPlat } = await import('./services/county-plats.js');
         const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId));
         if (!hit) {
-          handshakeLogger.attempt('[Plats]', 'info', 'Free plat portal', identified.subdivisionName)
-            .warn(`No plat for "${identified.subdivisionName}" on the free portal (${platSourceStatement(county)}) — TexasFile's copy is next.`);
+          // Not fetched is not the same as not there. The index (reached through the app relay) may
+          // name the exact file while its host refuses every server address the firm has — then the
+          // file is a one-click fetch for a person in the office, and the project says so.
+          const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId)).catch(() => null);
+          if (located) {
+            handshakeLogger.attempt('[Plats]', 'warn', 'Free plat located — office fetch needed', located.url)
+              .warn(`Free plat "${located.name}" is on ${located.source} at ${located.url}, but its file host refuses every address the firm's servers have (Cloudflare blocks datacentre addresses; a residential Browserbase session needs a paid plan). Open it from the office and add it to the project's Documents. TexasFile's copy is next meanwhile.`);
+            await recordFreePlatLead(projectId, { name: located.name, url: located.url, source: located.source, subdivision: identified.subdivisionName });
+          } else {
+            handshakeLogger.attempt('[Plats]', 'info', 'Free plat portal', identified.subdivisionName)
+              .warn(`No plat for "${identified.subdivisionName}" on the free portal (${platSourceStatement(county)}) — TexasFile's copy is next.`);
+          }
         } else {
           const sb = await getSupabase();
           let pageImages: string[] = [hit.base64];
@@ -4402,6 +4412,24 @@ async function unparkAnalyzing(projectId: string, log: (m: string) => void, why:
       : `Analysis did not finish (${why.slice(0, 160)}) — the project is back at "review"; press Analyze to try again.`);
   } catch (e) {
     log(`Could not restore the project's status after the failed analysis: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** A free plat the county portal names but no server address of ours can fetch (2026-09-08): kept on
+ *  the project so the Analysis stage can offer the one-click office fetch. Merged, de-duplicated by URL. */
+async function recordFreePlatLead(projectId: string, lead: { name: string; url: string; source: string; subdivision: string }): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    if (!sb) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb as any).from('research_projects').select('analysis_metadata').eq('id', projectId).single();
+    const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
+    const prior = (Array.isArray(meta.freePlatLeads) ? meta.freePlatLeads : []) as Array<{ url?: string }>;
+    const leads = [...prior.filter((l) => l?.url !== lead.url), { ...lead, locatedAt: new Date().toISOString() }];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).from('research_projects').update({ analysis_metadata: { ...meta, freePlatLeads: leads } }).eq('id', projectId);
+  } catch (e) {
+    console.warn(`[Plats] ${projectId}: could not record the free plat lead — ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
