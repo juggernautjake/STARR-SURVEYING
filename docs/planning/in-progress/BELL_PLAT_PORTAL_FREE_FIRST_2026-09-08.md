@@ -28,7 +28,21 @@ URLs: `https://www.bellcountytx.com/county_government/county_clerk/w.php` (the W
 
 | # | Slice | Status |
 |---|---|---|
-| E1 | App relay: `GET /api/admin/research/egress?url=` — the app on Vercel (a US address) fetches one allow-listed URL (bellcountytx.com, cms3.revize.com/revize/bellcountytx/) for the worker (`x-worker-key`), returns status + bytes. | ⏳ |
-| E2 | Worker: `fetchThroughAppRelay` is the first road around a 403 (index pages, direct PDFs, index-matched PDFs); the paid browser route stays as the last resort. Bell's egress recorded as `app-relay`. | ⏳ |
-| E3 | Free plat FIRST: at property identification, when a subdivision is known and the county has a free portal, fetch the plat, rasterise at 200 dpi, file it under the Phase 2 label (so the rows merge) — and drop the plat want from the paid pass. | ⏳ |
-| E4 | Tests + this doc; prove live with a worker probe (portal reached through the relay, the Winnie Mae PDF fetched and matched). A full run is the owner's call (the three authorised runs are used). | ⏳ |
+| E1 | App relay: `GET /api/admin/research/egress?url=` — the app on Vercel (a US address) fetches one allow-listed URL (bellcountytx.com, cms3.revize.com/revize/bellcountytx/) for the worker (`x-worker-key`), returns status + bytes. | ✅ a0155c8d1 — the W index (192,922 bytes, 441 entries) comes back through Vercel; the PDFs do not (see below) |
+| E2 | Worker: `fetchThroughAppRelay` is the first road around a 403 (index pages, direct PDFs, index-matched PDFs); the paid browser route stays as the last resort. Bell's egress recorded as `app-relay`. | ✅ a0155c8d1; a 402 from Browserbase exhausts the browser route for the hour |
+| E3 | Free plat FIRST: at property identification, when a subdivision is known and the county has a free portal, fetch the plat, rasterise at 200 dpi, file it under the Phase 2 label (so the rows merge) — and drop the plat want from the paid pass. | ✅ a0155c8d1; an already-held plat stops the portal and TexasFile alike |
+| E4 | Tests + this doc; prove live with a worker probe (portal reached through the relay, the Winnie Mae PDF fetched and matched). A full run is the owner's call (the three authorised runs are used). | ✅ probe 2026-09-08 (below) |
+| E5 | Located-but-unfetchable: `locateBestMatchingPlat` keeps the exact name + URL; the early pass records `analysis_metadata.freePlatLeads`; the Analysis stage's notice opens the PDF and files the saved copy (label `Subdivision Plat: <name>`, type plat) through the Documents upload, then marks the lead filed (`PATCH /free-plat-leads`). | ✅ |
+
+## What the probe measured (worker, through the relay, 2026-09-08)
+
+- Five direct-URL guesses → 403 direct, 403 through the relay (the PDF redirects to cms3.revize.com, which is
+  behind Cloudflare and refuses datacentre addresses — Vercel included), Browserbase → "402 Free plan browser
+  minutes limit reached".
+- The W index → **200 through the relay, 441 entries; "WINNIE MAE ADDITION" → best "WINNIE MAE ADN" (score 1.00)**.
+  So the worker CAN read the clerk's index and find any listed plat's URL.
+- The file itself → 403 (Cloudflare) via the relay; browser route 402. A cross-origin fetch from the app in the
+  owner's browser cannot read the bytes either (no CORS header — measured). The one address that can is the
+  owner's browser as a plain download — hence E5.
+- The automated road for the bytes is a residential Browserbase session (`useResidentialProxy: true` is wired):
+  it needs a paid Browserbase plan. Owner's call.
