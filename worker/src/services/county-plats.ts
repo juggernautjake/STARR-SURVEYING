@@ -30,7 +30,10 @@ import { extractSubdivisionName as extractSubdivisionNameShared } from '../resea
 // egress because it blocks the worker's IP (bellcountytx.com is the standing example); 'blocked'
 // answers nowhere the worker can reach it, so the source is recorded unreachable-by-policy and not
 // asked. A county with no registry entry at all has no free plat source, which the run also says.
-export type PlatEgress = 'direct' | 'browser-route' | 'blocked';
+// 'app-relay' (2026-09-08): the site refuses the worker's datacentre address AND Browserbase's, and the
+// Browserbase plan has no residential proxies — so the app on Vercel (a US address the site answers)
+// fetches for the worker. See lib/research/egress-allowlist.ts in the app.
+export type PlatEgress = 'direct' | 'app-relay' | 'browser-route' | 'blocked';
 
 export interface PlatRepoConfig {
   /** How the worker reaches this repository (C4). Absent is treated as 'direct'. */
@@ -160,6 +163,57 @@ export function platBrowserRouteEnabled(env: NodeJS.ProcessEnv = process.env): b
   return (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').split(',').map((s) => s.trim()).includes('plat-repo');
 }
 
+// ── THE FIRST ROAD AROUND THE BLOCK: THE APP, ON A US ADDRESS ──────────────────────────────────
+//
+// Run 6 (2026-09-07) asked bellcountytx.com for the W index and five direct PDF names and was refused
+// every time — direct and through Browserbase — while the same URLs answered 200 from the office. The
+// app runs on Vercel, which the site answers, so the app's egress route fetches ONE allow-listed URL
+// for the worker and hands the bytes back. Free, and no browser session. Only when the relay cannot
+// answer is the paid browser route tried.
+
+export function appRelayEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !!env.APP_BASE_URL && !!env.WORKER_API_KEY;
+}
+
+/** The relay URL for a target — exported so the shape is pinned by a test. */
+export function appRelayUrl(target: string, env: NodeJS.ProcessEnv = process.env): string {
+  return `${(env.APP_BASE_URL ?? '').replace(/\/$/, '')}/api/admin/research/egress?url=${encodeURIComponent(target)}`;
+}
+
+async function fetchThroughAppRelay(
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ status: number; body: Buffer; finalUrl: string } | null> {
+  if (!appRelayEnabled()) return null;
+  try {
+    const res = await fetch(appRelayUrl(url), {
+      headers: { 'x-worker-key': process.env.WORKER_API_KEY!, 'x-forward-user-agent': headers['User-Agent'] ?? '' },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) {
+      console.warn(`[county-plats] app relay answered HTTP ${res.status} for ${url}`);
+      return null;
+    }
+    const j = await res.json() as { status: number; finalUrl?: string; bodyBase64?: string };
+    return { status: j.status, body: Buffer.from(j.bodyBase64 ?? '', 'base64'), finalUrl: j.finalUrl ?? url };
+  } catch (err) {
+    console.warn(`[county-plats] app relay to ${url} failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/** A refused host, asked from another address: the app relay first (free), then the paid browser route. */
+async function fetchOnAnotherAddress(
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ status: number; body: Buffer; finalUrl: string; via: 'app-relay' | 'browser-route' } | null> {
+  const relay = await fetchThroughAppRelay(url, headers);
+  if (relay && relay.status < 400) return { ...relay, via: 'app-relay' };
+  const browser = await fetchThroughBrowser(url, headers);
+  if (browser) return { ...browser, via: 'browser-route' };
+  return relay ? { ...relay, via: 'app-relay' } : null;
+}
+
 async function fetchThroughBrowser(
   url: string,
   headers: Record<string, string>,
@@ -212,9 +266,10 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   //   Layer 1 — bellcountytx.com index page scrape + fuzzy match (~5-15s)
   //   Layer 2 — Retry Layer 0 with name variations (A/B suffixes, abbreviation expansion, etc.)
   bell: {
-    // bellcountytx.com 403s every request from the worker's IP but answers from an office / the
-    // Browserbase egress — so the free repository is reachable only through the browser route.
-    egress: 'browser-route',
+    // bellcountytx.com 403s every request from the worker's address (and Browserbase's datacentre
+    // addresses) but answers an office and Vercel — so the free repository is reached through the
+    // app relay first; the paid browser route stays as the last resort.
+    egress: 'app-relay',
     indexUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php',
     fileBaseUrl:      'https://www.bellcountytx.com',
     directUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf',
@@ -298,7 +353,9 @@ export function platSourceStatus(county: string): { available: boolean; egress: 
   return {
     available: true,
     egress,
-    via: egress === 'browser-route' ? 'the browser egress (the site blocks the worker IP)' : 'a direct request',
+    via: egress === 'app-relay'
+      ? "the app relay (the site blocks the worker's address; the app fetches it from a US address)"
+      : egress === 'browser-route' ? 'the browser egress (the site blocks the worker IP)' : 'a direct request',
   };
 }
 
@@ -454,8 +511,8 @@ async function fetchPlatIndex(
       noteHostRefused(url, config.countyDisplayName);
       refused = true;
     }
-    // Refused on this address: once through a browser on another, if the operator enabled it.
-    const alt = await fetchThroughBrowser(url, headers);
+    // Refused on this address: through the app relay (free), then a browser on another address.
+    const alt = await fetchOnAnotherAddress(url, headers);
     if (alt && alt.status < 400) {
       const html = alt.body.toString('utf8');
       const captcha = detectCaptcha(html);
@@ -464,7 +521,7 @@ async function fetchPlatIndex(
         tracker({ status: 'fail', error: `captcha in the way via the browser route — ${captcha.kind}` });
         return null;
       }
-      tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes via browser route` });
+      tracker({ status: 'success', dataPointsFound: 1, details: `${html.length} bytes via the ${alt.via === 'app-relay' ? 'app relay' : 'browser route'}` });
       return html;
     }
     // Both egresses have now failed — record it so the run's remaining letters stop asking (C2).
@@ -1020,8 +1077,8 @@ async function downloadPlatFile(
       }
     }
     if (refused) {
-      // Refused on this address: once through a browser on another, if the operator enabled it.
-      const alt = await fetchThroughBrowser(fileUrl, headers);
+      // Refused on this address: through the app relay (free), then a browser on another address.
+      const alt = await fetchOnAnotherAddress(fileUrl, headers);
       if (!alt || alt.status >= 400) {
         // Both egresses have now failed — record it so the run stops asking (C2).
         if (platBrowserRouteEnabled()) noteBrowserRouteExhausted(fileUrl, config.countyDisplayName);
@@ -1428,6 +1485,15 @@ export async function fetchBestMatchingPlat(
           };
         }
 
+        if (response.status === 403) {
+          noteHostRefused(directUrl, config.countyDisplayName);
+          const alt = await fetchOnAnotherAddress(directUrl, headers);
+          if (alt && alt.status < 400 && alt.body.length > 0) {
+            tracker({ status: 'success', dataPointsFound: 1, details: `Direct URL hit via the ${alt.via === 'app-relay' ? 'app relay' : 'browser route'}: ${alt.body.length} bytes — ${variant}` });
+            logger.info('Stage2A', `Layer 0 (direct URL, ${alt.via}): "${variant}" → ${alt.body.length} bytes from ${alt.finalUrl.substring(0, 80)}`);
+            return { base64: alt.body.toString('base64'), mimeType: 'application/pdf', name: variant, url: directUrl, source: `${config.countyDisplayName} (direct URL, ${alt.via})`, fileExt: 'pdf' };
+          }
+        }
         tracker({ status: 'fail', error: `HTTP ${response.status} — falling through to index scrape` });
         logger.info('Stage2A', `Layer 0 miss: "${variant}" → HTTP ${response.status} — trying index scrape`);
       } catch (directErr) {

@@ -103,7 +103,8 @@ describe('WIRED on both sides (check the CALLER)', () => {
   it('the app route runs an awaited worker call to completion, and only the worker may chunk', () => {
     const route = readRepo('app/api/admin/research/[projectId]/analyze/route.ts');
     expect(route).toContain('if (isWorker && awaitCompletion) {');
-    expect(route).toContain('const result = await analyzeProject(projectId, config);');
+    // Under the project's AI ledger context since 2026-09-07, so the review's own cost counter sees these calls.
+    expect(route).toContain("const result = await withAiLedger({ projectId, source: 'review' }, () => analyzeProject(projectId, config));");
     expect(route).toContain("if (body.skipFinalization === true && isWorker) config.skipFinalization = true;");
   });
   it('the app service stops a chunk before the cross-document work, leaving the project at analyzing', () => {

@@ -13,6 +13,9 @@
     },
     "app/api/admin/receipts/[id]/extract/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/admin/research/egress/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [

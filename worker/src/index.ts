@@ -57,7 +57,7 @@ import { planCaptures, type CapturePlanInput } from './research/capture-plan.js'
 import { runCaptures } from './research/capture-runner.js';
 import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
 import { describeRunOrder } from './research/run-order.js';
-import { platSourceStatement } from './services/county-plats.js';
+import { platSourceStatement, platSourceStatus } from './services/county-plats.js';
 import {
   reanalyseFiledDocuments, describeReanalysis, type FiledDocument,
 } from './research/reanalyze-documents.js';
@@ -65,7 +65,7 @@ import {
 // until now — never to photograph the viewer, which is what was asked for.
 import { BIS_CONFIGS } from './services/bis-cad.js';
 import { lookupByCounty } from './research/county-key.js';
-import { storeCaptureImage, fileCaptureRow } from './services/artifact-uploader.js';
+import { storeCaptureImage, fileCaptureRow, uploadDocumentIncremental } from './services/artifact-uploader.js';
 import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
 import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
@@ -1344,7 +1344,55 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     }
     const ceiling = runSettings.texasfileBudgetUsd ?? runSettings.maxCostUsd ?? 25;
     const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
-    const wants = selectionsToWants(resolveGatherSelections(runSettings));
+    const allWants = selectionsToWants(resolveGatherSelections(runSettings));
+
+    // ── THE FREE PLAT PORTAL FIRST (owner, 2026-09-08) ────────────────────────────────────────────
+    // "We need to always search this portal for free plats for bell county searches once we have any
+    // subdivision information." Bell's clerk publishes every subdivision plat as a PDF, and run 6
+    // bought TexasFile's 1954 copy while the clerk's — more legible — sat on a site the worker's
+    // address cannot reach (the app relay reaches it now). Fetched here, BEFORE the paid engine, filed
+    // under the label the Phase 2 plat search uses (so the two merge, not duplicate), and the plat
+    // want is then satisfied for free — TexasFile's copy is not bought.
+    let freePlatFiled: string | null = null;
+    if (identified?.subdivisionName && county && platSourceStatus(county).available) {
+      try {
+        const { fetchBestMatchingPlat } = await import('./services/county-plats.js');
+        const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId));
+        if (!hit) {
+          handshakeLogger.attempt('[Plats]', 'info', 'Free plat portal', identified.subdivisionName)
+            .warn(`No plat for "${identified.subdivisionName}" on the free portal (${platSourceStatement(county)}) — TexasFile's copy is next.`);
+        } else {
+          const sb = await getSupabase();
+          let pageImages: string[] = [hit.base64];
+          if (hit.mimeType === 'application/pdf') {
+            const { rasterisePdf } = await import('./services/texasfile-pdf.js');
+            pageImages = (await rasterisePdf(Buffer.from(hit.base64, 'base64'), { dpi: 200 })).map((b) => b.toString('base64'));
+          }
+          const pages: ArtifactPageImage[] = pageImages.map((img, pi) => ({
+            category: 'plat',
+            label: hit.name,
+            pageNumber: pi + 1,
+            imageBase64: img,
+            sourceUrl: hit.url,
+            ...(pi === 0 ? { documentLabel: `Subdivision Plat: ${hit.name}`, recordingInfo: null, recordedDate: null, documentType: 'plat' } : {}),
+          }));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const up = sb ? await uploadDocumentIncremental(sb as any, projectId, pages) : { ok: false, error: 'no Supabase client' };
+          if (up.ok) {
+            freePlatFiled = hit.name;
+            handshakeLogger.attempt('[Plats]', 'info', 'Free plat filed', hit.url)
+              .success(1, `Plat "${hit.name}" filed FREE from ${hit.source} — ${pageImages.length} page(s) at 200 dpi. TexasFile's copy is not bought.`);
+          } else {
+            handshakeLogger.attempt('[Plats]', 'warn', 'Free plat not filed', up.error ?? 'unknown')
+              .warn(`The free plat "${hit.name}" was fetched but could not be filed: ${up.error ?? 'unknown'} — TexasFile's copy is next.`);
+          }
+        }
+      } catch (e) {
+        handshakeLogger.attempt('[Plats]', 'warn', 'Free plat portal', identified.subdivisionName)
+          .warn(`Free plat portal lookup failed: ${e instanceof Error ? e.message : String(e)} — TexasFile's copy is next.`);
+      }
+    }
+    const wants = freePlatFiled ? allWants.filter((w) => w.documentType !== 'plat') : allWants;
 
     // ── FREE-FIRST via the cross-source engine (plan 1.4) ─────────────────────────────────────────
     // Search TexasFile, compare its results against the CAD deed history (the run's cheap FREE

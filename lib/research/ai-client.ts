@@ -62,7 +62,7 @@ export function currentAiLedger(): AiLedgerContext | undefined {
 }
 
 /** Dollars for one call. Prices come from `lib/ai/usage`'s table; a dated model id
- *  ('claude-opus-5-20260301') is priced by its family. Unknown = $0 and SAID SO in the row. */
+ *  (a family name with a -yyyymmdd suffix) is priced by its family. Unknown = $0 and SAID SO in the row. */
 export function priceCallUsd(model: string, tokens: { input: number; output: number }): { usd: number; priced: boolean } {
   const tryModel = (m: string) => estimateCostCents({ model: m, inputTokens: tokens.input, outputTokens: tokens.output, cacheReadTokens: 0 });
   const exact = tryModel(model);

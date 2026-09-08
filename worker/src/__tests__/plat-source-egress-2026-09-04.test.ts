@@ -10,11 +10,11 @@ import { platSourceStatus, platSourceStatement } from '../services/county-plats.
 // before it searches, instead of searching in silence.
 
 describe('platSourceStatus', () => {
-  it('Bell is reachable only through the browser egress', () => {
+  it('Bell is reachable only through the app relay (the site refuses the worker and Browserbase alike)', () => {
     const s = platSourceStatus('BELL');
     expect(s.available).toBe(true);
-    expect(s.egress).toBe('browser-route');
-    expect(s.via).toContain('browser');
+    expect(s.egress).toBe('app-relay');
+    expect(s.via).toContain('app relay');
   });
 
   it('Hays answers the worker directly', () => {
@@ -34,7 +34,7 @@ describe('platSourceStatus', () => {
 describe('platSourceStatement', () => {
   it('names the source and how it is reached for a configured county', () => {
     expect(platSourceStatement('BELL')).toContain('reached through');
-    expect(platSourceStatement('BELL')).toContain('browser');
+    expect(platSourceStatement('BELL')).toContain('app relay');
   });
   it('says an unindexed county has no free plat source', () => {
     const line = platSourceStatement('TRAVIS');

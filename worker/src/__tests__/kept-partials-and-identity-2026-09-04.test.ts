@@ -85,9 +85,9 @@ describe('the plat repository is reached through a browser on another address wh
     expect(platBrowserRouteEnabled({ BROWSERBASE_ENABLED_ADAPTERS: 'cad' })).toBe(false);
     expect(platBrowserRouteEnabled({})).toBe(false);
   });
-  it('both fetch layers take the browser route after a 403, and say when it was not enabled', () => {
+  it('all three fetch layers go to another address after a 403 — the app relay first, then the browser route — and say when neither answered', () => {
     const src = read('services/county-plats.ts');
-    expect((src.match(/const alt = await fetchThroughBrowser\((url|fileUrl), headers\);/g) ?? []).length).toBe(2);
+    expect((src.match(/const alt = await fetchOnAnotherAddress\((url|fileUrl|directUrl), headers\);/g) ?? []).length).toBe(3);
     expect(src).toContain("withBrowser({ adapterId: 'plat-repo' }");
     expect(src).toContain('context.request.get(url, { headers, timeout: 30_000, maxRedirects: 5 })');
     expect(src).toContain('plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried');
