@@ -42,7 +42,8 @@ describe('E3 — the free plat is filed before the paid pass, and the plat want 
   const src = read('index.ts');
   it('fetches the county portal at property identification, files it under the Phase 2 label, and drops the plat want', () => {
     expect(src).toContain("if (identified?.subdivisionName && county && platSourceStatus(county).available) {");
-    expect(src).toContain("const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId));");
+    expect(src).toContain("const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId), undefined, { minScore: FREE_PLAT_MIN_SCORE });");
+    expect(src).toContain('const FREE_PLAT_MIN_SCORE = 0.85;');
     expect(src).toContain("pageImages = (await rasterisePdf(Buffer.from(hit.base64, 'base64'), { dpi: 200 })).map((b) => b.toString('base64'));");
     expect(src).toContain("...(pi === 0 ? { documentLabel: `Subdivision Plat: ${hit.name}`, recordingInfo: null, recordedDate: null, documentType: 'plat' } : {}),");
     expect(src).toContain("const wants = freePlatFiled ? allWants.filter((w) => w.documentType !== 'plat') : allWants;");
@@ -65,7 +66,7 @@ describe('E3b — a plat the portal names but no server address can fetch is rec
     expect(cp).toContain('export async function locateBestMatchingPlat(');
     expect(cp).toContain("return best ? { name: best.name, url: best.url, source: config.countyDisplayName } : null;");
     const src = read('index.ts');
-    expect(src).toContain('const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId)).catch(() => null);');
+    expect(src).toContain('const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId), { minScore: FREE_PLAT_MIN_SCORE }).catch(() => null);');
     expect(src).toContain('await recordFreePlatLead(projectId, { name: located.name, url: located.url, source: located.source, subdivision: identified.subdivisionName });');
     expect(src).toContain("const leads = [...prior.filter((l) => l?.url !== lead.url), { ...same, ...lead, locatedAt: new Date().toISOString() }];");
     // A plat already on the project (filed by hand from a lead, or by an earlier round) means neither the

@@ -1447,10 +1447,11 @@ export async function locateBestMatchingPlat(
   county: string,
   subdivisionName: string,
   logger: PipelineLogger,
+  opts: { minScore?: number } = {},
 ): Promise<{ name: string; url: string; source: string } | null> {
   const config = getPlatRepoConfig(county);
   if (!config) return null;
-  const matches = await searchCountyPlats(county, subdivisionName, logger, 0.5);
+  const matches = await searchCountyPlats(county, subdivisionName, logger, opts.minScore ?? 0.5);
   const best = matches[0];
   return best ? { name: best.name, url: best.url, source: config.countyDisplayName } : null;
 }
@@ -1460,6 +1461,10 @@ export async function fetchBestMatchingPlat(
   subdivisionName: string,
   logger: PipelineLogger,
   anthropicApiKey?: string,
+  /** The index-match floor. 0.5 (the Phase 2 search) accepts look-alikes — "MATKIN SUBDIVISION" matched
+   *  "MARTIN SUB" at 0.80 on 2026-09-08 — so a caller that will FILE the result unattended and then
+   *  skip the paid copy on the strength of it asks for a strong match. */
+  opts: { minScore?: number } = {},
 ): Promise<{
   base64:   string;
   mimeType: 'application/pdf' | 'image/png';
@@ -1533,7 +1538,7 @@ export async function fetchBestMatchingPlat(
   }
 
   // ── Layer 1: Index page scrape + fuzzy match ──────────────────────────────
-  const matches = await searchCountyPlats(county, subdivisionName, logger, 0.5, anthropicApiKey);
+  const matches = await searchCountyPlats(county, subdivisionName, logger, opts.minScore ?? 0.5, anthropicApiKey);
   if (matches.length > 0) {
     for (const match of matches.slice(0, 3)) {
       const result = await downloadPlatFile(match.url, config, logger);

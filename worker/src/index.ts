@@ -1363,12 +1363,14 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     } else if (identified?.subdivisionName && county && platSourceStatus(county).available) {
       try {
         const { fetchBestMatchingPlat, locateBestMatchingPlat } = await import('./services/county-plats.js');
-        const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId));
+        // A STRONG match only: this copy is filed unattended and TexasFile's is then not bought, so a
+        // 0.80 look-alike ("MARTIN SUB" for "MATKIN SUBDIVISION") must not qualify.
+        const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId), undefined, { minScore: FREE_PLAT_MIN_SCORE });
         if (!hit) {
           // Not fetched is not the same as not there. The index (reached through the app relay) may
           // name the exact file while its host refuses every server address the firm has — then the
           // file is a one-click fetch for a person in the office, and the project says so.
-          const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId)).catch(() => null);
+          const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId), { minScore: FREE_PLAT_MIN_SCORE }).catch(() => null);
           if (located) {
             handshakeLogger.attempt('[Plats]', 'warn', 'Free plat located — office fetch needed', located.url)
               .warn(`Free plat "${located.name}" is on ${located.source} at ${located.url}, but its file host refuses every address the firm's servers have (Cloudflare blocks datacentre addresses; a residential Browserbase session needs a paid plan). Open it from the office and add it to the project's Documents. TexasFile's copy is next meanwhile.`);
@@ -4423,6 +4425,9 @@ async function unparkAnalyzing(projectId: string, log: (m: string) => void, why:
 
 /** A free plat the county portal names but no server address of ours can fetch (2026-09-08): kept on
  *  the project so the Analysis stage can offer the one-click office fetch. Merged, de-duplicated by URL. */
+/** The index-match floor for filing a free plat unattended (and skipping the paid copy on its strength). */
+const FREE_PLAT_MIN_SCORE = 0.85;
+
 async function recordFreePlatLead(projectId: string, lead: { name: string; url: string; source: string; subdivision: string }): Promise<void> {
   try {
     const sb = await getSupabase();
