@@ -65,6 +65,7 @@ import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 import { TIMEOUTS } from './config/endpoints.js';
 import { resolveAddressToLot, validateAddressParcelMatch, preferBetterSitusMatch } from '../../services/address-lot-resolver.js';
 import { getSupabase } from '../../services/pipeline.js';
+import { filedPlatLabel as sharedFiledPlatLabel } from '../../research/filed-plat.js';
 import { uploadDocumentIncremental, uploadScreenshotsIncremental, type ArtifactPageImage, type ArtifactScreenshot } from '../../services/artifact-uploader.js';
 import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
 import {
@@ -2644,24 +2645,7 @@ export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[
 /** The label of a plat already filed on this project for the subdivision (a paid pass files it
  *  under `document_type = 'plat'` before the free plat search runs). Null when none, or on any error. */
 async function filedPlatLabel(projectId: string | undefined, subdivision: string | null): Promise<string | null> {
-  if (!projectId || !subdivision) return null;
-  try {
-    const sb = await getSupabase();
-    if (!sb) return null;
-    const key = normaliseSubdivisionName(subdivision).replace(/[%_]/g, '');
-    if (!key) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (sb as any).from('research_documents')
-      .select('document_label')
-      .eq('research_project_id', projectId)
-      .eq('document_type', 'plat')
-      .is('superseded_at', null)
-      .ilike('document_label', `%${key}%`)
-      .limit(1);
-    return ((data ?? [])[0] as { document_label?: string } | undefined)?.document_label ?? null;
-  } catch {
-    return null;
-  }
+  return sharedFiledPlatLabel(projectId, subdivision);
 }
 
 function buildResearchCompleteness(

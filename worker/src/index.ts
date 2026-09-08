@@ -32,6 +32,7 @@ import { describeRunOutcome } from './research/run-outcome.js';
 import { parseLotBlock } from './counties/bell/orchestrator.js';
 import { listRunPurchases } from './services/purchase-ledger.js';
 import { normaliseSubdivisionName } from './services/texasfile-rows.js';
+import { filedPlatLabel } from './research/filed-plat.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { lookupCountyFIPS } from './lib/county-fips.js';
 import { assessPurchaseReadiness } from './research/purchase-readiness.js';
@@ -4373,24 +4374,7 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
 
 /** The label of a plat row this project already holds for the subdivision, or null. Pure lookup. */
 async function projectHoldsPlat(projectId: string, subdivision: string | null): Promise<string | null> {
-  if (!subdivision) return null;
-  try {
-    const sb = await getSupabase();
-    if (!sb) return null;
-    const key = normaliseSubdivisionName(subdivision).replace(/[%_]/g, '');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (sb as any).from('research_documents')
-      .select('document_label')
-      .eq('research_project_id', projectId)
-      .eq('document_type', 'plat')
-      .is('superseded_at', null)
-      .ilike('document_label', `%${key}%`)
-      .limit(1);
-    const row = (data ?? [])[0] as { document_label?: string } | undefined;
-    return row?.document_label ?? null;
-  } catch {
-    return null;
-  }
+  return filedPlatLabel(projectId, subdivision);
 }
 
 /** A project the app parked at `analyzing` for a worker-driven analysis that did not finalize goes

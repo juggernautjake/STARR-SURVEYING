@@ -84,6 +84,21 @@ describe('the plat browser route navigates INSIDE the remote browser', () => {
   });
 });
 
+describe('Phase 2 does not download a plat the project already holds', () => {
+  it('asks filed-plat first and builds the record from the index entry', () => {
+    const ps = read('counties/bell/scrapers/plat-scraper.ts');
+    expect(ps).toContain("const { filedPlatLabel } = await import('../../../research/filed-plat.js');");
+    expect(ps).toContain('const held = await filedPlatLabel(projectId, subdivisionName);');
+    const held = ps.indexOf('const held = await filedPlatLabel('); const fetched = ps.indexOf("const result = await fetchBestMatchingPlat('bell', subdivisionName, logger);");
+    expect(held >= 0 && fetched >= 0 && held < fetched).toBe(true);
+    expect(ps).toContain('images: [],');
+  });
+  it('is the one implementation the early pass and the orchestrator use too', () => {
+    expect(read('index.ts')).toContain('  return filedPlatLabel(projectId, subdivision);');
+    expect(read('counties/bell/orchestrator.ts')).toContain('  return sharedFiledPlatLabel(projectId, subdivision);');
+  });
+});
+
 // A tiny zip writer (stored + deflated entries) so the reader is exercised on real bytes.
 function buildZip(files: Array<{ name: string; data: Buffer; deflate?: boolean }>): Buffer {
   const locals: Buffer[] = [];

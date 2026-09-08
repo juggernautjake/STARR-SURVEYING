@@ -345,6 +345,29 @@ async function searchPlatRepository(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-repo-${Date.now()}`);
 
+    // Already filed (the early pass files the free plat before Phase 2 runs): the record is built from
+    // the index entry alone — no second download through a paid browser session for bytes the project
+    // holds, and no images, so the uploader is not asked to file it twice.
+    const { filedPlatLabel } = await import('../../../research/filed-plat.js');
+    const held = await filedPlatLabel(projectId, subdivisionName);
+    if (held) {
+      const { locateBestMatchingPlat } = await import('../../../services/county-plats.js');
+      const located = await locateBestMatchingPlat('bell', subdivisionName, logger).catch(() => null);
+      progress(`    Already filed on this project (${held}) — not fetched again${located ? `; index entry "${located.name}"` : ''}`);
+      if (located?.url) urlsVisited.push(located.url);
+      plats.push({
+        name: located?.name ?? subdivisionName,
+        date: null,
+        instrumentNumber: null,
+        images: [],
+        aiAnalysis: null,
+        sourceUrl: located?.url ?? null,
+        source: located?.source ?? 'Bell County Plat Repository (bellcountytx.com)',
+        confidence: makeConfidence(0.9),
+      });
+      return plats;
+    }
+
     // The county-plats.ts service expects the subdivision name, not the full legal description.
     // Use it directly since we already extracted the name.
     progress(`    Fetching from repository: "${subdivisionName}"`);
