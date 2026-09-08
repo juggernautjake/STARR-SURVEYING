@@ -89,7 +89,7 @@ describe('the plat repository is reached through a browser on another address wh
     const src = read('services/county-plats.ts');
     expect((src.match(/const alt = await fetchOnAnotherAddress\((url|fileUrl|directUrl), headers\);/g) ?? []).length).toBe(3);
     expect(src).toContain("withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }");
-    expect(src).toContain('context.request.get(url, { headers, timeout: 30_000, maxRedirects: 5 })');
+    expect(src).toContain('return await fetchInPage(page, url, session.browserbaseSessionId);');
     expect(src).toContain('plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried');
   });
 });

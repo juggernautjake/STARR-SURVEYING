@@ -1373,7 +1373,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
           const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId), { minScore: FREE_PLAT_MIN_SCORE }).catch(() => null);
           if (located) {
             handshakeLogger.attempt('[Plats]', 'warn', 'Free plat located — office fetch needed', located.url)
-              .warn(`Free plat "${located.name}" is on ${located.source} at ${located.url}, but its file host refuses every address the firm's servers have (Cloudflare blocks datacentre addresses; a residential Browserbase session needs a paid plan). Open it from the office and add it to the project's Documents. TexasFile's copy is next meanwhile.`);
+              .warn(`Free plat "${located.name}" is on ${located.source} at ${located.url}, but its file host refused every address tried — the worker's, the app's on Vercel, and the residential Browserbase browser (check the Browserbase plan and BROWSERBASE_ENABLED_ADAPTERS). Open it from the office and add it to the project's Documents. TexasFile's copy is next meanwhile.`);
             await recordFreePlatLead(projectId, { name: located.name, url: located.url, source: located.source, subdivision: identified.subdivisionName });
           } else {
             handshakeLogger.attempt('[Plats]', 'info', 'Free plat portal', identified.subdivisionName)
