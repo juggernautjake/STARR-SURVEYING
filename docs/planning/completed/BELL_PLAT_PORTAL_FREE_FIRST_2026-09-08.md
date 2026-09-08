@@ -46,3 +46,11 @@ URLs: `https://www.bellcountytx.com/county_government/county_clerk/w.php` (the W
   owner's browser as a plain download — hence E5.
 - The automated road for the bytes is a residential Browserbase session (`useResidentialProxy: true` is wired):
   it needs a paid Browserbase plan. Owner's call.
+
+## Closed 2026-09-08 (moved to completed/)
+
+E1–E5 built, merged and deployed (a0155c8d1 → 31917f40a). Proved live: the worker locates Winnie Mae and
+Westwood Estates on the portal through the relay in 1–2 s; the portal's Winnie Mae PDF was filed on project
+a7ef8036 from the office browser through the notice (row 66e940ae, vision OCR, readability partial) and the lead
+was marked filed. Left to the owner: a paid Browserbase plan makes the file fetch automatic (the residential
+session is wired and the 402 is named in the log); until then the notice is the road.
