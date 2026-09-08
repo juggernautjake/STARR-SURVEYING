@@ -206,13 +206,20 @@ async function fetchThroughAppRelay(
   }
 }
 
-/** A refused host, asked from another address: the app relay first (free), then the paid browser route. */
+/**
+ * A refused host, asked from another address: the app relay first (free), then the paid browser route.
+ * `browser: false` keeps a GUESS off the paid road — Layer 0 tries invented file names, and a 404 for
+ * an invented name through a Browserbase session is a session spent to learn nothing (2026-09-08: four
+ * guesses, four sessions, ~95 s each, before the index named the real file).
+ */
 async function fetchOnAnotherAddress(
   url: string,
   headers: Record<string, string>,
+  opts: { browser?: boolean } = {},
 ): Promise<{ status: number; body: Buffer; finalUrl: string; via: 'app-relay' | 'browser-route' } | null> {
   const relay = await fetchThroughAppRelay(url, headers);
   if (relay && relay.status < 400) return { ...relay, via: 'app-relay' };
+  if (opts.browser === false) return relay ? { ...relay, via: 'app-relay' } : null;
   const browser = await fetchThroughBrowser(url, headers);
   if (browser) return { ...browser, via: 'browser-route' };
   return relay ? { ...relay, via: 'app-relay' } : null;
@@ -270,19 +277,28 @@ export async function fetchInPage(
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: 'downloads', eventsEnabled: true }).catch(() => {});
   const download = page.waitForEvent('download', { timeout: 90_000 }).catch(() => null);
+  // The main document's response, kept even when `goto` throws: Chrome refuses to render a 4xx/5xx
+  // that is not HTML ("net::ERR_HTTP_RESPONSE_CODE_FAILURE"), and the status is the whole answer then.
+  let mainResp: import('playwright').Response | null = null;
+  page.on('response', (r) => {
+    const req = r.request();
+    if (req.isNavigationRequest() && req.frame() === page.mainFrame()) mainResp = r;
+  });
   let navErr: string | null = null;
   let resp: import('playwright').Response | null = null;
   try {
     resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   } catch (err) {
-    // A download aborts the navigation ("Download is starting"); anything else is decided below.
+    // A download aborts the navigation ("Download is starting" / net::ERR_ABORTED); anything else is decided below.
     navErr = err instanceof Error ? err.message.split('\n')[0] : String(err);
   }
   if (resp && (resp.headers()['content-type'] ?? '').includes('text/html')) {
     return { status: resp.status(), body: Buffer.from(await page.content(), 'utf8'), finalUrl: page.url() };
   }
-  // Not an HTML page: a download, or an inline body. Give the download event a moment to arrive.
-  const dl = await Promise.race([download, new Promise<null>((r) => setTimeout(() => r(null), resp ? 5_000 : 90_000))]);
+  // Not an HTML page: a download, or an inline body. Wait the full 90 s only when the navigation was
+  // aborted the way a download aborts it; a plain error or an inline body gets a few seconds.
+  const downloadLikely = navErr !== null && /Download is starting|ERR_ABORTED/i.test(navErr);
+  const dl = await Promise.race([download, new Promise<null>((r) => setTimeout(() => r(null), downloadLikely ? 90_000 : 5_000))]);
   if (dl) {
     const name = dl.suggestedFilename();
     const body = browserbaseSessionId
@@ -290,8 +306,9 @@ export async function fetchInPage(
       : await fs.promises.readFile(await dl.path());
     return { status: 200, body, finalUrl: dl.url() || url };
   }
-  if (resp) {
-    return { status: resp.status(), body: Buffer.from(await resp.body().catch(() => Buffer.alloc(0))), finalUrl: resp.url() };
+  const answered = resp ?? (mainResp as import('playwright').Response | null);
+  if (answered) {
+    return { status: answered.status(), body: Buffer.from(await answered.body().catch(() => Buffer.alloc(0))), finalUrl: answered.url() };
   }
   throw new Error(navErr ?? `no response for ${url}`);
 }
@@ -1594,7 +1611,7 @@ export async function fetchBestMatchingPlat(
 
         if (response.status === 403) {
           noteHostRefused(directUrl, config.countyDisplayName);
-          const alt = await fetchOnAnotherAddress(directUrl, headers);
+          const alt = await fetchOnAnotherAddress(directUrl, headers, { browser: false });
           if (alt && alt.status < 400 && alt.body.length > 0) {
             tracker({ status: 'success', dataPointsFound: 1, details: `Direct URL hit via the ${alt.via === 'app-relay' ? 'app relay' : 'browser route'}: ${alt.body.length} bytes — ${variant}` });
             logger.info('Stage2A', `Layer 0 (direct URL, ${alt.via}): "${variant}" → ${alt.body.length} bytes from ${alt.finalUrl.substring(0, 80)}`);

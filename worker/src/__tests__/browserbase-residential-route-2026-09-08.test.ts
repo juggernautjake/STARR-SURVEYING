@@ -68,6 +68,13 @@ describe('the plat browser route navigates INSIDE the remote browser', () => {
     expect(cp).toContain("const context = session.browser.contexts()[0] ?? await session.browser.newContext();");
     expect(cp).toContain('return await fetchInPage(page, url, session.browserbaseSessionId);');
   });
+  it('keeps Layer-0 guesses off the paid road and does not wait 90 s for a download after a plain error', () => {
+    expect(cp).toContain('const alt = await fetchOnAnotherAddress(directUrl, headers, { browser: false });');
+    expect(cp).toContain("if (opts.browser === false) return relay ? { ...relay, via: 'app-relay' } : null;");
+    expect(cp).toContain('const downloadLikely = navErr !== null && /Download is starting|ERR_ABORTED/i.test(navErr);');
+    expect(cp).toContain('downloadLikely ? 90_000 : 5_000');
+    expect(cp).toContain('if (req.isNavigationRequest() && req.frame() === page.mainFrame()) mainResp = r;');
+  });
   it('allows downloads through CDP and reads them back from the session downloads zip', () => {
     expect(cp).toContain("await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: 'downloads', eventsEnabled: true })");
     expect(cp).toContain('? await readBrowserbaseDownload(browserbaseSessionId, name)');

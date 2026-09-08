@@ -87,7 +87,7 @@ describe('the plat repository is reached through a browser on another address wh
   });
   it('all three fetch layers go to another address after a 403 — the app relay first, then the browser route — and say when neither answered', () => {
     const src = read('services/county-plats.ts');
-    expect((src.match(/const alt = await fetchOnAnotherAddress\((url|fileUrl|directUrl), headers\);/g) ?? []).length).toBe(3);
+    expect((src.match(/const alt = await fetchOnAnotherAddress\((url|fileUrl|directUrl), headers(, \{ browser: false \})?\);/g) ?? []).length).toBe(3);
     expect(src).toContain("withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }");
     expect(src).toContain('return await fetchInPage(page, url, session.browserbaseSessionId);');
     expect(src).toContain('plat-repo is not in BROWSERBASE_ENABLED_ADAPTERS, so no other address was tried');
