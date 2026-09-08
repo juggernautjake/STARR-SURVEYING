@@ -117,8 +117,74 @@ export interface BrowserFactoryOptions {
   /**
    * If true, the session uses Browserbase's residential proxy pool (or the
    * configured stub equivalent). Required for any CAPTCHA-bound token.
+   * Unset: the operator's default — residential when BROWSERBASE_PROXY_GEO
+   * is set (see `residentialProxyDefault`), else Browserbase's datacentre pool.
    */
   useResidentialProxy?: boolean;
+  /** Where the residential address should be. Unset: BROWSERBASE_PROXY_GEO (e.g. `US:TX`). */
+  proxyGeolocation?: ProxyGeolocation;
+}
+
+export interface ProxyGeolocation { country: string; state?: string; city?: string }
+
+// ── WHERE THE BROWSER STANDS ────────────────────────────────────────────────
+//
+// Measured 2026-09-08 (probe-bb-nav2 on the worker): Browserbase's datacentre pool is refused by
+// bellcountytx.com exactly like the worker's own German address (403), and its CMS host cms3.revize.com
+// sits behind Cloudflare, which blocks every datacentre address (Vercel's too). A RESIDENTIAL session
+// pinned to Texas answered everything in one go: the clerk's plat index and the plat PDF itself, Bell
+// CAD, the BIS GIS viewer, Google Maps, the clerk's records site and TexasFile. So residential Texas is
+// the default for every Browserbase session here, set once on the host as BROWSERBASE_PROXY_GEO=US:TX;
+// a caller that passes `useResidentialProxy: false` gets the cheaper datacentre pool on purpose.
+
+/** `US:TX` / `US:TX:Austin` / `US` → a Browserbase geolocation; unset or malformed → null. */
+export function parseProxyGeolocation(raw: string | undefined): ProxyGeolocation | null {
+  const parts = (raw ?? '').split(':').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0 || !/^[A-Za-z]{2}$/.test(parts[0])) return null;
+  const geo: ProxyGeolocation = { country: parts[0].toUpperCase() };
+  if (parts[1]) geo.state = parts[1].toUpperCase();
+  if (parts[2]) geo.city = parts[2];
+  return geo;
+}
+
+/** Residential by default when the operator has said where the browser should stand. */
+export function residentialProxyDefault(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.BROWSERBASE_RESIDENTIAL === '0') return false;
+  return env.BROWSERBASE_RESIDENTIAL === '1' || parseProxyGeolocation(env.BROWSERBASE_PROXY_GEO) !== null;
+}
+
+/** The `proxies` value for `sessions.create` — pinned residential, plain residential, or none. */
+export function browserbaseProxiesParam(
+  opts: Pick<BrowserFactoryOptions, 'useResidentialProxy' | 'proxyGeolocation'>,
+  env: NodeJS.ProcessEnv = process.env,
+): true | Array<{ type: 'browserbase'; geolocation: ProxyGeolocation }> | undefined {
+  const residential = opts.useResidentialProxy ?? residentialProxyDefault(env);
+  if (!residential) return undefined;
+  const geo = opts.proxyGeolocation ?? parseProxyGeolocation(env.BROWSERBASE_PROXY_GEO);
+  return geo ? [{ type: 'browserbase', geolocation: geo }] : true;
+}
+
+/** Seconds before Browserbase ends a session on its own. The project default (a few minutes) is
+ *  shorter than a clerk scrape; the host sets BROWSERBASE_SESSION_TIMEOUT_SECONDS, else 30 minutes. */
+export function browserbaseSessionTimeoutSeconds(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.BROWSERBASE_SESSION_TIMEOUT_SECONDS);
+  return Number.isFinite(n) && n >= 60 ? Math.floor(n) : 1800;
+}
+
+/**
+ * The files a Browserbase session downloaded, as the zip Browserbase serves them in. A remote browser
+ * writes downloads to ITS disk (after CDP `Browser.setDownloadBehavior` with `downloadPath: 'downloads'`);
+ * the only way to the bytes is this archive. Empty (a few bytes) until the file has finished writing —
+ * callers poll. Decoded with lib/zip-reader.ts.
+ */
+export async function browserbaseDownloadsZip(sessionId: string): Promise<Buffer> {
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  if (!apiKey) throw new Error('[browser-factory] BROWSERBASE_API_KEY missing — cannot read session downloads');
+  const browserbaseModuleId = '@browserbasehq/sdk';
+  const { default: Browserbase } = await import(browserbaseModuleId);
+  const bb = new Browserbase({ apiKey });
+  const res = await bb.sessions.downloads.list(sessionId);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /**
@@ -535,7 +601,9 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
   }
 
   const start = Date.now();
-  console.log(`[browser-factory] launching browserbase session${adapterTag} residentialProxy=${opts.useResidentialProxy ? 'yes' : 'no'}`);
+  const proxies = browserbaseProxiesParam(opts);
+  const proxyTag = proxies === undefined ? 'no' : Array.isArray(proxies) ? `yes geo=${[proxies[0].geolocation.country, proxies[0].geolocation.state, proxies[0].geolocation.city].filter(Boolean).join('/')}` : 'yes';
+  console.log(`[browser-factory] launching browserbase session${adapterTag} residentialProxy=${proxyTag}`);
 
   // Dynamic import keeps the SDK out of the load path for local-only deploys.
   //
@@ -554,13 +622,10 @@ async function launchBrowserbase(opts: BrowserFactoryOptions): Promise<BrowserSe
 
   const bb = new Browserbase({ apiKey });
 
-  // Ask the SDK for a session. We pass proxies only if the caller asked for
-  // residential routing; otherwise we let Browserbase pick its default
-  // datacenter pool (cheaper).
-  const sessionParams: Record<string, unknown> = { projectId };
-  if (opts.useResidentialProxy) {
-    sessionParams.proxies = true;
-  }
+  // Ask the SDK for a session: residential (pinned to BROWSERBASE_PROXY_GEO) unless the caller or the
+  // operator said otherwise — see `residentialProxyDefault`; and a timeout long enough for a scrape.
+  const sessionParams: Record<string, unknown> = { projectId, timeout: browserbaseSessionTimeoutSeconds() };
+  if (proxies !== undefined) sessionParams.proxies = proxies;
 
   const created = await bb.sessions.create(sessionParams as Parameters<typeof bb.sessions.create>[0]);
   const sessionId = created.id;

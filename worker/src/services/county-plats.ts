@@ -16,6 +16,7 @@
 // Adding a new county: add one entry to PLAT_REPO_REGISTRY.
 // No pipeline code changes are required.
 
+import fs from 'node:fs';
 import type { PipelineLogger } from '../lib/logger.js';
 import { lookupByCounty } from '../research/county-key.js';
 import { detectCaptcha, describeCaptcha } from '../research/captcha-signatures.js';
@@ -154,10 +155,13 @@ export function _resetRefusedHosts(): void { refusedHosts.clear(); browserExhaus
 // ── THE ROAD AROUND THE BLOCK: A BROWSER ON ANOTHER ADDRESS ────────────────────────────────────
 //
 // The block is on the worker's IP, so the fix is a different IP. Browserbase gives the run a
-// browser on a residential address, and a Playwright browser context can make plain requests
-// through that address (`context.request`) — no page, no rendering, the bytes come back. It is
-// paid per session, so it is only taken when the plain route has been refused, and only when the
-// operator has named `plat-repo` in BROWSERBASE_ENABLED_ADAPTERS on the host.
+// browser on a residential address, and the page is NAVIGATED there — `page.goto` in the remote
+// browser. Not `context.request`: on a CDP-connected browser Playwright's request helper sends from
+// the worker's own process (2026-09-08 probe: api.ipify.org answered with the worker's address), so
+// the first version of this route never left the datacentre. A PDF the site serves as a download is
+// written to the REMOTE disk and read back through Browserbase's session-downloads zip. Paid per
+// session, so it is only taken when the plain route has been refused, and only when the operator has
+// named `plat-repo` in BROWSERBASE_ENABLED_ADAPTERS on the host.
 
 export function platBrowserRouteEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').split(',').map((s) => s.trim()).includes('plat-repo');
@@ -226,12 +230,14 @@ async function fetchThroughBrowser(
     // residential session needs a paid Browserbase plan — the free plan answers "402 Proxies are not
     // included", which is logged below in those words so the fix (the plan) is obvious.
     return await withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }, async (session) => {
-      const context = await session.browser.newContext({ userAgent: headers['User-Agent'] });
+      // The remote browser's OWN context: a `newContext` on a CDP browser is not the one Browserbase's
+      // proxy and download plumbing were set up on.
+      const context = session.browser.contexts()[0] ?? await session.browser.newContext();
+      const page = await context.newPage();
       try {
-        const res = await context.request.get(url, { headers, timeout: 30_000, maxRedirects: 5 });
-        return { status: res.status(), body: Buffer.from(await res.body()), finalUrl: res.url() };
+        return await fetchInPage(page, url, session.browserbaseSessionId);
       } finally {
-        await context.close().catch(() => {});
+        await page.close().catch(() => {});
       }
     });
   } catch (err) {
@@ -247,6 +253,72 @@ async function fetchThroughBrowser(
     console.warn(`[county-plats] browser route to ${url} failed: ${msg}`);
     return null;
   }
+}
+
+/**
+ * Navigate to `url` in `page` and return what came back: the document (HTML, or any inline body),
+ * or — when the site answers with a download — the downloaded file. Downloads are allowed through
+ * CDP first so the remote browser writes the file rather than opening a viewer; on Browserbase the
+ * bytes are then read back from the session's downloads zip (the file is on the remote disk); on a
+ * local browser Playwright's own download path is read.
+ */
+export async function fetchInPage(
+  page: import('playwright').Page,
+  url: string,
+  browserbaseSessionId: string | undefined,
+): Promise<{ status: number; body: Buffer; finalUrl: string }> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: 'downloads', eventsEnabled: true }).catch(() => {});
+  const download = page.waitForEvent('download', { timeout: 90_000 }).catch(() => null);
+  let navErr: string | null = null;
+  let resp: import('playwright').Response | null = null;
+  try {
+    resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  } catch (err) {
+    // A download aborts the navigation ("Download is starting"); anything else is decided below.
+    navErr = err instanceof Error ? err.message.split('\n')[0] : String(err);
+  }
+  if (resp && (resp.headers()['content-type'] ?? '').includes('text/html')) {
+    return { status: resp.status(), body: Buffer.from(await page.content(), 'utf8'), finalUrl: page.url() };
+  }
+  // Not an HTML page: a download, or an inline body. Give the download event a moment to arrive.
+  const dl = await Promise.race([download, new Promise<null>((r) => setTimeout(() => r(null), resp ? 5_000 : 90_000))]);
+  if (dl) {
+    const name = dl.suggestedFilename();
+    const body = browserbaseSessionId
+      ? await readBrowserbaseDownload(browserbaseSessionId, name)
+      : await fs.promises.readFile(await dl.path());
+    return { status: 200, body, finalUrl: dl.url() || url };
+  }
+  if (resp) {
+    return { status: resp.status(), body: Buffer.from(await resp.body().catch(() => Buffer.alloc(0))), finalUrl: resp.url() };
+  }
+  throw new Error(navErr ?? `no response for ${url}`);
+}
+
+/** Poll the session's downloads zip until the named file (or any file) has bytes. */
+async function readBrowserbaseDownload(sessionId: string, suggestedName: string): Promise<Buffer> {
+  const { browserbaseDownloadsZip } = await import('../lib/browser-factory.js');
+  const { readZipEntries } = await import('../lib/zip-reader.js');
+  const wanted = suggestedName.toLowerCase();
+  const deadline = Date.now() + 120_000;
+  let lastSize = -1;
+  let stableFor = 0;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3_000));
+    const zip = await browserbaseDownloadsZip(sessionId).catch(() => Buffer.alloc(0));
+    if (zip.length < 100) continue;
+    let entries: { name: string; data: Buffer }[] = [];
+    try { entries = readZipEntries(zip); } catch { continue; }
+    // Browserbase names the file `<name>-<timestamp>.<ext>`; match on the stem, else take the largest.
+    const stem = wanted.replace(/\.[a-z0-9]+$/, '');
+    const hit = entries.find((e) => e.name.toLowerCase().startsWith(stem)) ?? entries.sort((a, b) => b.data.length - a.data.length)[0];
+    if (!hit || hit.data.length === 0) continue;
+    // The zip is served while the file is still being written; wait for two equal readings.
+    if (hit.data.length === lastSize) stableFor++; else { lastSize = hit.data.length; stableFor = 0; }
+    if (stableFor >= 1) return hit.data;
+  }
+  throw new Error(`Browserbase session ${sessionId}: download "${suggestedName}" never appeared in the session downloads`);
 }
 
 /**
