@@ -54,3 +54,30 @@ Westwood Estates on the portal through the relay in 1–2 s; the portal's Winnie
 a7ef8036 from the office browser through the notice (row 66e940ae, vision OCR, readability partial) and the lead
 was marked filed. Left to the owner: a paid Browserbase plan makes the file fetch automatic (the residential
 session is wired and the 402 is named in the log); until then the notice is the road.
+
+## Reopened and closed again 2026-09-08 (evening): the Browserbase road, proved on run 7
+
+The owner upgraded Browserbase to the Developer plan. A probe (scratchpad probe-bb-nav2.mjs) then measured two
+things the first version of the browser route had wrong:
+
+1. Playwright's `context.request.get()` on a CDP-connected Browserbase browser sends from the WORKER's own
+   process (api.ipify.org answered with the worker's address), so the route had never used Browserbase's
+   network. A real `page.goto` inside the remote browser does.
+2. Browserbase's datacentre pool is refused like the worker; a RESIDENTIAL session pinned to US/TX answered
+   everything in one go: clerk index 200, the plat PDF as a download (session downloads zip 1,739,836 bytes),
+   Bell CAD home, BIS GIS, Google Maps, bell.tx.publicsearch.us, TexasFile.
+
+Built (d397aa582 → 49ab1759b, merged + deployed):
+- `browser-factory`: `BROWSERBASE_PROXY_GEO=US:TX` makes residential-Texas the default for every Browserbase
+  session (`BROWSERBASE_RESIDENTIAL=0/1` overrides), session `timeout` from `BROWSERBASE_SESSION_TIMEOUT_SECONDS`
+  (default 1800), `browserbaseDownloadsZip(sessionId)`.
+- `county-plats.fetchInPage`: navigates in the remote browser's own context, CDP `Browser.setDownloadBehavior`,
+  reads a download back from the session zip (`lib/zip-reader.ts`, node zlib, no new dependency); a plain 4xx
+  answers at once (the main response is kept across the `goto` error); Layer-0 guesses never take a paid session.
+- Host `.env`: `BROWSERBASE_ENABLED_ADAPTERS=cad,plat-repo,bell-clerk`, `BROWSERBASE_PROXY_GEO=US:TX`,
+  `BROWSERBASE_SESSION_TIMEOUT_SECONDS=1800` (mirror these into Doppler).
+
+Proved live: probe-relay on the rebuilt worker fetched WINNIE MAE ADN (1,924,089 bytes, the office copy's size)
+in 14 s and rasterised it to 4678×3666 at 200 dpi. Run 7 (project 18a3de22, started 2026-09-08 23:21 UTC) filed
+the plat FREE at 107 s — "Plat "WINNIE MAE ADN" filed FREE … 1 page(s) at 200 dpi" — and Bell CAD answered
+through a residential session in 26 s.
