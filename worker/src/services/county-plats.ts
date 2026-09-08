@@ -236,9 +236,15 @@ async function fetchThroughBrowser(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(/402|not included in the free plan/i.test(msg)
-      ? `[county-plats] browser route to ${url}: Browserbase refused a residential session ("${msg}") — residential proxies need a paid Browserbase plan; until then the site's file host cannot be reached from any address the firm's servers have.`
-      : `[county-plats] browser route to ${url} failed: ${msg}`);
+    if (/\b402\b|free plan/i.test(msg)) {
+      // An ACCOUNT refusal, not a site one: every further attempt this hour would get the same answer
+      // (the 2026-09-08 probe spent six browser attempts, ~10 s each, on six URLs to learn it six
+      // times). Said once, in the plan's own words, and the host is marked exhausted for the hour.
+      console.warn(`[county-plats] browser route to ${url}: Browserbase refused the session ("${msg}") — residential proxies and minutes need a paid Browserbase plan; until then the site's file host cannot be reached from any address the firm's servers have. Not asked again for an hour.`);
+      noteBrowserRouteExhausted(url, 'plat repository');
+      return null;
+    }
+    console.warn(`[county-plats] browser route to ${url} failed: ${msg}`);
     return null;
   }
 }

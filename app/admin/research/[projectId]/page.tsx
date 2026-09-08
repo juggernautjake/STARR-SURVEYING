@@ -2020,7 +2020,7 @@ export default function ResearchProjectPage() {
                   user, having reviewed them, pays to analyse. */}
               {/* A free plat the county portal names but no server of ours can fetch (2026-09-08): the
                   person in the office is the one address that can. */}
-              <FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} />
+              <FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} onFiled={() => { loadProject(); loadDocuments(); }} />
               <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} onFinished={() => loadProject()} analyzing={project.status === 'analyzing'} />
 
               {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a

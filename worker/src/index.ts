@@ -1354,7 +1354,13 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // under the label the Phase 2 plat search uses (so the two merge, not duplicate), and the plat
     // want is then satisfied for free — TexasFile's copy is not bought.
     let freePlatFiled: string | null = null;
-    if (identified?.subdivisionName && county && platSourceStatus(county).available) {
+    const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName) : null;
+    if (heldPlatAlready) {
+      // Filed by hand from the office (a free-plat lead), or by an earlier round: the want is met.
+      freePlatFiled = heldPlatAlready;
+      handshakeLogger.attempt('[Plats]', 'info', 'Plat already filed', heldPlatAlready)
+        .success(0, `The plat for ${identified?.subdivisionName} is already filed on this project (${heldPlatAlready}) — the free portal is not asked and TexasFile's copy is not bought.`);
+    } else if (identified?.subdivisionName && county && platSourceStatus(county).available) {
       try {
         const { fetchBestMatchingPlat, locateBestMatchingPlat } = await import('./services/county-plats.js');
         const hit = await fetchBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId));
@@ -4425,7 +4431,9 @@ async function recordFreePlatLead(projectId: string, lead: { name: string; url: 
     const { data } = await (sb as any).from('research_projects').select('analysis_metadata').eq('id', projectId).single();
     const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
     const prior = (Array.isArray(meta.freePlatLeads) ? meta.freePlatLeads : []) as Array<{ url?: string }>;
-    const leads = [...prior.filter((l) => l?.url !== lead.url), { ...lead, locatedAt: new Date().toISOString() }];
+    // A lead the office already filed keeps its mark; only the sighting is refreshed.
+    const same = prior.find((l) => l?.url === lead.url) ?? {};
+    const leads = [...prior.filter((l) => l?.url !== lead.url), { ...same, ...lead, locatedAt: new Date().toISOString() }];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb as any).from('research_projects').update({ analysis_metadata: { ...meta, freePlatLeads: leads } }).eq('id', projectId);
   } catch (e) {

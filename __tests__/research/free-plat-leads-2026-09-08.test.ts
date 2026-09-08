@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { normaliseFreePlatLeads } from '../../app/admin/research/components/FreePlatLeadsNotice';
+import { normaliseFreePlatLeads, platDocumentLabel } from '../../app/admin/research/components/FreePlatLeadsNotice';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n');
 
@@ -27,11 +27,21 @@ describe('the Analysis stage mounts the notice from the project\'s metadata (che
   it('page.tsx renders FreePlatLeadsNotice above the review control with analysis_metadata.freePlatLeads', () => {
     const page = read('app/admin/research/[projectId]/page.tsx');
     expect(page).toContain("import FreePlatLeadsNotice from '../components/FreePlatLeadsNotice';");
-    expect(page).toContain('<FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} />');
+    expect(page).toContain('<FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} onFiled={() => { loadProject(); loadDocuments(); }} />');
   });
-  it('the notice links the PDF and the project\'s Documents page', () => {
+  it('the notice opens the PDF, files the saved file as the subdivision plat under the run\'s own label, and marks the lead filed', () => {
     const src = read('app/admin/research/components/FreePlatLeadsNotice.tsx');
     expect(src).toContain('<a href={lead.url} target="_blank" rel="noopener noreferrer"');
-    expect(src).toContain('href={`/admin/research/${projectId}/documents`}');
+    expect(src).toContain("form.append('document_type', 'plat');");
+    expect(src).toContain("form.append('document_label', platDocumentLabel(lead));");
+    expect(src).toContain('const up = await fetch(`/api/admin/research/${projectId}/documents`, { method: \'POST\', body: form });');
+    expect(src).toContain('await fetch(`/api/admin/research/${projectId}/free-plat-leads`, {');
+    expect(platDocumentLabel({ name: 'WINNIE MAE ADN', url: 'https://x', source: 's' })).toBe('Subdivision Plat: WINNIE MAE ADN');
+  });
+  it('the mark route merges filedAt into the one shared bag by URL', () => {
+    const route = read('app/api/admin/research/[projectId]/free-plat-leads/route.ts');
+    expect(route).toContain('export const PATCH = withErrorHandler(');
+    expect(route).toContain("return { ...l, filedAt, filedBy: session.user?.email ?? null, documentId: body.documentId ?? null };");
+    expect(route).toContain('analysis_metadata: { ...meta, freePlatLeads: leads }');
   });
 });

@@ -67,11 +67,16 @@ describe('E3b — a plat the portal names but no server address can fetch is rec
     const src = read('index.ts');
     expect(src).toContain('const located = await locateBestMatchingPlat(county, identified.subdivisionName, new PipelineLogger(projectId)).catch(() => null);');
     expect(src).toContain('await recordFreePlatLead(projectId, { name: located.name, url: located.url, source: located.source, subdivision: identified.subdivisionName });');
-    expect(src).toContain("const leads = [...prior.filter((l) => l?.url !== lead.url), { ...lead, locatedAt: new Date().toISOString() }];");
+    expect(src).toContain("const leads = [...prior.filter((l) => l?.url !== lead.url), { ...same, ...lead, locatedAt: new Date().toISOString() }];");
+    // A plat already on the project (filed by hand from a lead, or by an earlier round) means neither the
+    // portal nor TexasFile is asked.
+    expect(src).toContain('const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName) : null;');
+    expect(src).toContain("} else if (identified?.subdivisionName && county && platSourceStatus(county).available) {");
   });
   it('the browser route asks Browserbase for a RESIDENTIAL session and names the 402 plainly', () => {
     const cp = read('services/county-plats.ts');
     expect(cp).toContain("withBrowser({ adapterId: 'plat-repo', useResidentialProxy: true }, async (session) => {");
-    expect(cp).toContain('residential proxies need a paid Browserbase plan');
+    expect(cp).toContain('residential proxies and minutes need a paid Browserbase plan');
+    expect(cp).toContain("noteBrowserRouteExhausted(url, 'plat repository');");
   });
 });
