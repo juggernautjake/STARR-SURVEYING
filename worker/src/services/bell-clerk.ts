@@ -243,6 +243,21 @@ async function safeCloseBrowser(browser: import('playwright').Browser | null, lo
  *              address can appear in a legal description or in OCR text, and this is the only
  *              mode that can see it there.
  */
+/**
+ * The advanced search's book/volume/page lookup. Driven live on milam.tx.publicsearch.us on
+ * 2026-09-09: OR/1093/560 from the appraisal district's deed history resolved to 2009-109100. Milam
+ * cites every deed by volume/page and none by instrument, so for that county this is the road from
+ * the CAD to the document; the quick search does not index "1093/560" as text. `recordedDateRange`
+ * is what the form itself sends; without it the SPA answers nothing.
+ */
+export function buildVolumePageUrl(baseUrl: string, volume: string, page: string, offset = 0): string {
+  return (
+    `${baseUrl}/results?department=RP&limit=50&offset=${offset}&searchType=advancedSearch` +
+    `&volume=${encodeURIComponent(volume.trim())}&page=${encodeURIComponent(page.trim())}` +
+    `&recordedDateRange=16000101%2C20991231`
+  );
+}
+
 function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0, mode: 'name' | 'keyword' = 'name'): string {
   const d = new Date();
   const dateTo = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
@@ -1039,6 +1054,8 @@ export async function searchClerkRecords(
   county: string,
   ownerName: string,
   logger: PipelineLogger,
+  /** A volume/page lookup instead of a name: the same browser drive, the advanced-search URL. */
+  opts: { volumePage?: { volume: string; page: string } } = {},
 ): Promise<DocumentResult[]> {
   const config = lookupByCounty(KOFILE_CONFIGS, county);
   if (!config) {
@@ -1063,8 +1080,11 @@ export async function searchClerkRecords(
     return outcome.documents;
   }
 
-  const searchNames = formatOwnerForSearch(ownerName);
-  logger.info('Stage2', `Searching ${config.name} with ${searchNames.length} name variants: ${searchNames.join(' | ')}`);
+  const volumePage = opts.volumePage ?? null;
+  const searchNames = volumePage ? [`Vol ${volumePage.volume} Pg ${volumePage.page}`] : formatOwnerForSearch(ownerName);
+  logger.info('Stage2', volumePage
+    ? `Searching ${config.name} by volume/page ${volumePage.volume}/${volumePage.page} (advanced search)`
+    : `Searching ${config.name} with ${searchNames.length} name variants: ${searchNames.join(' | ')}`);
 
   const tracker = logger.startAttempt({
     layer: 'Stage2A',
@@ -1317,7 +1337,7 @@ export async function searchClerkRecords(
         apiCapture = []; // Reset for each attempt
 
         // Build URL with correct Tyler PublicSearch parameters (verified March 2026)
-        const searchUrl = buildTylerUrl(baseUrl, searchName, 0);
+        const searchUrl = volumePage ? buildVolumePageUrl(baseUrl, volumePage.volume, volumePage.page, 0) : buildTylerUrl(baseUrl, searchName, 0);
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
         await politeGoto(page, searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -1744,7 +1764,7 @@ export async function searchClerkRecords(
             for (let pg = 2; pg <= Math.min(totalPages, 5); pg++) {
               try {
                 apiCapture = [];
-                const pageUrl = buildTylerUrl(baseUrl, searchName, (pg - 1) * 50);
+                const pageUrl = volumePage ? buildVolumePageUrl(baseUrl, volumePage.volume, volumePage.page, (pg - 1) * 50) : buildTylerUrl(baseUrl, searchName, (pg - 1) * 50);
                 logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
                 await politeGoto(page, pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
                 try {

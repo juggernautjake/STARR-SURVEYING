@@ -96,6 +96,7 @@ Buckholts → A-430 **J A DE PENA**, no subdivision; tax → 1 improvement, 9 va
 | 9 | Tests (`milam-county-module-2026-09-09.test.ts`) | done |
 | 10 | Merge, deploy the worker, one gather run on a Milam address | **owner's call** |
 | 11 | Tax block read by its labels (was null on both counties) | done |
+| 12 | Volume/page → document through the clerk's advanced search (Path D, clerk + plat scrapers) | done; live drive pending the office browser |
 
 ## 6. Left open
 
@@ -105,4 +106,6 @@ Buckholts → A-430 **J A DE PENA**, no subdivision; tax → 1 improvement, 9 va
   the page names in prose; Milam's page names none.
 - QuickLink (1874–1982) is a playbook, not a scraper.
 - The clerk's PL group could be searched by `docTypes` directly (advanced search takes it); today
-  plats surface through the quick search's type column, as on Bell.
+  plats surface through the quick search's type column, as on Bell. **Deferred:** the quick search already
+  returns the PL rows for a subdivision name (driven 2026-09-09, "BOEDEKER" → PLATS facet); a docType filter
+  would narrow, not find more.

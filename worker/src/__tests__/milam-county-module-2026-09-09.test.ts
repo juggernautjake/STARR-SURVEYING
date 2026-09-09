@@ -11,6 +11,7 @@ import { parseSitus, surveyNameFromGrantee } from '../counties/milam/scrapers/gi
 import { halfWidthForAcres } from '../counties/milam/scrapers/gis-viewer-capture.js';
 import { parseDeedHistoryTable, parsePropertyDetailHtml, landTableAcreage } from '../counties/bell/scrapers/cad-scraper.js';
 import { parseTaxInfo } from '../counties/bell/scrapers/tax-scraper.js';
+import { buildVolumePageUrl } from '../services/bell-clerk.js';
 import { BIS_CONFIGS } from '../services/bis-cad.js';
 import { getCountiesWithModules, hasCountySpecificModule, isMilamCountyAddress, isBellCountyAddress, detectCountyFromAddress } from '../counties/router.js';
 import { resolvePhaseIndex, RUN_PHASES } from '../research/run-phases.js';
@@ -269,5 +270,22 @@ describe('the BIS valuation block is read by its own labels', () => {
   });
   it('CONTROL: a page with no year and no values is null, not a zero record', () => {
     expect(parseTaxInfo('<table><tr><th>Owner:</th><td>X</td></tr></table>')).toBeNull();
+  });
+});
+
+describe('a volume/page reference reaches the clerk through the advanced search', () => {
+  it('builds the URL the form itself sends (driven live: OR/1093/560 → 2009-109100)', () => {
+    const u = buildVolumePageUrl('https://milam.tx.publicsearch.us', '1093', '560');
+    expect(u).toContain('searchType=advancedSearch');
+    expect(u).toContain('volume=1093');
+    expect(u).toContain('page=560');
+    expect(u).toContain('recordedDateRange=');
+    expect(u).not.toContain('quickSearch');
+  });
+  it('the clerk and plat scrapers ask for it that way — assert the CALLERS', () => {
+    for (const rel of ['counties/bell/scrapers/clerk-scraper.ts', 'counties/bell/scrapers/plat-scraper.ts']) {
+      expect(read(rel), rel).toContain('{ volumePage: { volume, page } }');
+    }
+    expect(read('services/bell-clerk.ts')).toContain('buildVolumePageUrl(baseUrl, volumePage.volume, volumePage.page, 0)');
   });
 });

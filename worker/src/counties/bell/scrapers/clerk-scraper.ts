@@ -962,9 +962,10 @@ async function fetchByVolumePage(
   progress: (msg: string) => void,
   projectId?: string,
 ): Promise<ClerkDocument | null> {
-  // Try constructing a quick-search query with vol+page
+  // The advanced search's volume/page fields (2026-09-09) — the quick search does not index
+  // "1093/560" as text, and on Milam every deed the appraisal district cites is a volume/page.
   const query = `${volume}/${page}`;
-  const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+  const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=advancedSearch&volume=${encodeURIComponent(volume)}&page=${encodeURIComponent(page)}`;
   urlsVisited.push(searchUrl);
 
   progress(`  [volPage] Searching for Vol ${volume} Pg ${page}...`);
@@ -975,7 +976,7 @@ async function fetchByVolumePage(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `clerk-volpg-${Date.now()}`);
 
-    const docResults = await searchClerkRecords(clerk().key, query, logger);
+    const docResults = await searchClerkRecords(clerk().key, query, logger, { volumePage: { volume, page } });
     const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) {
       progress(`  [volPage] No results for Vol ${volume} Pg ${page}`);

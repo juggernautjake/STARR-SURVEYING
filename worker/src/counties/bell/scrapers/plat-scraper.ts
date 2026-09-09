@@ -619,14 +619,14 @@ async function searchByVolumePage(
   projectId?: string,
 ): Promise<PlatRecord | null> {
   const query = `${volume}/${page}`;
-  urlsVisited.push(`${plat().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`);
+  urlsVisited.push(`${plat().endpoints.results}?department=RP&searchType=advancedSearch&volume=${encodeURIComponent(volume)}&page=${encodeURIComponent(page)}`);
 
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-volpg-${Date.now()}`);
 
-    const docResults = await searchClerkRecords(plat().key, query, logger);
+    const docResults = await searchClerkRecords(plat().key, query, logger, { volumePage: { volume, page } });
     const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) return null;
 

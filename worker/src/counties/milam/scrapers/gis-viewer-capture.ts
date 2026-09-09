@@ -107,8 +107,9 @@ function overlaySvg(f: Frame, subject: number[][][] | null, title: string, groun
   <rect x="0" y="0" width="${f.width}" height="34" fill="rgba(20,26,34,0.82)"/>
   <text x="12" y="23" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#ffffff">${esc(title)}</text>
   ${paths ? `<path d="${paths}" fill="none" stroke="#ff2d2d" stroke-width="4" stroke-linejoin="round"/><path d="${paths}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="6,6"/>` : ''}
-  <rect x="12" y="${y - 6}" width="${barPx.toFixed(0)}" height="6" fill="${ground ? '#1f2a33' : '#ffffff'}" stroke="${ground ? '#ffffff' : '#1f2a33'}" stroke-width="1"/>
-  <text x="12" y="${y - 10}" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="${ground ? '#1f2a33' : '#ffffff'}" stroke="${ground ? 'none' : 'rgba(0,0,0,0.6)'}" stroke-width="0.5">${metres} m / ${feet} ft</text>
+  <rect x="6" y="${y - 30}" width="${(barPx + 12).toFixed(0)}" height="36" rx="4" fill="rgba(20,26,34,0.75)"/>
+  <rect x="12" y="${y - 6}" width="${barPx.toFixed(0)}" height="6" fill="#ffffff" stroke="#1f2a33" stroke-width="1"/>
+  <text x="12" y="${y - 12}" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#ffffff">${metres} m / ${feet} ft</text>
 </svg>`;
 }
 
