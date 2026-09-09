@@ -7,6 +7,7 @@
 // so the tier a surveyor reads is the tier the router acts on.
 
 import React, { useEffect, useMemo, useState } from 'react';
+import './CountyProfilesPanel.css';
 
 type Tier = 'curated' | 'vendor-default' | 'fallback';
 
@@ -51,12 +52,6 @@ const TIER_LABEL: Record<Tier, string> = {
   fallback: 'Fallback',
 };
 
-const TIER_CLASS: Record<Tier, string> = {
-  curated: 'bg-green-100 text-green-800 ring-1 ring-green-200',
-  'vendor-default': 'bg-amber-100 text-amber-800 ring-1 ring-amber-200',
-  fallback: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
-};
-
 const TIER_HINT: Record<Tier, string> = {
   curated: 'Every site driven by hand; a dedicated run; golden parcels on file.',
   'vendor-default': 'Vendors known from the registries; the generic run uses their shapes. Nobody has proven a parcel here yet.',
@@ -70,6 +65,10 @@ function host(url: string | null): string {
 
 function site(p: ProfileView, role: string): ProfileSite | undefined {
   return p.sites.find((s) => s.role === role);
+}
+
+function Pill({ tier }: { tier: Tier }) {
+  return <span className={`cpp__pill cpp__pill--${tier}`}>{TIER_LABEL[tier]}</span>;
 }
 
 export default function CountyProfilesPanel() {
@@ -99,33 +98,33 @@ export default function CountyProfilesPanel() {
   }, [data, filter, tier]);
 
   return (
-    <section className="county-profiles" style={{ marginBottom: 28 }}>
-      <h2 style={{ marginBottom: 4 }}>County profiles</h2>
-      <p style={{ color: 'var(--theme-fg-secondary, #475569)', fontSize: 14, marginBottom: 12 }}>
+    <section className="county-profiles cpp">
+      <h2 className="cpp__title">County profiles</h2>
+      <p className="cpp__lede">
         One profile per county, resolved by the research worker — the same answer the router acts on when a run starts.
       </p>
 
       {error ? (
-        <p role="alert" style={{ color: '#B91C1C', fontSize: 14 }}>Could not load the county profiles: {error}</p>
+        <p role="alert" className="cpp__error">Could not load the county profiles: {error}</p>
       ) : null}
-      {!data && !error ? <p style={{ fontSize: 14, color: '#64748B' }}>Loading county profiles…</p> : null}
+      {!data && !error ? <p className="cpp__loading">Loading county profiles…</p> : null}
 
       {data ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div className="cpp__tiers">
             {(['curated', 'vendor-default', 'fallback'] as Tier[]).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setTier(tier === t ? 'all' : t)}
                 aria-pressed={tier === t}
-                style={{ textAlign: 'left', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', background: tier === t ? '#F8FAFC' : '#FFF', cursor: 'pointer' }}
+                className={`cpp__tier${tier === t ? ' cpp__tier--on' : ''}`}
               >
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TIER_CLASS[t]}`}>{TIER_LABEL[t]}</span>
-                  <strong style={{ fontSize: 20 }}>{data.tiers[t]}</strong>
+                <div className="cpp__tier-head">
+                  <Pill tier={t} />
+                  <strong className="cpp__tier-count">{data.tiers[t]}</strong>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{TIER_HINT[t]}</div>
+                <div className="cpp__tier-hint">{TIER_HINT[t]}</div>
               </button>
             ))}
           </div>
@@ -136,21 +135,21 @@ export default function CountyProfilesPanel() {
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Find a county by name or FIPS"
             aria-label="Filter counties"
-            style={{ width: '100%', maxWidth: 360, padding: '6px 10px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 14, marginBottom: 10 }}
+            className="cpp__filter"
           />
 
-          <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="cpp__table-wrap">
+            <table className="cpp__table">
               <thead>
-                <tr style={{ background: '#F8FAFC', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 10px' }}>County</th>
-                  <th style={{ padding: '8px 10px' }}>Tier</th>
-                  <th style={{ padding: '8px 10px' }}>Appraisal district</th>
-                  <th style={{ padding: '8px 10px' }}>Clerk</th>
-                  <th style={{ padding: '8px 10px' }}>Parcel data</th>
-                  <th style={{ padding: '8px 10px' }}>Plats</th>
-                  <th style={{ padding: '8px 10px' }}>Deed bridge</th>
-                  <th style={{ padding: '8px 10px' }}>Golden parcels</th>
+                <tr>
+                  <th>County</th>
+                  <th>Tier</th>
+                  <th>Appraisal district</th>
+                  <th>Clerk</th>
+                  <th>Parcel data</th>
+                  <th>Plats</th>
+                  <th>Deed bridge</th>
+                  <th>Golden parcels</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,46 +162,46 @@ export default function CountyProfilesPanel() {
                     <React.Fragment key={p.key}>
                       <tr
                         onClick={() => setOpen(isOpen ? null : p.key)}
-                        style={{ borderTop: '1px solid #E2E8F0', cursor: 'pointer', background: isOpen ? '#F8FAFC' : undefined }}
+                        className={`cpp__row${isOpen ? ' cpp__row--open' : ''}`}
                         aria-expanded={isOpen}
                       >
-                        <td style={{ padding: '8px 10px', fontWeight: 600 }}>{p.name} <span style={{ color: '#94A3B8', fontWeight: 400 }}>{p.fips}</span></td>
-                        <td style={{ padding: '8px 10px' }}><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TIER_CLASS[p.tier]}`}>{TIER_LABEL[p.tier]}</span></td>
-                        <td style={{ padding: '8px 10px' }}>{cad ? `${cad.vendor} · ${host(cad.url)}` : '—'}</td>
-                        <td style={{ padding: '8px 10px' }}>{clerk ? `${clerk.vendor} · ${host(clerk.url)}` : '—'}</td>
-                        <td style={{ padding: '8px 10px' }}>{parcels ? `layer${p.capabilities.surveyLayer ? ' + surveys' : ''}` : '—'}</td>
-                        <td style={{ padding: '8px 10px' }}>{p.capabilities.freePlatRepository ? 'free repository' : clerk && clerk.vendor !== 'texasfile' ? 'clerk + TexasFile' : 'TexasFile'}</td>
-                        <td style={{ padding: '8px 10px' }}>{p.capabilities.clerkBridge.replace('_', '/')}</td>
-                        <td style={{ padding: '8px 10px' }}>{p.golden.length}</td>
+                        <td className="cpp__county">{p.name} <span className="cpp__fips">{p.fips}</span></td>
+                        <td><Pill tier={p.tier} /></td>
+                        <td>{cad ? `${cad.vendor} · ${host(cad.url)}` : '—'}</td>
+                        <td>{clerk ? `${clerk.vendor} · ${host(clerk.url)}` : '—'}</td>
+                        <td>{parcels ? `layer${p.capabilities.surveyLayer ? ' + surveys' : ''}` : '—'}</td>
+                        <td>{p.capabilities.freePlatRepository ? 'free repository' : clerk && clerk.vendor !== 'texasfile' ? 'clerk + TexasFile' : 'TexasFile'}</td>
+                        <td>{p.capabilities.clerkBridge.replace('_', '/')}</td>
+                        <td>{p.golden.length}</td>
                       </tr>
                       {isOpen ? (
-                        <tr style={{ background: '#F8FAFC' }}>
-                          <td colSpan={8} style={{ padding: '10px 14px 14px' }}>
-                            <p style={{ margin: '0 0 8px', fontSize: 13 }}>{p.statement}</p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <tr className="cpp__detail">
+                          <td colSpan={8} className="cpp__detail-cell">
+                            <p className="cpp__statement">{p.statement}</p>
+                            <div className="cpp__cols">
                               <div>
-                                <strong style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4, color: '#64748B' }}>Sites</strong>
-                                <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                                <strong className="cpp__h">Sites</strong>
+                                <ul className="cpp__list">
                                   {p.sites.map((s) => (
                                     <li key={`${s.role}-${s.url ?? s.vendor}`}>
                                       <strong>{s.role.replace('_', ' ')}</strong> — {s.vendor}
                                       {s.url ? <> · <a href={s.url} target="_blank" rel="noreferrer">{host(s.url)}</a></> : null}
-                                      {s.verifiedAt ? <span style={{ color: '#64748B' }}> · verified {s.verifiedAt}</span> : <span style={{ color: '#B45309' }}> · not driven</span>}
-                                      {s.notes ? <div style={{ color: '#475569', fontSize: 12 }}>{s.notes}</div> : null}
+                                      {s.verifiedAt ? <span className="cpp__verified"> · verified {s.verifiedAt}</span> : <span className="cpp__unverified"> · not driven</span>}
+                                      {s.notes ? <div className="cpp__notes">{s.notes}</div> : null}
                                     </li>
                                   ))}
                                 </ul>
                               </div>
                               <div>
-                                <strong style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4, color: '#64748B' }}>What a run does here</strong>
-                                <ol style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
+                                <strong className="cpp__h">What a run does here</strong>
+                                <ol className="cpp__list">
                                   {p.recipe.map((line, i) => <li key={i}>{line}</li>)}
                                 </ol>
                                 {p.golden.length > 0 ? (
                                   <>
-                                    <strong style={{ display: 'block', marginTop: 10, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4, color: '#64748B' }}>Golden parcels</strong>
-                                    <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13 }}>
-                                      {p.golden.map((g) => <li key={g.propertyId}>{g.propertyId} — {g.address} <span style={{ color: '#64748B' }}>(verified {g.verifiedAt})</span></li>)}
+                                    <strong className="cpp__h cpp__h--spaced">Golden parcels</strong>
+                                    <ul className="cpp__list">
+                                      {p.golden.map((g) => <li key={g.propertyId}>{g.propertyId} — {g.address} <span className="cpp__verified">(verified {g.verifiedAt})</span></li>)}
                                     </ul>
                                   </>
                                 ) : null}
@@ -215,7 +214,7 @@ export default function CountyProfilesPanel() {
                   );
                 })}
                 {rows.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: 12, color: '#64748B' }}>No county matches that filter.</td></tr>
+                  <tr><td colSpan={8} className="cpp__empty">No county matches that filter.</td></tr>
                 ) : null}
               </tbody>
             </table>

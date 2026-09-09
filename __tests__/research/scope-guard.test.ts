@@ -310,7 +310,7 @@ describe('both run paths are guarded', () => {
 describe('every surface that can start a run consults the same check', () => {
   const SURFACES = {
     'the project page': 'app/admin/research/[projectId]/page.tsx',
-    'the create modal': 'app/admin/research/_tabs/ProjectsTab.tsx',
+    'the create modal': 'app/admin/research/components/NewResearchProjectModal.tsx',
     'the batch form': 'app/admin/research/_tabs/PipelineTab.tsx',
   };
 
@@ -373,8 +373,12 @@ describe('every surface that can start a run consults the same check', () => {
     // about to correct the state. What is refused is the RUN.
     const src = read(SURFACES['the create modal']);
     expect(src).toContain('<ScopeNotice');
+    // 2026-09-09: the modal gates on "the county, plus an address or a Property ID" and on
+    // nothing else — `missing` is built from those alone, never from the scope verdict.
     expect(src, 'creating a project must not be gated on scope')
-      .toContain('disabled={!hasIdentifier || creating}');
+      .toContain("const canCreate = missing.length === 0 && phase === 'idle';");
+    expect(src).not.toMatch(/missing\.push\([^)]*scope/);
+    expect(src).not.toMatch(/disabled=\{[^}]*scope/);
   });
 });
 

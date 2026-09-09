@@ -38,11 +38,13 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 const PAGE = read('app/admin/research/[projectId]/page.tsx');
 const CREATE = read('app/api/admin/research/route.ts');
-const FORM = read('app/admin/research/_tabs/ProjectsTab.tsx');
+const FORM = read('app/admin/research/components/NewResearchProjectModal.tsx');
 
 describe('the owner name survives the whole journey', () => {
-  it('the form collects it', () => {
-    expect(FORM).toContain('value={newProject.owner_name}');
+  it('the form collects it — as a "Current owner" information line (2026-09-09), folded to owner_name by the API', () => {
+    expect(FORM).toContain("from '@/lib/research/intake-info'");
+    expect(read('lib/research/intake-info.ts')).toContain("id: 'owner_current'");
+    expect(CREATE).toContain('supplemental?.ownerNames?.[0]');
   });
 
   it('the create route saves it — inside analysis_metadata, not as a column', () => {

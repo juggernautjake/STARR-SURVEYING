@@ -175,11 +175,12 @@ describe('one rule, enforced in every place that can start a run', () => {
       .not.toContain('Add a property address (or parcel id), or upload a document');
   });
 
-  it('the create modal shows it too, WITHOUT blocking creation', () => {
-    const tab = code('app/admin/research/_tabs/ProjectsTab.tsx');
-    expect(tab).toContain('assessRunReadiness({');
-    // Creating a record for a property that cannot be researched yet is legitimate — you may be
-    // about to go and find the Property ID. The create button must still gate on `hasIdentifier`.
-    expect(tab).toContain('disabled={!hasIdentifier || creating}');
+  it('the intake modal does NOT show it — the run is set up on the research page (owner, 2026-09-09)', () => {
+    // "The modal should not handle all of the settings, but should just be used to take in
+    // information." Creation gates on the county plus an address or a Property ID, never on
+    // whether a run could start right now — the research page answers that.
+    const modal = code('app/admin/research/components/NewResearchProjectModal.tsx');
+    expect(modal).not.toContain('assessRunReadiness');
+    expect(modal).toContain("const canCreate = missing.length === 0 && phase === 'idle';");
   });
 });

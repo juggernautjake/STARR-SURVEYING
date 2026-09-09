@@ -1,0 +1,69 @@
+/* app/admin/research/coverage/CountyProfilesPanel.css — one row per county, tokens only. */
+
+.cpp { margin-bottom: 28px; }
+.cpp__title { margin-bottom: 4px; }
+.cpp__lede { color: var(--theme-fg-secondary, #475569); font-size: 14px; margin-bottom: 12px; }
+.cpp__error { color: var(--theme-danger-fg, #B91C1C); font-size: 14px; }
+.cpp__loading { font-size: 14px; color: var(--theme-fg-muted, #64748B); }
+
+.cpp__tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.cpp__tier {
+  text-align: left;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  cursor: pointer;
+  font: inherit;
+}
+.cpp__tier--on { background: var(--theme-bg-elevated, #F8FAFC); border-color: var(--theme-accent, #1D3095); }
+.cpp__tier-head { display: flex; align-items: baseline; gap: 8px; }
+.cpp__tier-count { font-size: 20px; }
+.cpp__tier-hint { font-size: 12px; color: var(--theme-fg-muted, #64748B); margin-top: 4px; }
+
+.cpp__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+.cpp__pill--curated { background: var(--theme-success-bg, #ECFDF5); color: var(--theme-success-fg, #047857); border-color: color-mix(in srgb, var(--theme-success, #10B981) 35%, transparent); }
+.cpp__pill--vendor-default { background: var(--theme-warning-bg, #FFFBEB); color: var(--theme-warning-fg, #92400E); border-color: var(--theme-warning-border, #FDE68A); }
+.cpp__pill--fallback { background: var(--theme-bg-elevated, #F8FAFC); color: var(--theme-fg-secondary, #475569); border-color: var(--theme-border, #E2E8F0); }
+
+.cpp__filter {
+  width: 100%;
+  max-width: 360px;
+  padding: 6px 10px;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+  margin-bottom: 10px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.cpp__table-wrap { border: 1px solid var(--theme-border, #E2E8F0); border-radius: 8px; overflow: auto; }
+.cpp__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cpp__table thead tr { background: var(--theme-bg-elevated, #F8FAFC); text-align: left; }
+.cpp__table th, .cpp__table td { padding: 8px 10px; }
+.cpp__row { border-top: 1px solid var(--theme-border, #E2E8F0); cursor: pointer; }
+.cpp__row--open { background: var(--theme-bg-elevated, #F8FAFC); }
+.cpp__county { font-weight: 600; }
+.cpp__fips { color: var(--theme-fg-muted, #64748B); font-weight: 400; }
+.cpp__detail { background: var(--theme-bg-elevated, #F8FAFC); }
+.cpp__detail-cell { padding: 10px 14px 14px; }
+.cpp__statement { margin: 0 0 8px; font-size: 13px; }
+.cpp__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cpp__h { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--theme-fg-muted, #64748B); }
+.cpp__h--spaced { margin-top: 10px; }
+.cpp__list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.cpp__verified { color: var(--theme-fg-muted, #64748B); }
+.cpp__unverified { color: var(--theme-warning-fg, #B45309); }
+.cpp__notes { color: var(--theme-fg-secondary, #475569); font-size: 12px; }
+.cpp__empty { padding: 12px; color: var(--theme-fg-muted, #64748B); }

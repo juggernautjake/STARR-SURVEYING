@@ -296,7 +296,7 @@ describe('the pipeline route carries them to the worker', () => {
 });
 
 describe('the form asks for the parts', () => {
-  const TAB = read('app/admin/research/_tabs/ProjectsTab.tsx');
+  const TAB = read('app/admin/research/components/NewResearchProjectModal.tsx');   // the create form since 2026-09-09
 
   it('has a separate street number and street name input', () => {
     expect(TAB).toContain('id="np-street-number"');

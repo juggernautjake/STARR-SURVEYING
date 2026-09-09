@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { composeAddress, splitStreetLine, type StructuredAddress } from '@/lib/research/property-address';
+import { countSupplemental } from '@/lib/research/intake-info';
 
 /* GET — List all research projects (with optional filters) */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -86,6 +87,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const {
     name, description, property_address, city, county, state, zip, owner_name, parcel_id,
     job_id, allow_paid_documents,
+    // 2026-09-09 — the New Research Project modal links research to a PROJECT and to any of its
+    // JOBS (seed 633). `job_id` stays as a mirror of the first linked job for older readers.
+    project_id, job_ids,
     // Seed 624 — the address arrives in parts and STAYS in parts. See below.
     street_number, street_name, unit, intake_notes,
     // Seed 625 — a deed the operator already has. Seeds the Bell deed-following cascade.
@@ -99,6 +103,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!name || !name.trim()) {
     return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
   }
+
+  const linkedJobIds: string[] = Array.isArray(job_ids)
+    ? [...new Set((job_ids as unknown[]).filter((j): j is string => typeof j === 'string' && j.length > 0))]
+    : [];
+  // A single `job_id` from an older client still counts as a link.
+  if (linkedJobIds.length === 0 && typeof job_id === 'string' && job_id) linkedJobIds.push(job_id);
+  const linkedProjectId: string | null = typeof project_id === 'string' && project_id ? project_id : null;
 
   // ── THE ADDRESS IS NO LONGER FLATTENED INTO ONE STRING (seed 624) ────────────────────────────
   //
@@ -167,7 +178,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // normalising here would destroy the one the clerk actually uses; comparison-normalisation
       // already belongs to purchase-ledger.instrumentKey().
       instrument_number: instrument_number?.trim() || null,
-      job_id: job_id || null,
+      job_id: linkedJobIds[0] ?? null,
+      project_id: linkedProjectId,
       status: 'upload',
       // Per-project spend gate (seed 620). Only an explicit `false` disables purchasing: an absent
       // or malformed value keeps today's behaviour. Defaulting to `false` here would make every
@@ -179,18 +191,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // anything still reading the blob keeps working; the columns above are what the pipeline
       // route selects and what the worker is given.
       analysis_metadata: {
-        owner_name: owner_name?.trim() || null,
+        // The modal (2026-09-09) sends the owner as a "Current owner" info line rather than a field;
+        // the first one is the owner_name the clerk grantor/grantee search reads.
+        owner_name: (owner_name?.trim() || supplemental?.ownerNames?.[0]?.trim() || null),
         user_notes: (intake_notes || description || '').trim() || null,
         city: city?.trim() || null,
         zip: zip?.trim() || null,
         // Plan H2/H3 — supplemental search hints, threaded to the run + the cross-source engine's
         // DiscoveryTarget (A1) and relevance filter (A7). Stored only when non-empty.
-        supplemental: supplemental && (
-          (supplemental.instrumentNumbers?.length ?? 0) +
-          (supplemental.ownerNames?.length ?? 0) +
-          (supplemental.volumePages?.length ?? 0) +
-          (supplemental.cabinetSlides?.length ?? 0)
-        ) > 0 ? supplemental : null,
+        // Counted generically (lib/research/intake-info countSupplemental) so a new kind of fact —
+        // subdivisions, abstracts, coordinates … — is stored without this route being edited.
+        supplemental: countSupplemental(supplemental) > 0 ? supplemental : null,
       },
     })
     .select()
@@ -200,7 +211,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ project: data }, { status: 201 });
+  // The job links (seed 633). Not fatal: the project exists; a missing link is repairable from the
+  // project page, and it is said in the response rather than swallowed.
+  let linkWarning: string | null = null;
+  if (linkedJobIds.length > 0) {
+    const { error: linkErr } = await supabaseAdmin
+      .from('research_project_jobs')
+      .insert(linkedJobIds.map((jid) => ({ research_project_id: data.id, job_id: jid })));
+    if (linkErr) linkWarning = `The project was created but could not be linked to ${linkedJobIds.length} job(s): ${linkErr.message}`;
+  }
+
+  return NextResponse.json({ project: { ...data, linked_job_ids: linkedJobIds }, warning: linkWarning }, { status: 201 });
 }, { routeName: 'research' });
 
 /* PATCH — Update a research project */
@@ -282,6 +303,10 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   // empty string mean the same as "leave it alone" if this were folded into the pattern above.
   if (updates.job_id !== undefined) {
     allowed.job_id = updates.job_id ? String(updates.job_id) : null;
+  }
+  // Seed 633 — the project link is editable too, for the same reason job_id had to be.
+  if (updates.project_id !== undefined) {
+    allowed.project_id = updates.project_id ? String(updates.project_id) : null;
   }
   // ── allow_paid_documents WAS ACCEPTED ON CREATE AND NOWHERE ELSE ─────────────────────────────
   //

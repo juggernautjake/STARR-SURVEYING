@@ -15,7 +15,8 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
-const FORM = 'app/admin/research/_tabs/ProjectsTab.tsx';
+// 2026-09-09: the create form became NewResearchProjectModal; the guard follows the code.
+const FORM = 'app/admin/research/components/NewResearchProjectModal.tsx';
 const MODULE = 'lib/research/county-input.ts';
 const NOTE = 'app/admin/research/components/CountyNote.tsx';
 const NOTE_CSS = 'app/admin/research/components/CountyNote.css';
@@ -28,7 +29,7 @@ describe('the county check is wired into the create form', () => {
 
   it('it is computed from the county field, not from a constant', () => {
     // `checkCounty('Bell')` would satisfy a laxer assertion and check nothing the user typed.
-    expect(read(FORM)).toMatch(/checkCounty\(\s*newProject\.county\s*\)/);
+    expect(read(FORM)).toMatch(/checkCounty\(\s*form\.county\s*\)/);
   });
 
   it('the warning is actually RENDERED — the notice existing is not the same as reaching a reader', () => {
@@ -40,7 +41,7 @@ describe('the county check is wired into the create form', () => {
     const note = read(NOTE);
 
     expect(form, 'the form must MOUNT the note').toMatch(/<CountyNote/);
-    expect(form).toContain("from '../components/CountyNote'");
+    expect(form).toContain("from './CountyNote'");
     expect(form, 'the mounted note must be fed the computed check').toContain('check={countyCheck}');
 
     // Both branches, because they carry different messages for different mistakes and collapsing
@@ -55,7 +56,7 @@ describe('the county check is wired into the create form', () => {
     expect(note.match(/research-county-note--warn/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
   it('the suggestions are clickable and set the field', () => {
-    expect(read(FORM)).toMatch(/setNewProject\(p => \(\{ \.\.\.p, county: s \}\)\)/);
+    expect(read(FORM)).toMatch(/onPick=\{\(s\) => set\('county', s\)\}/);
   });
 
   it('the canonical spelling is what gets SENT', () => {
@@ -63,7 +64,7 @@ describe('the county check is wired into the create form', () => {
     // Two halves, and the second is the one that would silently rot: computing `county` and then
     // not overriding it in the body leaves the raw typed value going to the API, with every other
     // assertion here still green.
-    expect(src).toMatch(/countyCheck\.kind === 'ok' \? countyCheck\.canonical : newProject\.county/);
+    expect(src).toMatch(/countyCheck\.kind === 'ok' \? countyCheck\.canonical : form\.county/);
     expect(src).toMatch(/JSON\.stringify\(\{[^}]*county,/);
   });
 

@@ -99,7 +99,10 @@ export function workflowStepToStage(step: WorkflowStep): PipelineStage {
 export interface ResearchProject {
   id: string;
   created_by: string;
+  /** Mirror of the first linked job (seed 633); `research_project_jobs` is the source of truth. */
   job_id?: string | null;
+  /** The engagement (public.projects) this research is attached to — seed 633. */
+  project_id?: string | null;
   name: string;
   description?: string | null;
   property_address?: string | null;

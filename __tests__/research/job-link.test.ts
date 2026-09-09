@@ -55,7 +55,10 @@ describe('the API can set it, and can unset it', () => {
   });
 
   it('POST still accepts it too, so a project can be created already attached', () => {
-    expect(read(ROUTE)).toContain('job_id: job_id || null');
+    // Seed 633: `job_ids[]` is the link; `job_id` mirrors the first for older readers, and a lone
+    // `job_id` from an older client still becomes a link.
+    expect(read(ROUTE)).toContain('job_id: linkedJobIds[0] ?? null');
+    expect(read(ROUTE)).toContain("typeof job_id === 'string' && job_id) linkedJobIds.push(job_id)");
   });
 });
 
@@ -144,6 +147,8 @@ describe('naming a job the way a person would', () => {
 
 describe('starting research from a job', () => {
   const TAB = read('app/admin/research/_tabs/ProjectsTab.tsx');
+  // 2026-09-09: the lookup and the pre-link moved into NewResearchProjectModal — the guard follows.
+  const MODAL = read('app/admin/research/components/NewResearchProjectModal.tsx');
   const JOB = read('app/admin/jobs/[id]/page.tsx');
 
   it('the job page offers it, carrying the job id', () => {
@@ -152,21 +157,24 @@ describe('starting research from a job', () => {
 
   it('the research form reads the job param', () => {
     expect(TAB).toContain("searchParams?.get('job')");
-    expect(TAB).toContain('/api/admin/jobs?id=');
+    expect(MODAL).toContain('/api/admin/jobs?id=');
   });
 
   it('and pre-links as well as pre-fills', () => {
     // Pre-filling without pre-linking would be the half that does not matter: the address can be
     // retyped, the attachment is what gets forgotten.
-    expect(TAB).toContain('job_id: job.id');
-    expect(TAB).toContain('setCreateLinkedJob(job)');
+    // …and now to the job's PROJECT as well as the job (seed 633).
+    expect(MODAL).toContain('job_ids: [job.id]');
+    expect(MODAL).toContain('project_id: job.project_id ?? p.project_id');
+    expect(MODAL).toContain('setLinkedProject(body.project)');
   });
 
   it('job_id is part of the create state\'s TYPE, so it reaches the server', () => {
     // Setting it only inside the updater COMPILES — a spread does not trigger excess-property
     // checks — and then silently never reaches the POST body, because the body is
     // `{ ...newProject }`. It has to be in the initial state.
-    expect(TAB).toContain('job_id: null as string | null,');
+    expect(MODAL).toContain('project_id: string | null;');
+    expect(MODAL).toContain('job_ids: string[];');
   });
 
   it('and is reset after a successful create', () => {
@@ -176,26 +184,27 @@ describe('starting research from a job', () => {
     // which seed 624 broke by wrapping that call across lines when it added four more fields.
     // indexOf returned -1, slice(-1) handed the assertion a newline, and it reported a missing
     // job_id that was present.
-    const at = TAB.indexOf('setNewProject({', TAB.indexOf('const data = await res.json()'));
-    expect(at, 'no post-create reset found').toBeGreaterThan(-1);
-    expect(TAB.slice(at, at + 600)).toContain('job_id: null');
+    // The modal resets to one literal every time it opens.
+    expect(MODAL).toContain('setForm(EMPTY_FORM);');
+    expect(MODAL).toContain('project_id: null, job_ids: []');
   });
 
   it('an empty field on the job does not blank a default', () => {
     // `state` starts as 'TX'. A job with no state must leave it there rather than clear it, or
     // arriving from a job makes the scope check WORSE than starting from scratch.
-    expect(TAB).toContain('state: job.state?.trim() || p.state');
+    expect(MODAL).toContain('state: job.state?.trim() || p.state');
   });
 
   it('and a failed job lookup still opens the form', () => {
     // Refusing to open the form because a job could not be fetched is a worse answer than an empty
     // form — the person came here to start research either way.
-    const at = TAB.indexOf("searchParams?.get('job')");
-    expect(TAB.slice(at, at + 1800)).toMatch(/catch\s*\{/);
+    const at = MODAL.indexOf('/api/admin/jobs?id=');
+    expect(at).toBeGreaterThan(-1);
+    expect(MODAL.slice(at, at + 2600)).toMatch(/catch\s*\{/);
   });
 
   it('the create modal offers the picker even without the deep link', () => {
-    expect(TAB).toContain('id="create-project-job"');
+    expect(MODAL).toContain('id="np-project-search"');
   });
 });
 
@@ -213,7 +222,7 @@ describe('starting research from a job', () => {
 // silence in the one case where there is something to say.
 
 describe('when the job has no county', () => {
-  const TAB = read('app/admin/research/_tabs/ProjectsTab.tsx');
+  const TAB = read('app/admin/research/components/NewResearchProjectModal.tsx');
 
   it('the form says so, at the field', () => {
     expect(TAB).toContain('setJobHadNoCounty(!job.county?.trim())');
@@ -226,22 +235,23 @@ describe('when the job has no county', () => {
     // mounted on the same page and pulls the sheet in, and `rendered-classes-are-styled` went
     // 454 -> 456. The guard was right: the styling worked by proximity, and removing CountyNote
     // from this page would have silently unstyled the note.
-    expect(TAB).toContain('className="research-prefill-note"');
+    expect(TAB).toContain('className="nrp-note nrp-note--warn"');
     expect(TAB, 'borrowing a sheet this file does not import')
       .not.toContain('research-county-note--warn');
-    expect(read('app/admin/styles/AdminResearch.css')).toContain('.research-prefill-note {');
+    expect(read('app/admin/research/components/NewResearchProjectModal.css')).toContain('.nrp-note--warn {');
   });
 
   it('and only while it is still empty, so it cannot nag', () => {
     // Keyed off the live field rather than a flag alone: typing a county must clear it without
     // needing a second setter to remember to fire.
-    expect(TAB).toContain('jobHadNoCounty && !newProject.county.trim()');
+    expect(TAB).toContain('jobHadNoCounty && !form.county.trim()');
   });
 
   it('the flag resets with the rest of the form', () => {
     // Otherwise the next project created in the same session inherits the warning from the last.
-    const at = TAB.indexOf('setNewProject({', TAB.indexOf('const data = await res.json()'));
-    expect(at, 'no post-create reset found').toBeGreaterThan(-1);
+    // The modal resets everything each time it opens, the flag included.
+    const at = TAB.indexOf('setForm(EMPTY_FORM);');
+    expect(at, 'no on-open reset found').toBeGreaterThan(-1);
     expect(TAB.slice(at, at + 700)).toContain('setJobHadNoCounty(false)');
   });
 
@@ -250,7 +260,7 @@ describe('when the job has no county', () => {
     // wrong clerk and produces a confident report about somebody else's land; a blank one produces
     // a question. This is the assertion that stops a future "helpful" city→county lookup landing
     // here without the routing consequences being thought through.
-    const at = TAB.indexOf("searchParams?.get('job')");
+    const at = TAB.indexOf('/api/admin/jobs?id=');
     const effect = TAB.slice(at, at + 1800);
     expect(effect).toContain('county: job.county?.trim() || p.county');
     expect(effect, 'the county is being inferred from something other than the job')
