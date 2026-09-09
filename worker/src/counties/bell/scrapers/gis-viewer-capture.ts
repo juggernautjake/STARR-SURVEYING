@@ -518,6 +518,11 @@ async function captureGisViewerScreenshotsInner(
         logDetail('zoom-group', `Already at level ${level} (current=${currentZoom})`);
       }
 
+      // The Map Layers panel opens on the right and covers a fifth of every frame (run 7 and the
+      // 2026-09-09 verification alike). Its header carries Collapse and Close; Close is clicked,
+      // scoped to the floating panel — a bare [aria-label="Close"] matched something else first.
+      await closeFloatingPanels(page);
+
       // Capture each screenshot at this zoom level (just toggle basemap + layers)
       //
       // ── VERIFIED BY PIXELS ─────────────────────────────────────────────────────────────────
@@ -622,6 +627,29 @@ async function captureGisViewerScreenshotsInner(
   }
 
   return results;
+}
+
+// ── Internal: Close floating widget panels ───────────────────────────
+
+/** Close every floating widget panel (Map Layers, Legend…) so the map is the whole frame. Best effort;
+ *  the log says what was closed. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function closeFloatingPanels(page: any): Promise<number> {
+  let closed = 0;
+  // The click reports a timeout even as the panel closes (its post-click stability check never
+  // settles — measured 2026-09-09); what counts is whether the button is still there afterwards.
+  const sel = '.jimu-floating-panel .panel-header button[aria-label="Close"], .jimu-floating-panel .panel-header button[title="Close"]';
+  for (let i = 0; i < 4; i++) {
+    const before = await page.locator(sel).count().catch(() => 0);
+    if (before === 0) break;
+    await page.locator(sel).first().click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(700);
+    const after = await page.locator(sel).count().catch(() => 0);
+    if (after >= before) break;
+    closed++;
+  }
+  gisLog('panels', closed > 0 ? `Closed ${closed} floating panel(s) so the map fills the frame` : 'No floating panel to close');
+  return closed;
 }
 
 // ── Internal: Dismiss Disclaimer Dialog ──────────────────────────────

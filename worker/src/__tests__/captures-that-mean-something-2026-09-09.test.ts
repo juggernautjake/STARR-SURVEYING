@@ -120,6 +120,14 @@ describe('D — the GIS viewer\'s map view is found the one way Bell\'s viewer e
   });
 });
 
+describe('D — the Map Layers panel is closed before the frames are taken', () => {
+  it('closes floating panels, scoped to the panel header', () => {
+    const src = read('counties/bell/scrapers/gis-viewer-capture.ts');
+    expect(src).toContain('await closeFloatingPanels(page);');
+    expect(src).toContain('.jimu-floating-panel .panel-header button[aria-label="Close"]');
+  });
+});
+
 describe('D — a GIS viewer frame identical to the last is not a capture', () => {
   it('re-takes once, then drops and names the toggle that did not take', () => {
     const src = read('counties/bell/scrapers/gis-viewer-capture.ts');

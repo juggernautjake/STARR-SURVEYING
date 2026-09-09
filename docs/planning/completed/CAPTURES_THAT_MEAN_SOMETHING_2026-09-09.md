@@ -152,3 +152,12 @@ the 1984 Caffrey → Smith deed relabelled and marked unrelated; the free plat's
 the portal PDF (it had been the raw PDF under a .png name). 20 live rows remain, every one distinct and
 viewable. The subject's deed (Instr. 2004034968) still holds page 1 of 3 on that project — the pager fix
 applies on the next run.
+
+## Verified live 2026-09-09 (worker build 611efe0c9)
+
+- GIS viewer capture for parcel 64567: **5 frames, 5 distinct hashes** — streets+parcels, zoom 17, aerial+parcels+lot lines, aerial+EagleView 2026+parcels, EagleView with parcels and lot lines OFF; every layer toggle answered via the JS API in ~200 ms (the first pass after 67eaecdc6 still had one unpatched finder and dropped [04] [05] as identical — fixed in 611efe0c9).
+- BIS parcel map: disclaimer appeared, dismissed by its role=button OK, map captured with the parcel highlighted and no modal (591 KB); Google satellite + place captured.
+- Clerk viewer doc 98737982: page box says 3, next enabled after 5.3 s, pages 2 and 3 load on click.
+- Plat route: the portal PDF fetched through the residential session and rasterised to 4678×3666.
+
+Left for the next run to prove end to end: the deed pager on a live capture, and the run-level count of filed rows (expected: no grouped copies, no misc rows, one aerial per frame).
