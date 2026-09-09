@@ -17,7 +17,9 @@ import { lookupByCounty } from '../research/county-key.js';
 // other, and a county present in one table and absent from the next.
 
 const COUNTIES = [
-  { name: 'Milam',   key: 'milam',   fips: '48331', system: 'kofile'  as const, gis: 'milamcad'   },
+  // The GIS slug was 'milamcad' (gis.bisclient.com/milamcad/), which answers 404 — the registry row
+  // this test pinned was the dead host of 2026-09-02. Corrected 2026-09-09 to the county's real map.
+  { name: 'Milam',   key: 'milam',   fips: '48331', system: 'kofile'  as const, gis: 'pandai.com/milamad' },
   { name: 'Coryell', key: 'coryell', fips: '48099', system: 'edoctec' as const, gis: 'coryellcad' },
 ];
 

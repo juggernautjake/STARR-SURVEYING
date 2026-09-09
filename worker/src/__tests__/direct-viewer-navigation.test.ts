@@ -71,18 +71,19 @@ describe('the caller passes the read URL, never a constructed one', () => {
   const src = read('../counties/bell/scrapers/clerk-scraper.ts');
 
   it('passes docRef.url', () => {
-    expect(src).toMatch(/fetchDocumentImages\([^)]*docRef\.url/s);
+    // `[^;]` rather than `[^)]`: the county argument is `clerk().key` since 2026-09-09.
+    expect(src).toMatch(/fetchDocumentImages\([^;]*docRef\.url/s);
   });
 
   it('does NOT pass realDocUrl, which falls back to a constructed /doc/{instrument}', () => {
     // The whole correctness argument in one assertion.
     expect(src, 'realDocUrl may be BELL_ENDPOINTS.clerk.document(instrumentNumber) — a URL that 404s')
-      .not.toMatch(/fetchDocumentImages\([^)]*realDocUrl/s);
+      .not.toMatch(/fetchDocumentImages\([^;]*realDocUrl/s);
   });
 
   it('the fallback that makes realDocUrl unsafe still exists — so this guard still means something', () => {
     // Control. If the ?? fallback were removed, realDocUrl would become safe and this guard would
     // be pinning a rule that no longer applies. Better to fail and be re-read than to pass hollow.
-    expect(src).toMatch(/realDocUrl = docRef\.url \?\? BELL_ENDPOINTS\.clerk\.document/);
+    expect(src).toMatch(/realDocUrl = docRef\.url \?\? clerk\(\)\.endpoints\.document/);
   });
 });

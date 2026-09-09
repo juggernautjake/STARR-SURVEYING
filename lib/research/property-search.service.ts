@@ -374,7 +374,8 @@ const TEXAS_CAD_CONFIGS: Record<string, CADConfig> = {
   coryell:     { name: 'Coryell County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=18', platform: 'trueautomation', trueautoId: 18 },
   mclennan:    { name: 'McLennan County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=25', platform: 'trueautomation', trueautoId: 25, esearchUrl: 'https://mclennan-cad.org/property-search/' },
   falls:       { name: 'Falls County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=20', platform: 'trueautomation', trueautoId: 20 },
-  milam:       { name: 'Milam County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=26', platform: 'trueautomation', trueautoId: 26 },
+  // Milam — corrected 2026-09-09: TrueAutomation cid=26 answers an ASP.NET error page; the district is BIS eSearch at milamad.org.
+  milam:       { name: 'Milam Appraisal District',             searchUrl: 'https://esearch.milamad.org/',                          platform: 'esearch', esearchUrl: 'https://esearch.milamad.org/' },
   lampasas:    { name: 'Lampasas County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=23', platform: 'trueautomation', trueautoId: 23 },
   // ── Austin metro ──
   travis:      { name: 'Travis County Appraisal District',     searchUrl: 'https://traviscad.org/property-search/',                 platform: 'generic' },

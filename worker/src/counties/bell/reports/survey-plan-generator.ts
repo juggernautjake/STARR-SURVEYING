@@ -15,6 +15,8 @@ import type { SurveyType } from '../types/research-input.js';
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface SurveyPlanInput {
+  /** The county — named in the prompt and the declination note. Defaults to Bell. */
+  countyName?: string;
   research: BellResearchResult;
   surveyType: SurveyType;
   jobPurpose: string;
@@ -149,7 +151,7 @@ async function generateFieldSteps(
       max_tokens: 3000,
       messages: [{
         role: 'user',
-        content: `You are creating a step-by-step field survey plan for a property surveyor in Bell County, Texas.
+        content: `You are creating a step-by-step field survey plan for a property surveyor in ${input.countyName ?? 'Bell'} County, Texas.
 
 Property: ${property.situsAddress}
 Owner: ${property.ownerName}
@@ -222,7 +224,7 @@ function getDefaultFieldSteps(input: SurveyPlanInput): FieldStep[] {
       description: `Drive to ${input.research.property.situsAddress}. Locate the most accessible property corner.`,
       lookFor: ['Iron rods', 'Fence corners', 'Survey markers', 'Concrete monuments'],
       measurements: ['Set up total station or GPS on found monument'],
-      calculations: ['Check magnetic declination for Bell County (~4° East)'],
+      calculations: [`Check magnetic declination for ${input.countyName ?? 'Bell'} County (Central Texas: ~3–4° East; verify for the field date)`],
     },
     {
       stepNumber: 2,

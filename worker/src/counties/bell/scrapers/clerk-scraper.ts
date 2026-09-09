@@ -41,6 +41,40 @@ import { DOCUMENT_TYPE_SCORES } from '../config/field-maps.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
 import { mapBounded } from '../../../infra/bounded-map.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// ── Which clerk (2026-09-09) ──────────────────────────────────────────────────────────────────
+//
+// Every path in this file drives a Kofile/GovOS PublicSearch site through services/bell-clerk.ts,
+// which has taken a county key all along. The key was the literal 'bell' here, fourteen times.
+// Milam's clerk is the same product (milam.tx.publicsearch.us), so the scraper now takes the
+// county as a profile and reads it through `clerk()` — the AsyncLocalStorage shape cad-scraper.ts
+// and gis-viewer-capture.ts use, for the same reason.
+
+export interface KofileClerkProfile {
+  /** The key services/bell-clerk.ts's KOFILE_CONFIGS is read by — 'bell', 'milam'. */
+  key: string;
+  /** "Bell County Clerk" — the words the run log uses. */
+  label: string;
+  endpoints: {
+    home: string;
+    results: string;
+    document: (internalId: string) => string;
+  };
+}
+
+export const BELL_CLERK_PROFILE: KofileClerkProfile = {
+  key: 'bell',
+  label: 'Bell County Clerk',
+  endpoints: BELL_ENDPOINTS.clerk,
+};
+
+const profileStore = new AsyncLocalStorage<KofileClerkProfile>();
+
+/** The profile of the search on this async stack; Bell's when called outside `scrapeKofileClerk`. */
+function clerk(): KofileClerkProfile {
+  return profileStore.getStore() ?? BELL_CLERK_PROFILE;
+}
 
 /**
  * Capture several instruments at once, politely (E5d).
@@ -164,6 +198,22 @@ export interface ClerkScraperProgress {
  * the document image capture step, ensuring full coverage.
  */
 export async function scrapeBellClerk(
+  input: ClerkSearchInput,
+  onProgress: (p: ClerkScraperProgress) => void,
+): Promise<ClerkSearchResult> {
+  return scrapeKofileClerk(BELL_CLERK_PROFILE, input, onProgress);
+}
+
+/** The Bell clerk search, pointed at any Kofile county. */
+export async function scrapeKofileClerk(
+  profile: KofileClerkProfile,
+  input: ClerkSearchInput,
+  onProgress: (p: ClerkScraperProgress) => void,
+): Promise<ClerkSearchResult> {
+  return profileStore.run(profile, () => scrapeClerkInner(input, onProgress));
+}
+
+async function scrapeClerkInner(
   input: ClerkSearchInput,
   onProgress: (p: ClerkScraperProgress) => void,
 ): Promise<ClerkSearchResult> {
@@ -379,16 +429,16 @@ async function fetchInstrumentDocument(
 
     // Fetch document metadata first — this searches the clerk SPA and clicks
     // the result to get the real internal doc ID and URL
-    progress(`    [fetchInstrument] Searching Bell Clerk SPA for instrument ${instrumentNumber}...`);
-    const docRef = await searchByInstrument(instrumentNumber, logger);
+    progress(`    [fetchInstrument] Searching ${clerk().label} for instrument ${instrumentNumber}...`);
+    const docRef = await searchByInstrument(instrumentNumber, logger, clerk().key);
     if (!docRef) {
-      progress(`    [fetchInstrument] Instrument ${instrumentNumber} not found in Bell Clerk`);
+      progress(`    [fetchInstrument] Instrument ${instrumentNumber} not found in ${clerk().label}`);
       console.log(`[ClerkScraper] Instrument ${instrumentNumber}: NOT FOUND`);
       return null;
     }
 
     // Now we have the REAL document URL from the clerk SPA (with internal doc ID)
-    const realDocUrl = docRef.url ?? BELL_ENDPOINTS.clerk.document(instrumentNumber);
+    const realDocUrl = docRef.url ?? clerk().endpoints.document(instrumentNumber);
     urlsVisited.push(realDocUrl);
     progress(`    [fetchInstrument] Found: ${docRef.documentType} — real URL: ${realDocUrl}`);
     console.log(`[ClerkScraper] Instrument ${instrumentNumber}: found type=${docRef.documentType}, url=${realDocUrl}, grantors=[${docRef.grantors.join(',')}], grantees=[${docRef.grantees.join(',')}]`);
@@ -438,11 +488,11 @@ async function fetchInstrumentDocument(
         progress(`    [fetchInstrument] Capturing page images for ${instrumentNumber}...`);
         console.log(`[ClerkScraper] fetchDocumentImages: instrument=${instrumentNumber}, maxPages=20`);
         // `docRef.url`, NOT `realDocUrl`. They differ in exactly the way that matters here:
-        // realDocUrl falls back to BELL_ENDPOINTS.clerk.document(instrumentNumber), which BUILDS
+        // realDocUrl falls back to clerk().endpoints.document(instrumentNumber), which BUILDS
         // /doc/{instrumentNumber} — and Tyler's /doc/ takes an internal document id, so that
         // constructed URL 404s or opens the wrong record. Only the URL read from the search
         // results is safe to navigate to directly; when it is absent, the search path runs.
-        const pages = await fetchDocumentImages(instrumentNumber, 20, logger, 'bell', undefined, docRef.url ?? undefined);
+        const pages = await fetchDocumentImages(instrumentNumber, 20, logger, clerk().key, undefined, docRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         if (pageImages.length > 0) {
           progress(`    [fetchInstrument] ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
@@ -529,10 +579,10 @@ async function searchClerkByOwner(
       progress(`  [ownerSearch] Trying owner variant: "${name}"`);
       console.log(`[ClerkScraper] Owner search variant: "${name}"`);
 
-      const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`;
+      const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`;
       urlsVisited.push(searchUrl);
 
-      const docResults = await searchClerkRecords('bell', name, logger);
+      const docResults = await searchClerkRecords(clerk().key, name, logger);
       const docRefs = docResults.map(d => d.ref);
       if (!docRefs || docRefs.length === 0) {
         progress(`  [ownerSearch] No results for "${name}"`);
@@ -601,7 +651,7 @@ async function searchClerkByOwner(
         if (captureImages && instrNum) {
           try {
             progress(`  [ownerSearch] Capturing pages for ${instrNum}...`);
-            const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, realUrl ?? undefined);
+            const pages = await fetchDocumentImages(instrNum, 10, logger, clerk().key, undefined, realUrl ?? undefined);
             pageImages = pages.map(p => p.imageBase64).filter(Boolean);
             progress(`  [ownerSearch] ${instrNum}: ${pageImages.length} page(s) captured`);
             console.log(`[ClerkScraper] Owner doc ${instrNum}: ${pageImages.length} pages captured`);
@@ -685,12 +735,13 @@ async function searchClerkBySubdivision(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `clerk-subdiv-${Date.now()}`);
 
-    const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
+    const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
     urlsVisited.push(searchUrl);
 
     const { platInstruments, deedInstruments, otherInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
       subdivisionName,
       logger,
+      clerk().key,
     );
 
     progress(`  [subdivSearch] "${subdivisionName}": ${allDocuments.length} docs total, ${platInstruments.length} plats, ${deedInstruments.length} deeds, ${otherInstruments.length} other`);
@@ -730,7 +781,7 @@ async function searchClerkBySubdivision(
       async (instrNum) => {
         stillAllowed(`plat ${instrNum}`);
         progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, clerk().key, undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ Plat ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision plat ${instrNum}: ${imgs.length} pages`);
@@ -782,7 +833,7 @@ async function searchClerkBySubdivision(
       async (instrNum) => {
         stillAllowed(`deed ${instrNum}`);
         progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
+        const pages = await fetchDocumentImages(instrNum, 10, logger, clerk().key, undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ Deed ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision deed ${instrNum}: ${imgs.length} pages`);
@@ -858,7 +909,7 @@ async function searchClerkBySubdivision(
         const oref = allDocuments.find(d => d.instrumentNumber === instrNum);
         const otherDocType = oref?.documentType ?? 'Other Document';
         progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
+        const pages = await fetchDocumentImages(instrNum, 10, logger, clerk().key, undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${imgs.length} pages`);
@@ -913,7 +964,7 @@ async function fetchByVolumePage(
 ): Promise<ClerkDocument | null> {
   // Try constructing a quick-search query with vol+page
   const query = `${volume}/${page}`;
-  const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+  const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
   urlsVisited.push(searchUrl);
 
   progress(`  [volPage] Searching for Vol ${volume} Pg ${page}...`);
@@ -924,7 +975,7 @@ async function fetchByVolumePage(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `clerk-volpg-${Date.now()}`);
 
-    const docResults = await searchClerkRecords('bell', query, logger);
+    const docResults = await searchClerkRecords(clerk().key, query, logger);
     const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) {
       progress(`  [volPage] No results for Vol ${volume} Pg ${page}`);
@@ -947,7 +998,7 @@ async function fetchByVolumePage(
     if (captureImages && match.instrumentNumber) {
       try {
         progress(`  [volPage] Capturing pages for ${match.instrumentNumber}...`);
-        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger, 'bell', undefined, realUrl ?? undefined);
+        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger, clerk().key, undefined, realUrl ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [volPage] ✓ ${match.instrumentNumber}: ${pageImages.length} page(s) captured`);
       } catch (imgErr) {
@@ -1003,7 +1054,7 @@ export async function captureDocumentPages(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `clerk-pages-${instrumentId}-${Date.now()}`);
 
-    const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
+    const pages = await fetchDocumentImages(instrumentId, maxPages, logger, clerk().key);
     const images = pages.map(p => p.imageBase64).filter(Boolean);
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     const totalKb = images.reduce((sum, img) => sum + Math.round(img.length * 3 / 4 / 1024), 0);
@@ -1013,7 +1064,7 @@ export async function captureDocumentPages(
     // Push the actual viewer URL if we got one from the signed URLs
     if (pages.length > 0 && pages[0].signedUrl) {
       // The signed URL reveals the actual doc path — but use the search URL for reference
-      const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentId)}`;
+      const searchUrl = `${clerk().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentId)}`;
       urlsVisited.push(searchUrl);
     }
 

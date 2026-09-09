@@ -82,6 +82,16 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
     hasSUPERSEARCH: true,
     superSearchUrl: 'https://bell.tx.publicsearch.us/supersearch',
   },
+  '48331': {  // Milam County — driven live 2026-09-09: department RP, 1983 → certified 2026-09-04,
+              // free watermarked page images in the viewer, $1/page + $2/document at the cart.
+    baseUrl: 'https://milam.tx.publicsearch.us',
+    searchPath: '/results',
+    viewerPath: '/doc/',
+    countyDisplayName: 'Milam County',
+    hasImagePreview: true,
+    hasSUPERSEARCH: false,
+    department: 'RP',
+  },
   '48491': {  // Williamson County
     baseUrl: 'https://williamson.tx.publicsearch.us',
     searchPath: '/results',

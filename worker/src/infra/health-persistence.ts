@@ -60,7 +60,14 @@ export function toHealthCheck(
 ): HealthCheckRow {
   const missingRequired = result.selectors.filter((s) => s.required && !s.found);
   const missingOptional = result.selectors.filter((s) => !s.required && !s.found);
-  const unreachable = result.status === 'down';
+  // Unreachable means the page did not come back — a navigation error or an HTTP status, both of
+  // which set `result.error`. The monitor also marks a page 'down' when a REQUIRED selector is
+  // missing, and that is the opposite situation: we have the page and the thing we depend on is
+  // gone. Until 2026-09-09 the two were folded together here, so the coverage page said "Kofile —
+  // Bell County did not respond (4637ms)" about a site that responded and whose search box had a
+  // new id. That is `broken`, with the selector named, so somebody can go and look.
+  const unreachable = result.status === 'down'
+    && (Boolean(result.error) || (result.alerts ?? []).some((a) => a.type === 'site_unreachable'));
 
   // `broken` is reserved for "we got the page and the thing we depend on is gone" — the signal the
   // repair agent can actually act on, because it has a page to diagnose. An unreachable site gets

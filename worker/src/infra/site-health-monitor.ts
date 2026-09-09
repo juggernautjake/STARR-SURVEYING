@@ -123,8 +123,16 @@ const VENDOR_PROBES: Record<string, SelectorProbe[]> = {
     { selector: 'input[name*="Owner"], input[name*="owner"], input#txtOwnerName', label: 'Owner name field', required: true },
     { selector: 'button[type="submit"], input[type="submit"], input[value="Search"]', label: 'Submit button', required: true },
   ],
+  // ── Kofile/GovOS PublicSearch, as it renders in 2026 ─────────────────────────────────────
+  //
+  // The quick-search box is `input#basicSearchInputBox` with the placeholder "Search for
+  // grantor/grantee, subdivision, doc type, or doc#" (read from bell. and milam.tx.publicsearch.us
+  // on 2026-09-09). The previous selectors — `input[type=search]`, a placeholder containing
+  // "Search" with a capital S, `input.form-control` — matched NOTHING on either site, so every
+  // scheduled check since at least 2026-09-08 wrote "did not respond" for a clerk that answered
+  // in 4.6 s. The old selectors are kept as fallbacks for an older skin.
   kofile: [
-    { selector: 'input[type="search"], input[type="text"][placeholder*="Search"], input.form-control', label: 'Search input', required: true },
+    { selector: 'input#basicSearchInputBox, input[placeholder*="grantor" i], input[type="search"], input[type="text"][placeholder*="search" i], input.form-control', label: 'Search input', required: true },
     { selector: 'button[type="submit"], button.btn-primary, a.btn-primary', label: 'Search button', required: true },
   ],
   texasfile: [
@@ -308,7 +316,12 @@ export class SiteHealthMonitor {
         siteId: `cad-${fips}-${config.vendor}`,
         name: config.name,
         vendor: config.vendor,
-        url: config.searchUrl,
+        // The page the probes are FOR. A BIS registry row's `searchUrl` is `/Search/Result`, which
+        // without a session token redirects to `/Search/Expired` — a page with no search form on
+        // it, and one the worker's host sat on for the full 30 s on every scheduled check from
+        // 2026-09-08 to 2026-09-09 ("Bell CAD did not respond (30191ms)"). The BIS selectors live
+        // on the home page, so that is the page a BIS site is probed at.
+        url: config.vendor === 'bis' ? config.searchUrl.replace(/\/Search\/Result\/?$/i, '/') : config.searchUrl,
         probes,
       });
     }
@@ -321,6 +334,18 @@ export class SiteHealthMonitor {
         name: 'Kofile — Bell County',
         vendor: 'kofile',
         url: 'https://bell.tx.publicsearch.us/',
+        probes: VENDOR_PROBES.kofile ?? [],
+      });
+    }
+
+    // Milam's clerk (Kofile) — the second county with a dedicated module (2026-09-09).
+    const includeMilam = !this.activeCountyFips || this.activeCountyFips.has('48331');
+    if (includeMilam) {
+      checks.push({
+        siteId: 'clerk-kofile-milam',
+        name: 'Kofile — Milam County',
+        vendor: 'kofile',
+        url: 'https://milam.tx.publicsearch.us/',
         probes: VENDOR_PROBES.kofile ?? [],
       });
     }
@@ -435,7 +460,13 @@ export class SiteHealthMonitor {
         }
       }
 
-      // Determine overall status
+      // Determine overall status.
+      //
+      // A required selector that is missing is still 'down' for the monitor's own alerting, but it
+      // is NOT "did not respond": the persistence layer tells the two apart by `result.error`, which
+      // only a navigation failure or an HTTP error sets. Until 2026-09-09 both arrived at the
+      // coverage page as "did not respond", and a clerk that answered in 4.6 s with a renamed search
+      // box read as unreachable.
       if (result.status !== 'down') {
         if (requiredMissing > 0) {
           result.status = 'down';

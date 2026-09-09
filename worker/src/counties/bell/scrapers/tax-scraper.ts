@@ -7,6 +7,26 @@
  */
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+/** Which BIS appraisal site the detail page is read from, and which taxing units to look for. */
+export interface TaxProfile {
+  label: string;
+  propertyDetail: (propId: string, ownerId?: string) => string;
+  /** The taxing units named on this county's detail page — matched case-insensitively. */
+  taxingEntityPattern: RegExp;
+}
+
+export const BELL_TAX_PROFILE: TaxProfile = {
+  label: 'Bell CAD',
+  propertyDetail: BELL_ENDPOINTS.cad.propertyDetail,
+  taxingEntityPattern: /(?:Bell\s*County|City\s*of\s*\w+|Killeen\s*ISD|Belton\s*ISD|Temple\s*ISD)/,
+};
+
+const profileStore = new AsyncLocalStorage<TaxProfile>();
+function tax(): TaxProfile {
+  return profileStore.getStore() ?? BELL_TAX_PROFILE;
+}
 import type { ScreenshotCapture, TaxInfo } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -53,6 +73,22 @@ export async function scrapeBellTax(
   input: TaxSearchInput,
   onProgress: (p: TaxScraperProgress) => void,
 ): Promise<TaxSearchResult> {
+  return scrapeBisTax(BELL_TAX_PROFILE, input, onProgress);
+}
+
+/** The Bell tax read, pointed at any BIS appraisal site. */
+export async function scrapeBisTax(
+  profile: TaxProfile,
+  input: TaxSearchInput,
+  onProgress: (p: TaxScraperProgress) => void,
+): Promise<TaxSearchResult> {
+  return profileStore.run(profile, () => scrapeTaxInner(input, onProgress));
+}
+
+async function scrapeTaxInner(
+  input: TaxSearchInput,
+  onProgress: (p: TaxScraperProgress) => void,
+): Promise<TaxSearchResult> {
   const screenshots: ScreenshotCapture[] = [];
   const urlsVisited: string[] = [];
 
@@ -62,7 +98,7 @@ export async function scrapeBellTax(
 
   progress(`Fetching tax details for property: ${input.propertyId}`);
 
-  const url = BELL_ENDPOINTS.cad.propertyDetail(input.propertyId, input.ownerId);
+  const url = tax().propertyDetail(input.propertyId, input.ownerId);
   urlsVisited.push(url);
 
   /** HTTP status codes that are safe to retry (transient server errors). */
@@ -144,7 +180,7 @@ function parseTaxInfo(html: string): TaxInfo | null {
 
   // Extract taxing entities
   const taxingEntities: string[] = [];
-  const entityPattern = /(?:Bell\s*County|City\s*of\s*\w+|Killeen\s*ISD|Belton\s*ISD|Temple\s*ISD)/gi;
+  const entityPattern = new RegExp(tax().taxingEntityPattern.source, 'gi');
   while ((match = entityPattern.exec(html)) !== null) {
     const entity = match[0].trim();
     if (!taxingEntities.includes(entity)) {

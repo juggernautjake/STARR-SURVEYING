@@ -89,7 +89,7 @@ describe('Phase 2 does not download a plat the project already holds', () => {
     const ps = read('counties/bell/scrapers/plat-scraper.ts');
     expect(ps).toContain("const { filedPlatLabel } = await import('../../../research/filed-plat.js');");
     expect(ps).toContain('const held = await filedPlatLabel(projectId, subdivisionName);');
-    const held = ps.indexOf('const held = await filedPlatLabel('); const fetched = ps.indexOf("const result = await fetchBestMatchingPlat('bell', subdivisionName, logger);");
+    const held = ps.indexOf('const held = await filedPlatLabel('); const fetched = ps.indexOf('const result = await fetchBestMatchingPlat(plat().key, subdivisionName, logger);'); // the county comes from the profile since 2026-09-09
     expect(held >= 0 && fetched >= 0 && held < fetched).toBe(true);
     expect(ps).toContain('images: [],');
   });

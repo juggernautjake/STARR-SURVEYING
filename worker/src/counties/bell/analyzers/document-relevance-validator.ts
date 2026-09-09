@@ -27,6 +27,9 @@ import type { AiUsageSummary } from '../types/research-result.js';
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface PropertyIdentifiers {
+  /** The county the target property is in — named in the AI relevance prompt. Was the literal
+   *  "Bell County, Texas" until 2026-09-09. Defaults to Bell. */
+  countyName?: string;
   ownerName: string | null;
   legalDescription: string | null;
   acreage: number | null;
@@ -684,7 +687,7 @@ async function aiRelevanceCheck(
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
 
-  const prompt = `You are a property title researcher in Bell County, Texas. Determine if this deed document is related to the target property.
+  const prompt = `You are a property title researcher in ${property.countyName ?? 'Bell'} County, Texas. Determine if this deed document is related to the target property.
 
 CRITICAL: The most important check is whether the deed references the SAME SURVEY and ABSTRACT NUMBER as the target property. If the deed references a completely different survey (e.g., "A. Manchaca Survey" vs "Garrett & Hardcastle Survey") or a different abstract number, it is almost certainly for a DIFFERENT property and should be marked as unrelated.
 

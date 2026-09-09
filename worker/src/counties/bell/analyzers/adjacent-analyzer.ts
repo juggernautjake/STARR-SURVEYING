@@ -17,6 +17,10 @@ export interface AdjacentAnalysisInput {
   parcelBoundary: number[][][];
   /** Target property ID (to exclude from adjacent results) */
   targetPropertyId: string;
+  /** The county module's neighbour finder. Absent, the Bell parcel layer is queried — which is
+   *  what this file did unconditionally until 2026-09-09, and would have asked Bell's layer for
+   *  Milam's neighbours. */
+  findAdjacent?: (parcelBoundary: number[][][], onProgress: (p: AdjacentAnalyzerProgress) => void) => Promise<GisSearchResult[]>;
 }
 
 export interface AdjacentAnalyzerProgress {
@@ -41,7 +45,7 @@ export async function analyzeAdjacentProperties(
 
   // ── Step 1: Find adjacent parcels from GIS ─────────────────────────
   progress('Identifying adjacent parcels from GIS...');
-  const adjacentParcels = await findAdjacentParcels(input.parcelBoundary, (p) => {
+  const adjacentParcels = await (input.findAdjacent ?? findAdjacentParcels)(input.parcelBoundary, (p) => {
     onProgress(p);
   });
 

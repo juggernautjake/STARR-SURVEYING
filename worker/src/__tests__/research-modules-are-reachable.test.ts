@@ -74,6 +74,11 @@ const LIBRARY_DIRS = [
   'worker/src/counties/bell/screenshots',
   'worker/src/counties/bell/types',
   'worker/src/counties/bell/utils',
+  // The Milam module (2026-09-09) — the same honesty for the second county.
+  'worker/src/counties/milam',
+  'worker/src/counties/milam/config',
+  'worker/src/counties/milam/scrapers',
+  'worker/src/counties/milam/types',
   'worker/src/exports',
   'worker/src/models',
   'worker/src/orchestrator',

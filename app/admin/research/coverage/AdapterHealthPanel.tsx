@@ -55,6 +55,16 @@ const BAND_ICON = {
   unknown: Clock,
 } as const;
 
+/** The status word a person reads. `no_record` with no check on file is not a verdict about the site —
+ *  it is "nobody has looked yet" — and the raw enum read as one on the coverage page (2026-09-09). */
+function statusLabel(status: string, hours: number | null): string {
+  if (status === 'no_record' && hours === null) return 'not checked yet';
+  if (status === 'no_record') return 'checked — no baseline to compare against yet';
+  if (status === 'error') return 'did not respond';
+  if (status === 'broken') return 'page changed — a required element is missing';
+  return status;
+}
+
 function ago(hours: number | null): string {
   if (hours === null) return 'never checked';
   if (hours < 1) return 'checked just now';
@@ -140,7 +150,7 @@ export default function AdapterHealthPanel() {
                   <span>{SITE_TYPE_LABELS[e.site_type] ?? e.site_type}</span>
                 </span>
                 <span className="adapter-health__state">
-                  {e.effective_status}
+                  {statusLabel(e.effective_status, e.hours_since_last_check)}
                   {e.last_diff_summary ? <em> — {e.last_diff_summary}</em> : null}
                 </span>
                 <span className="adapter-health__when">{ago(e.hours_since_last_check)}</span>

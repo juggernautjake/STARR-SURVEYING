@@ -445,6 +445,7 @@ async function extractSegment(
   logger: PipelineLogger,
   positionHint?: string,
   documentName?: string,
+  county: string = 'Bell',
 ): Promise<string> {
   const client = new Anthropic({ apiKey: anthropicApiKey });
   const base64 = imageBuffer.toString('base64');
@@ -464,7 +465,7 @@ async function extractSegment(
     // pipeline is extended to other counties in the future, pass the county as an
     // additional parameter (analogous to adaptive-vision-v2.js's `county` arg).
     const docContext = documentName
-      ? `the subdivision plat for "${documentName}" in Bell County, Texas`
+      ? `the subdivision plat for "${documentName}" in ${county} County, Texas`
       : 'a subdivision plat';
     userContent.push({
       type: 'text',
@@ -526,6 +527,9 @@ export async function adaptiveVisionOcr(
   logger: PipelineLogger,
   label = 'image',
   documentName?: string,
+  /** The county the document is from, for the position hint. Defaults to Bell — the only county
+   *  this pipeline served until 2026-09-09. */
+  county: string = 'Bell',
 ): Promise<AdaptiveVisionResult> {
   const startTime = Date.now();
   let totalApiCalls = 0;
@@ -628,7 +632,7 @@ export async function adaptiveVisionOcr(
     // plat it's reading (vision-quadrants.js technique)
     const positionHint = describePosition(box.row, box.col, grid.rows, grid.cols);
     const segStart = Date.now();
-    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint, documentName);
+    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint, documentName, county);
     const segElapsedSec = ((Date.now() - segStart) / 1000).toFixed(1);
     totalApiCalls++;
 

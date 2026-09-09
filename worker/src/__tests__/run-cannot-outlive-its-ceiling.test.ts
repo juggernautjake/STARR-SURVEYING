@@ -100,7 +100,9 @@ describe('the tail', () => {
     const orch = read('counties/bell/orchestrator.ts');
     // The real calls are `() => scrapeBellClerk(` (each wrapped in a deadline thunk); not the
     // import or the two `typeof scrapeBellClerk` annotations.
-    const calls = orch.split('() => scrapeBellClerk(').length - 1;
+    // 2026-09-09: the orchestrator takes its scrapers from a county module, so the clerk call is
+    // `county.scrapers.clerk(` — three sites, exactly as before, each under a deadline.
+    const calls = orch.split('() => county.scrapers.clerk(').length - 1;
     expect(calls).toBe(3);
     // Each call is wrapped in a deadline step and passes that step's own abort controller...
     for (const step of ['clerk deed search', 'deed chain fetch', 'historical deed fetch']) {

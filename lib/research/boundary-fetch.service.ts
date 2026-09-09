@@ -64,6 +64,8 @@ interface EsearchConfig {
 
 const ESEARCH_BY_COUNTY: Record<string, EsearchConfig> = {
   bell:       { baseUrl: 'https://esearch.bellcad.org',  name: 'Bell CAD e-Search' },
+  // 2026-09-09: Milam's TrueAutomation cid (26) is dead; the district is BIS eSearch at milamad.org.
+  milam:      { baseUrl: 'https://esearch.milamad.org',  name: 'Milam CAD e-Search' },
   hays:       { baseUrl: 'https://esearch.hayscad.com',  name: 'Hays CAD e-Search' },
   williamson: { baseUrl: 'https://esearch.wcad.org',      name: 'Williamson CAD e-Search' },
 };

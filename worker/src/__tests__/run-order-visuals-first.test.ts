@@ -99,7 +99,8 @@ describe('the hook is wired — assert the CALLERS', () => {
   it('Bell fires it BEFORE the clerk search, not after', () => {
     const s = code('counties/bell/orchestrator.ts');
     const fired = s.indexOf('await input.onPropertyIdentified(');
-    const clerk = s.indexOf('2A — Bell County Clerk search');
+    // 2026-09-09: the label names the county from the module (`${county.name} County Clerk`).
+    const clerk = s.indexOf('2A — ${county.name} County Clerk search');
     expect(fired, 'Bell never fires the hook').toBeGreaterThan(-1);
     expect(clerk, 'the clerk search anchor moved').toBeGreaterThan(-1);
     // The whole point. If this inverts, the visual work is back where it was.

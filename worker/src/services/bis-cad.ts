@@ -53,7 +53,18 @@ export const BIS_CONFIGS: Record<string, BisConfig> = {
   coryell:     { baseUrl: 'https://esearch.coryellcad.org',       name: 'Coryell CAD',         gisBaseUrl: 'https://gis.bisclient.com/coryellcad/' },
   mclennan:    { baseUrl: 'https://esearch.mclennancad.org',      name: 'McLennan CAD',        gisBaseUrl: 'https://gis.bisclient.com/mclennancad/' },
   falls:       { baseUrl: 'https://esearch.fallscad.net',         name: 'Falls CAD',           gisBaseUrl: 'https://gis.bisclient.com/fallscad/' },
-  milam:       { baseUrl: 'https://esearch.milamcad.org',         name: 'Milam CAD',           gisBaseUrl: 'https://gis.bisclient.com/milamcad/' },
+  // ── MILAM — CORRECTED 2026-09-09 ─────────────────────────────────────────────────────────
+  //
+  // This row was `esearch.milamcad.org` + `gis.bisclient.com/milamcad/`. The first does not resolve
+  // and the second answers 404 — the dead host that cost the 2026-09-02 Milam run 147 seconds
+  // (infra/dead-host.ts). Checked with a control: `esearch.milamad.org` answers 200 and
+  // `gis.bisclient.com/bellcad/` answers 200 while `…/milamcad/` does not. The district IS a BIS
+  // eSearch site, at milamad.org; its map is Pritchard & Abbott's (not BIS's), and its parcel layer
+  // is a plain ArcGIS REST service, so the generic path's GIS query and the rendered parcel map
+  // both work through `gisParcelLayerUrls`. See counties/milam/config/endpoints.ts.
+  milam:       { baseUrl: 'https://esearch.milamad.org',          name: 'Milam CAD',           gisBaseUrl: 'https://maps.pandai.com/milamad/', gisParcelLayerUrls: [
+    'https://gisdata.pandai.com/pamaps01/rest/services/Milam/MilamCADPublic/MapServer/0',
+  ] },
   williamson:  { baseUrl: 'https://esearch.wilcotx.gov',          name: 'Williamson CAD',      gisBaseUrl: 'https://gis.bisclient.com/wilcotx/' },
   burnet:      { baseUrl: 'https://esearch.burnet-cad.org',       name: 'Burnet CAD',          gisBaseUrl: 'https://gis.bisclient.com/burnetcad/' },
   lampasas:    { baseUrl: 'https://esearch.lampasascad.org',      name: 'Lampasas CAD',        gisBaseUrl: 'https://gis.bisclient.com/lampasascad/' },
@@ -2841,22 +2852,23 @@ export interface GisPropertyData {
 }
 
 const FIELD_ALIASES: Record<string, string[]> = {
+  // The `DBO.*` names are Milam's joined parcel layer (Pritchard & Abbott), 2026-09-09.
   propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID',
-                      'prop_id', 'prop_id_text'],
+                      'prop_id', 'prop_id_text', 'DBO.TaxParcels.Name'],
   ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME',
-                      'file_as_name', 'owner_name'],
+                      'file_as_name', 'owner_name', 'DBO.Accounts.Owner_Name'],
   legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR',
-                      'legal_desc'],
+                      'legal_desc', 'DBO.Accounts.Legal1'],
   acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES',
-                      'legal_acreage'],
+                      'legal_acreage', 'DBO.Accounts.Acres'],
   situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR',
                       'situs_addr'],
   abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME',
-                      'abs_subdv_cd'],
+                      'abs_subdv_cd', 'DBO.Accounts.Abstract_Subdiv'],
   subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV',
-                      'abs_subdv_cd'],
+                      'abs_subdv_cd', 'DBO.Accounts.Abstract_Subdiv'],
   mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID',
-                      'map_id', 'geo_id'],
+                      'map_id', 'geo_id', 'DBO.Accounts.Account'],
 };
 
 function extractGisField(

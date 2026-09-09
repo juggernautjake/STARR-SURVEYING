@@ -74,7 +74,8 @@ describe('the wind-down message names the LIMIT, not the elapsed time', () => {
 describe('the gate is actually asked — assert the CALLERS', () => {
   it('CONTROL: stripping kept the code and dropped the prose', () => {
     const src = code('src/counties/bell/orchestrator.ts');
-    expect(src).toContain('scrapeBellClerk');
+    // 2026-09-09: the clerk scraper reaches the orchestrator through the county module.
+    expect(src).toContain('county.scrapers.clerk(');
     expect(src).not.toContain('163 minutes');
   });
 

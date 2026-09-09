@@ -11,11 +11,13 @@
  *   3. If county has dedicated code (e.g., Bell) → route to that module
  *   4. Otherwise → fall back to the generic pipeline (pipeline.ts)
  *
- * Adding a new county:
- *   1. Create worker/src/counties/{county-name}/ folder
- *   2. Implement the orchestrator following Bell County's pattern
- *   3. Add a case to the switch statement below
- *   4. Add the county name to COUNTY_SPECIFIC_MODULES
+ * Adding a new county (2026-09-09, the Milam shape):
+ *   1. Create worker/src/counties/{county-name}/ with a config/, the scrapers its sites need, and a
+ *      module.ts that fills in `CountyModule` (counties/county-module.ts) — the shared orchestrator
+ *      runs it; do NOT copy orchestrator.ts
+ *   2. Export run{County}CountyResearch from its index.ts (see counties/milam/index.ts)
+ *   3. Add the county to the dedicated-module arm of the switch below and to COUNTY_SPECIFIC_MODULES
+ *   4. Add its address detection beside isBellCountyAddress / isMilamCountyAddress
  */
 
 import type { PipelineInput, PipelineResult } from '../types/index.js';
@@ -158,7 +160,7 @@ export type UnifiedResearchResult = CountySpecificResult | GenericPipelineResult
  * Counties with dedicated research modules.
  * These get full county-specific scraping, analysis, and reporting.
  */
-const COUNTY_SPECIFIC_MODULES = ['bell'] as const;
+const COUNTY_SPECIFIC_MODULES = ['bell', 'milam'] as const;
 
 export function hasCountySpecificModule(county: string): boolean {
   return COUNTY_SPECIFIC_MODULES.includes(
@@ -234,6 +236,43 @@ export function isBellCountyAddress(address: string): boolean {
   return false;
 }
 
+// ── Milam County Auto-Detection ─────────────────────────────────────
+
+/**
+ * Milam County towns. "Cameron" is deliberately NOT here: it is the county seat of Milam AND the
+ * name of a county 300 miles south (Brownsville), so on its own it is ambiguous — see
+ * lib/research/place-county.ts. A Cameron address is recognised by its ZIP (76520) or by
+ * "Milam County" in the text.
+ */
+export const MILAM_COUNTY_CITIES = [
+  'rockdale', 'thorndale', 'milano', 'buckholts', 'gause', 'davilla', 'burlington',
+  'minerva', 'ben arnold', 'maysfield', 'branchville',
+] as const;
+
+/**
+ * Milam County ZIP codes. 76523 (Davilla) is left out because Bell's set already claims it and the
+ * two counties share the ZIP; an address there resolves to Bell first, as it always has.
+ */
+const MILAM_COUNTY_ZIPS = new Set(['76518', '76519', '76520', '76556', '76567', '76577', '76629', '77857']);
+
+/** Detect whether an address string is in Milam County, TX. */
+export function isMilamCountyAddress(address: string): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  if (/\bmilam\s+county\b/.test(lower)) return true;
+  for (const city of MILAM_COUNTY_CITIES) {
+    const pattern = new RegExp(`\\b${city.replace(/-/g, '[-\\s]?')}\\b`);
+    if (pattern.test(lower)) return true;
+  }
+  const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
+  if (zipMatch) {
+    for (const zip of zipMatch) {
+      if (MILAM_COUNTY_ZIPS.has(zip.slice(0, 5))) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * If the county field is blank and the address looks like Bell County,
  * returns 'Bell'. Otherwise returns `null` (no auto-fill).
@@ -243,6 +282,7 @@ export function isBellCountyAddress(address: string): boolean {
 export function detectCountyFromAddress(address: string, existingCounty?: string): string | null {
   if (existingCounty && existingCounty.trim()) return null; // county already set
   if (isBellCountyAddress(address)) return 'Bell';
+  if (isMilamCountyAddress(address)) return 'Milam';
   return null;
 }
 
@@ -526,114 +566,17 @@ export async function runCountyResearch(
   console.log(`[CountyRouter] ${input.projectId}: routing to county="${county}" address="${input.address ?? ''}"`);
 
   switch (county) {
-    // ── Bell County — Dedicated module ──────────────────────────────
-    case 'bell': {
-      onProgress({
-        phase: 'Router',
-        message: 'Routing to Bell County dedicated research module',
-        timestamp: new Date().toISOString(),
-      });
-      let bellResult;
-      try {
-        const { runBellCountyResearch } = await import('./bell/index.js');
-        bellResult = await runBellCountyResearch(
-          {
-            projectId: input.projectId,
-            address: input.address,
-            // Seed 624. Without this line the parts reach the router and stop there — the shape of
-            // defect this codebase keeps finding: a value carried to the door and left on the step.
-            addressParts: input.addressParts,
-            propertyId: input.propertyId,
-            ownerName: input.ownerName,
-            instrumentNumber: input.instrumentNumber,
-            surveyType: input.surveyType as import('./bell/types/research-input.js').SurveyType | undefined,
-            jobPurpose: input.jobPurpose,
-            specialInstructions: input.specialInstructions,
-            // What the operator wrote. Reaches the deed-summary prompt via the orchestrator.
-            operatorNotes: input.operatorNotes,
-            // Fired at "Phase 1 complete", before the clerk search that ate 163 minutes.
-            onPropertyIdentified: input.onPropertyIdentified,
-            uploadedFiles: input.uploadedFiles,
-            includeAdjacentProperties: input.includeAdjacentProperties,
-            maxResearchTimeMinutes: input.maxResearchTimeMinutes,
-            maxCostUsd: input.maxCostUsd,
-            // A gather run must not read the deeds with AI — that is the separate ANALYZE run.
-            phase: input.phase,
-          },
-          onProgress,
-          signal,
-        );
-      } catch (err) {
-        const errMsg = err instanceof Error
-          ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
-          : String(err ?? 'Unknown error');
-        // ── AN EXPECTED STOP IS NOT A CRASH ────────────────────────────────────────────────
-        //
-        // This reported `phase: 'Failed'` and "Bell County pipeline error: ..." for ANY throw,
-        // including the AbortError the BUDGET raises when a run reaches the ceiling the operator
-        // set. On 2026-09-03 that produced a run row carrying `status: "complete"` beside
-        // `phase: "Failed"` and a message beginning "pipeline error" — three fields describing
-        // one ordinary early finish, disagreeing with each other.
-        //
-        // `signal.reason` now says which kind of stop this was, so the phase can match it.
-        const abort = signal?.aborted ? describeAbort((signal as AbortSignal & { reason?: unknown }).reason) : null;
-        const expected = abort?.isExpected === true;
-        if (expected) {
-          console.log(`[CountyRouter] ${input.projectId}: Bell County stopped early — ${abort!.message}`);
-        } else {
-          console.error(`[CountyRouter] ${input.projectId}: Bell County CRASHED — ${errMsg.slice(0, 200)}`);
-        }
-        onProgress({
-          phase: expected ? 'Stopped' : 'Failed',
-          message: expected ? abort!.message : `Bell County pipeline error: ${errMsg}`,
-          timestamp: new Date().toISOString(),
-        });
-        // Return a structured failed result rather than re-throwing, so the
-        // caller always receives a typed UnifiedResearchResult and the error is
-        // surfaced cleanly in the UI (failureReason banner + log entry).
-        // ── A BUDGET STOP IS A PARTIAL RESULT, NOT A FAILED ONE ────────────────────────────
-        //
-        // This stub carried `status: 'failed'` and "Bell County research failed: …" for an
-        // expected stop too, so a Bell run that finished at the operator's own ceiling reached
-        // index.ts as a failure: describeRunOutcome said "Research Found Nothing", the project
-        // never moved to review, and the deeds it had filed sat behind a red banner. The
-        // orchestrator's accumulated result is still discarded on this path (it throws rather
-        // than returning) — that is the remaining half, recorded in the plan.
-        // A stall stop is a partial too: the watchdog's own message promises "everything it already
-        // retrieved is kept", and on 2026-09-06 the same stop was reported as "found no documents".
-        const budgetStop = expected && (abort?.kind === 'budget' || abort?.kind === 'stall');
-        const failedResult: PipelineResult = {
-          projectId: input.projectId,
-          status: budgetStop ? 'partial' : 'failed',
-          stopReason: budgetStop ? 'budget_reached' : expected ? 'cancelled_by_user' : 'error',
-          propertyId: null,
-          geoId: null,
-          ownerName: null,
-          legalDescription: null,
-          acreage: null,
-          documents: [],
-          boundary: null,
-          validation: null,
-          log: [{
-            layer: 'Pipeline',
-            source: budgetStop ? 'budget' : expected ? 'cancelled' : 'crash',
-            method: budgetStop ? 'budget-ceiling' : expected ? 'user-cancel' : 'bell-county-crash',
-            input: input.address ?? '',
-            status: budgetStop ? 'skip' : 'fail',
-            duration_ms: 0,
-            dataPointsFound: 0,
-            error: errMsg,
-            timestamp: new Date().toISOString(),
-          }],
-          duration_ms: 0,
-          failureReason: budgetStop ? undefined : expected ? errMsg : `Bell County research failed: ${errMsg}`,
-        };
-        return { resultType: 'generic-pipeline', county: 'Bell', data: failedResult };
-      }
-      console.log(
-        `[CountyRouter] ${input.projectId}: Bell County DONE — owner="${bellResult.property?.ownerName ?? ''}" confidence=${bellResult.overallConfidence?.tier ?? 'n/a'}`,
-      );
-      return { resultType: 'county-specific', county: 'Bell', data: bellResult };
+    // ── Dedicated county modules — Bell, Milam ──────────────────────
+    //
+    // One arm for every county with its own module (2026-09-09). The body that used to sit here
+    // named Bell nine times and would have had to be copied for Milam; it is `runDedicatedModule`
+    // below, and the only county-shaped things in it are the name and the loader.
+    case 'bell':
+    case 'milam': {
+      const dedicated: DedicatedModule = county === 'bell'
+        ? { name: 'Bell', key: 'bell', load: async () => (await import('./bell/index.js')).runBellCountyResearch }
+        : { name: 'Milam', key: 'milam', load: async () => (await import('./milam/index.js')).runMilamCountyResearch };
+      return runDedicatedModule(dedicated, input, onProgress, signal);
     }
 
     // ── All Counties — Generic Pipeline ─────────────────────────────
@@ -746,4 +689,141 @@ export async function runCountyResearch(
       };
     }
   }
+}
+
+// ── Dedicated module runner ─────────────────────────────────────────
+
+/** The entry point every dedicated county module exports — Bell's shape, which Milam shares. */
+type DedicatedRunner = (
+  input: import('./bell/types/research-input.js').BellResearchInput,
+  onProgress: (p: CountyResearchProgress) => void,
+  signal?: AbortSignal,
+) => Promise<BellResearchResult>;
+
+interface DedicatedModule {
+  /** "Bell", "Milam" — the word the log and the result carry. */
+  name: string;
+  /** 'bell', 'milam' — the registry key. */
+  key: string;
+  /** Loads the module's entry point (dynamic, so a county's code is only loaded for its runs). */
+  load: () => Promise<DedicatedRunner>;
+}
+
+/**
+ * Run a dedicated county module and map every way it can end — done, stopped at a ceiling, stopped by
+ * the operator, crashed — onto the unified result. This is the Bell dispatch arm of 2026-09-03..08,
+ * with the county as a parameter.
+ */
+async function runDedicatedModule(
+  module: DedicatedModule,
+  input: CountyResearchInput,
+  onProgress: (p: CountyResearchProgress) => void,
+  signal?: AbortSignal,
+): Promise<UnifiedResearchResult> {
+  onProgress({
+    phase: 'Router',
+    message: `Routing to ${module.name} County dedicated research module`,
+    timestamp: new Date().toISOString(),
+  });
+  let bellResult;
+  try {
+    const run = await module.load();
+    bellResult = await run(
+      {
+        projectId: input.projectId,
+        address: input.address,
+        // Seed 624. Without this line the parts reach the router and stop there — the shape of
+        // defect this codebase keeps finding: a value carried to the door and left on the step.
+        addressParts: input.addressParts,
+        propertyId: input.propertyId,
+        ownerName: input.ownerName,
+        instrumentNumber: input.instrumentNumber,
+        surveyType: input.surveyType as import('./bell/types/research-input.js').SurveyType | undefined,
+        jobPurpose: input.jobPurpose,
+        specialInstructions: input.specialInstructions,
+        // What the operator wrote. Reaches the deed-summary prompt via the orchestrator.
+        operatorNotes: input.operatorNotes,
+        // Fired at "Phase 1 complete", before the clerk search that ate 163 minutes.
+        onPropertyIdentified: input.onPropertyIdentified,
+        uploadedFiles: input.uploadedFiles,
+        includeAdjacentProperties: input.includeAdjacentProperties,
+        maxResearchTimeMinutes: input.maxResearchTimeMinutes,
+        maxCostUsd: input.maxCostUsd,
+        // A gather run must not read the deeds with AI — that is the separate ANALYZE run.
+        phase: input.phase,
+      },
+      onProgress,
+      signal,
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error
+      ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+      : String(err ?? 'Unknown error');
+    // ── AN EXPECTED STOP IS NOT A CRASH ────────────────────────────────────────────────
+    //
+    // This reported `phase: 'Failed'` and "Bell County pipeline error: ..." for ANY throw,
+    // including the AbortError the BUDGET raises when a run reaches the ceiling the operator
+    // set. On 2026-09-03 that produced a run row carrying `status: "complete"` beside
+    // `phase: "Failed"` and a message beginning "pipeline error" — three fields describing
+    // one ordinary early finish, disagreeing with each other.
+    //
+    // `signal.reason` now says which kind of stop this was, so the phase can match it.
+    const abort = signal?.aborted ? describeAbort((signal as AbortSignal & { reason?: unknown }).reason) : null;
+    const expected = abort?.isExpected === true;
+    if (expected) {
+      console.log(`[CountyRouter] ${input.projectId}: ${module.name} County stopped early — ${abort!.message}`);
+    } else {
+      console.error(`[CountyRouter] ${input.projectId}: ${module.name} County CRASHED — ${errMsg.slice(0, 200)}`);
+    }
+    onProgress({
+      phase: expected ? 'Stopped' : 'Failed',
+      message: expected ? abort!.message : `${module.name} County pipeline error: ${errMsg}`,
+      timestamp: new Date().toISOString(),
+    });
+    // Return a structured failed result rather than re-throwing, so the
+    // caller always receives a typed UnifiedResearchResult and the error is
+    // surfaced cleanly in the UI (failureReason banner + log entry).
+    // ── A BUDGET STOP IS A PARTIAL RESULT, NOT A FAILED ONE ────────────────────────────
+    //
+    // This stub carried `status: 'failed'` and "Bell County research failed: …" for an
+    // expected stop too, so a Bell run that finished at the operator's own ceiling reached
+    // index.ts as a failure: describeRunOutcome said "Research Found Nothing", the project
+    // never moved to review, and the deeds it had filed sat behind a red banner. The
+    // orchestrator's accumulated result is still discarded on this path (it throws rather
+    // than returning) — that is the remaining half, recorded in the plan.
+    // A stall stop is a partial too: the watchdog's own message promises "everything it already
+    // retrieved is kept", and on 2026-09-06 the same stop was reported as "found no documents".
+    const budgetStop = expected && (abort?.kind === 'budget' || abort?.kind === 'stall');
+    const failedResult: PipelineResult = {
+      projectId: input.projectId,
+      status: budgetStop ? 'partial' : 'failed',
+      stopReason: budgetStop ? 'budget_reached' : expected ? 'cancelled_by_user' : 'error',
+      propertyId: null,
+      geoId: null,
+      ownerName: null,
+      legalDescription: null,
+      acreage: null,
+      documents: [],
+      boundary: null,
+      validation: null,
+      log: [{
+        layer: 'Pipeline',
+        source: budgetStop ? 'budget' : expected ? 'cancelled' : 'crash',
+        method: budgetStop ? 'budget-ceiling' : expected ? 'user-cancel' : `${module.key}-county-crash`,
+        input: input.address ?? '',
+        status: budgetStop ? 'skip' : 'fail',
+        duration_ms: 0,
+        dataPointsFound: 0,
+        error: errMsg,
+        timestamp: new Date().toISOString(),
+      }],
+      duration_ms: 0,
+      failureReason: budgetStop ? undefined : expected ? errMsg : `${module.name} County research failed: ${errMsg}`,
+    };
+    return { resultType: 'generic-pipeline', county: module.name, data: failedResult };
+  }
+  console.log(
+    `[CountyRouter] ${input.projectId}: ${module.name} County DONE — owner="${bellResult.property?.ownerName ?? ''}" confidence=${bellResult.overallConfidence?.tier ?? 'n/a'}`,
+  );
+  return { resultType: 'county-specific', county: module.name, data: bellResult };
 }

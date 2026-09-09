@@ -450,7 +450,7 @@ async function persistCountyResults(
   if (deedCount > 0) autoSummaryParts.push(`${deedCount} deed record(s) retrieved`);
   if (platCount > 0) autoSummaryParts.push(`${platCount} plat record(s) retrieved`);
   if (r.discrepancies.length > 0) autoSummaryParts.push(`${r.discrepancies.length} discrepancy/ies flagged`);
-  const autoSummary = autoSummaryParts.join('\n') || 'Bell County research completed.';
+  const autoSummary = autoSummaryParts.join('\n') || `${county} County research completed.`;
 
   // Build boundary data from plat AI analysis + deed calls
   const allBearings: string[] = [];
@@ -7048,8 +7048,8 @@ const siteHealthMonitor = new SiteHealthMonitor({
     // TODO: integrate with WebSocket broadcast to admin dashboard
     // TODO: integrate with email/Slack notifications
   },
-  // Only check Bell County CAD + clerk sites (the only county with a live orchestrator)
-  countyFips: ['48027'],
+  // The counties with a live orchestrator: Bell, and Milam since 2026-09-09.
+  countyFips: ['48027', '48331'],
 });
 
 /** Look up the registry row a monitor result belongs to (plan R9).

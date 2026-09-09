@@ -30,6 +30,40 @@ import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture, PlatRecord } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
 import { extractSubdivisionName } from '../../../research/subdivision-name.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// ── Which county (2026-09-09) ─────────────────────────────────────────────────────────────────
+//
+// Layer 1 is the county's free plat repository (registry: services/county-plats.ts) and layers 2–3
+// are its Kofile clerk; both services take a county key that was the literal 'bell' here. The
+// scraper now takes the county as a profile read through `plat()` — see cad-scraper.ts for why
+// an AsyncLocalStorage scope rather than a parameter on nine private functions.
+
+export interface PlatProfile {
+  /** The key county-plats.ts and services/bell-clerk.ts are read by — 'bell', 'milam'. */
+  key: string;
+  /** "Bell County Clerk" — the source label of a plat the clerk served. */
+  clerkLabel: string;
+  /** "Bell County Plat Repository (bellcountytx.com)" — the source label of a repository plat. */
+  repoLabel: string;
+  endpoints: {
+    results: string;
+    document: (internalId: string) => string;
+  };
+}
+
+export const BELL_PLAT_PROFILE: PlatProfile = {
+  key: 'bell',
+  clerkLabel: 'Bell County Clerk',
+  repoLabel: 'Bell County Plat Repository (bellcountytx.com)',
+  endpoints: BELL_ENDPOINTS.clerk,
+};
+
+const profileStore = new AsyncLocalStorage<PlatProfile>();
+
+function plat(): PlatProfile {
+  return profileStore.getStore() ?? BELL_PLAT_PROFILE;
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -81,6 +115,22 @@ export interface PlatScraperProgress {
  * Tries the free repository first, falls back to clerk search.
  */
 export async function scrapeBellPlats(
+  input: PlatSearchInput,
+  onProgress: (p: PlatScraperProgress) => void,
+): Promise<PlatSearchResult> {
+  return scrapeCountyPlats(BELL_PLAT_PROFILE, input, onProgress);
+}
+
+/** The Bell plat search, pointed at any county with a Kofile clerk (and a repository, if registered). */
+export async function scrapeCountyPlats(
+  profile: PlatProfile,
+  input: PlatSearchInput,
+  onProgress: (p: PlatScraperProgress) => void,
+): Promise<PlatSearchResult> {
+  return profileStore.run(profile, () => scrapePlatsInner(input, onProgress));
+}
+
+async function scrapePlatsInner(
   input: PlatSearchInput,
   onProgress: (p: PlatScraperProgress) => void,
 ): Promise<PlatSearchResult> {
@@ -139,8 +189,13 @@ export async function scrapeBellPlats(
 
   // ── Layer 1: Bell County Free Plat Repository ──────────────────────
   let repositoryFound = 0;
-  if (searchNamesList.length > 0) {
-    progress(`Layer 1: Searching Bell County plat repository for ${searchNamesList.length} name(s)...`);
+  const { hasPlatRepository } = await import('../../../services/county-plats.js');
+  if (searchNamesList.length > 0 && !hasPlatRepository(plat().key)) {
+    // Said, not skipped in silence: a county with no free repository (Milam) gets its plats from the
+    // clerk's own PLAT group below and from TexasFile; the log should show Layer 1 was not a miss.
+    progress(`Layer 1: no free plat repository is registered for ${plat().key} — the clerk (Layer 2) and TexasFile carry the plats`);
+  } else if (searchNamesList.length > 0) {
+    progress(`Layer 1: Searching the ${plat().key} plat repository for ${searchNamesList.length} name(s)...`);
 
     for (const name of searchNamesList) {
       progress(`  Searching repository for: "${name}"`);
@@ -352,7 +407,7 @@ async function searchPlatRepository(
     const held = await filedPlatLabel(projectId, subdivisionName);
     if (held) {
       const { locateBestMatchingPlat } = await import('../../../services/county-plats.js');
-      const located = await locateBestMatchingPlat('bell', subdivisionName, logger).catch(() => null);
+      const located = await locateBestMatchingPlat(plat().key, subdivisionName, logger).catch(() => null);
       progress(`    Already filed on this project (${held}) — not fetched again${located ? `; index entry "${located.name}"` : ''}`);
       if (located?.url) urlsVisited.push(located.url);
       plats.push({
@@ -362,7 +417,7 @@ async function searchPlatRepository(
         images: [],
         aiAnalysis: null,
         sourceUrl: located?.url ?? null,
-        source: located?.source ?? 'Bell County Plat Repository (bellcountytx.com)',
+        source: located?.source ?? plat().repoLabel,
         confidence: makeConfidence(0.9),
       });
       return plats;
@@ -371,7 +426,7 @@ async function searchPlatRepository(
     // The county-plats.ts service expects the subdivision name, not the full legal description.
     // Use it directly since we already extracted the name.
     progress(`    Fetching from repository: "${subdivisionName}"`);
-    const result = await fetchBestMatchingPlat('bell', subdivisionName, logger);
+    const result = await fetchBestMatchingPlat(plat().key, subdivisionName, logger);
 
     if (!result) {
       progress(`    Repository: no match for "${subdivisionName}"`);
@@ -402,7 +457,7 @@ async function searchPlatRepository(
       images,
       aiAnalysis: null,
       sourceUrl: result.url ?? null,
-      source: result.source ?? 'Bell County Plat Repository (bellcountytx.com)',
+      source: result.source ?? plat().repoLabel,
       confidence: makeConfidence(0.9),
     });
   } catch (err) {
@@ -448,9 +503,9 @@ async function searchClerkForPlats(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-clerk-${Date.now()}`);
 
-    urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`);
+    urlsVisited.push(`${plat().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`);
 
-    const result = await searchBellClerkOwnerForPlatDeed(name, logger);
+    const result = await searchBellClerkOwnerForPlatDeed(name, logger, plat().key);
     deedInstruments = result.deedInstruments;
     otherInstruments = result.otherInstruments;
 
@@ -471,7 +526,7 @@ async function searchClerkForPlats(
       if (captureImages) {
         try {
           progress(`    Capturing plat pages: ${instrNum}`);
-          const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, docRef?.url ?? undefined);
+          const pages = await fetchDocumentImages(instrNum, 15, logger, plat().key, undefined, docRef?.url ?? undefined);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           progress(`    ✓ ${pageImages.length} page(s) for instrument ${instrNum}`);
         } catch (imgErr) {
@@ -480,7 +535,7 @@ async function searchClerkForPlats(
       }
 
       // Use the correct Kofile internal document URL from allDocuments (not constructed from instrument number)
-      const docUrl = docRef?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
+      const docUrl = docRef?.url ?? plat().endpoints.document(instrNum);
       urlsVisited.push(docUrl);
       plats.push({
         name,
@@ -489,7 +544,7 @@ async function searchClerkForPlats(
         images: pageImages,
         aiAnalysis: null,
         sourceUrl: docUrl,
-        source: 'Bell County Clerk (bell.tx.publicsearch.us)',
+        source: `${plat().clerkLabel} (${new URL(plat().endpoints.results).host})`,
         confidence: makeConfidence(0.85),
       });
     }
@@ -512,7 +567,7 @@ async function searchByCabinetSlide(
   projectId?: string,
 ): Promise<PlatRecord | null> {
   const query = `Cabinet ${cabinetSlide.replace('-', ' Slide ')}`;
-  const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+  const searchUrl = `${plat().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
   urlsVisited.push(searchUrl);
 
   try {
@@ -520,7 +575,7 @@ async function searchByCabinetSlide(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-cab-${Date.now()}`);
 
-    const docResults = await searchClerkRecords('bell', query, logger);
+    const docResults = await searchClerkRecords(plat().key, query, logger);
     const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) return null;
 
@@ -531,7 +586,7 @@ async function searchByCabinetSlide(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, platRef.url ?? undefined);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, plat().key, undefined, platRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -542,8 +597,8 @@ async function searchByCabinetSlide(
       instrumentNumber: instrNum || null,
       images: pageImages,
       aiAnalysis: null,
-      sourceUrl: platRef.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
-      source: 'Bell County Clerk (Cabinet/Slide)',
+      sourceUrl: platRef.url ?? (instrNum ? plat().endpoints.document(instrNum) : null),
+      source: `${plat().clerkLabel} (Cabinet/Slide)`,
       confidence: makeConfidence(0.85),
     };
   } catch (err) {
@@ -564,14 +619,14 @@ async function searchByVolumePage(
   projectId?: string,
 ): Promise<PlatRecord | null> {
   const query = `${volume}/${page}`;
-  urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`);
+  urlsVisited.push(`${plat().endpoints.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`);
 
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-volpg-${Date.now()}`);
 
-    const docResults = await searchClerkRecords('bell', query, logger);
+    const docResults = await searchClerkRecords(plat().key, query, logger);
     const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) return null;
 
@@ -583,7 +638,7 @@ async function searchByVolumePage(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, platRef.url ?? undefined);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, plat().key, undefined, platRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -594,8 +649,8 @@ async function searchByVolumePage(
       instrumentNumber: instrNum || null,
       images: pageImages,
       aiAnalysis: null,
-      sourceUrl: platRef.url ?? (instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null),
-      source: 'Bell County Clerk (Volume/Page)',
+      sourceUrl: platRef.url ?? (instrNum ? plat().endpoints.document(instrNum) : null),
+      source: `${plat().clerkLabel} (Volume/Page)`,
       confidence: makeConfidence(0.8),
     };
   } catch (err) {
@@ -623,9 +678,9 @@ async function checkInstrumentForPlat(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(projectId ?? `plat-instr-${Date.now()}`);
 
-    const constructedUrl = BELL_ENDPOINTS.clerk.document(instrumentNumber);
+    const constructedUrl = plat().endpoints.document(instrumentNumber);
     urlsVisited.push(constructedUrl);
-    const docRef = await searchByInstrument(instrumentNumber, logger);
+    const docRef = await searchByInstrument(instrumentNumber, logger, plat().key);
     if (!docRef) return null;
 
     // Only treat it as a plat if the document type indicates it
@@ -637,7 +692,7 @@ async function checkInstrumentForPlat(
     let pageImages: string[] = [];
     if (captureImages) {
       try {
-        const pages = await fetchDocumentImages(instrumentNumber, 15, logger, 'bell', undefined, docRef.url ?? undefined);
+        const pages = await fetchDocumentImages(instrumentNumber, 15, logger, plat().key, undefined, docRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`    ✓ ${pageImages.length} page(s) for plat ${instrumentNumber}`);
       } catch { /* continue */ }
@@ -650,7 +705,7 @@ async function checkInstrumentForPlat(
       images: pageImages,
       aiAnalysis: null,
       sourceUrl: docRef.url ?? constructedUrl,
-      source: 'Bell County Clerk (instrument lookup)',
+      source: `${plat().clerkLabel} (instrument lookup)`,
       confidence: makeConfidence(0.95),
     };
   } catch (err) {

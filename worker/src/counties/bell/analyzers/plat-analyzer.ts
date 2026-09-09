@@ -30,6 +30,9 @@ import {
 export interface PlatAnalysisInput {
   /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
   projectId?: string;
+  /** The county the plat was filed in — named in the prompt and the confidence label. Was the
+   *  literal "Bell County, Texas" until 2026-09-09. Defaults to Bell. */
+  countyName?: string;
   platRecords: PlatRecord[];
   /** Legal description for cross-validation */
   legalDescription: string | null;
@@ -63,6 +66,7 @@ export async function analyzeBellPlats(
   };
 
   const usage = zeroUsage();
+  const countyName = input.countyName ?? 'Bell';
 
   if (input.platRecords.length === 0) {
     progress('No plat records to analyze');
@@ -92,7 +96,7 @@ export async function analyzeBellPlats(
   for (const plat of input.platRecords) {
     if (plat.images.length > 0) {
       progress(`Analyzing plat: ${plat.name} (${plat.images.length} image(s))`);
-      const { analysis, usage: callUsage } = await analyzePlatImage(plat.images, anthropicApiKey);
+      const { analysis, usage: callUsage } = await analyzePlatImage(plat.images, anthropicApiKey, countyName);
       accumulateUsage(usage, callUsage);
 
       // Log per-plat extraction results
@@ -165,7 +169,7 @@ export async function analyzeBellPlats(
         sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
         dataUsefulness: hasAnalysis ? 30 : 10,
         crossValidation: hasCrossVal ? 20 : 5,
-        sourceName: 'Bell County Plat Records',
+        sourceName: `${countyName} County Plat Records`,
         validatedBy: crossValidation.filter(cv => cv.startsWith('MATCH')),
         contradictedBy: crossValidation.filter(cv => cv.startsWith('MISMATCH')),
       }),
@@ -325,7 +329,7 @@ async function resizePlatImage(base64Img: string): Promise<{ data: string; media
 // ── Internal: AI Plat Image Analysis (multi-region) ──────────────────
 
 /** Prompt for analyzing a single plat region */
-const PLAT_REGION_PROMPT = `You are an expert Texas Registered Professional Land Surveyor (RPLS) analyzing a property survey plat from Bell County, Texas. This analysis will be used directly by a field surveyor. Be exhaustive — every dimension, call, monument, and note matters.
+const platRegionPrompt = (countyName: string) => `You are an expert Texas Registered Professional Land Surveyor (RPLS) analyzing a property survey plat from ${countyName} County, Texas. This analysis will be used directly by a field surveyor. Be exhaustive — every dimension, call, monument, and note matters.
 
 Extract ALL of the following information in JSON format:
 
@@ -389,6 +393,7 @@ async function analyzePlatRegion(
   client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
   region: PlatImageRegion,
   imageLabel: string,
+  countyName: string = 'Bell',
 ): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
   const response = await client.messages.create({
     model: modelFor('read_scan').model,
@@ -404,7 +409,7 @@ async function analyzePlatRegion(
           type: 'text',
           text: `You are analyzing REGION ${region.regionIndex} of ${region.totalRegions} (${region.label}) from ${imageLabel}.
 
-${PLAT_REGION_PROMPT}
+${platRegionPrompt(countyName)}
 
 IMPORTANT: This is a cropped region of a larger plat. Extract everything visible — lot dimensions, monuments, bearings, curves, text labels, notes, certification blocks. If anything is cut off at the edges, note where it is cut off so adjacent overlapping regions can complete the data.`,
         },
@@ -536,6 +541,7 @@ function parsePlatResponse(text: string): PlatAnalysis | null {
 async function analyzePlatImage(
   images: string[],
   apiKey: string,
+  countyName: string = 'Bell',
 ): Promise<{ analysis: PlatAnalysis | null; usage: Partial<AiUsageSummary> }> {
   if (!apiKey || images.length === 0) return { analysis: null, usage: {} };
 
@@ -571,7 +577,7 @@ async function analyzePlatImage(
 
       for (const region of regions) {
         console.log(`[plat-analyzer]   → Region ${region.regionIndex}/${region.totalRegions}: ${region.label}`);
-        const { text, usage } = await analyzePlatRegion(client, region, imageLabel);
+        const { text, usage } = await analyzePlatRegion(client, region, imageLabel, countyName);
         accumulateUsage(totalUsage, usage);
         if (text.length > 0) {
           allRegionResults.push({ label: `${imageLabel} — ${region.label}`, text });

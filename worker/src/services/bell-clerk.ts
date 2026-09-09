@@ -3261,16 +3261,22 @@ const INSTRUMENT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export async function searchByInstrument(
   instrumentNumber: string,
   logger: PipelineLogger,
+  /** Which Kofile county to ask. This was `'bell'` in the body, three times, which is why the Milam
+   *  module could not call it (2026-09-09). The cache is keyed per county too — the same
+   *  instrument number names different documents in different counties. */
+  county: string = 'bell',
 ): Promise<DocumentRef | null> {
+  const countyLabel = `${county.charAt(0).toUpperCase()}${county.slice(1)} County Clerk`;
   // Check cache to avoid redundant Playwright lookups for the same instrument
-  const cached = instrumentCache.get(instrumentNumber);
+  const cacheKey = county === 'bell' ? instrumentNumber : `${county}:${instrumentNumber}`;
+  const cached = instrumentCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < INSTRUMENT_CACHE_TTL_MS) {
     logger.info('Stage2-Instr', `Instrument ${instrumentNumber} already searched (cached: ${cached.result ? 'found' : 'not found'}) — skipping`);
     return cached.result;
   }
 
-  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
-  logger.info('Stage2-Instr', `Searching Bell County Clerk for instrument ${instrumentNumber}`);
+  const bellBaseUrl = getKofileBaseUrl(county) || (county === 'bell' ? 'https://bell.tx.publicsearch.us' : `https://${county}.tx.publicsearch.us`);
+  logger.info('Stage2-Instr', `Searching ${countyLabel} for instrument ${instrumentNumber}`);
 
   let browser: import('playwright').Browser | null = null;
   try {
@@ -3310,7 +3316,7 @@ export async function searchByInstrument(
             recordingDate: String(item.recordingDate ?? item.recording_date ?? '') || null,
             grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.Grantors),
             grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.Grantees),
-            source: 'Bell County Clerk PublicSearch',
+            source: `${countyLabel} PublicSearch`,
             url: `${bellBaseUrl}/doc/${urlId}/details`,
           });
         }
@@ -3358,7 +3364,7 @@ export async function searchByInstrument(
           recordingDate: domDoc.recDate || null,
           grantors: [],
           grantees: [],
-          source: 'Bell County Clerk PublicSearch',
+          source: `${countyLabel} PublicSearch`,
           url: domDoc.url || `${bellBaseUrl}/doc/${domDoc.instrumentNumber}/details`,
         });
       }
@@ -3372,10 +3378,10 @@ export async function searchByInstrument(
     if (match) {
       logger.info('Stage2-Instr', `Found instrument ${instrumentNumber}: type=${match.documentType}, url=${match.url ?? 'none'}, grantors=${match.grantors.join(',')}, grantees=${match.grantees.join(',')}`);
     } else {
-      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk (captured ${captured.length} docs, none matched)`);
+      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in ${countyLabel} (captured ${captured.length} docs, none matched)`);
     }
     // Cache the result to avoid redundant lookups later in the pipeline
-    instrumentCache.set(instrumentNumber, { result: match, timestamp: Date.now() });
+    instrumentCache.set(cacheKey, { result: match, timestamp: Date.now() });
     return match;
   } catch (err: any) {
     logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
@@ -3395,8 +3401,9 @@ export async function searchByInstrument(
  */
 async function _extractSearchResults(
   page: import('playwright').Page,
+  county: string = 'bell',
 ): Promise<DocumentRef[]> {
-  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  const bellBaseUrl = getKofileBaseUrl(county) || (county === 'bell' ? 'https://bell.tx.publicsearch.us' : `https://${county}.tx.publicsearch.us`);
   const documents: DocumentRef[] = [];
   const rows = await page.$$('.result-card, table tbody tr[aria-selected], .result-row, .search-result');
 
@@ -3510,13 +3517,15 @@ export async function searchBellClerk(
 export async function searchBellClerkOwnerForPlatDeed(
   ownerOrSubdivisionName: string,
   logger: PipelineLogger,
+  /** Which Kofile county — see searchByInstrument. Defaults to Bell, the county this was written for. */
+  county: string = 'bell',
 ): Promise<{
   platInstruments: string[];
   deedInstruments: string[];
   otherInstruments: string[];
   allDocuments: DocumentRef[];
 }> {
-  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  const bellBaseUrl = getKofileBaseUrl(county) || (county === 'bell' ? 'https://bell.tx.publicsearch.us' : `https://${county}.tx.publicsearch.us`);
   let browser: import('playwright').Browser | null = null;
   const attempt = logger.attempt(
     '2B-PLAT', bellBaseUrl, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
@@ -3577,7 +3586,7 @@ export async function searchBellClerkOwnerForPlatDeed(
       if (btn) { await btn.click(); await page.waitForTimeout(1_000); }
     } catch { /* no dialog */ }
 
-    const allDocuments = await _extractSearchResults(page);
+    const allDocuments = await _extractSearchResults(page, county);
     attempt.step(`Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
 
     // If no results, dump page content for diagnostics

@@ -33,6 +33,10 @@ import {
 export interface DeedAnalysisInput {
   /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
   projectId?: string;
+  /** The county the deeds were recorded in — named in every prompt and confidence label. This was
+   *  the literal "Bell County, Texas" until 2026-09-09; a Milam deed read through it would have been
+   *  examined as a Bell deed. Defaults to Bell, the county this analyzer was written for. */
+  countyName?: string;
   /** Deed records with page images from the clerk scraper */
   deedRecords: DeedRecord[];
   /** Legal description from CAD/GIS */
@@ -83,6 +87,7 @@ export async function analyzeBellDeeds(
   };
 
   const usage = zeroUsage();
+  const countyName = input.countyName ?? 'Bell';
 
   if (input.deedRecords.length === 0) {
     progress('No deed records to analyze');
@@ -112,7 +117,7 @@ export async function analyzeBellDeeds(
     if (record.pageImages.length > 0) {
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
       const { summary: aiSummary, ocrText, segments, usage: callUsage } =
-        await analyzeDeedException(record, anthropicApiKey);
+        await analyzeDeedException(record, anthropicApiKey, countyName);
       accumulateUsage(usage, callUsage);
 
       // Extract structured boundary calls from the AI narrative
@@ -172,7 +177,7 @@ export async function analyzeBellDeeds(
 
   // ── Step 3: Generate overall summary ───────────────────────────────
   progress('Generating ownership history summary...');
-  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey, input.targetProperty, input.operatorNotes);
+  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey, input.targetProperty, input.operatorNotes, countyName);
   accumulateUsage(usage, summaryUsage);
 
   // ── Step 4: Compute confidence ─────────────────────────────────────
@@ -182,7 +187,7 @@ export async function analyzeBellDeeds(
     sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
     dataUsefulness: hasImages ? 25 : 10,
     crossValidation: hasChain ? 15 : 5,
-    sourceName: 'Bell County Clerk',
+    sourceName: `${countyName} County Clerk`,
     validatedBy: hasChain ? ['Chain of title reconstruction'] : [],
     contradictedBy: [],
   });
@@ -429,7 +434,7 @@ async function resizeDeedImage(base64Img: string): Promise<{ data: string; media
 }
 
 /** Prompt for analyzing a single deed region or full image */
-const DEED_REGION_PROMPT = `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from Bell County, Texas. Extract ALL information with maximum thoroughness and precision. This analysis will be used directly by a field surveyor to locate property corners and boundaries.
+const deedRegionPrompt = (countyName: string) => `You are an expert Texas Registered Professional Land Surveyor (RPLS) and title examiner analyzing a deed document from ${countyName} County, Texas. Extract ALL information with maximum thoroughness and precision. This analysis will be used directly by a field surveyor to locate property corners and boundaries.
 
 REQUIRED EXTRACTION — do not skip any section. Be exhaustive.
 
@@ -487,6 +492,7 @@ async function analyzeRegion(
   client: InstanceType<typeof import('@anthropic-ai/sdk').default>,
   region: ImageRegion,
   pageLabel: string,
+  countyName: string = 'Bell',
 ): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
   const response = await client.messages.create({
     model: modelFor('read_scan').model,
@@ -502,7 +508,7 @@ async function analyzeRegion(
           type: 'text',
           text: `You are analyzing REGION ${region.regionIndex} of ${region.totalRegions} (${region.label}) from ${pageLabel}.
 
-${DEED_REGION_PROMPT}
+${deedRegionPrompt(countyName)}
 
 IMPORTANT: This is a cropped region of a larger document. Extract everything visible in this region. If text is cut off at the edges, note exactly where it is cut off so the reconciliation pass can match it with adjacent regions. Transcribe partial words/numbers at boundaries — they will be matched with overlapping regions.`,
         },
@@ -598,6 +604,7 @@ interface DeedReadResult {
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
+  countyName: string = 'Bell',
 ): Promise<DeedReadResult> {
   if (!apiKey || record.pageImages.length === 0) {
     return { summary: '', ocrText: '', segments: [], usage: {} };
@@ -639,7 +646,7 @@ async function analyzeDeedException(
       // Analyze each region independently
       for (const region of regions) {
         console.log(`[deed-analyzer]   → Region ${region.regionIndex}/${region.totalRegions}: ${region.label}`);
-        const { text, usage } = await analyzeRegion(client, region, pageLabel);
+        const { text, usage } = await analyzeRegion(client, region, pageLabel, countyName);
         accumulateUsage(totalUsage, usage);
         if (text.length > 0) {
           allRegionResults.push({ label: `${pageLabel} — ${region.label}`, text });
@@ -677,7 +684,7 @@ async function analyzeDeedException(
                 )
               : null;
             if (!subRegion) continue;
-            const zoomed = await analyzeRegion(client, subRegion, pageLabel);
+            const zoomed = await analyzeRegion(client, subRegion, pageLabel, countyName);
             accumulateUsage(totalUsage, zoomed.usage);
             if (zoomed.text.length > 0) {
               allRegionResults.push({ label: `${pageLabel} — ${subRegion.label}`, text: zoomed.text });
@@ -818,6 +825,7 @@ async function generateDeedSummary(
   apiKey: string,
   targetProperty?: DeedAnalysisInput['targetProperty'],
   operatorNotes?: string,
+  countyName: string = 'Bell',
 ): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
     return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
@@ -870,7 +878,7 @@ ${notes.slice(0, 4000)}
       max_tokens: 4000,
       messages: [{
         role: 'user',
-        content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a Bell County, Texas surveyor.
+        content: `You are a senior Texas RPLS and title examiner. Synthesize a comprehensive property ownership history for a ${countyName} County, Texas surveyor.
 
 Current owner: ${currentOwner ?? 'unknown'}.
 ${targetContext}${notesContext}

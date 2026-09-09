@@ -244,9 +244,19 @@ async function ocrVerifyPage(
  *   2. Google Maps satellite view (zoomed in tight)
  *   3. Google Maps place view (street context with pin)
  */
+/** A county's own map capture, run in the same browser context as the Google frames. */
+export type CountyGisCapture = (
+  context: any,
+  input: MapScreenshotInput,
+  progress: (msg: string) => void,
+) => Promise<ScreenshotCapture | null>;
+
 export async function captureMapScreenshots(
   input: MapScreenshotInput,
   onProgress: (p: MapScreenshotProgress) => void,
+  /** Which county map to photograph first. Absent, the Bell BIS viewer — what this did unconditionally
+   *  until 2026-09-09. Milam passes its own (maps.pandai.com). The Google frames are county-agnostic. */
+  opts: { countyGis?: CountyGisCapture } = {},
 ): Promise<ScreenshotCapture[]> {
   const results: ScreenshotCapture[] = [];
   const captureStart = Date.now();
@@ -283,7 +293,7 @@ export async function captureMapScreenshots(
 
     // ── 1. BIS Client GIS — Direct Property Lookup ─────────────────
     progress('Capturing BIS GIS parcel map (direct property lookup)...');
-    const gisScreenshot = await captureBisGisParcel(context, input, progress);
+    const gisScreenshot = await (opts.countyGis ?? captureBisGisParcel)(context, input, progress);
     if (gisScreenshot) {
       results.push(gisScreenshot);
       const sizeKb = Math.round(gisScreenshot.imageBase64.length * 3 / 4 / 1024);

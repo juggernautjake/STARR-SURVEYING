@@ -25,6 +25,8 @@ import type { AiUsageSummary } from '../types/research-result.js';
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface LotCorrelationInput {
+  /** The county — named in the AI prompt. Was the literal "Bell County, Texas" until 2026-09-09. */
+  countyName?: string;
   /** Target property lot number from CAD/GIS */
   lotNumber: string | null;
   /** Target property block number */
@@ -486,7 +488,7 @@ async function aiLotCorrelation(
 
   const hasGoogleImages = googleMapsImages.satellite || googleMapsImages.street;
 
-  const prompt = `You are an expert property surveyor in Bell County, Texas. Your task is to identify EXACTLY which specific lot on this plat corresponds to the target property. Getting the wrong lot is a serious error — be precise.
+  const prompt = `You are an expert property surveyor in ${input.countyName ?? 'Bell'} County, Texas. Your task is to identify EXACTLY which specific lot on this plat corresponds to the target property. Getting the wrong lot is a serious error — be precise.
 
 IMAGES PROVIDED (in order):
 ${imageLabels.map(l => `  - ${l}`).join('\n')}

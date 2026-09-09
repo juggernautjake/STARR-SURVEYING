@@ -360,13 +360,16 @@ export function parseParcelFeatures(json: unknown): ParcelFeature[] {
     .filter((f) => Array.isArray(f.geometry?.rings) && f.geometry!.rings!.length > 0)
     .map((f) => {
       const a = f.attributes ?? {};
-      const num = pick(a, ['situs_num', 'situs_number', 'SITUS_NUM']);
-      const street = pick(a, ['situs_street', 'situs_addr', 'SITUS_STREET', 'situs_address']);
+      // The `DBO.*` names are Milam's joined parcel layer (2026-09-09).
+      const num = pick(a, ['situs_num', 'situs_number', 'SITUS_NUM', 'DBO.Accounts.Prop_Street_Number']);
+      const street = pick(a, ['situs_street', 'situs_addr', 'SITUS_STREET', 'situs_address', 'DBO.Accounts.Prop_Street']);
       const situs = [num, street].filter((x) => x != null && String(x).trim()).map(String).join(' ') || null;
-      const acreageRaw = pick(a, ['legal_acreage', 'land_acres', 'acreage', 'ACRES', 'gis_acres']);
+      const acreageRaw = pick(a, ['legal_acreage', 'land_acres', 'acreage', 'ACRES', 'gis_acres', 'DBO.Accounts.Acres']);
+      const propIdRaw = pick(a, ['prop_id', 'PROP_ID', 'prop_id_text', 'parcel_id', 'PARCEL_ID', 'DBO.TaxParcels.Name']);
+      const ownerRaw = pick(a, ['file_as_name', 'owner_name', 'OWNER_NAME', 'owner', 'DBO.Accounts.Owner_Name']);
       return {
-        propId: pick(a, ['prop_id', 'PROP_ID', 'prop_id_text', 'parcel_id', 'PARCEL_ID']) != null ? String(pick(a, ['prop_id', 'PROP_ID', 'prop_id_text', 'parcel_id', 'PARCEL_ID'])) : null,
-        owner: pick(a, ['file_as_name', 'owner_name', 'OWNER_NAME', 'owner']) != null ? String(pick(a, ['file_as_name', 'owner_name', 'OWNER_NAME', 'owner'])) : null,
+        propId: propIdRaw != null ? String(propIdRaw) : null,
+        owner: ownerRaw != null ? String(ownerRaw).trim() : null,
         situs,
         acreage: acreageRaw != null && Number.isFinite(Number(acreageRaw)) ? Number(acreageRaw) : null,
         rings: f.geometry!.rings!,

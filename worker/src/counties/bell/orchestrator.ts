@@ -31,10 +31,12 @@ import type {
   AdjacentProperty,
 } from './types/research-result.js';
 
-import { scrapeBellCad } from './scrapers/cad-scraper.js';
-import { scrapeBellGis, discoverSiblingLots } from './scrapers/gis-scraper.js';
-import { scrapeBellClerk, type ClerkDocument as ClerkScrapedDocument } from './scrapers/clerk-scraper.js';
-import { scrapeBellPlats } from './scrapers/plat-scraper.js';
+import type { CadSearchResult } from './scrapers/cad-scraper.js';
+import type { GisSearchResult } from './scrapers/gis-scraper.js';
+import type { ClerkDocument as ClerkScrapedDocument, ClerkSearchResult } from './scrapers/clerk-scraper.js';
+import type { PlatSearchResult } from './scrapers/plat-scraper.js';
+import type { CountyModule } from '../county-module.js';
+import { BELL_MODULE } from './module.js';
 import { mayStart, withStepDeadline, analysisReserveMs } from '../../research/budget-gate.js';
 import { recordPartial } from '../../infra/run-budget.js';
 import { assessDegradation } from '../../research/run-degradation.js';
@@ -47,10 +49,6 @@ import { geocodeWithGoogle } from '../../research/google-geocode.js';
 import { writePropertySummary, summaryInputFromBell } from '../../research/property-summary.js';
 import { hostGate } from '../../infra/dead-host.js';
 import type { RunSourceOutcome } from '../../infra/health-persistence.js';
-import { BELL_ENDPOINTS } from './config/endpoints.js';
-import { scrapeBellFema } from './scrapers/fema-scraper.js';
-import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
-import { scrapeBellTax } from './scrapers/tax-scraper.js';
 import { captureScreenshots, buildScreenshotRequests } from './scrapers/screenshot-collector.js';
 
 import { analyzeBellDeeds } from './analyzers/deed-analyzer.js';
@@ -115,6 +113,26 @@ export async function orchestrateBellResearch(
   onProgress: ProgressCallback,
   signal?: AbortSignal,
 ): Promise<BellResearchResult> {
+  return orchestrateCountyResearch(BELL_MODULE, input, onProgress, signal);
+}
+
+/**
+ * The run, for any county that provides a module.
+ *
+ * ── ONE ORCHESTRATOR, MANY COUNTIES (2026-09-09) ────────────────────────────────────────────
+ *
+ * Everything below was written for Bell and is, almost to the line, not about Bell: what a run
+ * does with an appraisal record, a deed, a plat, a flood zone or a map is the same in Milam. What
+ * differs — which sites, which scraper reads each, what the log calls them — is the `county`
+ * argument (see `counties/county-module.ts`). The Bell entry above passes `BELL_MODULE` and the
+ * file keeps its name and its place so the tests that pin its wiring keep pointing at it.
+ */
+export async function orchestrateCountyResearch(
+  county: CountyModule,
+  input: BellResearchInput,
+  onProgress: ProgressCallback,
+  signal?: AbortSignal,
+): Promise<BellResearchResult> {
   const startedAt = new Date();
   const errors: ResearchError[] = [];
   const allScreenshots: ScreenshotCapture[] = [];
@@ -150,7 +168,7 @@ export async function orchestrateBellResearch(
   resetCreditGuard();
 
   console.log(
-    `[BellOrchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
+    `[${county.name}Orchestrator] ${input.projectId ?? 'no-id'}: START — address="${input.address ?? ''}" propertyId="${input.propertyId ?? ''}" ownerName="${input.ownerName ?? ''}"`,
   );
 
   /** Tracks whether we've already emitted the credit-depleted progress message */
@@ -162,7 +180,7 @@ export async function orchestrateBellResearch(
       creditDepletionNotified = true;
       const msg = 'AI CREDIT BALANCE DEPLETED — Remaining AI analysis steps will be skipped. Please add funds to your Anthropic account at console.anthropic.com/settings/billing and re-run research.';
       progress('CREDIT ERROR', msg);
-      console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'}: ${msg}`);
+      console.error(`[${county.name}Orchestrator] ${input.projectId ?? 'no-id'}: ${msg}`);
       errors.push({
         phase: 'AI Credits',
         source: 'Anthropic API',
@@ -197,13 +215,13 @@ export async function orchestrateBellResearch(
     if (isCreditDepletionError(err)) {
       const creditMsg = 'AI CREDIT BALANCE DEPLETED — Please add funds to your Anthropic account at console.anthropic.com/settings/billing and re-run research.';
       errors.push({ phase, source: 'AI Credits', message: creditMsg, timestamp: new Date().toISOString(), recovered: false });
-      console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'} [${phase}] CREDIT DEPLETED detected in ${source}`);
+      console.error(`[${county.name}Orchestrator] ${input.projectId ?? 'no-id'} [${phase}] CREDIT DEPLETED detected in ${source}`);
       progress('CREDIT ERROR', creditMsg);
       return;
     }
     const msg = err instanceof Error ? err.message : String(err);
     errors.push({ phase, source, message: msg, timestamp: new Date().toISOString(), recovered });
-    console.error(`[BellOrchestrator] ${input.projectId ?? 'no-id'} [${phase}] ERROR ${source}: ${msg.slice(0, 200)}`);
+    console.error(`[${county.name}Orchestrator] ${input.projectId ?? 'no-id'} [${phase}] ERROR ${source}: ${msg.slice(0, 200)}`);
     progress(phase, `⚠ ${source} error (${recovered ? 'recovered' : 'fatal'}): ${msg.slice(0, 100)}`);
   };
 
@@ -316,9 +334,9 @@ export async function orchestrateBellResearch(
   }
 
   // Run CAD and GIS searches in parallel for speed
-  progress('Phase 1', 'Running Bell CAD eSearch + GIS in parallel...', 8);
+  progress('Phase 1', `Running ${county.labels.cadSite} + GIS in parallel...`, 8);
   const [cadResult, gisResult] = await Promise.allSettled([
-    scrapeBellCad(
+    county.scrapers.cad(
       {
         address: input.address,
         // Seed 624 — the operator's separate fields, so the CAD search does not depend on the
@@ -331,7 +349,7 @@ export async function orchestrateBellResearch(
       },
       (p) => progress('Phase 1', `CAD: ${p.message}`),
     ),
-    scrapeBellGis(
+    county.scrapers.gis(
       { propertyId: input.propertyId, ownerName: input.ownerName, lat, lon, address: input.address },
       (p) => progress('Phase 1', `GIS: ${p.message}`),
     ),
@@ -384,7 +402,7 @@ export async function orchestrateBellResearch(
     cadRecordFound: cad !== null,
     hasCoordinates: Boolean(lat && lon),
     parcelId: input.propertyId ?? cad?.propertyId ?? null,
-    county: 'Bell',
+    county: county.name,
   });
 
   if (degradation.level !== 'ok') {
@@ -403,10 +421,10 @@ export async function orchestrateBellResearch(
   // Record links and screenshots from Phase 1
   if (cad) {
     allScreenshots.push(...cad.screenshots);
-    recordLinks(cad.urlsVisited, 'Bell CAD eSearch', true);
+    recordLinks(cad.urlsVisited, county.labels.cadSite, true);
 
     // Absorb all CAD-discovered identifiers into knownIds
-    await absorbIdentifiers('Bell CAD', {
+    await absorbIdentifiers(county.labels.cad, {
       propertyId: cad.propertyId,
       ownerName: cad.ownerName,
       instrumentNumbers: cad.instrumentNumbers,
@@ -436,14 +454,14 @@ export async function orchestrateBellResearch(
       }
     }
   } else {
-    progress('Phase 1', '✗ Bell CAD: no result found');
+    progress('Phase 1', `✗ ${county.labels.cad}: no result found`);
   }
 
   if (gis) {
     allScreenshots.push(...gis.screenshots);
-    recordLinks(gis.urlsVisited, 'Bell CAD GIS', true);
+    recordLinks(gis.urlsVisited, county.labels.gisSite, true);
 
-    await absorbIdentifiers('Bell GIS', {
+    await absorbIdentifiers(county.labels.gis, {
       propertyId: gis.propertyId ?? undefined,
       ownerName: gis.ownerName ?? undefined,
       instrumentNumbers: gis.instrumentNumbers,
@@ -453,7 +471,7 @@ export async function orchestrateBellResearch(
 
     progress('Phase 1', `GIS result: ID=${gis.propertyId} owner="${gis.ownerName}" acreage=${gis.acreage}`);
   } else {
-    progress('Phase 1', '✗ Bell GIS: no result found');
+    progress('Phase 1', `✗ ${county.labels.gis}: no result found`);
   }
 
   // Merge CAD + GIS into resolved property (CAD takes priority)
@@ -474,7 +492,7 @@ export async function orchestrateBellResearch(
 
   if (gis?.parcelBoundary && gisFeatsForMatching.length <= 2) {
     try {
-      const siblings = await discoverSiblingLots(
+      const siblings = await county.scrapers.siblingLots(
         gis.parcelBoundary,
         gis.propertyId,
         gis.legalDescription,
@@ -702,7 +720,7 @@ export async function orchestrateBellResearch(
   checkAborted();
 
   progress('Phase 2', '─────────────────────────────────────────────', 20);
-  progress('Phase 2', 'PHASE 2 — Scraping Bell County Records', 20);
+  progress('Phase 2', `PHASE 2 — Scraping ${county.name} County Records`, 20);
 
   // Assemble the full set of identifiers accumulated in Phase 1
   const uniqueInstruments = [...knownIds.instrumentNumbers];
@@ -750,12 +768,12 @@ export async function orchestrateBellResearch(
   // had reached before 2026-09-04 (see analysisReserveMs).
   const analysisReserve = analysisReserveMs(input.projectId);
   const mayPlats = mayStep('plat search');
-  let plats: Awaited<ReturnType<typeof scrapeBellPlats>> | null = null;
+  let plats: PlatSearchResult | null = null;
   if (mayPlats) try {
     // The instrument numbers known at this point come from Phase 1 (CAD deed history, GIS).
     const allInstruments = [...knownIds.instrumentNumbers];
 
-    plats = await withStepDeadline(input.projectId, 'plat search', () => scrapeBellPlats(
+    plats = await withStepDeadline(input.projectId, 'plat search', () => county.scrapers.plats(
       {
         subdivisionName: uniqueSubdivisions[0] ?? undefined,
         subdivisionVariants: uniqueSubdivisions.slice(1),
@@ -813,10 +831,10 @@ export async function orchestrateBellResearch(
   checkAborted();
 
   // ── 2A: Bell County Clerk (deeds, easements, restrictions) — after the plats (plan C2) ───
-  progress('Phase 2', '2A — Bell County Clerk search...', 33);
+  progress('Phase 2', `2A — ${county.name} County Clerk search...`, 33);
   // A1 — the step that spent 163 minutes and $29.19 on 2026-09-03 with no ceiling consulted.
   const mayClerk = mayStep('clerk deed search');
-  let clerk: Awaited<ReturnType<typeof scrapeBellClerk>> | null = null;
+  let clerk: ClerkSearchResult | null = null;
   // ── WHAT THE CLERK STEP CAPTURES IS KEPT EVEN IF THE STEP DOES NOT FINISH ─────────────────
   //
   // `withStepDeadline` drops the step's eventual result when the run's time runs out. On run 4
@@ -830,7 +848,7 @@ export async function orchestrateBellResearch(
   if (mayClerk) try {
     // A2 — bounded by whatever time the RUN has left. One owner search took 11.6 minutes on
     // 2026-09-03; a gate between steps cannot hold a 25-minute total when a step is unbounded.
-    clerk = await withStepDeadline(input.projectId, 'clerk deed search', () => scrapeBellClerk(
+    clerk = await withStepDeadline(input.projectId, 'clerk deed search', () => county.scrapers.clerk(
       {
         instrumentNumbers: uniqueInstruments,
         ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
@@ -980,7 +998,7 @@ export async function orchestrateBellResearch(
         // it. It now runs under the run's remaining time with its own abort controller, and returns
         // null (its work left for a later run) rather than run past the ceiling.
         const deedAbort = new AbortController();
-        const deedClerk = await withStepDeadline(input.projectId, 'deed chain fetch', () => scrapeBellClerk(
+        const deedClerk = await withStepDeadline(input.projectId, 'deed chain fetch', () => county.scrapers.clerk(
           {
             instrumentNumbers: newInstruments,
             ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
@@ -1058,17 +1076,17 @@ export async function orchestrateBellResearch(
     );
   }
   if (!property.propertyId) {
-    progress('Phase 2', '⚠ No property ID resolved — Bell CAD tax detail lookup will be skipped.');
+    progress('Phase 2', `⚠ No property ID resolved — ${county.labels.cad} tax detail lookup will be skipped.`);
   }
   const [femaResult, txdotResult, taxResult] = await Promise.allSettled([
     lat && lon
-      ? scrapeBellFema({ lat, lon }, (p) => progress('Phase 2', `FEMA: ${p.message}`, 47))
+      ? county.scrapers.fema({ lat, lon }, (p) => progress('Phase 2', `FEMA: ${p.message}`, 47))
       : Promise.resolve({ result: null, screenshots: [] as ScreenshotCapture[], urlsVisited: [] as string[] }),
     lat && lon
-      ? scrapeBellTxDot({ lat, lon }, (p) => progress('Phase 2', `TxDOT: ${p.message}`, 50))
+      ? county.scrapers.txdot({ lat, lon }, (p) => progress('Phase 2', `TxDOT: ${p.message}`, 50))
       : Promise.resolve({ result: null, screenshots: [] as ScreenshotCapture[], urlsVisited: [] as string[] }),
     property.propertyId
-      ? scrapeBellTax({ propertyId: property.propertyId }, (p) => progress('Phase 2', `Tax: ${p.message}`, 52))
+      ? county.scrapers.tax({ propertyId: property.propertyId }, (p) => progress('Phase 2', `Tax: ${p.message}`, 52))
       : Promise.resolve({ taxInfo: null, improvements: [], valuationHistory: [], screenshots: [] as ScreenshotCapture[], urlsVisited: [] as string[] }),
   ]);
 
@@ -1146,8 +1164,7 @@ export async function orchestrateBellResearch(
   if (property.parcelBoundary || (property.lat && property.lon)) {
     progress('Phase 2', 'Capturing GIS viewer screenshots (multiple views)...', 59);
     try {
-      const { captureGisViewerScreenshots } = await import('./scrapers/gis-viewer-capture.js');
-      const gisViewerScreenshots = await captureGisViewerScreenshots(
+      const gisViewerScreenshots = await county.captures.gisViewer(
         {
           parcelBoundary: property.parcelBoundary ?? null,
           lat: property.lat,
@@ -1191,9 +1208,8 @@ export async function orchestrateBellResearch(
   //   3. Google Maps Place: address → street context with pin (zoom 19)
   if (property.propertyId && (property.lat || property.lon)) {
     checkAborted();
-    progress('Phase 2', 'Capturing direct map screenshots (BIS GIS + Google Maps)...', 62);
+    progress('Phase 2', `Capturing direct map screenshots (${county.labels.gis} + Google Maps)...`, 62);
     try {
-      const { captureMapScreenshots } = await import('./scrapers/map-screenshot-capture.js');
       // Extract the ArcGIS OBJECTID from GIS raw attributes for exact parcel selection.
       // The FeatureServer returns OBJECTID as a number in the attributes.
       const rawOid = gis?.rawAttributes?.OBJECTID ?? gis?.rawAttributes?.objectid ?? gis?.rawAttributes?.FID ?? null;
@@ -1202,7 +1218,7 @@ export async function orchestrateBellResearch(
         progress('Phase 2', `  Using ArcGIS OBJECTID=${arcgisObjectId} for exact parcel selection`);
       }
 
-      const mapScreenshots = await captureMapScreenshots(
+      const mapScreenshots = await county.captures.maps(
         {
           propertyId: property.propertyId,
           arcgisObjectId,
@@ -1259,8 +1275,8 @@ export async function orchestrateBellResearch(
   // run's budget, not about the site.
   const sourceOutcomes: RunSourceOutcome[] = [];
   {
-    const fips = BELL_ENDPOINTS.clerk.fipsCode;
-    const cadHost = BELL_ENDPOINTS.cad.home;
+    const fips = county.fips;
+    const cadHost = county.hosts.cad;
     const cadGate = hostGate(cadHost);
     // A scrape that THREW is an error about the adapter, not a parcel with no record. Phase 1 ran
     // the CAD and GIS scrapes with allSettled; a rejection used to fall through to `empty`, which
@@ -1271,7 +1287,7 @@ export async function orchestrateBellResearch(
     // no_record, the never-quarantines bucket, so our own budget can never mark a live site broken.
     const cadStoppedByUs = cadThrew && Boolean(signal?.aborted);
     sourceOutcomes.push({
-      siteId: `cad-${fips}-bis`, vendor: 'bis', name: 'Bell CAD eSearch', url: cadHost,
+      siteId: `cad-${fips}-bis`, vendor: 'bis', name: county.labels.cadSite, url: cadHost,
       projectId: input.projectId, durationMs: 0,
       outcome: cad ? 'found' : cadStoppedByUs ? 'aborted' : cadThrew ? 'error' : cadGate.blocked ? 'unreachable' : 'empty',
       detail: cad
@@ -1285,10 +1301,10 @@ export async function orchestrateBellResearch(
               : `The appraisal site answered but returned no record for "${input.address ?? input.propertyId ?? input.ownerName ?? '?'}".`,
     });
     if (mayClerk && clerk) {
-      const clerkHost = BELL_ENDPOINTS.clerk.home;
+      const clerkHost = county.hosts.clerk;
       const clerkGate = hostGate(clerkHost);
       sourceOutcomes.push({
-        siteId: `clerk-${fips}-kofile`, vendor: 'kofile', name: 'Bell County Clerk (Kofile)', url: clerkHost,
+        siteId: `clerk-${fips}-kofile`, vendor: 'kofile', name: county.labels.clerkSite, url: clerkHost,
         projectId: input.projectId, durationMs: 0,
         outcome: clerk.documents.length > 0 ? 'found' : clerkGate.blocked ? 'unreachable' : 'empty',
         detail: clerk.documents.length > 0
@@ -1328,7 +1344,7 @@ export async function orchestrateBellResearch(
     aiSummary: null as string | null,
     pageImages: doc.pageImages,
     sourceUrl: doc.sourceUrl,
-    source: 'Bell County Clerk',
+    source: county.labels.clerk,
     confidence: scoreOverallConfidence([]),
   }));
 
@@ -1341,6 +1357,7 @@ export async function orchestrateBellResearch(
     : null;
 
   const propertyIds: PropertyIdentifiers = {
+    countyName: county.name,
     ownerName: property.ownerName,
     legalDescription: property.legalDescription,
     acreage: property.acreage,
@@ -1406,7 +1423,7 @@ export async function orchestrateBellResearch(
   try {
     const { findOriginalSurvey } = await import('../../services/original-survey.js');
     originalSurvey = await findOriginalSurvey({
-      county: 'Bell',
+      county: county.name,
       abstractNumber: propertyIds.abstractNumber,
       surveyName: propertyIds.surveyName,
     });
@@ -1431,6 +1448,7 @@ export async function orchestrateBellResearch(
   const [deedAnalysisResult, platAnalysisResult] = await Promise.allSettled([
     analyzeBellDeeds(
       {
+        countyName: county.name,
         // Threaded so the analyzer can record its spend against this run. Without it the AI work
         // below is invisible to R5''s ceiling.
         projectId: input.projectId,
@@ -1452,7 +1470,7 @@ export async function orchestrateBellResearch(
       (p) => progress('Phase 3', `Deeds: ${p.message}`, 65),
     ),
     analyzeBellPlats(
-      { projectId: input.projectId, platRecords: filteredPlats, legalDescription: property.legalDescription, deedCalls },
+      { countyName: county.name, projectId: input.projectId, platRecords: filteredPlats, legalDescription: property.legalDescription, deedCalls },
       anthropicApiKey,
       (p) => progress('Phase 3', `Plats: ${p.message}`, 75),
     ),
@@ -1571,7 +1589,7 @@ export async function orchestrateBellResearch(
         // that let run 8 overrun was the same shape). Runs under the run's remaining time with its
         // own abort controller; null means it hit the reserve and left the rest for a later run.
         const histAbort = new AbortController();
-        const historicalClerk = await withStepDeadline(input.projectId, 'historical deed fetch', () => scrapeBellClerk(
+        const historicalClerk = await withStepDeadline(input.projectId, 'historical deed fetch', () => county.scrapers.clerk(
           {
             instrumentNumbers: histInstruments,
             volumePages: histVolPages,
@@ -1605,12 +1623,13 @@ export async function orchestrateBellResearch(
             aiSummary: null as string | null,
             pageImages: doc.pageImages,
             sourceUrl: doc.sourceUrl,
-            source: 'Bell County Clerk (Historical)',
+            source: `${county.labels.clerk} (Historical)`,
             confidence: scoreOverallConfidence([]),
           }));
 
           const historicalAnalysis = await analyzeBellDeeds(
             {
+              countyName: county.name,
               projectId: input.projectId,
               deedRecords: historicalDeedRecords,
               cadLegalDescription: property.legalDescription,
@@ -1747,6 +1766,7 @@ export async function orchestrateBellResearch(
     progress('Phase 3D', 'Correlating target lot on plat(s)...', 83);
 
     const lotInput: LotCorrelationInput = {
+      countyName: county.name,
       lotNumber: property.lotNumber ?? knownIds.lotNumber,
       blockNumber: property.blockNumber ?? knownIds.blockNumber,
       acreage: property.acreage,
@@ -1813,7 +1833,7 @@ export async function orchestrateBellResearch(
   checkAborted();
 
   // ── Extract easements & restrictive covenants from clerk documents ─
-  const easementRecords = extractEasementRecords(clerk?.documents ?? []);
+  const easementRecords = extractEasementRecords(clerk?.documents ?? [], county.labels.clerk);
   const restrictiveCovenants = extractRestrictiveCovenants(clerk?.documents ?? [], plats?.plats ?? []);
   if (easementRecords.length > 0) {
     progress('Phase 3', `Extracted ${easementRecords.length} easement record(s) from clerk documents`);
@@ -1825,6 +1845,7 @@ export async function orchestrateBellResearch(
   // ── Detect discrepancies ───────────────────────────────────────────
   progress('Phase 3', 'Detecting discrepancies...', 80);
   const discrepancies = detectDiscrepancies({
+    countyName: county.name,
     cadLegalDescription: cad?.legalDescription ?? null,
     cadAcreage: cad?.acreage ?? null,
     cadOwner: cad?.ownerName ?? null,
@@ -1950,6 +1971,7 @@ export async function orchestrateBellResearch(
       anthropicApiKey,
       (msg) => progress('Phase 3', `Screenshots: ${msg}`),
       input.projectId,
+      county.name,
     );
 
     // Tag each screenshot with its classification
@@ -1999,22 +2021,22 @@ export async function orchestrateBellResearch(
 
   // Build overall confidence from all data items
   const dataItems: DataItem[] = [];
-  if (property.ownerName) dataItems.push({ key: 'owner', value: property.ownerName, source: 'Bell CAD', dataType: 'name' });
-  if (property.legalDescription) dataItems.push({ key: 'legal', value: property.legalDescription, source: 'Bell CAD', dataType: 'legal_description' });
-  if (gis?.ownerName) dataItems.push({ key: 'owner', value: gis.ownerName, source: 'Bell GIS', dataType: 'name' });
-  if (gis?.legalDescription) dataItems.push({ key: 'legal', value: gis.legalDescription, source: 'Bell GIS', dataType: 'legal_description' });
+  if (property.ownerName) dataItems.push({ key: 'owner', value: property.ownerName, source: county.labels.cad, dataType: 'name' });
+  if (property.legalDescription) dataItems.push({ key: 'legal', value: property.legalDescription, source: county.labels.cad, dataType: 'legal_description' });
+  if (gis?.ownerName) dataItems.push({ key: 'owner', value: gis.ownerName, source: county.labels.gis, dataType: 'name' });
+  if (gis?.legalDescription) dataItems.push({ key: 'legal', value: gis.legalDescription, source: county.labels.gis, dataType: 'legal_description' });
   for (const doc of deedRecords) {
     if (doc.instrumentNumber) dataItems.push({ key: 'instrument', value: doc.instrumentNumber, source: 'Clerk', dataType: 'instrument_ref' });
   }
   const overallConfidence = scoreOverallConfidence(dataItems);
 
   // Build per-section confidence using relevant data items (not an empty array)
-  const cadDataItems = dataItems.filter(d => d.source === 'Bell CAD' || d.source === 'Bell GIS');
+  const cadDataItems = dataItems.filter(d => d.source === county.labels.cad || d.source === county.labels.gis);
   const deedDataItems = deedRecords.length > 0
     ? deedRecords.map(d => ({ key: 'instrument', value: d.instrumentNumber ?? d.documentType, source: 'Clerk', dataType: 'instrument_ref' as const }))
     : [];
   const platDataItems = (plats?.plats.length ?? 0) > 0
-    ? [{ key: 'plat', value: 'found', source: 'Bell County Plat Repository', dataType: 'instrument_ref' as const }]
+    ? [{ key: 'plat', value: 'found', source: county.labels.platRepo, dataType: 'instrument_ref' as const }]
     : [];
   const easementDataItems = [
     ...(fema?.result ? [{ key: 'fema', value: fema.result.floodZone, source: 'FEMA NFHL', dataType: 'classification' as const }] : []),
@@ -2040,7 +2062,7 @@ export async function orchestrateBellResearch(
       // adjacent-properties step never ran in production (the 2026-09-07 run log, Phase 4).
       const { analyzeAdjacentProperties } = await import('./analyzers/adjacent-analyzer.js');
       adjacentProperties = await analyzeAdjacentProperties(
-        { parcelBoundary: property.parcelBoundary, targetPropertyId: property.propertyId },
+        { parcelBoundary: property.parcelBoundary, targetPropertyId: property.propertyId, findAdjacent: county.scrapers.adjacentParcels },
         (p) => progress('Phase 4', `Adjacent: ${p.message}`),
       );
       progress('Phase 4', `Found ${adjacentProperties.length} adjacent parcel(s)`);
@@ -2095,7 +2117,7 @@ export async function orchestrateBellResearch(
     // Filled in below, once the result it summarises exists (plan E2).
     propertySummary: null,
     sourceOutcomes,
-    researchId: `bell-${input.projectId}-${startedAt.getTime()}`,
+    researchId: `${county.key}-${input.projectId}-${startedAt.getTime()}`,
     projectId: input.projectId,
     startedAt: startedAt.toISOString(),
     completedAt: completedAt.toISOString(),
@@ -2183,7 +2205,7 @@ export async function orchestrateBellResearch(
   progress('Phase 4', 'Research complete!', 100);
 
   console.log(
-    `[BellOrchestrator] ${input.projectId ?? 'no-id'}: COMPLETE — duration=${Math.round(durationMs / 1000)}s ` +
+    `[${county.name}Orchestrator] ${input.projectId ?? 'no-id'}: COMPLETE — duration=${Math.round(durationMs / 1000)}s ` +
     `owner="${property.ownerName ?? ''}" propertyId="${property.propertyId ?? ''}" ` +
     `deeds=${deedRecords.length} plats=${plats?.plats.length ?? 0} discrepancies=${discrepancies.length} ` +
     `errors=${errors.filter(e => !e.recovered).length} fatal + ${errors.filter(e => e.recovered).length} recovered ` +
@@ -2345,8 +2367,8 @@ export function parseLotBlock(legalDesc: string | null | undefined): { lotNumber
 }
 
 function resolveProperty(
-  cad: Awaited<ReturnType<typeof scrapeBellCad>> | null,
-  gis: Awaited<ReturnType<typeof scrapeBellGis>> | null,
+  cad: CadSearchResult | null,
+  gis: GisSearchResult | null,
   input: BellResearchInput,
   lat: number | null,
   lon: number | null,
@@ -2382,12 +2404,13 @@ function resolveProperty(
   }
   const subdivisionName = knownIds?.subdivisionNames?.size
     ? [...knownIds.subdivisionNames][0]
-    : null;
+    : (gis?.subdivisionName ?? null);
 
   // Extract abstract number and survey name from legal description
   const absSurvey = extractAbstractAndSurvey(legalDesc);
+  // A county map that STATES the survey (Milam's layer 3) beats a guess from the legal text.
   // Also try GIS abstractSubdiv field (e.g., "A-12")
-  const gisAbsNum = gis?.abstractSubdiv ? (gis.abstractSubdiv.match(/\d+/)?.[0] ?? null) : null;
+  const gisAbsNum = gis?.abstractNumber ?? (gis?.abstractSubdiv ? (gis.abstractSubdiv.match(/\d+/)?.[0] ?? null) : null);
 
   return {
     propertyId: cad?.propertyId ?? gis?.propertyId ?? input.propertyId ?? '',
@@ -2395,13 +2418,13 @@ function resolveProperty(
     legalDescription: legalDesc,
     acreage: cad?.acreage ?? gis?.acreage ?? null,
     situsAddress: cad?.situsAddress ?? gis?.situsAddress ?? input.address ?? '',
-    mailingAddress: cad?.mailingAddress,
+    mailingAddress: cad?.mailingAddress ?? gis?.mailingAddress ?? undefined,
     propertyType: cad?.propertyType ?? undefined,
     lotNumber,
     blockNumber,
     subdivisionName,
     abstractNumber: absSurvey.abstractNumber ?? gisAbsNum,
-    surveyName: absSurvey.surveyName,
+    surveyName: absSurvey.surveyName ?? gis?.surveyName ?? null,
     parcelBoundary: gis?.parcelBoundary ?? undefined,
     lat: lat ?? 0,
     lon: lon ?? 0,
@@ -2478,13 +2501,13 @@ const COVENANT_DOCUMENT_TYPES = new Set([
   'CC&R',
 ]);
 
-type ClerkDocument = Awaited<ReturnType<typeof scrapeBellClerk>>['documents'][number];
+type ClerkDocument = ClerkScrapedDocument;
 
 /**
  * Extract EasementRecord objects from a list of clerk documents whose
  * document type identifies them as easements.
  */
-function extractEasementRecords(documents: ClerkDocument[]): EasementRecord[] {
+function extractEasementRecords(documents: ClerkDocument[], clerkLabel: string = 'Bell County Clerk'): EasementRecord[] {
   const records: EasementRecord[] = [];
 
   for (const doc of documents) {
@@ -2515,12 +2538,12 @@ function extractEasementRecords(documents: ClerkDocument[]): EasementRecord[] {
       location: extractLocationFromLegal(doc.legalDescription ?? ''),
       image: doc.pageImages[0] ?? null,
       sourceUrl: doc.sourceUrl,
-      source: 'Bell County Clerk',
+      source: clerkLabel,
       confidence: computeConfidence({
         sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
         dataUsefulness: doc.pageImages.length > 0 ? 20 : 10,
         crossValidation: 0,
-        sourceName: 'Bell County Clerk',
+        sourceName: clerkLabel,
         validatedBy: [],
         contradictedBy: [],
       }),

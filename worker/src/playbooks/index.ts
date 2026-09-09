@@ -9,8 +9,9 @@
 import type { Playbook } from './types.js';
 import { validatePlaybook } from './types.js';
 import { BELL_PLAYBOOKS } from './bell.js';
+import { MILAM_PLAYBOOKS } from './milam.js';
 
-const REGISTRY: Playbook[] = [...BELL_PLAYBOOKS];
+const REGISTRY: Playbook[] = [...BELL_PLAYBOOKS, ...MILAM_PLAYBOOKS];
 
 /** Every playbook for a county (case-insensitive; the vocabulary is upper-case, per identityKey). */
 export function loadPlaybooks(county: string | null | undefined): Playbook[] {

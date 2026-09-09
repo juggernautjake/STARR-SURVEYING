@@ -35,6 +35,20 @@ export interface GisSearchResult {
   allFeatures: GisFeatureSummary[];
   screenshots: ScreenshotCapture[];
   urlsVisited: string[];
+  // ── What a county map can state outright (2026-09-09) ────────────────────────────────────
+  // Bell's layer carries none of these and the run infers them from the legal description. Milam's
+  // map has an original-survey layer and a subdivision layer, so its scraper reads them at the
+  // parcel and puts the facts here; `resolveProperty` prefers them when present.
+  /** The abstract number, e.g. "430". */
+  abstractNumber?: string | null;
+  /** The original survey / grantee, e.g. "J.A. DE PENA". */
+  surveyName?: string | null;
+  /** The platted subdivision's name, from the county's subdivision layer. */
+  subdivisionName?: string | null;
+  /** The county's subdivision code, e.g. "S09200". */
+  subdivisionCode?: string | null;
+  /** The owner's mailing address, one line. */
+  mailingAddress?: string | null;
 }
 
 export interface GisDeedEntry {

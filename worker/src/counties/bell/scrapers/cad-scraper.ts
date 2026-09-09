@@ -39,6 +39,52 @@ import { ESEARCH_FORMATS } from '../config/field-maps.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
 import { resolveAddressParts, hasUsableParts, type AddressParts } from '../../../research/address-parts.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// ── Which appraisal site (2026-09-09) ─────────────────────────────────────────────────────────
+//
+// Everything in this file is about a BIS Consultants eSearch site, and until 2026-09-09 the site
+// was Bell's, named in seventeen places. Milam's appraisal district runs the same vendor's product
+// (esearch.milamad.org, v2.0.9734), so the scraper takes the site as a profile: the entry point
+// runs the search inside an AsyncLocalStorage scope and every helper reads `cad()`. One entry
+// point, one file — the same shape gis-viewer-capture.ts uses for its per-capture state, and for
+// the same reason: threading a parameter through twelve private functions would be the whole diff.
+
+/** The appraisal site a BIS eSearch run is against — Bell by default, another county by profile. */
+export interface BisCadProfile {
+  /** Registry key — `BIS_CONFIGS[key]`, `searchBisCad(key, …)`. */
+  key: string;
+  /** "Bell CAD" — the words the run log uses. */
+  label: string;
+  /** The county's towns, upper-case, stripped from the END of an address before the street search. */
+  cities: readonly string[];
+  endpoints: {
+    home: string;
+    searchResults: string;
+    propertyDetail: (propId: string, ownerId?: string) => string;
+  };
+}
+
+/** Bell-area towns — the list `parseAddressComponents` carried inline until 2026-09-09. */
+export const BELL_AREA_CITIES = [
+  'BELTON', 'KILLEEN', 'TEMPLE', 'HARKER HEIGHTS', 'NOLANVILLE', 'SALADO',
+  'HOLLAND', 'ROGERS', 'TROY', 'MOODY', 'BARTLETT', 'LITTLE RIVER-ACADEMY',
+  'LITTLE RIVER ACADEMY', 'COPPERAS COVE', 'GATESVILLE', 'HAMILTON',
+] as const;
+
+export const BELL_CAD_PROFILE: BisCadProfile = {
+  key: 'bell',
+  label: 'Bell CAD',
+  cities: BELL_AREA_CITIES,
+  endpoints: BELL_ENDPOINTS.cad,
+};
+
+const profileStore = new AsyncLocalStorage<BisCadProfile>();
+
+/** The profile of the run on this async stack; Bell's when called outside `scrapeBisCad`. */
+function cad(): BisCadProfile {
+  return profileStore.getStore() ?? BELL_CAD_PROFILE;
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -110,6 +156,24 @@ export async function scrapeBellCad(
   input: CadSearchInput,
   onProgress: (p: CadScraperProgress) => void,
 ): Promise<CadSearchResult | null> {
+  return scrapeBisCad(BELL_CAD_PROFILE, input, onProgress);
+}
+
+/**
+ * Search any BIS eSearch appraisal site for a property — the Bell cascade, pointed at `profile`.
+ */
+export async function scrapeBisCad(
+  profile: BisCadProfile,
+  input: CadSearchInput,
+  onProgress: (p: CadScraperProgress) => void,
+): Promise<CadSearchResult | null> {
+  return profileStore.run(profile, () => scrapeCadInner(input, onProgress));
+}
+
+async function scrapeCadInner(
+  input: CadSearchInput,
+  onProgress: (p: CadScraperProgress) => void,
+): Promise<CadSearchResult | null> {
   const screenshots: ScreenshotCapture[] = [];
   const urlsVisited: string[] = [];
   const startedAt = Date.now();
@@ -177,7 +241,7 @@ export async function scrapeBellCad(
     }
   }
 
-  progress('CAD', `⚠ All layers exhausted — Bell CAD has no record for this property`);
+  progress('CAD', `⚠ All layers exhausted — ${cad().label} has no record for this property`);
   return null;
 }
 
@@ -195,7 +259,7 @@ async function lookupByPropertyId(
   progress: (phase: string, message: string) => void,
 ): Promise<CadSearchResult | null> {
   const currentYear = new Date().getFullYear();
-  const url = `${BELL_ENDPOINTS.cad.propertyDetail(propId)}?year=${currentYear}`;
+  const url = `${cad().endpoints.propertyDetail(propId)}?year=${currentYear}`;
   urlsVisited.push(url);
 
   try {
@@ -205,7 +269,7 @@ async function lookupByPropertyId(
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept-Language': 'en-US,en;q=0.5',
-          'Referer': BELL_ENDPOINTS.cad.home,
+          'Referer': cad().endpoints.home,
         },
         signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
       }),
@@ -225,7 +289,7 @@ async function lookupByPropertyId(
     const msg = err instanceof Error ? err.message : String(err);
     progress('CAD-L1', `Error fetching property ${propId}: ${msg}`);
     if (/timeout|abort/i.test(msg)) {
-      progress('CAD-L1', '  ↳ Bell CAD may be slow or temporarily unavailable');
+      progress('CAD-L1', `  ↳ ${cad().label} may be slow or temporarily unavailable`);
     }
     return null;
   }
@@ -242,7 +306,7 @@ async function searchByAddress(
 ): Promise<CadSearchResult | null> {
   const session = await acquireSession(screenshots, urlsVisited, progress);
   if (!session) {
-    progress('CAD-L2', 'Failed to acquire Bell CAD session — falling through to Layer 3');
+    progress('CAD-L2', `Failed to acquire ${cad().label} session — falling through to Layer 3`);
     return null;
   }
 
@@ -260,11 +324,16 @@ async function searchByAddress(
     progress('CAD-L2', entered.statement);
   }
 
+  // The operator types the direction INTO the street field ("N Travis"), and BIS indexes it in
+  // its own column: on 2026-09-09 `StreetName:"N TRAVIS"` found nothing on Milam where
+  // `StreetName:TRAVIS` found the parcel. A leading directional is split off so the variants try
+  // the bare name first and the prefixed one second.
+  const enteredDir = entered ? entered.streetName.trim().toUpperCase().match(/^(N|S|E|W|NE|NW|SE|SW|NORTH|SOUTH|EAST|WEST)\s+(.+)$/) : null;
   const parsed = entered
     ? {
         streetNumber: entered.streetNumber || null,
-        direction: null,
-        streetName: entered.streetName.toUpperCase(),
+        direction: enteredDir ? enteredDir[1].replace(/^(NORTH|SOUTH|EAST|WEST)$/, (m) => m[0]) : null,
+        streetName: enteredDir ? enteredDir[2] : entered.streetName.toUpperCase(),
         streetSuffix: null,
         city: entered.city ? entered.city.toUpperCase() : null,
       }
@@ -279,7 +348,25 @@ async function searchByAddress(
 
   for (const variant of variants) {
     const keywords = ESEARCH_FORMATS.buildKeywords(variant.number, variant.name);
-    const url = `${BELL_ENDPOINTS.cad.searchResults}?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(session.token)}`;
+
+    // The results API first (2026-09-09). The BIS grid is loaded from a JSON endpoint; on Milam the
+    // HTML route below answers with the grid shell and no rows, so without this the HTTP layer
+    // could never find anything there and every search fell through to a browser.
+    const jsonResults = await searchViaJsonApi(session, keywords, urlsVisited, progress);
+    if (jsonResults.length > 0) {
+      const variantLabel = [variant.number, variant.name].filter(Boolean).join(' ');
+      progress('CAD-L2', `Variant "${variantLabel}": ${jsonResults.length} result(s) from the results API`);
+      for (const r of jsonResults.slice(0, 5)) {
+        progress('CAD-L2', `  → ID=${r.propertyId} addr="${r.address ?? '?'}" owner="${r.ownerName?.slice(0, 30) ?? '?'}"`);
+      }
+      const bestPropId = pickBestMatch(jsonResults, parsed);
+      if (bestPropId) {
+        progress('CAD-L2', `Selected best match: ID=${bestPropId}`);
+        return lookupByPropertyId(bestPropId, screenshots, urlsVisited, progress);
+      }
+    }
+
+    const url = `${cad().endpoints.searchResults}?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(session.token)}`;
     urlsVisited.push(url);
 
     try {
@@ -288,7 +375,7 @@ async function searchByAddress(
           'Accept': 'text/html,application/xhtml+xml,application/json,*/*',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Cookie': session.cookies,
-          'Referer': BELL_ENDPOINTS.cad.home,
+          'Referer': cad().endpoints.home,
         },
         redirect: 'follow',
         signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
@@ -326,7 +413,7 @@ async function searchByAddress(
   progress('CAD-L2', 'All variants with PropertyType:Real failed — retrying top 3 without type filter');
   for (const variant of variants.slice(0, 3)) {
     const keywords = ESEARCH_FORMATS.buildKeywords(variant.number, variant.name, false);
-    const url = `${BELL_ENDPOINTS.cad.searchResults}?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(session.token)}`;
+    const url = `${cad().endpoints.searchResults}?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(session.token)}`;
     urlsVisited.push(url);
 
     try {
@@ -335,7 +422,7 @@ async function searchByAddress(
           'Accept': 'text/html,application/xhtml+xml,application/json,*/*',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Cookie': session.cookies,
-          'Referer': BELL_ENDPOINTS.cad.home,
+          'Referer': cad().endpoints.home,
         },
         redirect: 'follow',
         signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
@@ -381,17 +468,18 @@ async function searchWithBisCad(
   try {
     // Dynamic import to avoid requiring bis-cad.ts at module load time
     const { searchBisCad, BIS_CONFIGS } = await import('../../../services/bis-cad.js');
+    const { lookupByCounty } = await import('../../../research/county-key.js');
     const { normalizeAddress } = await import('../../../services/address-utils.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
 
-    if (!BIS_CONFIGS['bell']) {
-      progress('CAD-L3', 'No Bell CAD BIS config found — skipping Playwright layer');
+    if (!lookupByCounty(BIS_CONFIGS, cad().key)) {
+      progress('CAD-L3', `No ${cad().label} BIS config found — skipping Playwright layer`);
       return null;
     }
 
     // Create a logger bound to the real project ID so live log entries appear in the
     // correct registry bucket when the frontend polls /research/status/:projectId.
-    const logger = new PipelineLogger(input.projectId ?? `bell-cad-${Date.now()}`);
+    const logger = new PipelineLogger(input.projectId ?? `${cad().key}-cad-${Date.now()}`);
     progress('CAD-L3', 'Normalizing address for Playwright search...');
 
     const address = input.address ?? input.ownerName ?? '';
@@ -399,7 +487,7 @@ async function searchWithBisCad(
 
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
     const { property: prop, diagnostics } = await searchBisCad(
-      'bell',
+      cad().key,
       normalized,
       anthropicApiKey,
       logger,
@@ -410,7 +498,7 @@ async function searchWithBisCad(
     );
 
     if (diagnostics.siteUnreachable) {
-      progress('CAD-L3', '⚠ Bell CAD site unreachable (Playwright confirmed) — will fall back to GIS/Clerk');
+      progress('CAD-L3', `⚠ ${cad().label} site unreachable (Playwright confirmed) — will fall back to GIS/Clerk`);
       return null;
     }
 
@@ -420,7 +508,7 @@ async function searchWithBisCad(
     }
 
     // Convert PropertyIdResult → CadSearchResult
-    urlsVisited.push(BELL_ENDPOINTS.cad.propertyDetail(prop.propertyId));
+    urlsVisited.push(cad().endpoints.propertyDetail(prop.propertyId));
     return {
       propertyId: prop.propertyId,
       ownerName: prop.ownerName,
@@ -469,7 +557,7 @@ async function searchByOwnerApi(
   const variants = generateOwnerNameVariants(ownerName);
 
   for (const name of variants) {
-    const apiUrl = `${BELL_ENDPOINTS.cad.home}/api/Search/GetPropertySearchByOwner` +
+    const apiUrl = `${cad().endpoints.home}/api/Search/GetPropertySearchByOwner` +
       `?ownerName=${encodeURIComponent(name)}&take=50&skip=0`;
     urlsVisited.push(apiUrl);
     progress('CAD-L4', `Owner API: "${name}"${mapIdPrefix ? ` (map prefix: ${mapIdPrefix})` : ''}`);
@@ -480,7 +568,7 @@ async function searchByOwnerApi(
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
           'X-Requested-With': 'XMLHttpRequest',
-          'Referer': BELL_ENDPOINTS.cad.home,
+          'Referer': cad().endpoints.home,
         },
         signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
       });
@@ -644,10 +732,10 @@ async function acquireSession(
   urlsVisited: string[],
   progress: (phase: string, message: string) => void,
 ): Promise<CadSession | null> {
-  urlsVisited.push(BELL_ENDPOINTS.cad.home);
+  urlsVisited.push(cad().endpoints.home);
 
   try {
-    const resp = await fetch(BELL_ENDPOINTS.cad.home, {
+    const resp = await fetch(cad().endpoints.home, {
       headers: {
         'Accept': 'text/html,*/*',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -657,7 +745,7 @@ async function acquireSession(
     });
 
     if (!resp.ok) {
-      progress('CAD-SESSION', `Bell CAD home returned HTTP ${resp.status}`);
+      progress('CAD-SESSION', `${cad().label} home returned HTTP ${resp.status}`);
       return null;
     }
 
@@ -680,7 +768,14 @@ async function acquireSession(
     const cookies = setCookies.map(c => c.split(';')[0]).join('; ');
 
     if (!token) {
-      progress('CAD-SESSION', 'Could not extract session token from Bell CAD home page');
+      // The token is not in the page on every BIS version. v2.0.9734 (Milam, driven 2026-09-09)
+      // hands it out from an endpoint the page's own script calls before each search, and the
+      // grid itself is loaded from a JSON endpoint — see searchViaJsonApi.
+      token = await requestSessionToken(cookies);
+      if (token) progress('CAD-SESSION', 'Session token issued by /search/requestSessionToken');
+    }
+    if (!token) {
+      progress('CAD-SESSION', `Could not extract session token from ${cad().label} home page`);
       return null;
     }
     return { token, cookies };
@@ -691,12 +786,93 @@ async function acquireSession(
   }
 }
 
+/** GET /search/requestSessionToken — `{"searchSessionToken":"…|<utc>"}` on BIS v2.0.9734. */
+async function requestSessionToken(cookies: string): Promise<string> {
+  try {
+    const resp = await fetch(`${cad().endpoints.home}/search/requestSessionToken`, {
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': cookies,
+        'Referer': cad().endpoints.home,
+      },
+      signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
+    });
+    if (!resp.ok) return '';
+    const data = await resp.json() as { searchSessionToken?: string; token?: string };
+    return String(data.searchSessionToken ?? data.token ?? '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * POST /search/SearchResults — the JSON the BIS grid is drawn from.
+ *
+ * Driven live on both esearch.milamad.org and esearch.bellcad.org on 2026-09-09: the same
+ * `keywords` the HTML route takes, a `searchToken` from requestSessionToken, and a page of
+ * `resultsList` rows carrying propertyId, ownerName, address, legalDescription, propertyType and
+ * geoId. On Milam the HTML route returns only the grid shell, so this is the search there.
+ */
+async function searchViaJsonApi(
+  session: CadSession,
+  keywords: string,
+  urlsVisited: string[],
+  progress: (phase: string, message: string) => void,
+): Promise<ParsedSearchResult[]> {
+  const url = `${cad().endpoints.home}/search/SearchResults?keywords=${encodeURIComponent(keywords)}`;
+  urlsVisited.push(url);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': session.cookies,
+        'Referer': `${cad().endpoints.searchResults}?keywords=${encodeURIComponent(keywords)}`,
+      },
+      body: JSON.stringify({ page: 1, pageSize: 25, isArb: false, recaptchaToken: '', searchToken: session.token }),
+      signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
+    });
+    if (!resp.ok) {
+      progress('CAD-L2', `Results API HTTP ${resp.status} — falling back to the HTML route`);
+      return [];
+    }
+    const data = await resp.json() as { resultsList?: Array<Record<string, unknown>> };
+    const rows = Array.isArray(data.resultsList) ? data.resultsList : [];
+    const out: ParsedSearchResult[] = [];
+    for (const r of rows) {
+      const propertyId = String(r.propertyId ?? r.PropertyId ?? '').trim();
+      if (!/^\d{1,12}$/.test(propertyId)) continue;
+      if (out.find(x => x.propertyId === propertyId)) continue;
+      out.push({
+        propertyId,
+        ownerName: r.ownerName ? String(r.ownerName) : undefined,
+        address: r.address ? String(r.address) : undefined,
+        legalDescription: r.legalDescription ? String(r.legalDescription) : undefined,
+        propertyType: r.propertyTypeCode ? String(r.propertyTypeCode) : r.propertyType ? String(r.propertyType) : undefined,
+        geoId: r.geoId ? String(r.geoId) : undefined,
+      });
+    }
+    return out;
+  } catch (err) {
+    progress('CAD-L2', `Results API error: ${err instanceof Error ? err.message : String(err)} — falling back to the HTML route`);
+    return [];
+  }
+}
+
 // ── Internal: HTML Parsing ───────────────────────────────────────────
 
 interface ParsedSearchResult {
   propertyId: string;
   ownerName?: string;
   address?: string;
+  legalDescription?: string;
+  propertyType?: string;
+  geoId?: string;
 }
 
 function parseSearchResultsHtml(html: string): ParsedSearchResult[] {
@@ -770,7 +946,7 @@ function parseSearchResultsHtml(html: string): ParsedSearchResult[] {
  * All parsed values are stripped of HTML tags using /<[\s\S]*?>/g with
  * allowlist chars to prevent XSS in logged data.
  */
-function parsePropertyDetailHtml(
+export function parsePropertyDetailHtml(
   html: string,
   propId: string,
   source: 'http-api' | 'playwright' | 'vision-ocr',
@@ -783,15 +959,37 @@ function parsePropertyDetailHtml(
   const strip = (s: string) => s.replace(/<[\s\S]*?>/g, ' ').replace(/\s+/g, ' ').trim();
   const safeStr = (s: string) => strip(s).replace(/[<>]/g, ''); // extra safety for output fields
 
+  // ── THE PAGE'S OWN LABELS (2026-09-09) ───────────────────────────────────────────────────
+  //
+  // BIS writes every field as `<th>Label:</th><td colspan="3">value</td>` — Bell (v2.0) and
+  // Milam (v2.0.9734) identically. The patterns below it were written for `<td>Owner</td><td>`
+  // and matched nothing on either site, so the HTTP path returned a record with no owner, no
+  // situs, no mailing address and NaN acreage, and every run leaned on the browser layer to fill
+  // them in. Label-first, patterns as the fallback.
+  const th = (label: RegExp): string | null => {
+    // Tempered: a label cell may not run into the next <th>, or a section heading's <th> would
+    // swallow the row after it and the field would read as missing (the situs did, 2026-09-09).
+    for (const m of html.matchAll(/<th[^>]*>((?:(?!<th)[\s\S])*?)<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)) {
+      if (!label.test(strip(m[1]))) continue;
+      const v = m[2]
+        .replace(/<br\s*\/?>/gi, ', ')
+        .replace(/&#x0*d;\s*&#x0*a;|&#13;\s*&#10;/gi, ', ')
+        .replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&nbsp;/g, ' ');
+      const t = safeStr(v).replace(/\s*,\s*/g, ', ').replace(/^,\s*|,\s*$/g, '').trim();
+      return t || null;
+    }
+    return null;
+  };
+
   // ── Owner Name ────────────────────────────────────────────────────
   const ownerPatterns = [
     /<td[^>]*>\s*(?:Owner|Owner\s*Name)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
     /(?:Owner|Owner\s*Name)\s*:?\s*(?:<[^>]*>\s*)*([A-Z][A-Z\s,&.'"-]{3,60})/,
     /<label[^>]*>Owner<\/label>\s*<[^>]*>([^<]+)</i,
   ];
-  let ownerName: string | null = null;
-  let ownerPatternIdx = -1;
-  for (let pi = 0; pi < ownerPatterns.length; pi++) {
+  let ownerName: string | null = th(/^Name:?$/i);
+  let ownerPatternIdx = ownerName ? 0 : -1;
+  for (let pi = 0; pi < ownerPatterns.length && !ownerName; pi++) {
     const m = html.match(ownerPatterns[pi]);
     if (m?.[1]) {
       const v = safeStr(m[1]);
@@ -808,8 +1006,9 @@ function parsePropertyDetailHtml(
     /<td[^>]*>\s*Legal\s*(?:Description|Desc\.?)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
     /Legal\s*(?:Description|Desc)\.?\s*:?\s*(?:<[^>]*>\s*)*([^<]{10,})/i,
   ];
-  let legalDescription: string | null = null;
+  let legalDescription: string | null = th(/^Legal\s*Desc(?:ription)?:?$/i);
   for (const pat of legalPatterns) {
+    if (legalDescription) break;
     const m = html.match(pat);
     if (m?.[1]) {
       const v = safeStr(m[1]);
@@ -821,41 +1020,46 @@ function parsePropertyDetailHtml(
   }
 
   // ── Acreage ────────────────────────────────────────────────────────
+  // The "Property Land" table's Acreage column, summed over the land lines; the loose text match
+  // below it read the COLUMN HEADER's neighbour on both sites and produced NaN.
   const acreMatch = html.match(/(?:Acreage|Acres|Land\s*Acres)\s*:?\s*(?:<[^>]*>\s*)*?([\d,.]+)/i);
-  const acreage = acreMatch ? parseFloat(acreMatch[1].replace(/,/g, '')) : null;
+  const acreage = landTableAcreage(html) ?? (acreMatch ? parseFloat(acreMatch[1].replace(/,/g, '')) : null);
 
   // ── Property Type ──────────────────────────────────────────────────
   const typeMatch = html.match(
     /<td[^>]*>\s*(?:Property|Prop)\s*Type\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
   );
-  const propertyType = typeMatch
-    ? safeStr(typeMatch[1]).replace(/[^\w\d\s]/g, '').trim().toUpperCase() || null
-    : null;
+  const propertyType = th(/^Type:?$/i)?.replace(/[^\w\d\s]/g, '').trim().toUpperCase()
+    || (typeMatch ? safeStr(typeMatch[1]).replace(/[^\w\d\s]/g, '').trim().toUpperCase() || null : null);
 
   // ── Situs Address ──────────────────────────────────────────────────
   const situsMatch = html.match(
     /<td[^>]*>\s*(?:Situs\s*Address|Property\s*Address|Location)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
   );
-  const situsAddress = situsMatch ? safeStr(situsMatch[1]) || null : null;
+  const situsAddress = th(/^Situs\s*Address:?$/i) ?? (situsMatch ? safeStr(situsMatch[1]) || null : null);
 
   // ── Map ID ─────────────────────────────────────────────────────────
   const mapMatch = html.match(
     /<td[^>]*>\s*Map\s*(?:ID|Sheet|Ref)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
   );
-  const mapId = mapMatch
-    ? strip(mapMatch[1]).replace(/<[\s\S]*?>/g, '').replace(/[^\w\d]/g, '').trim() || undefined
-    : undefined;
+  const mapId = th(/^Map\s*ID:?$/i)?.replace(/[^\w\d]/g, '')
+    || (mapMatch ? strip(mapMatch[1]).replace(/<[\s\S]*?>/g, '').replace(/[^\w\d]/g, '').trim() || undefined : undefined);
 
   // ── Mailing Address ────────────────────────────────────────────────
   const mailMatch = html.match(
     /<td[^>]*>\s*Mailing\s*Address\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
   );
-  const mailingAddress = mailMatch ? safeStr(mailMatch[1]) || undefined : undefined;
+  const mailingAddress = th(/^Mailing\s*Address:?$/i) ?? (mailMatch ? safeStr(mailMatch[1]) || undefined : undefined);
 
   // ── Deed History Table ─────────────────────────────────────────────
-  // BIS layout: table rows with cells [Date] [Type] [Instrument#] [Vol] [Pg] [Grantor] [Grantee]
-  const deedHistory: CadDeedEntry[] = [];
-  const tableRows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+  // Read by its HEADER first (2026-09-09): the BIS table is
+  //   Deed Date | Type | Description | Grantor | Grantee | Volume | Page | Number
+  // on Bell and Milam alike. The pattern loop below it finds a deed row by a 7–10 digit cell, which
+  // misses every row whose reference is a volume/page (all of Milam's; Bell's before the 1990s) and
+  // every modern Bell instrument, which is twelve digits. Kept as the fallback for a page whose
+  // table has no header.
+  const deedHistory: CadDeedEntry[] = parseDeedHistoryTable(html);
+  const tableRows = deedHistory.length > 0 ? [] : [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
   for (const rowMatch of tableRows) {
     const cells = [...rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
       .map(c => safeStr(c[1]));
@@ -877,7 +1081,9 @@ function parsePropertyDetailHtml(
   // ── Instrument Numbers ─────────────────────────────────────────────
   // Collect from deed history + direct text matches (10-digit bell county format)
   const instrFromHistory = deedHistory.map(d => d.instrumentNumber).filter(Boolean) as string[];
-  const instrFromText = [...html.matchAll(/\b(\d{9,10})\b/g)].map(m => m[1]);
+  // The loose scan is only for a page whose deed table could not be read: on a page that could, it
+  // adds the geographic id (ten digits on Bell) as an "instrument" the clerk is then asked for.
+  const instrFromText = deedHistory.length > 0 ? [] : [...html.matchAll(/\b(\d{9,10})\b/g)].map(m => m[1]);
   const instrumentNumbers = [...new Set([...instrFromHistory, ...instrFromText])];
 
   if (!ownerName && !legalDescription) {
@@ -916,6 +1122,69 @@ function parsePropertyDetailHtml(
   progress('CAD-PARSE', `Field extraction for ${propId}:\n    ${fields.join('\n    ')}`);
 
   return result;
+}
+
+/** The Acreage column of the "Property Land" table, summed — null when no table has one. */
+export function landTableAcreage(html: string): number | null {
+  const text = (s: string) => s.replace(/<[\s\S]*?>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const table of html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/gi)) {
+    const rows = [...table[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(r => r[1]);
+    if (rows.length < 2) continue;
+    const headers = [...rows[0].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)].map(c => text(c[1]).toLowerCase());
+    const i = headers.findIndex(h => h === 'acreage' || h === 'acres');
+    if (i < 0) continue;
+    let sum = 0, n = 0;
+    for (const row of rows.slice(1)) {
+      const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(c => text(c[1]).replace(/,/g, ''));
+      const v = parseFloat(cells[i] ?? '');
+      if (!isNaN(v)) { sum += v; n++; }
+    }
+    if (n > 0) return Math.round(sum * 10000) / 10000;
+  }
+  return null;
+}
+
+/**
+ * The "Property Deed History" table, read by its column headers.
+ *
+ * Returns [] when no table on the page has a header row naming both a date and a grantor column,
+ * so the caller can fall back to the positional scan. A row with neither an instrument number nor
+ * a volume/page is skipped — it names nothing the clerk can be asked for.
+ */
+export function parseDeedHistoryTable(html: string): CadDeedEntry[] {
+  const strip = (s: string) => s.replace(/<[\s\S]*?>/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const out: CadDeedEntry[] = [];
+  for (const table of html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/gi)) {
+    const rows = [...table[1].matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(r => r[1]);
+    if (rows.length < 2) continue;
+    const headers = [...rows[0].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map(c => strip(c[1]).toLowerCase());
+    const col = (re: RegExp) => headers.findIndex(h => re.test(h));
+    const iDate = col(/deed\s*date|^date$/), iGrantor = col(/grantor/), iGrantee = col(/grantee/);
+    if (iDate < 0 || iGrantor < 0) continue;
+    const iType = col(/^type$/), iDesc = col(/description/), iVol = col(/^volume$|^vol/), iPage = col(/^page$|^pg/), iNum = col(/^number$|instrument/);
+    for (const row of rows.slice(1)) {
+      const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(c => strip(c[1]));
+      if (cells.length < headers.length - 1) continue;
+      const at = (i: number) => (i >= 0 && i < cells.length ? cells[i] : '');
+      const number = at(iNum).replace(/\D/g, '');
+      const instrumentNumber = /^\d{5,}$/.test(number) ? number : undefined;
+      const volume = at(iVol).replace(/^0+(?=\d)/, '') || undefined;
+      const page = at(iPage).replace(/^0+(?=\d)/, '') || undefined;
+      if (!instrumentNumber && !(volume && page)) continue;
+      out.push({
+        deedDate: at(iDate) || undefined,
+        type: at(iType) || undefined,
+        description: at(iDesc) || undefined,
+        grantor: at(iGrantor) || undefined,
+        grantee: at(iGrantee) || undefined,
+        volume,
+        page,
+        instrumentNumber,
+      });
+    }
+    if (out.length > 0) return out;
+  }
+  return out;
 }
 
 // ── Internal: Address Parsing & Variants ─────────────────────────────
@@ -959,12 +1228,8 @@ function parseAddressComponents(address: string): AddressComponents | null {
     remaining.pop();
   }
 
-  // Remove Bell County cities from end
-  const cities = [
-    'BELTON', 'KILLEEN', 'TEMPLE', 'HARKER HEIGHTS', 'NOLANVILLE', 'SALADO',
-    'HOLLAND', 'ROGERS', 'TROY', 'MOODY', 'BARTLETT', 'LITTLE RIVER-ACADEMY',
-    'LITTLE RIVER ACADEMY', 'COPPERAS COVE', 'GATESVILLE', 'HAMILTON',
-  ];
+  // Remove the county's own towns from the end — the profile's list (Bell's by default).
+  const cities = cad().cities;
   let city: string | null = null;
   const remainingStr = remaining.join(' ').toUpperCase();
   for (const c of cities) {

@@ -109,6 +109,8 @@ export async function classifyScreenshots(
   onProgress: (msg: string) => void,
   /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
   projectId?: string,
+  /** The county — named in the prompt. Was the literal "Bell County, Texas" until 2026-09-09. */
+  countyName: string = 'Bell',
 ): Promise<ClassificationResult> {
   const usage = zeroUsage();
   const useful: ScreenshotCapture[] = [];
@@ -149,7 +151,7 @@ export async function classifyScreenshots(
   for (let i = 0; i < needsAiReview.length; i += BATCH_SIZE) {
     const batch = needsAiReview.slice(i, i + BATCH_SIZE);
     try {
-      const { classifications, batchUsage } = await classifyBatch(batch, anthropicApiKey);
+      const { classifications, batchUsage } = await classifyBatch(batch, anthropicApiKey, countyName);
       accumulateUsage(usage, batchUsage);
 
       for (let j = 0; j < batch.length; j++) {
@@ -198,6 +200,7 @@ export async function classifyScreenshots(
 async function classifyBatch(
   batch: ScreenshotCapture[],
   apiKey: string,
+  countyName: string = 'Bell',
 ): Promise<{ classifications: ScreenshotClassification[]; batchUsage: Partial<AiUsageSummary> }> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
@@ -240,7 +243,7 @@ async function classifyBatch(
         ...imageContent,
         {
           type: 'text',
-          text: `You are reviewing ${batch.length} screenshot(s) captured during a property research pipeline in Bell County, Texas. For each screenshot, determine if it shows USEFUL content for a property surveyor's review, or if it's MISC/junk.
+          text: `You are reviewing ${batch.length} screenshot(s) captured during a property research pipeline in ${countyName} County, Texas. For each screenshot, determine if it shows USEFUL content for a property surveyor's review, or if it's MISC/junk.
 
 ${descriptions}
 

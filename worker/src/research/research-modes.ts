@@ -96,7 +96,8 @@ export const SOURCE_CATALOGUE: ResearchSource[] = [
     // abstract number and survey name are known, so a Bell run now genuinely delivers
     // `original_survey`. Everywhere else this is still the S-6c situation — the adapter exists and
     // nothing calls it — which is why the county list is here rather than the flag being deleted.
-    wiredCounties: ['Bell'],
+    // Milam runs the same orchestrator since 2026-09-09, so its runs make the same call.
+    wiredCounties: ['Bell', 'Milam'],
   },
   {
     id: 'kofile',

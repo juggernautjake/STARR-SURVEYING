@@ -15,6 +15,8 @@ import { computeConfidence } from '../types/confidence.js';
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface DiscrepancyInput {
+  /** The county, for the source labels ("Milam CAD" / "Milam GIS"). Defaults to Bell. */
+  countyName?: string;
   cadLegalDescription: string | null;
   cadAcreage: number | null;
   cadOwner: string | null;
@@ -88,8 +90,9 @@ export function detectDiscrepancies(input: DiscrepancyInput): DiscrepancyItem[] 
 
   // ── Acreage Discrepancies ──────────────────────────────────────────
   const acreages: Array<{ source: string; value: number }> = [];
-  if (input.cadAcreage !== null) acreages.push({ source: 'Bell CAD', value: input.cadAcreage });
-  if (input.gisAcreage !== null) acreages.push({ source: 'Bell GIS', value: input.gisAcreage });
+  const countyName = input.countyName ?? 'Bell';
+  if (input.cadAcreage !== null) acreages.push({ source: `${countyName} CAD`, value: input.cadAcreage });
+  if (input.gisAcreage !== null) acreages.push({ source: `${countyName} GIS`, value: input.gisAcreage });
   acreages.push(...input.deedAcreages);
 
   for (let i = 0; i < acreages.length; i++) {
