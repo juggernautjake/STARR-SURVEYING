@@ -47,7 +47,7 @@ import { checkScope } from '@/lib/research/scope';
 import ScopeNotice from './ScopeNotice';
 import { composeAddress, splitFullAddress } from '@/lib/research/property-address';
 import {
-  INFO_CATEGORIES, INFO_CATEGORY_BY_ID, US_STATES, checkLine, linesToSupplemental,
+  PICKABLE_INFO_CATEGORIES, INFO_CATEGORY_BY_ID, US_STATES, checkLine, linesToSupplemental,
   type IntakeInfoLine, type InfoCategoryId, type InfoFieldSpec,
 } from '@/lib/research/intake-info';
 import { uploadDocuments, validateFiles, formatFileSize, ACCEPT_ATTRIBUTE } from './upload-documents';
@@ -95,6 +95,8 @@ interface FormState {
   zip: string;
   county: string;
   parcel_id: string;
+  /** A fixed field under the Property ID (owner, 2026-09-09) — the clerk grantor/grantee search runs on it. */
+  owner_name: string;
   intake_notes: string;
   project_id: string | null;
   job_ids: string[];
@@ -102,7 +104,7 @@ interface FormState {
 
 const EMPTY_FORM: FormState = {
   name: '', street_number: '', street_name: '', unit: '', city: '', state: 'TX', zip: '',
-  county: '', parcel_id: '', intake_notes: '', project_id: null, job_ids: [],
+  county: '', parcel_id: '', owner_name: '', intake_notes: '', project_id: null, job_ids: [],
 };
 
 const CATEGORY_ICON: Record<InfoCategoryId, LucideIcon> = {
@@ -281,7 +283,7 @@ function InfoLines({ lines, onChange, showErrors }: { lines: IntakeInfoLine[]; o
           <div className="nrp-picker" role="menu" aria-label="What kind of information?" data-testid="info-picker">
             <div className="nrp-picker__title">What kind of information?</div>
             <div className="nrp-picker__grid">
-              {INFO_CATEGORIES.map((c) => {
+              {PICKABLE_INFO_CATEGORIES.map((c) => {
                 const Icon = CATEGORY_ICON[c.id];
                 return (
                   <button key={c.id} type="button" role="menuitem" className="nrp-picker__item" onClick={() => add(c.id)}>
@@ -695,13 +697,17 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
     // "bell county" and "Bell" must not become two different things. An unrecognised value is sent
     // through untouched: the warning has already been shown.
     const county = countyCheck.kind === 'ok' ? countyCheck.canonical : form.county;
+    // The fixed owner field leads the supplemental owner names too, so the run's matcher sees it
+    // beside any "Previous owner" lines. `owner_name` itself travels in the spread.
+    const supplemental = linesToSupplemental(lines);
+    if (form.owner_name.trim()) supplemental.ownerNames.unshift(form.owner_name.trim());
     setPhase('creating');
     setProgress('Creating the research project…');
     try {
       const res = await fetch('/api/admin/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, county, name: projectName, supplemental: linesToSupplemental(lines) }),
+        body: JSON.stringify({ ...form, county, name: projectName, supplemental }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -934,6 +940,23 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
                     placeholder="ex: 12345"
                     value={form.parcel_id}
                     onChange={(e) => set('parcel_id', e.target.value.replace(/[^0-9A-Za-z.\-]/g, ''))}
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+              {/* Always present, under the Property ID (owner, 2026-09-09): the name the clerk's
+                  grantor/grantee index is searched on. Other kinds of information are added below. */}
+              <div className="nrp-row nrp-row--owner">
+                <div className="nrp-field">
+                  <Label htmlFor="np-owner">Current owner name</Label>
+                  <input
+                    id="np-owner"
+                    className="nrp-input"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="SMITH, JOHN ETUX MARY"
+                    value={form.owner_name}
+                    onChange={(e) => set('owner_name', e.target.value)}
                     disabled={busy}
                   />
                 </div>

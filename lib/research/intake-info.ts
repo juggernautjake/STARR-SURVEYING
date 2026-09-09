@@ -61,6 +61,10 @@ export interface InfoCategorySpec {
   fields: InfoFieldSpec[];
   /** Text drawn between the fields — "/" for volume/page, cabinet/slide. */
   joiner?: string;
+  /** False when the form carries this kind as a fixed field of its own, so "+ Add Info" must not
+   *  offer it a second time. The current owner is one (owner, 2026-09-09: "place the current owner
+   *  name field beneath the property id field"). */
+  pickable?: boolean;
 }
 
 export interface IntakeInfoLine {
@@ -160,6 +164,7 @@ export const INFO_CATEGORIES: InfoCategorySpec[] = [
     id: 'owner_current',
     label: 'Current owner',
     hint: 'The name on the deed today',
+    pickable: false,
     help: 'As the appraisal district records it — surname first is fine. The clerk index is searched by grantor and grantee under this name; it is how the deed that conveyed the property is found.',
     example: 'GOODNIGHT, W GENE ETUX',
     fields: [{ key: 'name', label: 'Owner name', placeholder: 'SMITH, JOHN ETUX MARY', width: 'full', maxLength: 120, sanitize: nameChars, validate: personName }],
@@ -291,6 +296,9 @@ export const INFO_CATEGORIES: InfoCategorySpec[] = [
     ],
   },
 ];
+
+/** The kinds "+ Add Info" offers — every kind except those the form already has a field for. */
+export const PICKABLE_INFO_CATEGORIES: InfoCategorySpec[] = INFO_CATEGORIES.filter((c) => c.pickable !== false);
 
 export const INFO_CATEGORY_BY_ID: Record<InfoCategoryId, InfoCategorySpec> = Object.fromEntries(
   INFO_CATEGORIES.map((c) => [c.id, c]),

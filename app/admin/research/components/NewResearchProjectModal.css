@@ -249,6 +249,7 @@
 .nrp-row--csz { grid-template-columns: minmax(0, 1fr) 96px 130px; }
 .nrp-row--county { grid-template-columns: minmax(0, 320px); }
 .nrp-row--parcel { grid-template-columns: minmax(0, 240px); }
+.nrp-row--owner { grid-template-columns: minmax(0, 420px); }
 
 .nrp-street { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 0; }
 .nrp-street__number { border-top-right-radius: 0; border-bottom-right-radius: 0; }

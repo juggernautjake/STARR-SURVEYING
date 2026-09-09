@@ -40,7 +40,7 @@ Decisions taken in the same conversation:
 
 | Kind | Fields | Format enforced |
 |---|---|---|
-| Current owner | name | letters required; name characters only |
+| Current owner | (a fixed field under the Property ID, not in the picker) | sent as `owner_name`; leads `ownerNames` |
 | Previous owner | name | same; stored separately (`priorOwnerNames`) |
 | Instrument number | instrument | upper-cased, no spaces, 4–20 chars, ≥ 4 digits, letters only as a prefix |
 | Volume / Page | volume `/` page | digits; page may end in one letter |

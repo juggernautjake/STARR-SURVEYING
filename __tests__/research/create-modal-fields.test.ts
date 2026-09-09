@@ -29,12 +29,12 @@ function stateFields(): string[] {
 
 describe('every field is on screen', () => {
   it('the fields of the drawing all have a labelled input', () => {
-    for (const id of ['np-name', 'np-street-number', 'np-street-name', 'np-unit', 'np-city', 'np-state', 'np-zip', 'np-county', 'np-parcel', 'np-notes']) {
+    for (const id of ['np-name', 'np-street-number', 'np-street-name', 'np-unit', 'np-city', 'np-state', 'np-zip', 'np-county', 'np-parcel', 'np-owner', 'np-notes']) {
       expect(src, `no input with id="${id}"`).toContain(`id="${id}"`);
     }
     // The street number and name share ONE label (the drawing's "Street Number & Name") — the
     // number input is labelled through aria-label so both stay reachable.
-    for (const id of ['np-name', 'np-street-number', 'np-unit', 'np-city', 'np-state', 'np-zip', 'np-county', 'np-parcel', 'np-notes']) {
+    for (const id of ['np-name', 'np-street-number', 'np-unit', 'np-city', 'np-state', 'np-zip', 'np-county', 'np-parcel', 'np-owner', 'np-notes']) {
       expect(src, `no label pointing at ${id}`).toContain(`htmlFor="${id}"`);
     }
     expect(src).toContain('aria-label="Street name"');
@@ -58,7 +58,7 @@ describe('a field on screen is only useful if it is SAVED', () => {
   });
 
   it('every field writes into that same state object, not a local', () => {
-    for (const field of ['name', 'street_number', 'street_name', 'unit', 'city', 'state', 'zip', 'county', 'parcel_id', 'intake_notes', 'job_ids']) {
+    for (const field of ['name', 'street_number', 'street_name', 'unit', 'city', 'state', 'zip', 'county', 'parcel_id', 'owner_name', 'intake_notes', 'job_ids']) {
       expect(src, `${field} must write into the form state`).toMatch(new RegExp(`set\\('${field}',`));
     }
     expect(src, 'project_id is set with its jobs').toContain('project_id: p.id, job_ids: []');
@@ -87,8 +87,10 @@ describe('a field on screen is only useful if it is SAVED', () => {
 });
 
 describe('what moved off the form, on purpose', () => {
-  it('the owner name and instrument number are typed information lines, not fixed fields', () => {
-    expect(src).not.toContain('id="np-owner"');
+  it('the instrument number is a typed information line; the current owner stays a fixed field under the Property ID', () => {
+    // Owner, 2026-09-09 follow-up: "place the current owner name field beneath the property id field."
+    expect(src).toContain('id="np-owner"');
+    expect(src.indexOf('id="np-owner"')).toBeGreaterThan(src.indexOf('id="np-parcel"'));
     expect(src).not.toContain('id="np-instrument"');
     expect(src).toContain("from '@/lib/research/intake-info'");
     expect(src).toContain('linesToSupplemental(lines)');

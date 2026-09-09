@@ -41,9 +41,10 @@ const CREATE = read('app/api/admin/research/route.ts');
 const FORM = read('app/admin/research/components/NewResearchProjectModal.tsx');
 
 describe('the owner name survives the whole journey', () => {
-  it('the form collects it — as a "Current owner" information line (2026-09-09), folded to owner_name by the API', () => {
-    expect(FORM).toContain("from '@/lib/research/intake-info'");
-    expect(read('lib/research/intake-info.ts')).toContain("id: 'owner_current'");
+  it('the form collects it — a fixed field under the Property ID, sent as owner_name in the spread', () => {
+    expect(FORM).toContain('value={form.owner_name}');
+    expect(FORM).toMatch(/JSON\.stringify\(\{\s*\.\.\.form/);
+    // And an older client that only sends supplemental owner names still gets one.
     expect(CREATE).toContain('supplemental?.ownerNames?.[0]');
   });
 

@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { readSource } from '../helpers/read-source';
 import {
-  INFO_CATEGORIES, INFO_CATEGORY_BY_ID, checkLine, linesToSupplemental, countSupplemental,
+  INFO_CATEGORIES, PICKABLE_INFO_CATEGORIES, INFO_CATEGORY_BY_ID, checkLine, linesToSupplemental, countSupplemental,
   describeLine, US_STATES, type IntakeInfoLine,
 } from '@/lib/research/intake-info';
 
@@ -29,6 +29,13 @@ describe('every kind of information has a field of its own shape', () => {
       'owner_current', 'owner_previous', 'instrument', 'volume_page', 'cabinet_slide', 'subdivision',
       'abstract', 'geo_id', 'legal_description', 'acreage', 'prior_address', 'recorded_date', 'coordinates', 'other',
     ]) expect(ids).toContain(want);
+  });
+
+  it('the current owner is a fixed field on the form, so the picker does not offer it twice', () => {
+    expect(INFO_CATEGORY_BY_ID.owner_current.pickable).toBe(false);
+    expect(PICKABLE_INFO_CATEGORIES.map((c) => c.id)).not.toContain('owner_current');
+    expect(PICKABLE_INFO_CATEGORIES.map((c) => c.id)).toContain('owner_previous');
+    expect(PICKABLE_INFO_CATEGORIES.length).toBe(INFO_CATEGORIES.length - 1);
   });
 
   it('volume/page and cabinet/slide are TWO fields joined by a slash', () => {
@@ -227,7 +234,7 @@ describe('the modal is mounted and the old inline form is gone', () => {
   it('renders the info lines from the catalogue — no category is decided in the component', () => {
     const src = readSource(MODAL);
     expect(src).toContain("from '@/lib/research/intake-info'");
-    expect(src).toContain('INFO_CATEGORIES.map((c) =>');
+    expect(src).toContain('PICKABLE_INFO_CATEGORIES.map((c) =>');
     expect(src).toContain('onChange={(e) => onChange(field.key, field.sanitize(e.target.value))}');
     expect(src).toContain('const check = checkLine(line);');
     expect(src).toContain('data-testid="add-info"');
@@ -265,7 +272,10 @@ describe('the modal is mounted and the old inline form is gone', () => {
 
   it('posts the whole form state plus the folded lines, then navigates', () => {
     const src = readSource(MODAL);
-    expect(src).toMatch(/JSON\.stringify\(\{\s*\.\.\.form, county, name: projectName, supplemental: linesToSupplemental\(lines\)/);
+    expect(src).toMatch(/JSON\.stringify\(\{\s*\.\.\.form, county, name: projectName, supplemental \}/);
+    // The fixed owner field is on the form (under the Property ID) AND leads the owner names.
+    expect(src).toContain('id="np-owner"');
+    expect(src).toContain('supplemental.ownerNames.unshift(form.owner_name.trim())');
     expect(src).toContain('router.push(`/admin/research/${data.project.id}`)');
   });
 
