@@ -152,7 +152,9 @@ describe('no research form modal is dismissed by an outside click', () => {
     // 2026-09-09: the create form is NewResearchProjectModal. Escape still closes it — unless a
     // create is in flight, when closing would orphan the upload.
     const create = fs.readFileSync(path.join(ROOT, 'app/admin/research/components/NewResearchProjectModal.tsx'), 'utf8');
-    expect(create).toContain("if (e.key === 'Escape' && !busy) onClose()");
+    // `close()` plays the exit animation and then calls onClose (motion pass, 2026-09-09).
+    expect(create).toContain("if (e.key === 'Escape' && !busy) close()");
+    expect(create).toContain("window.setTimeout(() => { setClosing(false); onClose(); }, 180)");
     expect(create).toContain('nrp-btn--ghost');   // the Cancel button
   });
 });

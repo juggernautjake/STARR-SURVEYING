@@ -10,10 +10,10 @@
 // status banner, the `?new=1` / `?new=1&job=<id>` deep links, and the error state as its OWN state
 // rather than an empty list wearing red (E2).
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Microscope, Plus, Link2 } from 'lucide-react';
+import { Microscope, Plus, Link2, ChevronRight } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
 import WorkerStatusBanner from '../components/WorkerStatusBanner';
@@ -38,6 +38,8 @@ const STATUS_TONE: Record<WorkflowStep, 'accent' | 'warn' | 'good' | 'muted'> = 
 };
 
 const STATUS_ORDER: WorkflowStep[] = ['upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'];
+/** Stages where a machine is working right now — the chip carries a pulsing dot. */
+const LIVE_STATUSES = new Set<WorkflowStep>(['analyzing', 'drawing', 'verifying']);
 
 /** The sort keys that mean something for research — there is no deadline here. */
 const RESEARCH_SORTS = SORT_OPTIONS.filter((o) => o.key !== 'due_soonest');
@@ -50,6 +52,9 @@ export default function ProjectsTab() {
 
   const [all, setAll] = useState<ResearchProject[]>([]);
   const [loading, setLoading] = useState(true);
+  // The skeleton shows once; later reloads dim the rows on screen (.lst-list--refreshing).
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState('');
@@ -107,6 +112,7 @@ export default function ProjectsTab() {
         if ((data.projects ?? []).length < 200 || rows.length >= (data.total ?? 0)) break;
       }
       setAll(rows);
+      setLoadedOnce(true);
     } catch (err) {
       setLoadError('Unable to connect. Check your internet connection.');
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load projects' });
@@ -120,6 +126,11 @@ export default function ProjectsTab() {
     return () => clearTimeout(t);
   }, [search]);
   useEffect(() => { setPage(1); }, [applied, statusFilter, sort]);
+  const firstPage = useRef(true);
+  useEffect(() => {
+    if (firstPage.current) { firstPage.current = false; return; }
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [page]);
 
   const sorted = useMemo(
     () => sortRows(all.map((p) => ({ ...p, updated_at: (p as { updated_at?: string | null }).updated_at ?? p.created_at })), sort),
@@ -134,7 +145,7 @@ export default function ProjectsTab() {
 
   return (
     <>
-      <div className="lst lst--research research-page" data-testid="research-list">
+      <div className="lst lst--research research-page" data-testid="research-list" ref={listRef}>
         {/* R2 — a dead research worker used to look like a slow page. Quiet when the engine is
             healthy; one sentence when it is not, plus what that means for a run started now. */}
         <WorkerStatusBanner />
@@ -175,9 +186,17 @@ export default function ProjectsTab() {
           </div>
         </div>
 
-        {loading && (
-          <ul className="lst-list" aria-busy="true">
-            {[1, 2, 3].map((i) => <li key={i} className="lst-skeleton" />)}
+        {loading && !loadedOnce && (
+          <ul className="lst-list" aria-busy="true" aria-label="Loading">
+            {[1, 2, 3].map((i) => (
+              <li key={i} className="lst-skel">
+                <div className="lst-skel__bar lst-skel__bar--title" />
+                <div className="lst-skel__bar lst-skel__bar--chip" />
+                <div className="lst-skel__bar lst-skel__bar--w1" />
+                <div className="lst-skel__bar lst-skel__bar--w2" />
+                <div className="lst-skel__bar lst-skel__bar--w3" />
+              </li>
+            ))}
           </ul>
         )}
 
@@ -212,22 +231,27 @@ export default function ProjectsTab() {
           </div>
         )}
 
-        {!loading && !loadError && view.total > 0 && (
+        {(!loading || loadedOnce) && !loadError && view.total > 0 && (
           <>
-            <ul className="lst-list" data-testid="research-grid">
-              {view.rows.map((project) => {
+            <ul className={`lst-list${loading ? ' lst-list--refreshing' : ''}`} data-testid="research-grid" key={`${page}-${sort}`} aria-busy={loading || undefined}>
+              {view.rows.map((project, i) => {
                 const linked = project.linked_project ?? null;
+                const live = LIVE_STATUSES.has(project.status);
                 return (
-                  <li key={project.id}>
+                  <li key={project.id} className="lst-list__item" style={{ '--i': i } as CSSProperties}>
                     <button
                       type="button"
                       className="lst-card"
                       onClick={() => router.push(`/admin/research/${project.id}`)}
                       data-testid={`research-card-${project.id}`}
                     >
+                      <ChevronRight size={18} className="lst-card__go" aria-hidden="true" />
                       <div className="lst-card__head">
                         <h3 className="lst-card__name">{project.name}</h3>
-                        <span className={`lst-status lst-status--${STATUS_TONE[project.status]}`}>{STATUS_LABELS[project.status]}</span>
+                        <span className={`lst-status lst-status--${STATUS_TONE[project.status]}${live ? ' lst-status--live' : ''}`}>
+                          {live ? <span className="lst-status__dot" aria-hidden="true" /> : null}
+                          {STATUS_LABELS[project.status]}
+                        </span>
                       </div>
                       <p className="lst-card__address">
                         {project.property_address || (project.parcel_id ? `Property ID ${project.parcel_id}` : 'No address on file')}

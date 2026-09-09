@@ -13,10 +13,10 @@
 // Styles come from `app/admin/components/listing/Listing.css`, imported by the controls this page
 // shares with the Research list, so the two read as siblings.
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FolderKanban, Plus } from 'lucide-react';
+import { FolderKanban, Plus, ChevronRight } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from '@/lib/projects/model';
 import { SORT_OPTIONS, sortRows, paginate, formatDate, money, isOverdue, type SortKey } from '@/lib/admin/listing';
@@ -61,6 +61,10 @@ export default function ProjectsPage() {
 
   const [all, setAll] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  // The skeleton shows once. A later reload (a filter, a search) dims the rows that are already on
+  // screen instead — see .lst-list--refreshing.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
@@ -96,6 +100,7 @@ export default function ProjectsPage() {
         if ((body.projects ?? []).length < 200 || rows.length >= (body.total ?? 0)) break;
       }
       setAll(rows);
+      setLoadedOnce(true);
     } catch (err) {
       const msg = 'Could not load projects.';
       setError(msg);
@@ -112,6 +117,12 @@ export default function ProjectsPage() {
     return () => clearTimeout(t);
   }, [search]);
   useEffect(() => { setPage(1); }, [applied, status, sort, archived, from, to]);
+  // A page change glides the list back to its top; the cards then rise in again (the `key`).
+  const firstPage = useRef(true);
+  useEffect(() => {
+    if (firstPage.current) { firstPage.current = false; return; }
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [page]);
 
   const sorted = useMemo(
     () => sortRows(all.map((p) => ({ ...p, due: p.rollup.next_deadline })), sort),
@@ -121,7 +132,7 @@ export default function ProjectsPage() {
   const filtering = Boolean(applied.trim() || activeFilters > 0);
 
   return (
-    <div className="lst lst--projects" data-testid="projects-list">
+    <div className="lst lst--projects" data-testid="projects-list" ref={listRef}>
       <header className="lst-head">
         <h1 className="lst-title">
           <FolderKanban size={22} className="lst-title__icon" aria-hidden="true" /> Projects
@@ -175,11 +186,19 @@ export default function ProjectsPage() {
         </div>
       ) : null}
 
-      {loading ? (
-        <ul className="lst-list" aria-busy="true">
-          {[1, 2, 3].map((i) => <li key={i} className="lst-skeleton" />)}
-        </ul>
-      ) : null}
+      {loading && !loadedOnce ? (
+          <ul className="lst-list" aria-busy="true" aria-label="Loading">
+            {[1, 2, 3].map((i) => (
+              <li key={i} className="lst-skel">
+                <div className="lst-skel__bar lst-skel__bar--title" />
+                <div className="lst-skel__bar lst-skel__bar--chip" />
+                <div className="lst-skel__bar lst-skel__bar--w1" />
+                <div className="lst-skel__bar lst-skel__bar--w2" />
+                <div className="lst-skel__bar lst-skel__bar--w3" />
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
       {!loading && !error && view.total === 0 ? (
         <div className="lst-empty" data-testid="projects-empty">
@@ -200,21 +219,22 @@ export default function ProjectsPage() {
         </div>
       ) : null}
 
-      {!loading && !error && view.total > 0 ? (
+      {(!loading || loadedOnce) && !error && view.total > 0 ? (
         <>
-          <ul className="lst-list" data-testid="projects-grid">
-            {view.rows.map((p) => {
+          <ul className={`lst-list${loading ? ' lst-list--refreshing' : ''}`} data-testid="projects-grid" key={`${page}-${sort}`} aria-busy={loading || undefined}>
+            {view.rows.map((p, i) => {
               const lines = addressLines(p);
               const due = p.rollup.next_deadline;
               const overdue = isOverdue(due);
               return (
-                <li key={p.id}>
+                <li key={p.id} className="lst-list__item" style={{ '--i': i } as CSSProperties}>
                   <button
                     type="button"
                     className="lst-card"
                     onClick={() => router.push(`/admin/projects/${p.id}`)}
                     data-testid={`project-card-${p.id}`}
                   >
+                    <ChevronRight size={18} className="lst-card__go" aria-hidden="true" />
                     <div className="lst-card__head">
                       <h3 className="lst-card__name">{p.name}</h3>
                       <span className={`lst-status lst-status--${STATUS_TONE[p.status]}`}>{PROJECT_STATUS_LABELS[p.status]}</span>

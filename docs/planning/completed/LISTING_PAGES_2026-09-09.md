@@ -52,3 +52,23 @@ Same search bar, dropdown, cards and pager. Projects: a solid brand-blue left ed
 key/value block (Customer, Created, Deadline, Address), a dashed footer with jobs complete, paid of
 quoted, the project ID. Research: a dashed teal left edge, the address as the bold second line, a
 footer with the creation date and the connected project. Icons differ (folder vs microscope).
+
+## Motion pass (same day)
+
+Owner: "really smooth transitions and animations and loading transitions". What changed, on the
+two listings and the intake modal:
+
+- Cards rise in one after another (45 ms apart, `--i` from the row index); a page change glides
+  the list to its top and replays the entrance; a hover widens the coloured edge and slides in a
+  chevron ("this opens"); a press settles the card.
+- The skeleton is card-shaped (edge, title bar, chip, three lines) and shows ONCE; a filter or
+  search reload dims the rows already on screen instead of flashing a skeleton over them.
+- In-progress research chips (Analyzing / Drawing / Verifying) carry a pulsing dot.
+- The modal plays OUT (fade + sink, 180 ms) on ×, Cancel, Escape and after Create; the page behind
+  is scroll-locked while it is up; a slim sweeping bar runs under the header while the project is
+  created and files upload; the info cards and the category picker unfold (grid-row trick) instead
+  of popping; linking a project pops a green tick; the drop zone breathes while a file is dragged.
+- Every animation is opacity/transform (plus grid rows for the unfold) and is switched off under
+  `prefers-reduced-motion`. Guard: `__tests__/admin/motion-polish-2026-09-09.test.ts`.
+- Found on the way: the exit animation lost a specificity tie to the entrance rule declared later
+  in the sheet — the closing rules use two classes.

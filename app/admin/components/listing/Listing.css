@@ -229,7 +229,13 @@
 
 /* ── The stacked cards ──────────────────────────────────────────────────── */
 
-.lst-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.lst-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; transition: opacity 0.18s; }
+/* A filter change keeps the rows on screen, dimmed, while the next set loads — a skeleton flashing
+   over rows that were already there reads as the page breaking. */
+.lst-list--refreshing { opacity: 0.55; pointer-events: none; }
+/* Each card rises in a beat after the one above it — `--i` is set by the page from the row index. */
+.lst-list__item { animation: lst-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+@keyframes lst-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 .lst-card {
   display: block;
@@ -260,6 +266,20 @@
   background: repeating-linear-gradient(180deg, var(--lst-accent) 0 10px, transparent 10px 15px);
 }
 .lst-card:hover { border-color: var(--lst-accent); box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 10%, transparent); transform: translateY(-1px); }
+.lst-card:active { transform: translateY(0) scale(0.997); transition-duration: 0.05s; }
+.lst-card::before { transition: width 0.15s; }
+.lst-card:hover::before { width: 7px; }
+/* "This opens" — a chevron that slides in from the right edge on hover, and stays put for keyboard focus. */
+.lst-card__go {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translate(8px, -50%);
+  opacity: 0;
+  color: var(--lst-accent);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.lst-card:hover .lst-card__go, .lst-card:focus-visible .lst-card__go { opacity: 1; transform: translate(0, -50%); }
 .lst-card:focus-visible { outline: 2px solid var(--lst-accent); outline-offset: 2px; }
 
 .lst-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.4rem; }
@@ -310,6 +330,10 @@
 .lst-status--warn { background: var(--theme-warning-bg, #FFFBEB); color: var(--theme-warning-fg, #92400E); border-color: var(--theme-warning-border, #FDE68A); }
 .lst-status--good { background: var(--theme-success-bg, #ECFDF5); color: var(--theme-success-fg, #047857); border-color: color-mix(in srgb, var(--theme-success, #10B981) 35%, transparent); }
 .lst-status--muted { background: var(--theme-bg-elevated, #F8FAFC); color: var(--theme-fg-secondary, #475569); border-color: var(--theme-border, #E2E8F0); }
+/* Work in progress breathes: a dot that pulses beside the label, so "Analyzing" reads as live. */
+.lst-status--live { gap: 0.4rem; }
+.lst-status__dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: lst-pulse 1.6s ease-in-out infinite; }
+@keyframes lst-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
 
 /* ── Pager, states ──────────────────────────────────────────────────────── */
 
@@ -329,8 +353,21 @@
 .lst-pager__btn:hover:not(:disabled) { border-color: var(--lst-accent); color: var(--lst-accent); }
 .lst-pager__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .lst-pager__text { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lst-pager__btn:active:not(:disabled) { transform: scale(0.94); }
+.lst-filter__count { animation: lst-badge 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes lst-badge { from { transform: scale(0.5); } to { transform: none; } }
+.lst-chip:active { transform: scale(0.96); }
+
+/* ── Motion off when asked ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .lst-list__item, .lst-empty, .lst-skel, .lst-filter__panel, .lst-filter__count { animation: none; }
+  .lst-status__dot { animation: none; opacity: 1; }
+  .lst-card, .lst-card::before, .lst-card__go, .lst-list, .lst-chip, .lst-pager__btn { transition: none; }
+  .lst-card:hover { transform: none; }
+}
 
 .lst-empty {
+  animation: lst-rise 0.3s ease-out both;
   padding: 2.5rem 1rem;
   text-align: center;
   border: 1.5px dashed var(--theme-border, #E2E8F0);
@@ -341,8 +378,33 @@
 .lst-empty p { margin: 0 0 0.9rem; font-size: 0.9rem; }
 .lst-empty__link { background: none; border: none; padding: 0; font: inherit; color: var(--lst-accent); text-decoration: underline; cursor: pointer; }
 
-.lst-skeleton { height: 118px; border-radius: 14px; background: linear-gradient(90deg, var(--theme-bg-elevated, #F1F5F9) 25%, var(--theme-bg-surface, #FFFFFF) 50%, var(--theme-bg-elevated, #F1F5F9) 75%); background-size: 200% 100%; animation: lst-shimmer 1.2s infinite; }
+/* The skeleton is card-shaped — the same edge, a title bar, a chip, three lines — so the real cards
+   land on top of it without the page jumping. */
+.lst-skel {
+  position: relative;
+  padding: 0.95rem 1.1rem 0.85rem 1.25rem;
+  border: 1.5px solid var(--theme-border-subtle, #EEF2F7);
+  border-radius: 14px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  overflow: hidden;
+  animation: lst-fade 0.25s ease-out both;
+}
+.lst-skel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--theme-border, #E2E8F0); }
+.lst-skel__bar {
+  height: 12px;
+  border-radius: 6px;
+  margin: 0.35rem 0;
+  background: linear-gradient(90deg, var(--theme-bg-elevated, #F1F5F9) 25%, var(--theme-border-subtle, #EEF2F7) 50%, var(--theme-bg-elevated, #F1F5F9) 75%);
+  background-size: 200% 100%;
+  animation: lst-shimmer 1.3s linear infinite;
+}
+.lst-skel__bar--title { height: 18px; width: 45%; margin-bottom: 0.7rem; }
+.lst-skel__bar--chip { position: absolute; right: 1.1rem; top: 1rem; width: 72px; height: 22px; border-radius: 8px; }
+.lst-skel__bar--w1 { width: 32%; }
+.lst-skel__bar--w2 { width: 24%; }
+.lst-skel__bar--w3 { width: 58%; }
 @keyframes lst-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes lst-fade { from { opacity: 0; } to { opacity: 1; } }
 .lst-showing { text-align: center; font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); }
 
 @media (max-width: 640px) {

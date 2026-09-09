@@ -131,14 +131,18 @@ function SectionInfo({ title, open, onToggle, children }: {
   return (
     <>
       {open ? (
-        <div className="nrp-info__card" role="dialog" aria-label={title}>
-          <div className="nrp-info__head">
-            <strong>{title}</strong>
-            <button type="button" className="nrp-info__close" onClick={() => onToggle(false)} aria-label="Close">
-              <X size={14} aria-hidden="true" />
-            </button>
+        <div className="nrp-reveal">
+          <div className="nrp-reveal__inner">
+            <div className="nrp-info__card" role="dialog" aria-label={title}>
+              <div className="nrp-info__head">
+                <strong>{title}</strong>
+                <button type="button" className="nrp-info__close" onClick={() => onToggle(false)} aria-label="Close">
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="nrp-info__body">{children}</div>
+            </div>
           </div>
-          <div className="nrp-info__body">{children}</div>
         </div>
       ) : null}
       <div className="nrp-info">
@@ -280,6 +284,7 @@ function InfoLines({ lines, onChange, showErrors }: { lines: IntakeInfoLine[]; o
           Add Info
         </button>
         {picking ? (
+          <div className="nrp-reveal"><div className="nrp-reveal__inner">
           <div className="nrp-picker" role="menu" aria-label="What kind of information?" data-testid="info-picker">
             <div className="nrp-picker__title">What kind of information?</div>
             <div className="nrp-picker__grid">
@@ -297,6 +302,7 @@ function InfoLines({ lines, onChange, showErrors }: { lines: IntakeInfoLine[]; o
               })}
             </div>
           </div>
+          </div></div>
         ) : null}
       </div>
     </div>
@@ -439,7 +445,7 @@ function ProjectLinker({ linked, jobs, jobsLoading, jobIds, onLink, onUnlink, on
     return (
       <div className="nrp-linked">
         <div className="nrp-linked__head">
-          <span className="nrp-linked__badge"><Link2 size={13} aria-hidden="true" /> Linked to</span>
+          <span className="nrp-linked__badge"><span className="nrp-linked__tick"><Check size={11} aria-hidden="true" /></span> Linked to</span>
           <a className="nrp-linked__name" href={`/admin/projects/${linked.id}`} target="_blank" rel="noreferrer">{projectLabel(linked)}</a>
           {projectWhere(linked) ? <span className="nrp-linked__where">{projectWhere(linked)}</span> : null}
           <button type="button" className="nrp-linked__unlink" onClick={onUnlink} disabled={disabled}>Unlink</button>
@@ -564,7 +570,25 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
   const [uploadWarning, setUploadWarning] = useState<string | null>(null);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  // Closing plays the overlay and card OUT before the component unmounts — an instant disappearance
+  // after a slow rise in reads as a glitch.
+  const [closing, setClosing] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  const close = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(() => { setClosing(false); onClose(); }, 180);
+  }, [closing, onClose]);
+
+  // The page behind must not scroll while the form is up — two scrollbars fighting is the one thing
+  // every modal gets wrong first.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -583,7 +607,8 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
     setUploadWarning(null);
     setCreatedProjectId(null);
     setSubmitAttempted(false);
-    window.setTimeout(() => nameRef.current?.focus(), 30);
+    setClosing(false);
+    window.setTimeout(() => nameRef.current?.focus(), 240);
   }, [open]);
 
   const loadJobs = useCallback(async (projectId: string): Promise<LinkableJob[]> => {
@@ -751,7 +776,7 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
         return;
       }
       setProgress('Opening the research page…');
-      onClose();
+      close();
       router.push(`/admin/research/${data.project.id}`);
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'create project' });
@@ -767,16 +792,18 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
     // Closing is deliberate only — × , Cancel or Escape. Everything here is typed by hand, and a
     // stray click on the dimmed area must not throw it away.
     <div
-      className="nrp-overlay"
-      onKeyDown={(e) => { if (e.key === 'Escape' && !busy) onClose(); }}
+      className={`nrp-overlay${closing ? ' nrp-overlay--closing' : ''}`}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !busy) close(); }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="nrp-title"
     >
-      <div className="nrp-modal">
+      <div className={`nrp-modal${closing ? ' nrp-modal--closing' : ''}`}>
+        {/* A slim bar under the header while the project is created and the files go up. */}
+        {busy ? <div className="nrp-progress" role="progressbar" aria-label={progress ?? 'Working'} /> : null}
         <header className="nrp-header">
           <h2 className="nrp-title" id="nrp-title">New Research Project</h2>
-          <button type="button" className="nrp-close" onClick={onClose} aria-label="Close" title="Close without saving" disabled={busy}>
+          <button type="button" className="nrp-close" onClick={close} aria-label="Close" title="Close without saving" disabled={busy}>
             <X size={18} aria-hidden="true" />
           </button>
         </header>
@@ -1041,7 +1068,7 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
               <div className="nrp-warning" role="alert">
                 {uploadWarning}
                 {createdProjectId ? (
-                  <button type="button" className="nrp-warning__go" onClick={() => { onClose(); router.push(`/admin/research/${createdProjectId}`); }}>
+                  <button type="button" className="nrp-warning__go" onClick={() => { close(); router.push(`/admin/research/${createdProjectId}`); }}>
                     Open the project anyway
                   </button>
                 ) : null}
@@ -1057,7 +1084,7 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
                   <span className="nrp-muted">Settings for the run — sources, budget, paid documents — are chosen on the next page.</span>
                 )}
               </div>
-              <button type="button" className="nrp-btn nrp-btn--ghost" onClick={onClose} disabled={busy}>Cancel</button>
+              <button type="button" className="nrp-btn nrp-btn--ghost" onClick={close} disabled={busy}>Cancel</button>
               <button type="submit" className="nrp-btn nrp-btn--primary" disabled={busy} title={canCreate ? undefined : 'Fill in the required fields first'}>
                 {busy ? 'Working…' : 'Create research project'}
               </button>
