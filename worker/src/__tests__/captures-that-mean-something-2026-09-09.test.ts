@@ -83,6 +83,7 @@ describe('C — screenshots are filed once, junk never, and named by what they s
   it('describes clerk and CAD pages by the search and its outcome', () => {
     expect(describeCapturedPage('https://bell.tx.publicsearch.us/results?search=index,fullText&q=5456-704', '1-1 of 1 results for "5456/704"')).toBe('Clerk search — "5456-704" — 1 result');
     expect(describeCapturedPage('https://bell.tx.publicsearch.us/results?department=RP&q=WINNIE%20MAE%20ADDITION', 'No Results Found Your search for "WINNIE MAE ADDITION" returned no results.')).toBe('Clerk search — "WINNIE MAE ADDITION" — no results');
+    expect(describeCapturedPage('https://bell.tx.publicsearch.us/results?department=RP&searchType=quickSearch&searchValue=EVERS%2C%20JONATHAN', '1-1 of 1 results for "EVERS, JONATHAN"')).toBe('Clerk search — "EVERS, JONATHAN" — 1 result');
     expect(describeCapturedPage('https://bell.tx.publicsearch.us/doc/98737982', '')).toBe('Clerk document viewer — 98737982');
     expect(describeCapturedPage('https://esearch.bellcad.org/Property/View/64567?year=2026', 'Property ID: 64567')).toBe('Bell CAD property page — 64567');
     expect(describeCapturedPage('https://esearch.bellcad.org/Property/View/64567', 'ERROR An Error Occurred!')).toBe('Bell CAD property page — 64567 — error page');

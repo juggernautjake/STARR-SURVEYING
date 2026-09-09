@@ -196,7 +196,8 @@ export function describeCapturedPage(url: string, pageText: string | undefined):
   const host = u.hostname.toLowerCase();
   if (host.endsWith('publicsearch.us')) {
     if (u.pathname.startsWith('/results')) {
-      const q = u.searchParams.get('q') ?? (text.match(/results for "([^"]+)"/i)?.[1] ?? '');
+      // The quick search carries its term as searchValue; the index search as q.
+      const q = u.searchParams.get('q') ?? u.searchParams.get('searchValue') ?? (text.match(/results for "([^"]+)"/i)?.[1] ?? '');
       const count = text.match(/\b\d+\s*-\s*\d+ of (\d+) results?/i)?.[1];
       const outcome = /no results found/i.test(text) ? 'no results' : count ? `${count} result${count === '1' ? '' : 's'}` : 'results';
       return `Clerk search — "${q || '?'}" — ${outcome}`;
