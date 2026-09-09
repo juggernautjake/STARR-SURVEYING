@@ -57,7 +57,7 @@
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 6px 16px color-mix(in srgb, var(--lst-accent) 28%, transparent);
-  transition: filter 0.12s, transform 0.08s;
+  transition: filter var(--motion-fast), transform var(--motion-instant);
 }
 /* Route sheets colour every <a> in the portal brand-blue — blue text on a blue button was invisible.
    Two classes beat one. */
@@ -79,7 +79,7 @@
   background: var(--theme-bg-surface, #FFFFFF);
   padding-left: 0.9rem;
   overflow: hidden;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .lst-search:focus-within {
   border-color: var(--lst-accent);
@@ -141,7 +141,7 @@
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color var(--motion-fast), background var(--motion-fast);
 }
 .lst-filter__btn:hover, .lst-filter__btn--open { border-color: var(--lst-accent); }
 .lst-filter__btn--active { background: var(--lst-tint); border-color: var(--lst-accent); color: var(--lst-accent); }
@@ -174,9 +174,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  animation: lst-pop 0.14s ease-out;
+  animation: ui-drop var(--motion-fast) var(--ease-out);
 }
-@keyframes lst-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .lst-filter__group { display: flex; flex-direction: column; gap: 0.4rem; }
 .lst-filter__label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--theme-fg-muted, #64748B); }
@@ -204,7 +203,7 @@
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
 }
 .lst-chip:hover { border-color: var(--lst-accent); color: var(--lst-accent); }
 .lst-chip--on { background: var(--lst-accent); border-color: var(--lst-accent); color: var(--theme-accent-fg, #FFFFFF); }
@@ -229,13 +228,12 @@
 
 /* ── The stacked cards ──────────────────────────────────────────────────── */
 
-.lst-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; transition: opacity 0.18s; }
+.lst-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; transition: opacity var(--motion-fast); }
 /* A filter change keeps the rows on screen, dimmed, while the next set loads — a skeleton flashing
    over rows that were already there reads as the page breaking. */
 .lst-list--refreshing { opacity: 0.55; pointer-events: none; }
 /* Each card rises in a beat after the one above it — `--i` is set by the page from the row index. */
-.lst-list__item { animation: lst-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
-@keyframes lst-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.lst-list__item { animation: ui-rise var(--motion-base) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * var(--motion-stagger)); }
 
 .lst-card {
   display: block;
@@ -251,7 +249,7 @@
   text-decoration: none;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.12s, box-shadow 0.12s, transform 0.08s;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 .lst-card::before {
   content: '';
@@ -265,9 +263,9 @@
 .lst--research .lst-card::before {
   background: repeating-linear-gradient(180deg, var(--lst-accent) 0 10px, transparent 10px 15px);
 }
-.lst-card:hover { border-color: var(--lst-accent); box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 10%, transparent); transform: translateY(-1px); }
-.lst-card:active { transform: translateY(0) scale(0.997); transition-duration: 0.05s; }
-.lst-card::before { transition: width 0.15s; }
+.lst-card:hover { border-color: var(--lst-accent); box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 10%, transparent); transform: translateY(var(--motion-lift)); }
+.lst-card:active { transform: scale(var(--motion-press)); transition-duration: var(--motion-instant); }
+.lst-card::before { transition: width var(--motion-fast); }
 .lst-card:hover::before { width: 7px; }
 /* "This opens" — a chevron that slides in from the right edge on hover, and stays put for keyboard focus. */
 .lst-card__go {
@@ -277,7 +275,7 @@
   transform: translate(8px, -50%);
   opacity: 0;
   color: var(--lst-accent);
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 .lst-card:hover .lst-card__go, .lst-card:focus-visible .lst-card__go { opacity: 1; transform: translate(0, -50%); }
 .lst-card:focus-visible { outline: 2px solid var(--lst-accent); outline-offset: 2px; }
@@ -332,8 +330,7 @@
 .lst-status--muted { background: var(--theme-bg-elevated, #F8FAFC); color: var(--theme-fg-secondary, #475569); border-color: var(--theme-border, #E2E8F0); }
 /* Work in progress breathes: a dot that pulses beside the label, so "Analyzing" reads as live. */
 .lst-status--live { gap: 0.4rem; }
-.lst-status__dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: lst-pulse 1.6s ease-in-out infinite; }
-@keyframes lst-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+.lst-status__dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: ui-pulse 1.6s var(--ease-in-out) infinite; }
 
 /* ── Pager, states ──────────────────────────────────────────────────────── */
 
@@ -354,20 +351,11 @@
 .lst-pager__btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .lst-pager__text { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .lst-pager__btn:active:not(:disabled) { transform: scale(0.94); }
-.lst-filter__count { animation: lst-badge 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
-@keyframes lst-badge { from { transform: scale(0.5); } to { transform: none; } }
+.lst-filter__count { animation: ui-pop var(--motion-base) var(--ease-spring); }
 .lst-chip:active { transform: scale(0.96); }
 
-/* ── Motion off when asked ──────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  .lst-list__item, .lst-empty, .lst-skel, .lst-filter__panel, .lst-filter__count { animation: none; }
-  .lst-status__dot { animation: none; opacity: 1; }
-  .lst-card, .lst-card::before, .lst-card__go, .lst-list, .lst-chip, .lst-pager__btn { transition: none; }
-  .lst-card:hover { transform: none; }
-}
-
 .lst-empty {
-  animation: lst-rise 0.3s ease-out both;
+  animation: ui-rise var(--motion-base) var(--ease-out) both;
   padding: 2.5rem 1rem;
   text-align: center;
   border: 1.5px dashed var(--theme-border, #E2E8F0);
@@ -387,7 +375,7 @@
   border-radius: 14px;
   background: var(--theme-bg-surface, #FFFFFF);
   overflow: hidden;
-  animation: lst-fade 0.25s ease-out both;
+  animation: ui-fade-in var(--motion-base) var(--ease-out) both;
 }
 .lst-skel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--theme-border, #E2E8F0); }
 .lst-skel__bar {
@@ -396,15 +384,13 @@
   margin: 0.35rem 0;
   background: linear-gradient(90deg, var(--theme-bg-elevated, #F1F5F9) 25%, var(--theme-border-subtle, #EEF2F7) 50%, var(--theme-bg-elevated, #F1F5F9) 75%);
   background-size: 200% 100%;
-  animation: lst-shimmer 1.3s linear infinite;
+  animation: ui-shimmer 1.3s linear infinite;
 }
 .lst-skel__bar--title { height: 18px; width: 45%; margin-bottom: 0.7rem; }
 .lst-skel__bar--chip { position: absolute; right: 1.1rem; top: 1rem; width: 72px; height: 22px; border-radius: 8px; }
 .lst-skel__bar--w1 { width: 32%; }
 .lst-skel__bar--w2 { width: 24%; }
 .lst-skel__bar--w3 { width: 58%; }
-@keyframes lst-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@keyframes lst-fade { from { opacity: 0; } to { opacity: 1; } }
 .lst-showing { text-align: center; font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); }
 
 @media (max-width: 640px) {

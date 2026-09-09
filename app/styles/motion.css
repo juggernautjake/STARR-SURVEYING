@@ -1,0 +1,133 @@
+/* ============================================================================
+ * app/styles/motion.css — the motion system: one vocabulary for every transition and animation.
+ *
+ * Owner, 2026-09-09: "As I go through and redesign the pages, I want to make sure that our style
+ * choices and animation/transition styling and formats are consistent and recognizable. Please
+ * make sure we have it clearly defined and outlined somewhere what kinds of transitions/animations
+ * are allowed with the different kinds of layouts and elements."
+ *
+ * The rules are written down in docs/style/MOTION_SYSTEM.md. This sheet is those rules as code:
+ *
+ *   1. DURATIONS + EASINGS as tokens. A sheet never types `0.15s ease` again; it reads
+ *      `var(--motion-fast) var(--ease-out)`. Measured before this sheet existed: 14 different
+ *      durations and 5 easings across the admin, 61 sheets hard-coding their own.
+ *   2. KEYFRAMES, shared. Enter, exit, unfold, pop, shimmer, pulse, sweep — named `ui-*`, declared
+ *      once. Keyframe names are global in CSS, so the last duplicate in the cascade silently wins
+ *      for everyone (the `spin` incident in globals.css). 207 distinct keyframe names existed.
+ *   3. UTILITIES for the common cases (`.m-enter`, `.m-stagger`, `.m-skeleton`), so a page can get
+ *      the standard motion without authoring any.
+ *   4. REDUCED MOTION, globally. One rule, for every sheet old and new. `.motion-essential` opts
+ *      an element out (a spinner or progress bar that must keep moving to mean anything).
+ *
+ * Loaded once from app/layout.tsx after tokens.css. Never colours — those are tokens.css/themes.css.
+ * ============================================================================
+ */
+
+:root {
+  /* ── Durations ───────────────────────────────────────────────────────────
+     instant  hover colour, press feedback
+     fast     chips, small state changes, tooltips
+     base     cards entering, dropdown panels, unfolds, modal enter
+     slow     modal exit is NOT slower — exits are fast/base; slow is for whole-page transitions
+     */
+  --motion-instant: 80ms;
+  --motion-fast:    140ms;
+  --motion-base:    220ms;
+  --motion-slow:    340ms;
+
+  /* Stagger step between siblings entering together (cards in a list). Capped in the utility. */
+  --motion-stagger: 45ms;
+
+  /* ── Easings ───────────────────────────────────────────────────────────── */
+  --ease-out:    cubic-bezier(0.2, 0.8, 0.2, 1);   /* things ARRIVING — decelerate into place */
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);       /* things LEAVING — accelerate away */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);     /* things MOVING between two places on screen */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* one small overshoot — a tick, a badge; never a panel */
+
+  /* ── Distances ──────────────────────────────────────────────────────────── */
+  --motion-rise: 10px;     /* how far a card or panel travels when it enters */
+  --motion-lift: -1px;     /* a hovered card */
+  --motion-press: 0.985;   /* a pressed control, as a scale */
+
+  /* ── Compat: the older tokens keep resolving, to the new values ─────────── */
+  --transition-fast: var(--motion-fast) var(--ease-out);
+  --transition-base: var(--motion-base) var(--ease-out);
+  --transition-slow: var(--motion-slow) var(--ease-out);
+}
+
+/* ── Keyframes — the whole vocabulary ────────────────────────────────────── */
+
+/* Entering */
+@keyframes ui-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-rise     { from { opacity: 0; transform: translateY(var(--motion-rise)); } to { opacity: 1; transform: none; } }
+@keyframes ui-drop     { from { opacity: 0; transform: translateY(calc(var(--motion-rise) * -0.6)); } to { opacity: 1; transform: none; } }
+@keyframes ui-scale-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes ui-rise-scale { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* Leaving — the mirror of the entrance, always faster than it */
+@keyframes ui-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ui-sink     { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(var(--motion-rise)) scale(0.985); } }
+
+/* Unfolding — height from nothing to its own size, without measuring it. The element is a grid
+   whose single row goes 0fr → 1fr; its child has min-height: 0 and overflow: hidden. */
+@keyframes ui-unfold { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
+
+/* Acknowledging — a small thing that just happened (a tick, a badge, a count) */
+@keyframes ui-pop  { from { transform: scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ui-tick { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: none; } }
+
+/* Ongoing — the only animations allowed to loop */
+@keyframes ui-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes ui-pulse   { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes ui-sweep   { from { left: -40%; } to { left: 100%; } }
+@keyframes ui-breathe { 0%, 100% { box-shadow: 0 0 0 0 var(--motion-ring, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+/* `spin` itself lives in globals.css (one global rotation for every spinner). */
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+
+/* A block that has just appeared. */
+.m-enter { animation: ui-rise var(--motion-base) var(--ease-out) both; }
+.m-enter-fade { animation: ui-fade-in var(--motion-base) var(--ease-out) both; }
+
+/* Siblings entering together: set `--i` on each (0, 1, 2 …). The delay is capped so a long list
+   does not take a second to finish arriving — after the twelfth item the rest come together. */
+.m-stagger { animation: ui-rise var(--motion-base) var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * var(--motion-stagger)); }
+
+/* Something unfolding (an info card, a picker, a disclosure). Wrap the content in .m-unfold > .m-unfold__inner. */
+.m-unfold { display: grid; grid-template-rows: 1fr; animation: ui-unfold var(--motion-base) var(--ease-out); }
+.m-unfold__inner { min-height: 0; overflow: hidden; }
+
+/* A loading placeholder bar. Colour comes from the theme; the sheen moves. */
+.m-skeleton {
+  border-radius: var(--radius-md, 6px);
+  background: linear-gradient(90deg, var(--theme-bg-elevated, #F1F5F9) 25%, var(--theme-border-subtle, #EEF2F7) 50%, var(--theme-bg-elevated, #F1F5F9) 75%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.3s linear infinite;
+}
+
+/* A live dot beside a label that means "working right now". */
+.m-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: ui-pulse 1.6s var(--ease-in-out) infinite; }
+
+/* A list being refreshed keeps its rows, dimmed. Never a skeleton over rows already on screen. */
+.m-refreshing { opacity: 0.55; pointer-events: none; transition: opacity var(--motion-fast); }
+
+/* The standard interactive surface (a card that opens): lift on hover, settle on press. */
+.m-pressable { transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out), border-color var(--motion-fast); }
+.m-pressable:hover { transform: translateY(var(--motion-lift)); }
+.m-pressable:active { transform: scale(var(--motion-press)); transition-duration: var(--motion-instant); }
+
+/* ── Reduced motion — one rule for the whole app ─────────────────────────── */
+/* Everything stops animating and transitions collapse, except what is marked essential (a spinner,
+   a progress bar), which slows down instead. Applies to every sheet, including the ones written
+   before this system existed. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.motion-essential),
+  *:not(.motion-essential)::before,
+  *:not(.motion-essential)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .motion-essential, .motion-essential::before, .motion-essential::after { animation-duration: 2s !important; }
+}

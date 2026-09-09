@@ -282,7 +282,8 @@ describe('the modal is mounted and the old inline form is gone', () => {
   it('every class it renders is defined in the sheet it imports', () => {
     const src = readSource(MODAL);
     expect(src).toContain("import './NewResearchProjectModal.css'");
-    const css = readSource('app/admin/research/components/NewResearchProjectModal.css');
+    // Its own sheet plus the global motion sheet (`.motion-essential` lives there).
+    const css = readSource('app/admin/research/components/NewResearchProjectModal.css') + readSource('app/styles/motion.css');
     const defined = new Set([...css.matchAll(/\.([a-zA-Z_][\w-]*)/g)].map((m) => m[1]));
     const rendered = new Set<string>();
     for (const m of src.matchAll(/className="([^"]+)"/g)) for (const c of m[1].split(/\s+/)) if (c) rendered.add(c);

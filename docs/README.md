@@ -44,6 +44,7 @@ If you're trying to find a doc, start here.
 | Testing lab user guide | [`platform/TESTING_LAB_USER_GUIDE.md`](./platform/TESTING_LAB_USER_GUIDE.md) and [`testing-lab/`](./testing-lab/) |
 | Texas road variant engine | [`engine/TEXAS_ROAD_VARIANT_ENGINE.md`](./engine/TEXAS_ROAD_VARIANT_ENGINE.md) |
 | Style guide | [`style/STYLE_GUIDE.md`](./style/STYLE_GUIDE.md) |
+| Motion & consistency system | [`style/MOTION_SYSTEM.md`](./style/MOTION_SYSTEM.md) |
 
 ## How to add a new doc
 

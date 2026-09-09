@@ -338,6 +338,12 @@ Form element gap:   1rem (grid), 1.5rem (margin-bottom)
 
 ## 10. Animations & Transitions
 
+> **Superseded for the admin (2026-09-09).** Motion is now defined once in
+> [`MOTION_SYSTEM.md`](./MOTION_SYSTEM.md) and coded in `app/styles/motion.css` — tokens
+> (`--motion-fast` …, `--ease-out` …), the shared `ui-*` keyframes, and one global reduced-motion
+> rule. The tables below describe the marketing site as built; new admin work follows the motion
+> system, and the `--transition-*` tokens below now resolve to the motion tokens.
+
 ### CSS Transition Variables
 
 | Token | CSS Variable | Value | Usage |

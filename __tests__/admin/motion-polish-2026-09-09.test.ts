@@ -17,7 +17,9 @@ const RESEARCH = 'app/admin/research/_tabs/ProjectsTab.tsx';
 describe('the listings', () => {
   it('cards rise in one after another, keyed off the row index', () => {
     const css = readSource(LISTING_CSS);
-    expect(css).toContain('animation-delay: calc(var(--i, 0) * 45ms)');
+    // The tempo is a token and the stagger is capped — see motion.css / MOTION_SYSTEM.md.
+    expect(css).toContain('animation-delay: calc(min(var(--i, 0), 12) * var(--motion-stagger))');
+    expect(css).toContain('animation: ui-rise var(--motion-base) var(--ease-out) both;');
     for (const f of [PROJECTS, RESEARCH]) {
       const src = readSource(f);
       expect(src, f).toContain("style={{ '--i': i } as CSSProperties}");
@@ -46,7 +48,7 @@ describe('the listings', () => {
   });
   it('work in progress pulses on the research list only', () => {
     expect(readSource(RESEARCH)).toContain("LIVE_STATUSES = new Set<WorkflowStep>(['analyzing', 'drawing', 'verifying'])");
-    expect(readSource(LISTING_CSS)).toContain('@keyframes lst-pulse');
+    expect(readSource(LISTING_CSS)).toContain('animation: ui-pulse 1.6s var(--ease-in-out) infinite;');
     expect(readSource(PROJECTS)).not.toContain('lst-status--live');
   });
 });
@@ -66,30 +68,27 @@ describe('the modal', () => {
   it('locks the page behind, shows a progress bar while working, and unfolds its cards', () => {
     const src = readSource(MODAL);
     expect(src).toContain("document.body.style.overflow = 'hidden'");
-    expect(src).toContain('className="nrp-progress" role="progressbar"');
+    expect(src).toContain('className="nrp-progress motion-essential" role="progressbar"');
     expect(src).toContain('className="nrp-reveal"');
     const css = readSource(MODAL_CSS);
-    expect(css).toContain('@keyframes nrp-unfold { from { grid-template-rows: 0fr;');
-    expect(css).toContain('@keyframes nrp-sweep');
+    expect(css).toContain('animation: ui-unfold var(--motion-base) var(--ease-out);');
+    expect(css).toContain('animation: ui-sweep 1.1s var(--ease-in-out) infinite;');
   });
 });
 
 describe('motion is cheap and can be turned off', () => {
-  it('both sheets switch every animation off under prefers-reduced-motion', () => {
+  it('reduced motion is handled ONCE, globally, in motion.css — the sheets carry no block of their own', () => {
+    const motion = readSource('app/styles/motion.css');
+    expect(motion).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(motion).toContain('animation-duration: 0.01ms !important');
     for (const f of [LISTING_CSS, MODAL_CSS]) {
       const css = readSource(f);
-      const at = css.indexOf('@media (prefers-reduced-motion: reduce)');
-      expect(at, `${f} has no reduced-motion block`).toBeGreaterThan(-1);
-      const block = css.slice(at, css.indexOf('}\n}', at) + 3);
-      expect(block).toContain('animation: none');
-      // Every @keyframes the sheet declares is applied by some rule the block resets — a keyframe
-      // added later without a reset is the regression this guards.
-      const names = [...css.matchAll(/@keyframes ([a-z-]+)/g)].map((m) => m[1]);
-      expect(names.length).toBeGreaterThan(3);
+      expect(css, `${f} re-declares reduced motion`).not.toContain('prefers-reduced-motion');
+      expect(css, `${f} declares its own keyframes`).not.toContain('@keyframes');
     }
   });
   it('animates only opacity and transform (and grid rows for the unfold) — never layout properties', () => {
-    for (const f of [LISTING_CSS, MODAL_CSS]) {
+    for (const f of ['app/styles/motion.css']) {
       const css = readSource(f);
       for (const m of css.matchAll(/@keyframes [a-z-]+ \{([^}]*\}[^}]*)\}/g)) {
         const body = m[1];

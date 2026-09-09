@@ -16,6 +16,10 @@
 
 ## Where the tokens live
 
+> Motion (durations, easings, keyframes, loading states) and the shared list/card/chip/dialog
+> grammar are defined in [`style/MOTION_SYSTEM.md`](./style/MOTION_SYSTEM.md) (2026-09-09).
+> That document also carries the consistency audit and the consolidation backlog.
+
 `app/styles/tokens.css` — single source of truth. Loaded globally
 through `app/layout.tsx`. Any new admin CSS file MUST consume from
 this file; never declare a parallel `:root { --my-thing: … }` block

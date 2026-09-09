@@ -460,7 +460,7 @@ function ProjectLinker({ linked, jobs, jobsLoading, jobIds, onLink, onUnlink, on
               </label>
             ) : null}
           </div>
-          {jobsLoading ? <p className="nrp-muted"><Loader2 size={13} className="nrp-spin" aria-hidden="true" /> Loading the project&apos;s jobs…</p> : null}
+          {jobsLoading ? <p className="nrp-muted"><Loader2 size={13} className="nrp-spin motion-essential" aria-hidden="true" /> Loading the project&apos;s jobs…</p> : null}
           {!jobsLoading && live.length === 0 ? (
             <p className="nrp-muted">This project has no jobs yet. The research is linked to the project itself.</p>
           ) : null}
@@ -800,7 +800,7 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
     >
       <div className={`nrp-modal${closing ? ' nrp-modal--closing' : ''}`}>
         {/* A slim bar under the header while the project is created and the files go up. */}
-        {busy ? <div className="nrp-progress" role="progressbar" aria-label={progress ?? 'Working'} /> : null}
+        {busy ? <div className="nrp-progress motion-essential" role="progressbar" aria-label={progress ?? 'Working'} /> : null}
         <header className="nrp-header">
           <h2 className="nrp-title" id="nrp-title">New Research Project</h2>
           <button type="button" className="nrp-close" onClick={close} aria-label="Close" title="Close without saving" disabled={busy}>
@@ -1077,7 +1077,7 @@ export default function NewResearchProjectModal({ open, onClose, jobIdFromLink }
             <div className="nrp-footer__row">
               <div className="nrp-footer__status" aria-live="polite">
                 {progress ? (
-                  <span className="nrp-footer__progress"><Loader2 size={14} className="nrp-spin" aria-hidden="true" /> {progress}</span>
+                  <span className="nrp-footer__progress"><Loader2 size={14} className="nrp-spin motion-essential" aria-hidden="true" /> {progress}</span>
                 ) : submitAttempted && missing.length > 0 ? (
                   <span className="nrp-footer__missing">Still needed: {missing.join('; ')}.</span>
                 ) : (
