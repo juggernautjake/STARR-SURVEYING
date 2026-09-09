@@ -112,6 +112,14 @@ describe('C — screenshots are filed once, junk never, and named by what they s
   });
 });
 
+describe('D — the GIS viewer\'s map view is found the one way Bell\'s viewer exposes it', () => {
+  it('every finder asks getAllJimuMapViews(); none reads the empty jimuMapViews property first', () => {
+    const src = read('counties/bell/scrapers/gis-viewer-capture.ts');
+    expect((src.match(/getAllJimuMapViews\?\.\(\)/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    expect(src).not.toContain('if (w._mapViewManager?.jimuMapViews) {');
+  });
+});
+
 describe('D — a GIS viewer frame identical to the last is not a capture', () => {
   it('re-takes once, then drops and names the toggle that did not take', () => {
     const src = read('counties/bell/scrapers/gis-viewer-capture.ts');
@@ -136,6 +144,8 @@ describe('F — the BIS disclaimer is waited for and asserted gone before the sc
     expect(src).toContain('const modalAppeared = await page.waitForSelector(DISCLAIMER_OK_SELECTOR, { timeout: 10_000, state: \'visible\' })');
     expect(src).toContain("throw new Error('BIS GIS disclaimer modal could not be dismissed');");
     expect(src).toContain('export async function modalStillVisible(page: any): Promise<boolean> {');
+    // Only the disclaimer counts — Experience Builder's panels are role="dialog" too.
+    expect(src).not.toContain("document.querySelectorAll('[role=\"dialog\"], .modal, .jimu-modal");
   });
 });
 

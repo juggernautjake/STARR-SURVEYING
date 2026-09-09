@@ -834,20 +834,13 @@ async function captureGoogleMapsPlace(
 /** The disclaimer's OK button (Bell's BIS viewer: a modal with OK / Cancel). */
 export const DISCLAIMER_OK_SELECTOR = '.jimu-modal.show [role="button"]:has-text("OK"), [role="dialog"] [role="button"]:has-text("OK"), button:has-text("OK"), button:has-text("Accept"), button:has-text("I Agree")';
 
-/** Is a modal dialog still visible in front of the map? */
+/** Is the DISCLAIMER still in front of the map — a shown modal with an OK / Accept / I Agree control in
+ *  it? Not "any dialog": Experience Builder's own panels (Map Layers, the search widget) carry
+ *  role="dialog" too, and a check that counted them refused a clean map (2026-09-09). */
 export async function modalStillVisible(page: any): Promise<boolean> {
   try {
     const ok = await page.$(DISCLAIMER_OK_SELECTOR);
-    if (ok && await ok.isVisible().catch(() => false)) return true;
-    return await page.evaluate(() => {
-      const els = document.querySelectorAll('[role="dialog"], .modal, .jimu-modal, [class*="modal"][class*="open"]');
-      for (const el of Array.from(els)) {
-        const r = (el as HTMLElement).getBoundingClientRect();
-        const style = getComputedStyle(el as HTMLElement);
-        if (r.width > 200 && r.height > 100 && style.visibility !== 'hidden' && style.display !== 'none') return true;
-      }
-      return false;
-    }).catch(() => false);
+    return !!ok && await ok.isVisible().catch(() => false);
   } catch { return false; }
 }
 

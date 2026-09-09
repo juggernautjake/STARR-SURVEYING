@@ -797,8 +797,8 @@ async function getCurrentZoomLevel(page: any): Promise<number | null> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const w = window as any;
       // Strategy 1: jimuMapViews (Experience Builder)
-      if (w._mapViewManager?.jimuMapViews) {
-        const views = Object.values(w._mapViewManager.jimuMapViews);
+      if (w._mapViewManager) {
+        const views = Object.values(w._mapViewManager.getAllJimuMapViews?.() ?? w._mapViewManager.jimuMapViews ?? {}) /* getAllJimuMapViews(): jimuMapViews is EMPTY on Bell's viewer (2026-09-09) */;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const found = views.find((v: any) => v?.view?.ready);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1552,8 +1552,8 @@ async function toggleLayerByTitle(page: any, titles: string[], visible: boolean)
     const w = window as any;
     let view = null;
     // Try JiMU map view manager (Experience Builder)
-    if (w._mapViewManager?.jimuMapViews) {
-      const views = Object.values(w._mapViewManager.jimuMapViews);
+    if (w._mapViewManager) {
+      const views = Object.values(w._mapViewManager.getAllJimuMapViews?.() ?? w._mapViewManager.jimuMapViews ?? {}) /* getAllJimuMapViews(): jimuMapViews is EMPTY on Bell's viewer (2026-09-09) */;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = views.find((v: any) => v?.view?.ready);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

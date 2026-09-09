@@ -14268,12 +14268,12 @@
 
 /* ── Free plat lead (2026-09-08): a plat the county portal names that only a person's browser can fetch ── */
 .fpl {
-  border: 1px solid var(--theme-border);
-  border-left: 4px solid var(--theme-warning);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-left: 4px solid var(--theme-warning, #F59E0B);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin: 0 0 1.25rem;
-  background: var(--theme-bg-elevated);
+  background: var(--theme-bg-elevated, #F9FAFB);
   display: flex;
   gap: 0.6rem;
   align-items: flex-start;
@@ -14283,6 +14283,6 @@
 .fpl__list { margin: 0.25rem 0 0; padding-left: 1.1rem; list-style: none; }
 .fpl__row { margin-bottom: 0.45rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .fpl__source { opacity: 0.7; }
-.fpl__filed { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--theme-success-fg); }
-.fpl__error { color: var(--theme-danger-fg); flex-basis: 100%; }
+.fpl__filed { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--theme-success-fg, #166534); }
+.fpl__error { color: var(--theme-danger-fg, #991B1B); flex-basis: 100%; }
 .fpl__btn { margin: 0; display: inline-flex; align-items: center; gap: 0.35rem; }

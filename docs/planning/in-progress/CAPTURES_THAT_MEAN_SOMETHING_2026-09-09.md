@@ -1,4 +1,4 @@
-# Captures that mean something — every filed image distinct, every row viewable (2026-09-09)
+✅ 1463642e0 — shells not inserted (looksLikeRecordContent), held references not followed; 5 shell rows on 18a3de22 superseded |✅ 1463642e0 — tab follows the document; text-record empty state |✅ 1463642e0 — label from the row; text-relevance after each read (John Lewis Survey / Abstract 512 → unrelated); 18a3de22 row relabelled + marked |✅ 1463642e0 — modal waited for (appears ~10 s in), dismissed by role=button OK, asserted gone before the frame |✅ 1463642e0 — viewer page count ("Page 1 of 3" box), promised next page waited for up to 12 s; probe: 3 pages of 2004034968 turn |✅ 1463642e0 — view via getAllJimuMapViews() (probe: basemap hybrid/streets change the pixels), basemap verified on the object, identical frames re-taken then dropped; OK is <a role=button> |✅ 1463642e0 + 67eaecdc6 — filedIncrementally honoured, misc never filed, byte-identical once, describeCapturedPage (q / searchValue) |✅ 1463642e0 — runner remembers each rendered frame (same-frame outcome); plan skips the rendered county map and equal-zoom bands |✅ 1463642e0 — held check first, PDF page refused, plat scraper rasterises; plat on 18a3de22 re-filed (4678×3666 PNG) |# Captures that mean something — every filed image distinct, every row viewable (2026-09-09)
 
 Owner, 2026-09-08 (after run 7, project 18a3de22): "many of the images and stuff are identical, even
 though they might should be different. Also, there are a lot of files and stuff where no image is
@@ -143,3 +143,12 @@ Two of the five references are documents the project already holds.
 | G | Bought documents: labelled from the row; relevance verdict after the read | |
 | H | Viewer: text-only rows open on their text, with an explanation | |
 | I | Chain-of-title: shells not inserted, held references not followed; repair on 18a3de22 | |
+
+## Built 2026-09-09 (commits 1463642e0, 67eaecdc6 — merged, deployed)
+
+Repair applied to project 18a3de22 in place: 14 rows superseded with the reason in `duplicate_reason` (4 identical GIS frames + the two grouped copies, the CAD home/error pages and the no-results page, the
+same-frame close aerial and county map, the five chain shells); 3 screenshots renamed by what they show;
+the 1984 Caffrey → Smith deed relabelled and marked unrelated; the free plat's page object rewritten from
+the portal PDF (it had been the raw PDF under a .png name). 20 live rows remain, every one distinct and
+viewable. The subject's deed (Instr. 2004034968) still holds page 1 of 3 on that project — the pager fix
+applies on the next run.
