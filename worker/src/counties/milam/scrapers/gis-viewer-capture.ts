@@ -239,9 +239,10 @@ export async function photographMilamViewer(
     progress(`Opening the county viewer: ${url}`);
     await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
     await page.waitForFunction(() => !!(window as any)._viewerMap, null, { timeout: 40_000 });
-    // The splash ("Accept") — the disclaimer that stands in front of the map.
-    const accept = page.locator('.jimu-btn, button').filter({ hasText: /^(Accept|OK|I Agree|Agree)$/i }).first();
-    if (await accept.count()) { await accept.click().catch(() => {}); progress('Viewer disclaimer accepted'); }
+    // The splash ("Accept") — the disclaimer that stands in front of the map. It renders AFTER the
+    // map object exists (the widgets load later), so it is waited for, not merely looked for.
+    await page.waitForFunction(() => !!document.querySelector('button[title="Accept"], .jimu-overlay'), null, { timeout: 15_000 }).catch(() => {});
+    progress(await acceptSplash(page));
     // The deep link's search: the popup with "Parcel:" proves the map found and framed the parcel.
     const found = await page.waitForFunction(() => /Parcel:\s*\d+/.test(document.body.innerText), null, { timeout: 30_000 }).then(() => true).catch(() => false);
     progress(found ? 'Viewer found the parcel and opened its popup' : 'Viewer popup did not appear — photographing what the map shows');
@@ -259,14 +260,15 @@ export async function photographMilamViewer(
     await setLevel(16);
     await shoot(page, 'County viewer — subdivision / area context (zoom level 16)', seen, out, progress);
 
-    // Imagery basemap, with and without the parcel lines — through the map API, not a selector.
-    const switched = await page.evaluate(() => {
-      const m = (window as any)._viewerMap;
-      try { return typeof m.setBasemap === 'function' ? (m.setBasemap('satellite'), true) : false; } catch { return false; }
-    });
-    if (switched) {
+    // Imagery basemap, with and without the parcel lines — through the Basemap Gallery widget,
+    // which is where the county keeps its OWN aerials (EagleView 2014–2025 and NAIP; read live
+    // 2026-09-09). `setBasemap('satellite')` returned true and changed nothing on this web map.
+    const choice = await pickAerialBasemap(page);
+    const basemap = choice.picked;
+    progress(basemap ? `Viewer basemap switched to "${basemap}" — ${choice.why}` : `Viewer: no aerial basemap could be selected from the gallery (${choice.why}) — no imagery frames from the viewer (the rendered frames carry the aerial)`);
+    if (basemap) {
       await setLevel(19);
-      await shoot(page, 'County viewer — aerial imagery with parcel lines (zoom level 19)', seen, out, progress);
+      await shoot(page, `County viewer — ${basemap} aerial with parcel lines (zoom level 19)`, seen, out, progress);
       const hid = await page.evaluate(() => {
         const m = (window as any)._viewerMap;
         const ids: string[] = m.layerIds ?? [];
@@ -276,12 +278,10 @@ export async function photographMilamViewer(
       });
       if (hid > 0) {
         await settle(page);
-        await shoot(page, 'County viewer — aerial imagery without parcel lines (zoom level 19)', seen, out, progress);
+        await shoot(page, `County viewer — ${basemap} aerial without parcel lines (zoom level 19)`, seen, out, progress);
       } else {
         progress('Viewer: the parcel layer could not be switched off — no lines-off aerial');
       }
-    } else {
-      progress('Viewer: the map does not expose a basemap switch — no imagery frames from the viewer (the rendered frames carry the aerial)');
     }
     await context.close();
   } catch (err) {
@@ -291,6 +291,61 @@ export async function photographMilamViewer(
     if (browser) await browser.close().catch(() => {});
   }
   return out;
+}
+
+/**
+ * Dismiss the viewer's disclaimer. Its "Accept" is a real `<button>`, but a `.jimu-overlay` sits
+ * over it and swallows pointer events, so a Playwright click never lands (the first live frames,
+ * 2026-09-09, all had the splash in them). A DOM click goes through; the overlay's disappearance
+ * is the proof. Returns the sentence for the log.
+ */
+export async function acceptSplash(page: any): Promise<string> {
+  const clicked = await page.evaluate(() => {
+    const b = document.querySelector('button[title="Accept"], .jimu-widget-splash .jimu-btn.enable-btn, .jimu-btn.enable-btn') as HTMLElement | null;
+    if (!b) return false;
+    b.click();
+    return true;
+  }).catch(() => false);
+  if (!clicked) return 'Viewer: no disclaimer to accept';
+  const gone = await page.waitForFunction(() => !document.querySelector('.jimu-overlay'), null, { timeout: 8_000 }).then(() => true).catch(() => false);
+  return gone ? 'Viewer disclaimer accepted' : 'Viewer: Accept was clicked but the overlay stayed — frames may carry the splash';
+}
+
+/**
+ * Choose the county's newest aerial from the Basemap Gallery widget. Prefers the county's own
+ * EagleView flights (newest year), then NAIP / any "Imagery" entry. Returns the entry's label when
+ * the map's basemap layers changed to it, else null.
+ */
+export async function pickAerialBasemap(page: any): Promise<{ picked: string | null; why: string }> {
+  const opened = await page.evaluate(() => { const b = document.querySelector('[title="Basemap Gallery"]') as HTMLElement | null; if (!b) return false; b.click(); return true; }).catch(() => false);
+  if (!opened) return { picked: null, why: 'no Basemap Gallery control on the page' };
+  // What the map draws now (this web map keeps its ground in layerIds, not basemapLayerIds, so both
+  // lists are read) — the proof of a switch is that this set changes. The
+  // county's EagleView flights are served from a Pictometry tile URL that names neither, so a
+  // name match would call a successful switch a failure (it did, 2026-09-09).
+  const groundBefore: string = await page.evaluate(() => { const m = (window as any)._viewerMap; return JSON.stringify([...(m?.basemapLayerIds ?? []), ...(m?.layerIds ?? [])].map((id: string) => String(m.getLayer(id)?.url ?? id))); }).catch(() => '[]');
+  await page.waitForFunction(() => document.querySelectorAll('.esriBasemapGalleryNode').length > 0, null, { timeout: 10_000 }).catch(() => {});
+  const picked: string | null = await page.evaluate(() => {
+    const nodes = Array.from(document.querySelectorAll('.esriBasemapGalleryNode')) as HTMLElement[];
+    const label = (n: HTMLElement) => (n.textContent ?? '').trim();
+    const eagle = nodes.filter((n) => /eagleview\s*(\d{4})/i.test(label(n))).sort((a, b) => Number((label(b).match(/(\d{4})/) ?? [0, 0])[1]) - Number((label(a).match(/(\d{4})/) ?? [0, 0])[1]));
+    const other = nodes.filter((n) => /naip|imagery|aerial/i.test(label(n))).sort((a, b) => Number((label(b).match(/(\d{4})/) ?? [0, 0])[1]) - Number((label(a).match(/(\d{4})/) ?? [0, 0])[1]));
+    const n = eagle[0] ?? other[0];
+    if (!n) return null;
+    const t = (n.querySelector('.esriBasemapGalleryThumbnail, img, a') as HTMLElement | null) ?? n;
+    t.click();
+    return label(n);
+  }).catch(() => null);
+  if (!picked) return { picked: null, why: 'the gallery listed no aerial entry' };
+  const changed = await page.waitForFunction((before: string) => {
+    const m = (window as any)._viewerMap;
+    const now = JSON.stringify([...(m?.basemapLayerIds ?? []), ...(m?.layerIds ?? [])].map((id: string) => String(m.getLayer(id)?.url ?? id)));
+    return now !== before && now !== '[]';
+  }, groundBefore, { timeout: 15_000 }).then(() => true).catch(() => false);
+  // Close the gallery panel so it is not in the frame (toggling the same icon closes it).
+  await page.evaluate(() => { const c = document.querySelector('.jimu-panel .close-btn, .jimu-panel-title .close-btn') as HTMLElement | null; if (c) c.click(); else (document.querySelector('[title="Basemap Gallery"]') as HTMLElement | null)?.click(); }).catch(() => {});
+  await page.waitForTimeout(800);
+  return changed ? { picked, why: `basemap layers changed after choosing "${picked}"` } : { picked: null, why: `"${picked}" was chosen but the basemap layers did not change within 15 s (before: ${groundBefore.slice(0, 120)})` };
 }
 
 // ── Entry ────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import {
 } from '../../bell/scrapers/map-screenshot-capture.js';
 import type { ScreenshotCapture } from '../../bell/types/research-result.js';
 import { hostCircuit, tripHost } from '../../../infra/host-circuit.js';
+import { acceptSplash } from './gis-viewer-capture.js';
 
 /** One frame of the county's own viewer, in the shared browser context. */
 export const capturePandaiParcelFrame: CountyGisCapture = async (context, input, progress) => {
@@ -24,8 +25,8 @@ export const capturePandaiParcelFrame: CountyGisCapture = async (context, input,
     progress(`[Milam GIS] Op 1/3: opening ${url}`);
     await page.goto(url, { waitUntil: 'load', timeout: MILAM_TIMEOUTS.playwrightNavigation });
     await page.waitForFunction(() => !!(window as any)._viewerMap, null, { timeout: 40_000 });
-    const accept = page.locator('.jimu-btn, button').filter({ hasText: /^(Accept|OK|I Agree|Agree)$/i }).first();
-    if (await accept.count()) await accept.click().catch(() => {});
+    await page.waitForFunction(() => !!document.querySelector('button[title="Accept"], .jimu-overlay'), null, { timeout: 15_000 }).catch(() => {});
+    progress(`[Milam GIS] ${await acceptSplash(page)}`);
     progress('[Milam GIS] Op 2/3: waiting for the map to find the parcel...');
     const found = await page.waitForFunction(() => /Parcel:\s*\d+/.test(document.body.innerText), null, { timeout: 30_000 }).then(() => true).catch(() => false);
     await page.waitForFunction(() => { const m = (window as any)._viewerMap; return !!m && !m.updating; }, null, { timeout: 15_000 }).catch(() => {});

@@ -1,7 +1,8 @@
 # Milam County adapter — built to the Bell level (2026-09-09)
 
-Branch `claude/milam-county-adapter-2026-09-09`. Status: **built, typechecked, unit-tested, driven
-live from the office against a real parcel; not yet merged, not yet run end to end on the worker.**
+Branch `claude/milam-county-adapter-2026-09-09` (5 commits, pushed). Status: **built, typechecked (worker + app
+build), 3,085 worker tests green, every source driven live from the office against a real parcel — CAD, GIS,
+clerk (deed pages), rendered maps and the county viewer. Not merged (owner's call), not yet run on the worker.**
 
 ## 1. What the sites are (picked apart live, 2026-09-09)
 
@@ -90,21 +91,27 @@ Buckholts → A-430 **J A DE PENA**, no subdivision; tax → 1 improvement, 9 va
 | 3 | Scrapers/analyzers parameterised; Bell behaviour unchanged | done (suite green) |
 | 4 | Milam GIS scraper (parcels, surveys, subdivisions, siblings, adjacents) | done, driven live |
 | 5 | Milam CAD via BIS (JSON API + label parser) | done, driven live |
-| 6 | Milam clerk + plats via Kofile (vol/page bridge) | done; **not driven end to end from the worker yet** |
-| 7 | Rendered + photographed maps | rendered driven live; photographed — see the maps probe |
+| 6 | Milam clerk + plats via Kofile (vol/page bridge) | done; driven live from the compiled worker: Vol 1093/Pg 560 → 2009-109100 ASSUMPTION W/D, 6 pages at 1920×1200 (free preview) |
+| 7 | Rendered + photographed maps | done; six rendered frames (tile-based aerial) + five viewer frames incl. the county's **EagleView 2025** aerial with and without parcel lines |
 | 8 | Router, registries, health probes, app tables | done |
 | 9 | Tests (`milam-county-module-2026-09-09.test.ts`) | done |
-| 10 | Merge, deploy the worker, one gather run on a Milam address | **owner's call** |
+| 10 | Merge, deploy the worker, one gather run on a Milam address | **deferred to the owner** — the house rule is say-so before every merge, and a run spends the owner's TexasFile/AI budget |
 | 11 | Tax block read by its labels (was null on both counties) | done |
-| 12 | Volume/page → document through the clerk's advanced search (Path D, clerk + plat scrapers) | done; live drive pending the office browser |
+| 12 | Volume/page → document through the clerk's advanced search (Path D, clerk + plat scrapers) | done, driven live (see 6) |
+| 13 | Viewer splash (`.jimu-overlay` swallows clicks — DOM click) and aerial via the Basemap Gallery (EagleView 2025, Pictometry tiles; switch verified by the layer set changing) | done, driven live |
 
-## 6. Left open
+## 6. Left open (each either shipped above or deferred with its reason)
 
 - ~~`parseTaxInfo` is Bell-shaped; returns null on Milam.~~ **Shipped (slice 11):** label-first, year from the
   page title; 2026 / $554,430 / $535,308 on Milam 13824 and 2025 / $127,395 / $104,136 on Bell 405 — it had
   returned null on BOTH counties (no "Tax Year:" label exists on a BIS page). Taxing units are still only what
   the page names in prose; Milam's page names none.
-- QuickLink (1874–1982) is a playbook, not a scraper.
+- QuickLink (1874–1982) is a playbook, not a scraper. **Deferred:** an ASP.NET postback + tiled-TIFF viewer for
+  volumes only a pre-1983 chain reaches; the recipe (book/volume/page → `Viewer.aspx?ImageId`) is written in
+  `playbooks/milam.ts` for the day a run needs it.
+- Path D captures a document's pages twice — once inside `searchClerkRecords` (it fetches the top hits'
+  content) and again in `fetchByVolumePage`. Pre-existing Bell behaviour; 77 s for one deed on the live drive.
+  Worth a `fetchContent: false` on the search when the caller captures itself.
 - The clerk's PL group could be searched by `docTypes` directly (advanced search takes it); today
   plats surface through the quick search's type column, as on Bell. **Deferred:** the quick search already
   returns the PL rows for a subdivision name (driven 2026-09-09, "BOEDEKER" → PLATS facet); a docType filter
