@@ -150,19 +150,37 @@ async function scrapeTaxInner(
 
 // ── Internal: HTML Parsing ───────────────────────────────────────────
 
-function parseTaxInfo(html: string): TaxInfo | null {
+export function parseTaxInfo(html: string): TaxInfo | null {
+  // ── THE PAGE'S OWN LABELS (2026-09-09) ───────────────────────────────────────────────────
+  //
+  // BIS writes the values as `<th>Appraised Value:<i …></i></th><td class="table-number">$554,430 (=)</td>`
+  // and the year as "Property ID: 13824 For Year 2026"; neither site has a "Tax Year:" label. The
+  // patterns below matched none of it, so this returned null on Milam AND on Bell and every run
+  // carried `taxInfo: null`. Label-first, patterns as the fallback (same shape as the detail parser).
+  const strip = (s: string) => s.replace(/<[\s\S]*?>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const th = (label: RegExp): string | null => {
+    for (const m of html.matchAll(/<th[^>]*>((?:(?!<th)[\s\S])*?)<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)) {
+      if (label.test(strip(m[1]))) return strip(m[2]) || null;
+    }
+    return null;
+  };
+  const dollars = (s: string | null): number | null => {
+    const m = s?.match(/\$?\s*([\d,]+)/);
+    return m ? parseInt(m[1].replace(/,/g, ''), 10) : null;
+  };
+
   // Extract tax year — if missing we cannot reliably attribute data to any year
-  const yearMatch = html.match(/Tax\s*Year[:\s]*(\d{4})/i);
+  const yearMatch = html.match(/Tax\s*Year[:\s]*(\d{4})/i) ?? html.match(/For\s+Year\s+(\d{4})/i) ?? html.match(/[?&]year=(\d{4})/i);
   if (!yearMatch) return null;
   const year = parseInt(yearMatch[1]);
 
   // Extract appraised value
   const appraisedMatch = html.match(/(?:Total|Appraised)\s*Value[:\s]*\$?([\d,]+)/i);
-  const appraised = appraisedMatch ? parseInt(appraisedMatch[1].replace(/,/g, '')) : null;
+  const appraised = dollars(th(/^Appraised\s*Value:?$/i)) ?? (appraisedMatch ? parseInt(appraisedMatch[1].replace(/,/g, '')) : null);
 
   // Extract assessed value
   const assessedMatch = html.match(/Assessed\s*Value[:\s]*\$?([\d,]+)/i);
-  const assessed = assessedMatch ? parseInt(assessedMatch[1].replace(/,/g, '')) : null;
+  const assessed = dollars(th(/^Assessed\s*Value:?$/i)) ?? (assessedMatch ? parseInt(assessedMatch[1].replace(/,/g, '')) : null);
 
   // If we have no dollar values at all, the page likely did not contain real tax data
   if (appraised === null && assessed === null) return null;

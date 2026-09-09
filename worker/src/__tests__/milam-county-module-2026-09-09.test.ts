@@ -10,6 +10,7 @@ import {
 import { parseSitus, surveyNameFromGrantee } from '../counties/milam/scrapers/gis-scraper.js';
 import { halfWidthForAcres } from '../counties/milam/scrapers/gis-viewer-capture.js';
 import { parseDeedHistoryTable, parsePropertyDetailHtml, landTableAcreage } from '../counties/bell/scrapers/cad-scraper.js';
+import { parseTaxInfo } from '../counties/bell/scrapers/tax-scraper.js';
 import { BIS_CONFIGS } from '../services/bis-cad.js';
 import { getCountiesWithModules, hasCountySpecificModule, isMilamCountyAddress, isBellCountyAddress, detectCountyFromAddress } from '../counties/router.js';
 import { resolvePhaseIndex, RUN_PHASES } from '../research/run-phases.js';
@@ -250,5 +251,23 @@ describe('the BIS detail page is read by its own labels', () => {
   it('CONTROL: acreage comes from the land table, not the column header', () => {
     expect(landTableAcreage(PAGE)).toBe(0.46);
     expect(landTableAcreage('<table><tr><th>Year</th><th>Land</th></tr><tr><td>2026</td><td>1</td></tr></table>')).toBeNull();
+  });
+});
+
+describe('the BIS valuation block is read by its own labels', () => {
+  // Verbatim shape from both sites: no "Tax Year:" label anywhere; the year is in the page title.
+  const PAGE = `<h3>Property ID: 13824 For Year 2026</h3>
+<table><tr><th>Market Value:</th><td class="table-number">$554,430 (=)</td></tr>
+<tr><th>Appraised Value:<i class="fa fa-question-circle hover-popover" data-content="Appraised Value"></i></th><td class="table-number">$554,430 (=)</td></tr>
+<tr><th>Assessed Value:</th><td class="table-number">$535,308</td></tr></table>`;
+  it('reads the year from the title and the values past the tooltip icon', () => {
+    const t = parseTaxInfo(PAGE);
+    expect(t).not.toBeNull();
+    expect(t!.taxYear).toBe(2026);
+    expect(t!.appraisedValue).toBe(554430);
+    expect(t!.assessedValue).toBe(535308);
+  });
+  it('CONTROL: a page with no year and no values is null, not a zero record', () => {
+    expect(parseTaxInfo('<table><tr><th>Owner:</th><td>X</td></tr></table>')).toBeNull();
   });
 });

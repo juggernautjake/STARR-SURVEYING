@@ -69,8 +69,8 @@ path's GIS query and the rendered parcel map work for Milam too), Kofile adapter
   screenshot, 2026-09-09). Fixed: BIS probed at the home page, Kofile selectors updated
   (`input#basicSearchInputBox`), required-missing → `broken` with the selector named, and the
   panel says "not checked yet" instead of the raw `no_record` for an adapter no check has run on.
-- Esri's imagery cache refuses a bbox tighter than ~0.15 m/px (HTTP 500): the subject-parcel aerial
-  is requested at a servable size and scaled.
+- Esri's World Imagery `/export` refuses a box tighter than ~100 m with HTTP 500 at ANY size: the rendered
+  aerials now come from the tiles, through the parcel-map renderer's `fetchBasemap`, in a square frame.
 
 ## 4. Live evidence (office machine, 2026-09-09)
 
@@ -95,11 +95,14 @@ Buckholts → A-430 **J A DE PENA**, no subdivision; tax → 1 improvement, 9 va
 | 8 | Router, registries, health probes, app tables | done |
 | 9 | Tests (`milam-county-module-2026-09-09.test.ts`) | done |
 | 10 | Merge, deploy the worker, one gather run on a Milam address | **owner's call** |
+| 11 | Tax block read by its labels (was null on both counties) | done |
 
 ## 6. Left open
 
-- `parseTaxInfo` (exemptions / taxing units block) is Bell-shaped; returns null on Milam. The
-  valuation history and improvements parse. Worth a label-first pass like the detail parser.
+- ~~`parseTaxInfo` is Bell-shaped; returns null on Milam.~~ **Shipped (slice 11):** label-first, year from the
+  page title; 2026 / $554,430 / $535,308 on Milam 13824 and 2025 / $127,395 / $104,136 on Bell 405 — it had
+  returned null on BOTH counties (no "Tax Year:" label exists on a BIS page). Taxing units are still only what
+  the page names in prose; Milam's page names none.
 - QuickLink (1874–1982) is a playbook, not a scraper.
 - The clerk's PL group could be searched by `docTypes` directly (advanced search takes it); today
   plats surface through the quick search's type column, as on Bell.
