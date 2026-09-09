@@ -329,8 +329,24 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
   // Wide, framed, close — every run. The framed zoom comes from the acreage and the other two are
   // offsets from it; Bell's capture used a fixed zoom 20 for everything, which photographs the
   // middle of anything larger than a house lot and calls it the parcel.
+  // ── ONE PICTURE, ONE FILE ──────────────────────────────────────────────────────────────────
+  //
+  // On a quarter-acre lot the framed zoom is already the ceiling, so "subject" (+0) and "close"
+  // (+2) clamp to the same zoom at the same centre — the same tiles, the same outline, two files.
+  // Run 7 (2026-09-08) filed exactly that pair. A band that resolves to a frame already planned is
+  // skipped, and the reason names the capture it would have repeated.
+  const plannedZooms = new Map<number, string>();
   for (const band of adaptiveZoomBands(framing.zoom)) {
     const zoom = band.zoom;
+    const sameAs = plannedZooms.get(zoom);
+    if (sameAs) {
+      skipped.push({
+        kind: band.kind,
+        reason: `Same frame as "${sameAs}" — zoom ${zoom} at the same centre is the same picture, and a second copy of it evidences nothing. This lot is small enough that its framed view already reaches the imagery's ceiling.`,
+      });
+      continue;
+    }
+    plannedZooms.set(zoom, band.label);
     // Metres per pixel doubles for every zoom level down, so the scale has to be recomputed per
     // band. Reporting the framed scale on all of them would put a wrong number on most, and
     // a scale is the one thing that makes an aerial measurable rather than decorative.
@@ -356,7 +372,16 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
   }
 
   // ── 2. The county's own GIS view ─────────────────────────────────────────────────────────────
-  const gis = planCadGis(input, held, refresh);
+  //
+  // When the county has a parcel layer the "County GIS map" is RENDERED (imagery tiles + the layer,
+  // framed to the parcel) — which is the aerial subject band, rendered from the same tiles and the
+  // same layer at the same frame (run 7: two files, one picture). The county's own viewer is
+  // photographed separately by the GIS-viewer capture, and the parcel-lines drawing carries the
+  // dimensions; so the rendered CAD map is planned only when no rendered aerial frames the parcel.
+  const renderedAerialPlanned = !!(input.parcelLayerUrl ?? '').trim() && captures.some((c) => c.kind === 'aerial_subject');
+  const gis = renderedAerialPlanned
+    ? { skip: { kind: 'cad_gis' as const, reason: 'Same picture as "Aerial — subject parcel": the county map would be rendered from the same imagery tiles and the same parcel layer at the same frame. The county\'s own viewer is photographed by the GIS-viewer capture; the parcel-lines drawing carries the dimensions.' } }
+    : planCadGis(input, held, refresh);
   if (gis.capture) captures.push(gis.capture); else if (gis.skip) skipped.push(gis.skip);
   const lines = planCadParcelLines(input, held, refresh);
   if (lines.capture) captures.push(lines.capture); else if (lines.skip) skipped.push(lines.skip);

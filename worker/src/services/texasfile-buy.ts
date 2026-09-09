@@ -237,6 +237,11 @@ export interface TexasFileBuyResult {
   /** The county instrument number TexasFile lists for the document actually bought. A
    *  `search_required` want is keyed in the ledger by THIS, not by the placeholder. */
   instrument?: string;
+  /** What TexasFile's index row said about the document bought — its parties, type, date and legal
+   *  description. The label is built from THIS, never from the name that was searched (run 7,
+   *  2026-09-08: a 1984 Caffrey → Smith deed on another survey was filed as "Deed — <the subject's
+   *  owner>"). */
+  row?: { grantor?: string | null; grantee?: string | null; type?: string | null; date?: string | null; legal?: string | null; subdivision?: string | null; survey?: string | null; abstract?: string | null };
   /** The signed PDF the viewer served (a plat), TexasFile's document id, and how the pages were made. */
   pdfUrl?: string;
   documentId?: number;
@@ -598,6 +603,7 @@ export async function buyDocument(input: TexasFileBuyInput, log: PipelineLogger 
         ok: true, reason: 'purchased', pages, guid: chosen.guid, purchaseId: bought.purchaseId,
         pageCount: pages.length, costUsd, balanceAfter: bought.balance,
         instrument: chosen.instrument ?? undefined,
+        row: { grantor: chosen.grantor, grantee: chosen.grantee, type: chosen.type, date: chosen.date, legal: chosen.legal, subdivision: chosen.subdivision, survey: chosen.survey, abstract: chosen.abstract },
         pdfUrl: bought.pdfUrl ?? undefined, documentId: bought.documentId, pageMethod: bought.method,
       };
     } finally {

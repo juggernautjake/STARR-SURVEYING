@@ -268,7 +268,17 @@ export function describePurchasedDocument(
   const recordingInfo = sold
     ? `Instrument No. ${sold}`
     : cabinet && hints.page ? `Volume ${cabinet}, Page ${hints.page}` : `TexasFile ${buy.guid ?? ''}`.trim();
-  return { label: ref, documentLabel: `${titleCase(documentType)} — ${sold ? `Instr. ${sold}` : ref} (${county})`, recordingInfo };
+  // Named by the ROW: its parties and date say what the document is; the searched name says only
+  // what was typed. "Deed — <subject's owner>" over a 1984 deed on another survey (run 7) is the
+  // defect this replaces.
+  const row = (buy as { row?: { grantor?: string | null; grantee?: string | null; type?: string | null; date?: string | null } }).row;
+  const parties = row?.grantor && row?.grantee ? `${tidyName(row.grantor)} to ${tidyName(row.grantee)}` : row?.grantor ? tidyName(row.grantor) : null;
+  const year = row?.date?.match(/(19|20)\d{2}/)?.[0] ?? null;
+  const kind = titleCase(row?.type?.trim() || documentType);
+  const documentLabel = parties
+    ? `${kind} — ${parties}${year ? ` (${year})` : ''} — ${sold ? `Instr. ${sold}` : ref} (${county})`
+    : `${kind} — ${sold ? `Instr. ${sold}` : ref} (${county})`;
+  return { label: ref, documentLabel, recordingInfo };
 }
 
 /** Recommendation document types map onto the artifact categories the Review viewer groups by. */
@@ -279,6 +289,12 @@ function normaliseCategory(documentType: string): string {
   if (t.includes('restriction')) return 'restriction';
   if (t.includes('deed')) return 'deed';
   return t || 'deed';
+}
+
+/** "CAFFREY BARBARA ANN" → "Caffrey Barbara Ann"; a long multi-party string is cut at the first party. */
+function tidyName(s: string): string {
+  const first = s.split(/\s*(?:;|&| and )\s*/i)[0]?.trim() || s.trim();
+  return titleCase(first.toLowerCase()).replace(/\s+/g, ' ').slice(0, 40);
 }
 
 function titleCase(s: string): string {

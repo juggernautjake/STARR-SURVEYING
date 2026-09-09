@@ -381,11 +381,25 @@ async function searchPlatRepository(
     progress(`    ✓ Repository hit: "${result.name}" from ${result.source}`);
     urlsVisited.push(result.url ?? '');
 
+    // The repository serves a PDF; a plat record carries PAGE IMAGES. Filed as-is, the PDF bytes
+    // went into storage under a .png name and the viewer showed a broken image (run 7, 2026-09-08).
+    // Rasterised at 200 dpi, the same as the early pass files it.
+    let images: string[] = [];
+    if (captureImages) {
+      if (result.mimeType === 'application/pdf') {
+        const { rasterisePdf } = await import('../../../services/texasfile-pdf.js');
+        images = (await rasterisePdf(Buffer.from(result.base64, 'base64'), { dpi: 200 })).map((b) => b.toString('base64'));
+        progress(`    Rasterised the PDF: ${images.length} page(s) at 200 dpi`);
+      } else {
+        images = [result.base64];
+      }
+    }
+
     plats.push({
       name: result.name ?? subdivisionName,
       date: null,
       instrumentNumber: null,
-      images: captureImages ? [result.base64] : [],
+      images,
       aiAnalysis: null,
       sourceUrl: result.url ?? null,
       source: result.source ?? 'Bell County Plat Repository (bellcountytx.com)',

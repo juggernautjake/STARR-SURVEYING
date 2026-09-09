@@ -377,6 +377,42 @@ const PUBLICSEARCH_SUBDOMAINS: Record<string, string> = {
 
 const CHAIN_MAX_DOCS = 5; // max referenced documents to follow per analysis run
 
+/** Does fetched text carry a RECORD — an instrument, a grantor/grantee, a recording date — or only
+ *  a site's chrome? Any two of the record tokens is content; the React shell has none. */
+export function looksLikeRecordContent(text: string): boolean {
+  const t = text.toLowerCase();
+  const tokens = [/instrument/, /grantor/, /grantee/, /recorded/, /\bvol(?:ume)?\b/, /\bpage\b/, /\bdeed\b/, /\bwarranty\b/, /\bplat\b/];
+  const hits = tokens.filter((re) => re.test(t)).length;
+  if (/loading search results|browser is out of date|update your browser/.test(t) && hits < 3) return false;
+  return hits >= 2;
+}
+
+/** The label of a filed document that IS this reference (its volume/page, instrument or cabinet/slide
+ *  appears in the row's label or recording info), else null. */
+export function heldDocumentFor(
+  docs: Array<Pick<ResearchDocument, 'document_label' | 'recording_info' | 'file_type' | 'storage_url' | 'pages_pdf_url'>>,
+  norm: { volume?: string | null; page?: string | null; instrument?: string | null } | null,
+  raw: string,
+): string | null {
+  const keys: RegExp[] = [];
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (norm?.instrument?.trim()) keys.push(new RegExp(`(?:instr(?:ument)?\\.?\\s*(?:no\\.?)?\\s*#?\\s*)${esc(norm.instrument.trim())}\\b`, 'i'));
+  if (norm?.volume?.trim() && norm?.page?.trim()) {
+    keys.push(new RegExp(`vol(?:ume)?\\.?\\s*${esc(norm.volume.trim())}\\b[^0-9]{0,12}(?:pg|page)\\.?\\s*${esc(norm.page.trim())}\\b`, 'i'));
+    keys.push(new RegExp(`\\b${esc(norm.volume.trim())}\\s*/\\s*${esc(norm.page.trim())}\\b`));
+  }
+  const cab = raw.match(/[Cc]ab(?:inet)?\.?\s*([A-Z0-9]+)[,\s]+[Ss]l(?:i(?:de)?)?\.?\s*([0-9A-Z]+)/);
+  if (cab) keys.push(new RegExp(`cab(?:inet)?\\.?\\s*${esc(cab[1])}\\b[^0-9A-Z]{0,12}sl(?:ide)?\\.?\\s*${esc(cab[2])}`, 'i'));
+  if (keys.length === 0) return null;
+  for (const d of docs) {
+    // Only a document with a FILE counts as holding the record; a shell row never does.
+    if (!d.storage_url && !d.pages_pdf_url) continue;
+    const hay = `${d.document_label ?? ''} · ${d.recording_info ?? ''}`;
+    if (keys.some((k) => k.test(hay))) return d.document_label ?? 'a filed document';
+  }
+  return null;
+}
+
 async function followChainOfTitle(
   projectId: string,
   countyKey: string,
@@ -438,6 +474,15 @@ async function followChainOfTitle(
     const searchUrl = `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(query)}`;
     if (coveredUrls.has(searchUrl)) continue;
     coveredUrls.add(searchUrl);
+
+    // A reference the project already HOLDS is not followed: run 7 (2026-09-08) wrote "Chain of Title
+    // — Vol. 5456, Pg. 704" beside the filed deed of that very volume and page, and "Plat Cabinet A,
+    // Slide 166" beside the filed plat. The held row is named instead.
+    const heldBy = heldDocumentFor(existingDocuments, norm, dp.raw_value ?? '');
+    if (heldBy) {
+      addLog('info', `[Chain] ${refLabel}: already on the project as "${heldBy}" — not followed`);
+      continue;
+    }
 
     addLog('info', `[Chain] Following deed reference: ${refLabel}`, searchUrl);
 
@@ -522,6 +567,13 @@ async function followChainOfTitle(
       }
 
       if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty (both HTML and JSON API)`); continue; }
+      // publicsearch.us answers a plain fetch with its React shell — "Loading Search Results… Your web
+      // browser is out of date" — 363 characters that name no instrument. Run 7 filed five of them as
+      // documents. A page that carries no record content is logged and not stored.
+      if (!looksLikeRecordContent(text)) {
+        addLog('warn', `[Chain] ${refLabel}: the site answered with its page shell, not a record (${text.length} chars) — nothing to file; the reference stays a lead`, searchUrl);
+        continue;
+      }
 
       // Detect whether the fetched content is JSON (from the REST API) or HTML
       const chainFileType = text.trimStart().startsWith('{') || text.trimStart().startsWith('[') ? 'json' : 'html';

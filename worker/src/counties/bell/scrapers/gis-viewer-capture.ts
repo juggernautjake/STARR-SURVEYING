@@ -35,6 +35,12 @@ import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
 import { hostCircuit, tripHost } from '../../../infra/host-circuit.js';
+import { createHash } from 'node:crypto';
+
+/** The bytes of a frame, as a hash — two frames with one hash are one picture. */
+function frameSha(ss: { imageBase64: string }): string {
+  return createHash('sha256').update(ss.imageBase64).digest('hex');
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -513,6 +519,15 @@ async function captureGisViewerScreenshotsInner(
       }
 
       // Capture each screenshot at this zoom level (just toggle basemap + layers)
+      //
+      // ── VERIFIED BY PIXELS ─────────────────────────────────────────────────────────────────
+      // The basemap and layer toggles report success whenever a map object was found, whether or
+      // not the viewer applied the change. Run 7 (2026-09-08) filed [01] [03] [04] [05] as four
+      // different views; they were byte-identical. A frame whose bytes equal the previous frame's
+      // is given one more render wait and re-taken; if it is still identical it is dropped and the
+      // log says which toggle did not take.
+      let lastFrameSha: string | null = null;
+      let lastFrameId: string | null = null;
       for (const spec of specs) {
         const layerState =
           `Parcels=${spec.parcels ? 'ON' : 'OFF'}, ` +
@@ -541,8 +556,20 @@ async function captureGisViewerScreenshotsInner(
           // Wait for tiles + layers to fully render
           await page.waitForTimeout(POST_NAV_RENDER_WAIT);
 
-          const ss = await takeScreenshot(page, 'GIS Viewer', descLine);
+          let ss = await takeScreenshot(page, 'GIS Viewer', descLine);
+          if (ss && lastFrameSha && frameSha(ss) === lastFrameSha) {
+            logDetail(`screenshot-${spec.id}`, `Frame identical to [${lastFrameId}] — waiting ${POST_NAV_RENDER_WAIT}ms more and re-taking`);
+            await page.waitForTimeout(POST_NAV_RENDER_WAIT);
+            ss = await takeScreenshot(page, 'GIS Viewer', descLine);
+          }
+          if (ss && lastFrameSha && frameSha(ss) === lastFrameSha) {
+            progress(`[Screenshot ${spec.id}] ✗ DROPPED — identical to [${lastFrameId}]: the viewer did not apply basemap=${spec.basemap}, ${layerState}`);
+            logDetail(`screenshot-${spec.id}`, `DROPPED — byte-identical to [${lastFrameId}]`, { id: spec.id, sameAs: lastFrameId });
+            continue;
+          }
           if (ss) {
+            lastFrameSha = frameSha(ss);
+            lastFrameId = spec.id;
             results.push(ss);
             logDetail(`screenshot-${spec.id}`, `Captured: ${ss.imageBase64.length} base64 chars`, {
               id: spec.id, level: spec.level, basemap: spec.basemap,
@@ -617,6 +644,10 @@ async function dismissDisclaimerDialog(page: any, progress: (msg: string) => voi
     try {
       // Try multiple selectors for the OK button in the disclaimer dialog
       const okSelectors = [
+        // Bell's Experience Builder modal: OK is an <a role="button" class="jimu-btn">, not a <button>
+        // (measured 2026-09-09; every <button> selector below found nothing and the modal stayed).
+        '.jimu-modal.show [role="button"]:has-text("OK")',
+        '[role="dialog"] [role="button"]:has-text("OK")',
         // Button with text "OK" — most reliable
         'button:has-text("OK")',
         // Calcite/Esri modal buttons
@@ -884,8 +915,13 @@ async function centerAndZoomToLevel(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     let view = null;
-    if (w._mapViewManager?.jimuMapViews) {
-      const views = Object.values(w._mapViewManager.jimuMapViews);
+    // Experience Builder keeps its views behind `getAllJimuMapViews()`; the `jimuMapViews` property
+    // this read first is EMPTY on Bell's viewer (measured 2026-09-09 — every toggle "succeeded" on no
+    // view, and the four frames it filed were byte-identical).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (w._mapViewManager?.getAllJimuMapViews?.() ?? w._mapViewManager?.jimuMapViews ?? {}) as Record<string, any>;
+    {
+      const views = Object.values(all);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = views.find((v: any) => v?.view?.ready);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1208,8 +1244,13 @@ async function zoomIn(page: any, levels: number): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     let view = null;
-    if (w._mapViewManager?.jimuMapViews) {
-      const views = Object.values(w._mapViewManager.jimuMapViews);
+    // Experience Builder keeps its views behind `getAllJimuMapViews()`; the `jimuMapViews` property
+    // this read first is EMPTY on Bell's viewer (measured 2026-09-09 — every toggle "succeeded" on no
+    // view, and the four frames it filed were byte-identical).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (w._mapViewManager?.getAllJimuMapViews?.() ?? w._mapViewManager?.jimuMapViews ?? {}) as Record<string, any>;
+    {
+      const views = Object.values(all);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = views.find((v: any) => v?.view?.ready);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1333,8 +1374,13 @@ async function switchToAerialBasemap(page: any): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     let view = null;
-    if (w._mapViewManager?.jimuMapViews) {
-      const views = Object.values(w._mapViewManager.jimuMapViews);
+    // Experience Builder keeps its views behind `getAllJimuMapViews()`; the `jimuMapViews` property
+    // this read first is EMPTY on Bell's viewer (measured 2026-09-09 — every toggle "succeeded" on no
+    // view, and the four frames it filed were byte-identical).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (w._mapViewManager?.getAllJimuMapViews?.() ?? w._mapViewManager?.jimuMapViews ?? {}) as Record<string, any>;
+    {
+      const views = Object.values(all);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = views.find((v: any) => v?.view?.ready);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1347,12 +1393,16 @@ async function switchToAerialBasemap(page: any): Promise<void> {
     }
     if (!view?.map) return false;
 
+    const before = view.map.basemap?.id ?? view.map.basemap?.title ?? null;
     try {
       view.map.basemap = 'hybrid';
-      return true;
     } catch {
-      try { view.map.basemap = 'satellite'; return true; } catch { return false; }
+      try { view.map.basemap = 'satellite'; } catch { return false; }
     }
+    // The assignment is a request; the basemap object says whether it was honoured.
+    await new Promise((r) => setTimeout(r, 1500));
+    const after = view.map.basemap?.id ?? view.map.basemap?.title ?? null;
+    return after !== null && after !== before;
   }).catch(() => false);
 
   if (jsWorked) {
@@ -1374,8 +1424,13 @@ async function switchToStreetsBasemap(page: any): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     let view = null;
-    if (w._mapViewManager?.jimuMapViews) {
-      const views = Object.values(w._mapViewManager.jimuMapViews);
+    // Experience Builder keeps its views behind `getAllJimuMapViews()`; the `jimuMapViews` property
+    // this read first is EMPTY on Bell's viewer (measured 2026-09-09 — every toggle "succeeded" on no
+    // view, and the four frames it filed were byte-identical).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (w._mapViewManager?.getAllJimuMapViews?.() ?? w._mapViewManager?.jimuMapViews ?? {}) as Record<string, any>;
+    {
+      const views = Object.values(all);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const found = views.find((v: any) => v?.view?.ready);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1388,8 +1443,13 @@ async function switchToStreetsBasemap(page: any): Promise<void> {
     }
     if (!view?.map) return false;
 
-    try { view.map.basemap = 'streets-vector'; return true; }
-    catch { try { view.map.basemap = 'streets'; return true; } catch { return false; } }
+    const before = view.map.basemap?.id ?? view.map.basemap?.title ?? null;
+    try { view.map.basemap = 'streets-vector'; }
+    catch { try { view.map.basemap = 'streets'; } catch { return false; } }
+    await new Promise((r) => setTimeout(r, 1500));
+    const after = view.map.basemap?.id ?? view.map.basemap?.title ?? null;
+    // Already on a streets basemap counts as done.
+    return after !== null && (after !== before || /street/i.test(String(after)));
   }).catch(() => false);
 
   if (jsWorked) {

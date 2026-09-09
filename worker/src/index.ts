@@ -787,6 +787,7 @@ async function persistCountyResults(
       description: ss.description,
       pageText: ss.pageText,
       classification: ss.classification,
+      filedIncrementally: ss.filedIncrementally,
     }));
 
     // Collect page images from deeds and plats
@@ -4563,6 +4564,13 @@ app.post('/research/read-documents/:projectId', requireAuth, async (req: Request
             call: (opts) => triggerAppAnalysis(projectId, { allow: true, ...opts, awaitCompletion: true, timeoutMs: 330_000 }),
             spentSoFar: () => ledgerSpendForRun(projectId),
             onProgress: (p) => stampReviewProgress(projectId, { stage: p.stage, documentsDone: p.done, documentsTotal: p.total, label: p.label }),
+            // What a document SAYS, once read, decides whether it is about this property (run 7 filed a
+            // 1984 deed on another survey under the subject's owner's name and nothing checked it).
+            afterDocument: async (documentId) => {
+              if (!sb) return;
+              const { assessRelevanceAfterRead } = await import('./research/text-relevance.js');
+              await assessRelevanceAfterRead(sb, projectId, documentId, log);
+            },
             log,
           });
           log(r.statement);
@@ -5308,6 +5316,15 @@ async function runCapturePlan(
   // (2026-09-04) — 90 s of a 15-minute run spent learning the same thing twice. One timeout
   // marks the provider down for the rest of this plan; later bands go straight to the tiles.
   let providerDown = false;
+  // ── ONE FRAME, ONE FILE ────────────────────────────────────────────────────────────────────
+  // The rendered aerials and the rendered county map come from the same tiles and the same layer;
+  // when two bands resolve to the same centre and scale they are one picture (run 7, 2026-09-08:
+  // "Aerial — subject parcel", "Aerial — close on the improvements" and "County GIS map" all at
+  // 0.07 m/px on the same centre). The frame each render actually produced is remembered; a repeat
+  // is a stated skip that names the capture it would have copied.
+  const framesFiled = new Map<string, string>();
+  const frameKey = (centre: { lat: number; lon: number }, mpp: number, w: number, h: number) =>
+    `${centre.lat.toFixed(5)},${centre.lon.toFixed(5)}|${mpp.toFixed(3)}|${w}x${h}`;
   const report = await runCaptures(plan, {
     // Playwright, through the same browser factory every scraper uses — so a capture inherits the
     // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
@@ -5327,6 +5344,12 @@ async function runCapturePlan(
             county, parcelId: item.parcelId ?? null, centre: item.centre,
             acreage: item.acreage ?? null, parcelLayerUrl: item.parcelLayerUrl,
           });
+          const gisKey = frameKey(item.centre, map.metresPerPixel, map.width, map.height);
+          const gisTwin = framesFiled.get(gisKey);
+          if (gisTwin) {
+            return { sameFrameAs: gisTwin, detail: `Same picture as "${gisTwin}" — rendered from the same tiles and the same parcel layer at the same centre and scale (${map.metresPerPixel.toFixed(2)} m/px); a second copy evidences nothing.` };
+          }
+          framesFiled.set(gisKey, item.label);
           capLog('info',
             `${item.label}: rendered from the parcel layer — ${map.parcelCount} parcel(s), ` +
             `subject ${map.subjectFound ? 'matched' : 'NOT matched'}, ${map.metresPerPixel.toFixed(2)} m/px`,
@@ -5462,6 +5485,12 @@ async function runCapturePlan(
           parcelLayerUrl: item.parcelLayerUrl ?? parcelLayerUrlFor(county), halfWidthMetres: (mpp * sizePx) / 2, sizePx,
           title: item.label, labelNeighbours: item.kind !== 'aerial_wide',
         });
+        const key = frameKey(item.centre!, map.metresPerPixel, map.width, map.height);
+        const twin = framesFiled.get(key);
+        if (twin) {
+          return { sameFrameAs: twin, detail: `Same picture as "${twin}" — rendered from the same tiles and the same parcel layer at the same centre and scale (${map.metresPerPixel.toFixed(2)} m/px); a second copy evidences nothing.` };
+        }
+        framesFiled.set(key, item.label);
         capLog('info', `${item.label}: rendered from imagery tiles (${why}) — ${map.metresPerPixel.toFixed(2)} m/px, ${map.parcelCount} parcel outline(s)`);
         return {
           bytes: map.png, width: map.width, height: map.height, text: map.text,
@@ -5537,7 +5566,7 @@ async function runCapturePlan(
 
   capLog('info', report.summary);
   for (const o of report.outcomes) {
-    capLog(o.status === 'filed' || o.status === 'already-held' ? 'info' : 'warn', `${o.label} — ${o.status}: ${o.detail}`);
+    capLog(o.status === 'filed' || o.status === 'already-held' || o.status === 'same-frame' ? 'info' : 'warn', `${o.label} — ${o.status}: ${o.detail}`);
   }
 }
 

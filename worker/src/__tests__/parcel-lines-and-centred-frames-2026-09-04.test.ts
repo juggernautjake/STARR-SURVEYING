@@ -106,7 +106,10 @@ describe('the lines-only drawing', () => {
     expect(lines).toBeTruthy();
     expect(lines!.ocr).toBe(false);
     expect(lines!.parcelLayerUrl).toBe('https://l/0');
-    expect(withLayer.captures.some((c) => c.kind === 'cad_gis')).toBe(true); // both views, every run
+    // The RENDERED county map is the aerial subject band rendered again (same tiles, same layer, same
+    // frame — run 7, 2026-09-08), so with a layer it is a stated skip, not a second file.
+    expect(withLayer.captures.some((c) => c.kind === 'cad_gis')).toBe(false);
+    expect(withLayer.skipped.find((s) => s.kind === 'cad_gis')?.reason).toMatch(/Same picture as "Aerial — subject parcel"/);
     const without = planCaptures({ projectId: 'p', county: 'Coryell', latitude: 31.4, longitude: -97.8, acreage: 1, gisBaseUrl: 'https://gis/' });
     expect(without.captures.some((c) => c.kind === 'cad_parcel_lines')).toBe(false);
     expect(without.skipped.find((s) => s.kind === 'cad_parcel_lines')?.reason).toMatch(/No parcel layer is registered/);

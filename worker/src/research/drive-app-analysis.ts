@@ -43,6 +43,9 @@ export interface DriveAppAnalysisInput {
   /** Where the drive is, for the review's own loading bar (owner, 2026-09-07): before each document
    *  and before each finalize stage. Never fatal. */
   onProgress?: (p: { stage: 'analyzing' | 'finalizing'; done: number; total: number; label: string }) => void | Promise<void>;
+  /** After one document has been read and analysed: the text is now evidence (a relevance verdict
+   *  from what it says — research/text-relevance.ts). Failures are the hook's own business. */
+  afterDocument?: (documentId: string) => Promise<void>;
   log?: (line: string) => void;
 }
 
@@ -89,6 +92,9 @@ export async function driveAppAnalysis(input: DriveAppAnalysisInput): Promise<Dr
     chunks += 1;
     if (!r.ok) chunkFailures += 1;
     log(`[${chunks}/${docs.length}] ${doc.label ?? doc.id}: ${r.statement}`);
+    if (r.ok && input.afterDocument) {
+      try { await input.afterDocument(doc.id); } catch (e) { log(`  after-read check failed: ${e instanceof Error ? e.message : String(e)}`); }
+    }
   }
 
   // The finalize, a STAGE at a time (2026-09-07): the whole thing — chain of title, cross-reference

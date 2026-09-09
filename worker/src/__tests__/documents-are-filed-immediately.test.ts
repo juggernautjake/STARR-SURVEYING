@@ -68,8 +68,9 @@ describe('every document is checked for duplicates as it is filed', () => {
     for (const fn of ['uploadDocumentIncremental', 'uploadScreenshotsIncremental']) {
       const at = uploader.indexOf(`export async function ${fn}`);
       expect(at, `${fn} is missing`).toBeGreaterThan(-1);
-      // The body up to the next top-level export.
-      const body = uploader.slice(at, at + 4000);
+      // The body up to the next top-level export (widened 2026-09-09: the already-filed check and its
+      // reasons sit before the storage writes now).
+      const body = uploader.slice(at, at + 9000);
       expect(body, `${fn} must not bypass the duplicate check`).toContain('resilientInsertDocument');
     }
   });

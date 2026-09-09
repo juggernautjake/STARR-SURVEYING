@@ -67,6 +67,13 @@ import { resolveAddressToLot, validateAddressParcelMatch, preferBetterSitusMatch
 import { getSupabase } from '../../services/pipeline.js';
 import { filedPlatLabel as sharedFiledPlatLabel } from '../../research/filed-plat.js';
 import { uploadDocumentIncremental, uploadScreenshotsIncremental, type ArtifactPageImage, type ArtifactScreenshot } from '../../services/artifact-uploader.js';
+
+/** What the incremental filing did, written back onto the run's own capture objects: a filed capture is
+ *  not filed again by the end-of-run artifact pass, and a misc one is not filed at all. */
+function markScreenshotsFiled(shots: ScreenshotCapture[], up: { filed: number[]; misc: number[] }): void {
+  for (const i of up.filed) if (shots[i]) shots[i].filedIncrementally = true;
+  for (const i of up.misc) if (shots[i]) shots[i].classification = 'misc';
+}
 import type { GisFeatureForMatching } from '../../services/address-lot-resolver.js';
 import {
   resetCreditGuard,
@@ -1124,7 +1131,7 @@ export async function orchestrateBellResearch(
             pageText: ss.pageText,
             classification: ss.classification,
           }));
-          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+          markScreenshotsFiled(pageScreenshots, await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload));
         }
       }
     } catch (err) {
@@ -1168,7 +1175,7 @@ export async function orchestrateBellResearch(
             pageText: ss.pageText,
             classification: ss.classification,
           }));
-          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+          markScreenshotsFiled(gisViewerScreenshots, await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload));
           progress('Phase 2', `  ✓ GIS screenshots uploaded for live preview`);
         }
       }
@@ -1231,7 +1238,7 @@ export async function orchestrateBellResearch(
             pageText: ss.pageText,
             classification: ss.classification,
           }));
-          await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload);
+          markScreenshotsFiled(mapScreenshots, await uploadScreenshotsIncremental(supabase as any, input.projectId, ssForUpload));
           progress('Phase 2', `  ✓ Direct map screenshots uploaded for live preview`);
         }
       }

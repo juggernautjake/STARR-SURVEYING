@@ -107,7 +107,7 @@ describe('Q/R — run 5 (2026-09-07): no second plat row, no second screenshot r
     expect(up).toContain("if (label && sourceUrl && !row.recording_info) {");
     expect(up).toContain(".eq('document_label', label)");
     expect(up).toContain(".eq('source_url', sourceUrl)");
-    expect(up).toContain("return { error: null, id: hit.id, outcome: 'merged' };");
+    expect(up).toContain("return { error: null, id: hitId, outcome: 'merged' };");
   });
 });
 

@@ -123,7 +123,7 @@ export async function captureScreenshots(
           url: req.url,
           imageBase64: buffer.toString('base64'),
           capturedAt: new Date().toISOString(),
-          description: req.description,
+          description: describeCapturedPage(req.url, pageText) ?? req.description,
           pageText: pageText || undefined,
         });
 
@@ -184,6 +184,40 @@ export async function capturePageScreenshot(
  * Build a list of screenshot requests from all URLs visited during research.
  * Filters out API/JSON endpoints (only screenshot HTML pages).
  */
+/**
+ * A name for a captured page that says what it shows. "research: /results" named three different
+ * clerk searches the same way (run 7, 2026-09-08); the page's own text says which search and how
+ * many results, and the URL says which site. Null when the page is not one this knows.
+ */
+export function describeCapturedPage(url: string, pageText: string | undefined): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  const text = (pageText ?? '').replace(/\s+/g, ' ');
+  const host = u.hostname.toLowerCase();
+  if (host.endsWith('publicsearch.us')) {
+    if (u.pathname.startsWith('/results')) {
+      const q = u.searchParams.get('q') ?? (text.match(/results for "([^"]+)"/i)?.[1] ?? '');
+      const count = text.match(/\b\d+\s*-\s*\d+ of (\d+) results?/i)?.[1];
+      const outcome = /no results found/i.test(text) ? 'no results' : count ? `${count} result${count === '1' ? '' : 's'}` : 'results';
+      return `Clerk search — "${q || '?'}" — ${outcome}`;
+    }
+    const doc = u.pathname.match(/^\/doc\/(\d+)/);
+    if (doc) return `Clerk document viewer — ${doc[1]}`;
+    if (u.pathname === '/') return 'Clerk records — home page';
+  }
+  if (host.includes('bellcad.org')) {
+    const view = u.pathname.match(/\/Property\/View\/(\d+)/i);
+    if (view) return /an error occurred/i.test(text) ? `Bell CAD property page — ${view[1]} — error page` : `Bell CAD property page — ${view[1]}`;
+    if (u.pathname.startsWith('/search/result')) {
+      const kw = (u.searchParams.get('keywords') ?? '').replace(/PropertyType:\S*/i, '').trim();
+      const total = text.match(/Total:\s*(\d+)/i)?.[1];
+      return `Bell CAD search — ${kw || '?'}${total !== undefined ? ` — ${total} result${total === '1' ? '' : 's'}` : ''}`;
+    }
+    if (u.pathname === '/') return 'Bell CAD — home page';
+  }
+  return null;
+}
+
 export function buildScreenshotRequests(
   urlsVisited: string[],
   source: string,

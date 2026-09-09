@@ -1995,6 +1995,31 @@ export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
  *
  *  This is an actionability check on an element that already exists, not a page load. */
 export const NEXT_PAGE_CLICK_TIMEOUT_MS = 2_000;
+/** How long a next-page button the viewer PROMISES (its page count says more pages exist) may stay
+ *  disabled while the current page image loads. Measured 5.3 s through Browserbase, 2026-09-09. */
+export const NEXT_PAGE_ENABLED_WAIT_MS = 12_000;
+
+/** The page count the clerk viewer itself shows — its page box's `max`, or "Page 1 of N". Null when
+ *  the viewer has no such box. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readViewerPageCount(page: any): Promise<number | null> {
+  try {
+    const n = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[type="number"], input[aria-label*="Page" i]'));
+      for (const i of inputs) {
+        const max = Number((i as HTMLInputElement).max);
+        if (Number.isFinite(max) && max >= 1) return max;
+        const m = (i.getAttribute('aria-label') ?? '').match(/of\s+(\d+)/i);
+        if (m) return Number(m[1]);
+      }
+      const m = (document.body?.innerText ?? '').match(/page\s*\d+\s*of\s*(\d+)/i);
+      return m ? Number(m[1]) : null;
+    });
+    return typeof n === 'number' && Number.isFinite(n) && n >= 1 ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * `page.goto`, paced per host.
@@ -3089,11 +3114,24 @@ export async function fetchDocumentImages(
     // is found OR when no new signed URL is intercepted after navigation AND the
     // URL-construction fallback also fails — whichever comes first.
     // The expectedPages cap (max 20) is the absolute upper bound for safety.
-    const maxPages = Math.min(expectedPages, 20);
+    // ── THE VIEWER SAYS HOW MANY PAGES THERE ARE ─────────────────────────────────────────────
+    //
+    // Its page box is `<input type="number" min="1" max="3" aria-label="Page 1 of 3">` (measured
+    // 2026-09-09 on doc 98737982). Run 7 captured page 1 of that 3-page deed and reported "no
+    // next-page button found — 1 page(s) total": the next button is DISABLED until the page image
+    // has loaded (~5 s through Browserbase), and the loop asked once, at once. The count is read
+    // here, and a next page the viewer promises is waited for.
+    const viewerTotal = await readViewerPageCount(page);
+    if (viewerTotal) logger.info('2D-IMG', `Viewer reports ${viewerTotal} page(s) for instrument ${instrumentNumber}`);
+    const maxPages = Math.min(viewerTotal ?? expectedPages, 20);
     for (let pageNum = 2; pageNum <= maxPages; pageNum++) {
       const urlCountBefore = imageUrls.length;
+      if (viewerTotal && pageNum <= viewerTotal) {
+        await page.waitForSelector('[aria-label="Go To Next Page"]:not([disabled])', { timeout: NEXT_PAGE_ENABLED_WAIT_MS, state: 'visible' }).catch(() => null);
+      }
 
       const nextSelectors = [
+        '[aria-label="Go To Next Page"]',
         'img[alt*="Next"]', 'img[alt*="next"]', 'button[title*="Next"]',
         'a[title*="Next"]', 'img[src*="jump_triangle"]', '.page-next',
         '[aria-label*="next" i]',

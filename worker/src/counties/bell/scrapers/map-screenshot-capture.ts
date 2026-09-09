@@ -417,7 +417,13 @@ async function captureBisGisParcel(
     );
 
     // ── OPERATION 2: Dismiss disclaimer dialogs ───────────────────
+    //
+    // The disclaimer renders AFTER the map (run 7, 2026-09-08, through Browserbase: the dismiss ran
+    // before it existed and the filed map had the modal in front of it). It is waited for, then
+    // dismissed; and it is dismissed again — and asserted gone — right before the screenshot.
     progress('[BIS GIS] Op 2/6: Dismissing any disclaimer dialogs...');
+    const modalAppeared = await page.waitForSelector(DISCLAIMER_OK_SELECTOR, { timeout: 10_000, state: 'visible' }).then(() => true).catch(() => false);
+    console.log(`[map-capture] BIS GIS: disclaimer ${modalAppeared ? 'appeared — dismissing' : 'did not appear within 10 s'}`);
     await dismissDialogs(page);
 
     // OCR VERIFY: Are dialogs cleared?
@@ -568,6 +574,16 @@ async function captureBisGisParcel(
 
     // ── OPERATION 6: Final screenshot capture ─────────────────────
     progress('[BIS GIS] Op 6/6: Capturing final screenshot...');
+    await dismissDialogs(page);
+    if (await modalStillVisible(page)) {
+      await page.waitForTimeout(1500);
+      await dismissDialogs(page);
+    }
+    if (await modalStillVisible(page)) {
+      // A frame with the disclaimer in front of the map is not the map. Said plainly; not filed.
+      progress('[BIS GIS] ✗ The disclaimer modal is still in front of the map after two dismissals — not capturing a frame with it in the way');
+      throw new Error('BIS GIS disclaimer modal could not be dismissed');
+    }
     const zoomLevel = await page.evaluate(() => {
       const view = (window as any)._mapView ?? (document.querySelector('.esri-view') as any)?.__view;
       return view?.zoom ?? null;
@@ -815,6 +831,26 @@ async function captureGoogleMapsPlace(
 
 // ── Utilities ────────────────────────────────────────────────────────
 
+/** The disclaimer's OK button (Bell's BIS viewer: a modal with OK / Cancel). */
+export const DISCLAIMER_OK_SELECTOR = '.jimu-modal.show [role="button"]:has-text("OK"), [role="dialog"] [role="button"]:has-text("OK"), button:has-text("OK"), button:has-text("Accept"), button:has-text("I Agree")';
+
+/** Is a modal dialog still visible in front of the map? */
+export async function modalStillVisible(page: any): Promise<boolean> {
+  try {
+    const ok = await page.$(DISCLAIMER_OK_SELECTOR);
+    if (ok && await ok.isVisible().catch(() => false)) return true;
+    return await page.evaluate(() => {
+      const els = document.querySelectorAll('[role="dialog"], .modal, .jimu-modal, [class*="modal"][class*="open"]');
+      for (const el of Array.from(els)) {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        const style = getComputedStyle(el as HTMLElement);
+        if (r.width > 200 && r.height > 100 && style.visibility !== 'hidden' && style.display !== 'none') return true;
+      }
+      return false;
+    }).catch(() => false);
+  } catch { return false; }
+}
+
 /**
  * Dismiss common modal/disclaimer dialog overlays on the BIS GIS viewer.
  * Only targets actual modal dialogs — NOT side panels or search dropdowns,
@@ -822,6 +858,9 @@ async function captureGoogleMapsPlace(
  */
 export async function dismissDialogs(page: any): Promise<void> {
   const selectors = [
+    // Bell's Experience Builder disclaimer: OK is an <a role="button"> (2026-09-09)
+    '.jimu-modal.show [role="button"]:has-text("OK")',
+    '[role="dialog"] [role="button"]:has-text("OK")',
     // Modal dialog confirmation buttons
     'button:has-text("OK")',
     'button:has-text("Accept")',

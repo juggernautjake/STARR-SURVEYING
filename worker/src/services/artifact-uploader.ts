@@ -9,6 +9,7 @@
 // Stored at: research-documents/{projectId}/artifacts/{category}/{filename}
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import { pageImagesToBuffer } from './pages-to-pdf.js';
 import type { DocumentPage } from '../types/index.js';
 
@@ -196,6 +197,7 @@ const BUCKET = 'research-documents';
 /** Patterns in URLs or descriptions that indicate a useless/junk screenshot */
 const MISC_SCREENSHOT_PATTERNS = [
   // Error/empty pages
+  /an\s*error\s*occurred/i,
   /no\s*results?\s*found/i,
   /0\s*results?\s*found/i,
   /no\s*records?\s*found/i,
@@ -248,6 +250,9 @@ const MISC_URL_PATTERNS = [
  * results, auth walls, empty PDF viewers, etc.
  */
 function classifyScreenshot(url: string, description: string, pageText?: string): 'useful' | 'misc' {
+  // A site's front page — an empty search form — evidences nothing about the property (run 7 filed
+  // the Bell CAD home page as "Screenshot: research: /").
+  try { if (new URL(url).pathname === '/' && !/[?#]./.test(url)) return 'misc'; } catch { /* not a URL */ }
   // Check URL + description
   const textToCheck = `${url} ${description}`;
   for (const pattern of MISC_SCREENSHOT_PATTERNS) {
@@ -284,6 +289,8 @@ export interface ArtifactScreenshot {
   pageText?: string;
   /** Pre-classified by AI/regex in the pipeline (if set, skips re-classification) */
   classification?: 'useful' | 'misc';
+  /** Already filed by `uploadScreenshotsIncremental` during the run — the final pass skips it. */
+  filedIncrementally?: boolean;
 }
 
 export interface ArtifactPageImage {
@@ -397,13 +404,33 @@ export async function uploadPipelineArtifacts(
   let miscCount = 0;
   let usefulCount = 0;
 
+  // ── FILED ONCE ──────────────────────────────────────────────────────────────────────────────
+  //
+  // The orchestrator files captures DURING the run (one row each, named); this pass then grouped the
+  // same images by source into "research (4 pages)" / "GIS Viewer (5 pages)" rows — every screenshot
+  // of run 7 (2026-09-08) was on the project twice. A capture the run already filed is not a page
+  // of anything here; and two captures with the same bytes are one capture.
+  const seenBytes = new Set<string>();
+  const skippedFiled = screenshots.filter((ss) => ss.filedIncrementally).length;
+  if (skippedFiled > 0) console.log(`[ArtifactUploader] ${projectId}: ${skippedFiled} screenshot(s) already filed during the run — not filed again`);
+  const candidates = screenshots.filter((ss) => {
+    if (ss.filedIncrementally) return false;
+    const sha = createHash('sha256').update(ss.imageBase64).digest('hex');
+    if (seenBytes.has(sha)) {
+      console.log(`[ArtifactUploader] ${projectId}: screenshot "${(ss.description || ss.source).slice(0, 60)}" is byte-identical to one already in this batch — filed once`);
+      return false;
+    }
+    seenBytes.add(sha);
+    return true;
+  });
+
   // Step 1: Classify all screenshots and group useful ones by source
   const classified: Array<{
     ss: ArtifactScreenshot;
     index: number;
     classification: 'useful' | 'misc';
     docType: string;
-  }> = screenshots.map((ss, i) => {
+  }> = candidates.map((ss, i) => {
     const cls = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
     const docType = cls === 'misc' ? 'other' : classifyScreenshotDocType(ss.url || '', ss.description || '', ss.source || '');
     return { ss, index: i, classification: cls, docType };
@@ -430,8 +457,14 @@ export async function uploadPipelineArtifacts(
     `[ArtifactUploader] ${projectId}: Screenshots — ${usefulCount} useful (${usefulGroups.size} group(s)), ${miscCount} misc`,
   );
 
-  // Step 2: Upload misc screenshots individually (no grouping needed)
+  // Step 2: Misc screenshots are NOT documents. An error page, an empty search form, a "no results"
+  // page — the run log says they were seen and why they were set aside; a row in the project's
+  // library that opens to a blank form is worse than no row (owner, 2026-09-08). Kept in storage
+  // for the audit trail only when MISC_SCREENSHOTS_TO_STORAGE=1.
   for (const cs of miscScreenshots) {
+    console.log(`[ArtifactUploader] ${projectId}: not filed — misc screenshot "${(cs.ss.description || cs.ss.source).slice(0, 70)}" (${cs.ss.url?.slice(0, 80) ?? 'no url'})`);
+  }
+  for (const cs of process.env.MISC_SCREENSHOTS_TO_STORAGE === '1' ? miscScreenshots : []) {
     try {
       const safeName = sanitizeFilename(cs.ss.source);
       const filename = `screenshot_${cs.index + 1}_${safeName}.png`;
@@ -928,6 +961,27 @@ export async function uploadDocumentIncremental(
     // Sort by page number
     const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
 
+    // ── ALREADY FILED? ASKED BEFORE A BYTE IS WRITTEN ──────────────────────────────────────
+    //
+    // The page objects are upserted to `<category>_<label>_page<n>.png` — a path derived from the
+    // label, so a second filer of the same document writes over the first's files, and only THEN
+    // does the row insert answer "already filed — same label and source" and drop the row. Run 7
+    // (2026-09-08): the early pass filed the free plat's 200-dpi page; Phase 2 re-fetched the
+    // same plat and handed the uploader the raw PDF bytes as its "image", which replaced the PNG
+    // under the same name. The row said 1 page, the viewer showed a broken image. The question
+    // is asked first now, and a held document is left exactly as it was filed.
+    const docType = firstPage.documentType || mapCategoryToDocType(category);
+    const richLabel = firstPage.documentLabel;
+    const displayLabel = richLabel
+      ? (sorted.length > 1 ? `${richLabel} (${sorted.length} pages)` : richLabel)
+      : `${capitalizeFirst(category)}: ${label}${sorted.length > 1 ? ` (${sorted.length} pages)` : ''}`;
+    const heldId = await alreadyFiledId(supabase, projectId, displayLabel, firstPage.sourceUrl ?? '');
+    if (heldId) {
+      console.log(`[ArtifactUploader:Incremental] ${projectId}: already filed — same label and source ("${displayLabel.slice(0, 60)}") — storage left as it was`);
+      filingContexts.get(projectId)?.tally.record({ outcome: 'merged', id: heldId, reason: 'same label and source' } as never);
+      return { ok: true };
+    }
+
     // 1. Upload individual page images
     const pageUrls: string[] = [];
     let totalBytes = 0;
@@ -935,6 +989,11 @@ export async function uploadDocumentIncremental(
       const filename = `${category}_${safeLabel}_page${img.pageNumber}.png`;
       const storagePath = `${projectId}/artifacts/${category}/${filename}`;
       const buffer = Buffer.from(img.imageBase64, 'base64');
+      // A page is an IMAGE. A PDF handed over as one (the plat scraper did, run 7) would be served
+      // as image/png and break every viewer that opens it; it is refused here, by name.
+      if (buffer.subarray(0, 4).toString('latin1') === '%PDF') {
+        return { ok: false, error: `page ${img.pageNumber} of "${label}" is a PDF, not an image — rasterise it before filing` };
+      }
       totalBytes += buffer.length;
       const contentType = detectImageContentType(img.imageBase64);
 
@@ -977,11 +1036,6 @@ export async function uploadDocumentIncremental(
     }
 
     // 3. Create research_documents row
-    const docType = firstPage.documentType || mapCategoryToDocType(category);
-    const richLabel = firstPage.documentLabel;
-    const displayLabel = richLabel
-      ? (sorted.length > 1 ? `${richLabel} (${sorted.length} pages)` : richLabel)
-      : `${capitalizeFirst(category)}: ${label}${sorted.length > 1 ? ` (${sorted.length} pages)` : ''}`;
 
     // Same two questions as the batch path: can this scan carry text, and did we get any?
     const incScan = await scanLegibility(firstPage.imageBase64);
@@ -1048,13 +1102,29 @@ export async function uploadScreenshotsIncremental(
   supabase: SupabaseClient,
   projectId: string,
   screenshots: ArtifactScreenshot[],
-): Promise<{ ok: boolean; uploaded: number; error?: string }> {
-  if (screenshots.length === 0) return { ok: true, uploaded: 0 };
+): Promise<{ ok: boolean; uploaded: number; error?: string; filed: number[]; misc: number[] }> {
+  if (screenshots.length === 0) return { ok: true, uploaded: 0, filed: [], misc: [] };
   let uploaded = 0;
-  for (const ss of screenshots) {
+  const filed: number[] = [];
+  const misc: number[] = [];
+  const seenBytes = new Set<string>();
+  for (const [idx, ss] of screenshots.entries()) {
     try {
       const cls = ss.classification ?? classifyScreenshot(ss.url || '', ss.description || '', ss.pageText);
-      if (cls === 'misc') continue; // Skip junk screenshots
+      if (cls === 'misc') {
+        misc.push(idx);
+        console.log(`[ArtifactUploader:Incremental] ${projectId}: not filed — misc screenshot "${(ss.description || ss.source).slice(0, 70)}"`);
+        continue;
+      }
+      // Two captures with the same bytes are one capture (the GIS viewer's toggles that did not
+      // take: four frames, one picture, run 7). The first is filed; the rest are named as its copies.
+      const sha = createHash('sha256').update(ss.imageBase64).digest('hex');
+      if (seenBytes.has(sha)) {
+        console.log(`[ArtifactUploader:Incremental] ${projectId}: not filed — "${(ss.description || ss.source).slice(0, 70)}" is byte-identical to a capture already filed in this set`);
+        misc.push(idx);
+        continue;
+      }
+      seenBytes.add(sha);
       const docType = classifyScreenshotDocType(ss.url || '', ss.description || '', ss.source || '');
       const safeName = sanitizeFilename(ss.source || 'unknown');
       const filename = `screenshot_${safeName}_${Date.now()}.png`;
@@ -1090,13 +1160,13 @@ export async function uploadScreenshotsIncremental(
         updated_at: new Date().toISOString(),
       });
 
-      if (!insertErr) uploaded++;
+      if (!insertErr) { uploaded++; filed.push(idx); }
     } catch (err) {
       console.warn(`[ArtifactUploader:Incremental] Screenshot error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   console.log(`[ArtifactUploader:Incremental] ${projectId}: uploaded ${uploaded}/${screenshots.length} screenshots`);
-  return { ok: true, uploaded };
+  return { ok: true, uploaded, filed, misc };
 }
 
 /** Original document_type values from seed 090 (before migration 106). */
@@ -1137,6 +1207,30 @@ function narrowRow(row: Record<string, unknown>): Record<string, unknown> {
  * started — this behaves exactly as it did before. Losing a document because its bookkeeping was
  * unavailable would be a worse failure than the duplicate this exists to prevent.
  */
+/** The id of a live row on this project with the same label and source, else null. A lookup that
+ *  fails answers null — losing a document to its bookkeeping would be the worse failure. */
+export async function alreadyFiledId(
+  supabase: SupabaseClient,
+  projectId: string,
+  label: string,
+  sourceUrl: string,
+): Promise<string | null> {
+  if (!label || !sourceUrl) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: same } = await (supabase as any).from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('document_label', label)
+      .eq('source_url', sourceUrl)
+      .is('superseded_at', null)
+      .limit(1);
+    return ((same ?? [])[0] as { id: string } | undefined)?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resilientInsertDocument(
   supabase: SupabaseClient,
   projectId: string,
@@ -1151,22 +1245,12 @@ export async function resilientInsertDocument(
   const label = typeof row.document_label === 'string' ? row.document_label : '';
   const sourceUrl = typeof row.source_url === 'string' ? row.source_url : '';
   if (label && sourceUrl && !row.recording_info) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: same } = await (supabase as any).from('research_documents')
-        .select('id')
-        .eq('research_project_id', projectId)
-        .eq('document_label', label)
-        .eq('source_url', sourceUrl)
-        .is('superseded_at', null)
-        .limit(1);
-      const hit = (same ?? [])[0] as { id: string } | undefined;
-      if (hit) {
-        console.log(`[ArtifactUploader] ${projectId}: already filed — same label and source ("${label.slice(0, 60)}")`);
-        ctx?.tally.record({ outcome: 'merged', id: hit.id, reason: 'same label and source' } as never);
-        return { error: null, id: hit.id, outcome: 'merged' };
-      }
-    } catch { /* a lookup that fails must not stop a filing */ }
+    const hitId = await alreadyFiledId(supabase, projectId, label, sourceUrl);
+    if (hitId) {
+      console.log(`[ArtifactUploader] ${projectId}: already filed — same label and source ("${label.slice(0, 60)}")`);
+      ctx?.tally.record({ outcome: 'merged', id: hitId, reason: 'same label and source' } as never);
+      return { error: null, id: hitId, outcome: 'merged' };
+    }
   }
 
   if (ctx) {

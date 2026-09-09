@@ -125,6 +125,9 @@ export default function SourceDocumentViewer({
   // A NEW document opens on its first page; zoom is left where the operator put it (their earlier
   // ask: zoom persists), which is what the arrows between documents rely on.
   useEffect(() => { setCurrentPage(0); }, [doc.id]);
+  // The tab follows the DOCUMENT, not the previous one: arrowing from a scan to a text record kept
+  // the images tab and showed "No page images available" over 12,000 characters of text (run 7).
+  useEffect(() => { setActiveTab(hasImages ? 'images' : 'text'); }, [doc.id, hasImages]);
   // 1 is a bad default and was the bug: it means 100% of the image's NATURAL size, not "fits the
   // window". A 2550×3300 scan in a 900px-tall panel at zoom 1 shows the top third of the page, and
   // clicking to the next page put you back there every time. `fitZoom` is computed from the real
@@ -964,7 +967,18 @@ export default function SourceDocumentViewer({
 
     return (
       <div className="research-viewer__empty">
-        No page images available for this document.
+        {hasText ? (
+          <>
+            This is a text record{doc.extracted_text_method ? ` (read by ${doc.extracted_text_method})` : ''} — there is no scanned page.
+            <p style={{ marginTop: '0.5rem' }}>
+              <button className="research-viewer__tab-btn" onClick={() => setActiveTab('text')}>
+                Show the text →
+              </button>
+            </p>
+          </>
+        ) : (
+          <>No page images available for this document.</>
+        )}
       </div>
     );
   }

@@ -492,6 +492,9 @@ export interface ScreenshotCapture {
   pageText?: string;
   /** Whether this screenshot was classified as useful or misc by the AI/regex classifier */
   classification?: 'useful' | 'misc';
+  /** Set once the run filed this capture DURING the run, so the end-of-run artifact pass does not
+   *  file it again as a page of a grouped document (run 7: every screenshot twice). */
+  filedIncrementally?: boolean;
 }
 
 export interface SiteIntelligenceNote {

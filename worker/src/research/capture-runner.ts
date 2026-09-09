@@ -38,9 +38,14 @@ import { provenanceForCapture, captionForCapture } from './capture-plan.js';
 import { contentHash } from './project-library.js';
 
 /** Take a picture of a URL. Injected so the plan can be executed in a test without a browser. */
+/** The screenshot step's word that this capture would be the SAME PICTURE as one already filed in
+ *  this plan — the same tiles at the same frame (run 7, 2026-09-08: subject, close and the county map
+ *  were one frame three times). Not a failure: a stated skip, named for the capture it repeats. */
+export interface SameFrame { sameFrameAs: string; detail: string }
+
 export type ScreenshotFn = (
   item: PlannedCaptureItem,
-) => Promise<{
+) => Promise<SameFrame | {
   bytes: Buffer; width?: number; height?: number;
   /** The image's own text, when the capture knows it (a rendered map whose labels we typed).
    *  Supplied text replaces OCR: sending a map we drew to Vision to read our own labels back is
@@ -81,7 +86,7 @@ export interface CaptureOutcome {
   key: string;
   label: string;
   kind: PlannedCaptureItem['kind'];
-  status: 'filed' | 'already-held' | 'flagged' | 'capture-failed' | 'store-failed' | 'file-failed';
+  status: 'filed' | 'already-held' | 'flagged' | 'capture-failed' | 'store-failed' | 'file-failed' | 'same-frame';
   /** Readable, always. A capture that did not happen must say what happened instead. */
   detail: string;
   ocrChars?: number;
@@ -121,6 +126,11 @@ export async function runCaptures(
       log('warn', `[Capture] ${item.label}: screenshot threw — ${String(e)}`);
     }
 
+    if (shot && 'sameFrameAs' in shot) {
+      outcomes.push({ key: item.key, label: item.label, kind: item.kind, status: 'same-frame', detail: shot.detail });
+      log('info', `[Capture] ${item.label}: not filed — ${shot.detail}`);
+      continue;
+    }
     if (!shot || shot.bytes.length === 0) {
       outcomes.push({
         key: item.key, label: item.label, kind: item.kind,
