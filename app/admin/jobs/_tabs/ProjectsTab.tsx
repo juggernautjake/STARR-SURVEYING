@@ -1,28 +1,32 @@
-// app/admin/projects/page.tsx — All Projects.
+// app/admin/jobs/_tabs/ProjectsTab.tsx — All Projects, stacked (owner's drawing, 2026-09-09).
 //
-// Owner, 2026-08-19: *"create new projects, and then within the project we can create a new job."*
+// "Projects Listing Page.pdf": a search bar with a Search button, a Filter dropdown, and the projects
+// stacked vertically — each card the project name with its status chip, the customer, the creation
+// date, the deadline, the address(es), then "0/3 jobs complete", "$0 / $1,000 paid" and the project
+// ID along the bottom; "‹ 1 of 16 ›" underneath.
 //
-// A project is the container the firm works in: one client, one parcel, several jobs over months.
-// Styles live in `app/admin/styles/AdminProjects.css` rather than in a styled-jsx block, for two
-// reasons that both bit this page: a class on a `<Link>` never receives styled-jsx's scope hash, and
-// borrowing `jobs-page__*` from AdminJobs.css silently loaded nothing outside the /admin/jobs tree.
+// Decisions from the same conversation: the chip is the PROJECT status (active / on hold / complete
+// / cancelled — set by a person, not derived); the deadline is the nearest open JOB deadline, since
+// a project has none of its own; ten cards a page. The recents strip and the assignee search from
+// 2026-08-19 are gone — "keep it simple" — the date range survives inside the Filter dropdown.
+//
+// Styles come from `app/admin/components/listing/Listing.css`, imported by the controls this page
+// shares with the Research list, so the two read as siblings.
 'use client';
-
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { chipInk } from '@/lib/admin/color-alpha';
-import { FolderKanban, Plus, Search, Briefcase, MapPin, User, Clock, SlidersHorizontal } from 'lucide-react';
+import { FolderKanban, Plus } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
-import {
-  PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, type ProjectStatus,
-} from '@/lib/projects/model';
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from '@/lib/projects/model';
+import { SORT_OPTIONS, sortRows, paginate, formatDate, money, isOverdue, type SortKey } from '@/lib/admin/listing';
+import { ListingSearch, ListingFilter, FilterGroup, FilterChip, ListingPager } from '../../components/listing/ListingControls';
 
 interface Rollup {
   jobs: number; active: number; archived: number;
   quoted: number; billable: number; paid: number; outstanding: number;
+  completed: number; next_deadline: string | null;
 }
-
 interface Project {
   id: string;
   project_number: string | null;
@@ -34,280 +38,228 @@ interface Project {
   city: string | null;
   county: string | null;
   is_priority: boolean;
+  created_at: string;
   updated_at: string;
-  /** The latest of: created, the project or any job edited, and last opened. */
-  last_touched_at?: string;
-  opened_by_me_at?: string | null;
+  job_addresses?: string[];
   rollup: Rollup;
 }
 
-/** "3 days ago" beats a date on a recents strip: the question is how stale it is, not which day. */
-function ago(iso?: string | null): string {
-  if (!iso) return '';
-  const then = new Date(iso).getTime();
-  if (!Number.isFinite(then)) return '';
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
+const STATUS_TONE: Record<ProjectStatus, 'accent' | 'warn' | 'good' | 'muted'> = {
+  active: 'accent', on_hold: 'warn', complete: 'good', cancelled: 'muted',
+};
 
-const money = (n: number) =>
-  n === 0 ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+/** The project's own site line, then any job site that differs from it. */
+function addressLines(p: Project): string[] {
+  const own = [p.address, p.city].filter(Boolean).join(', ').trim();
+  const extra = (p.job_addresses ?? []).filter((a) => a && a.toLowerCase() !== own.toLowerCase());
+  return [own, ...extra].filter(Boolean);
+}
 
 export default function ProjectsPage() {
   const router = useRouter();
   const { reportPageError } = usePageError('ProjectsPage');
-  const [error, setErrorText] = useState<string | null>(null);
-  const setError = useCallback((m: string) => { setErrorText(m); reportPageError(m); }, [reportPageError]);
 
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [all, setAll] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
+  const [applied, setApplied] = useState('');
   const [status, setStatus] = useState<'all' | ProjectStatus>('all');
+  const [sort, setSort] = useState<SortKey>('newest');
   const [archived, setArchived] = useState(false);
-  // Owner, 2026-08-19: search "by date or range of time … or by who was assigned to it".
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [assignee, setAssignee] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [recents, setRecents] = useState<Project[]>([]);
+  const [page, setPage] = useState(1);
 
-  const filtering = Boolean(search.trim() || from || to || assignee.trim() || status !== 'all' || archived);
+  const activeFilters = (status !== 'all' ? 1 : 0) + (sort !== 'newest' ? 1 : 0) + (archived ? 1 : 0) + (from || to ? 1 : 0);
+  const resetFilters = () => { setStatus('all'); setSort('newest'); setArchived(false); setFrom(''); setTo(''); };
 
+  // The whole list, so sorting by a job-derived deadline and paging both happen here. The API caps
+  // a request at 200; the firm has a few dozen projects, and the loop keeps this honest past that.
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ limit: '100' });
-    if (search.trim()) params.set('search', search.trim());
-    if (status !== 'all') params.set('status', status);
-    if (archived) params.set('archived', 'true');
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (assignee.trim()) params.set('assignee', assignee.trim());
-    const res = await fetch(`/api/admin/projects?${params}`);
-    setLoading(false);
-    if (!res.ok) {
-      setError('Could not load projects.');
-      return;
+    setError(null);
+    try {
+      const rows: Project[] = [];
+      for (let offset = 0; offset < 2000; offset += 200) {
+        const params = new URLSearchParams({ limit: '200', offset: String(offset) });
+        if (applied.trim()) params.set('search', applied.trim());
+        if (status !== 'all') params.set('status', status);
+        if (archived) params.set('archived', 'true');
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        const res = await fetch(`/api/admin/projects?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json() as { projects?: Project[]; total?: number };
+        rows.push(...(body.projects ?? []));
+        if ((body.projects ?? []).length < 200 || rows.length >= (body.total ?? 0)) break;
+      }
+      setAll(rows);
+    } catch (err) {
+      const msg = 'Could not load projects.';
+      setError(msg);
+      reportPageError(err instanceof Error ? err : new Error(msg), { element: 'load projects' });
+    } finally {
+      setLoading(false);
     }
-    setErrorText(null);
-    setProjects((await res.json()).projects ?? []);
-  }, [search, status, archived, from, to, assignee, setError]);
+  }, [applied, status, archived, from, to, reportPageError]);
 
-  // The five most recently touched, loaded once. Deliberately NOT re-fetched as the filters change:
-  // "recent" is a fixed shortcut back to what you were doing, and a strip that reshuffled while you
-  // typed a search would stop being that.
+  useEffect(() => { void load(); }, [load]);
+  // Typing searches too, after a pause — the Search button is for people who expect one.
   useEffect(() => {
-    (async () => {
-      const res = await fetch('/api/admin/projects?recent=true&limit=5');
-      if (res.ok) setRecents((await res.json()).projects ?? []);
-    })().catch(() => undefined);
-  }, []);
-
-  // Debounced so typing in the search box does not fire a request per keystroke.
-  useEffect(() => {
-    const t = setTimeout(load, 250);
+    const t = setTimeout(() => setApplied(search), 400);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [search]);
+  useEffect(() => { setPage(1); }, [applied, status, sort, archived, from, to]);
+
+  const sorted = useMemo(
+    () => sortRows(all.map((p) => ({ ...p, due: p.rollup.next_deadline })), sort),
+    [all, sort],
+  );
+  const view = paginate(sorted, page);
+  const filtering = Boolean(applied.trim() || activeFilters > 0);
 
   return (
-    <div className="proj-page">
-      <div className="proj-page__header">
-        <div className="proj-page__header-left">
-          <h1 className="proj-page__title">
-            <FolderKanban size={20} aria-hidden /> Projects
-          </h1>
-          <span className="proj-page__count">
-            {projects.length} {projects.length === 1 ? 'project' : 'projects'}
-          </span>
-        </div>
-        <div className="proj-page__header-actions">
-          <Link href="/admin/jobs" className="proj-page__btn proj-page__btn--secondary">
-            <Briefcase size={15} aria-hidden /> All Jobs
-          </Link>
-          <Link href="/admin/projects/new" className="proj-page__btn proj-page__btn--primary" data-testid="projects-new">
-            <Plus size={15} aria-hidden /> New Project
-          </Link>
-        </div>
-      </div>
+    <div className="lst lst--projects" data-testid="projects-list">
+      <header className="lst-head">
+        <h1 className="lst-title">
+          <FolderKanban size={22} className="lst-title__icon" aria-hidden="true" /> Projects
+          {!loading ? <span className="lst-count">{view.total} {view.total === 1 ? 'project' : 'projects'}</span> : null}
+        </h1>
+        {/* The portal's tab header already carries "New project"; a second one here was a twin. */}
+      </header>
 
-      {/* ── RECENT (2026-08-19) ───────────────────────────────────────────────────────────────────
-          Owner: *"a section for recent projects that shows the 5 most recent projects that have
-          been opened/created/worked on."*
+      <ListingSearch
+        value={search}
+        onChange={setSearch}
+        onSubmit={() => setApplied(search)}
+        placeholder="Search projects by name, customer, address, county or number…"
+        testId="projects-search"
+      />
 
-          Ranked by the latest of those three, which needed a new fact: opening a project changes
-          nothing, so it was written down nowhere. Hidden while a filter is active — a "recent"
-          shortcut sitting above filtered results is two answers to two different questions stacked
-          on top of each other. */}
-      {recents.length > 0 && !filtering && (
-        <section className="proj__recent" data-testid="projects-recent">
-          <h2 className="proj__recent-title"><Clock size={14} aria-hidden /> Recent</h2>
-          <div className="proj__recent-row">
-            {recents.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className="proj__recent-card"
-                onClick={() => router.push(`/admin/projects/${r.id}`)}
-                data-testid={`project-recent-${r.id}`}
-              >
-                <span className="proj__recent-num">{r.project_number ?? '—'}</span>
-                <span className="proj__recent-name">{r.name}</span>
-                <span className="proj__recent-meta">
-                  {r.client_company || r.client_name || '—'} · {ago(r.last_touched_at ?? r.updated_at)}
-                </span>
-              </button>
+      <div className="lst-toolbar">
+        <ListingFilter active={activeFilters} onReset={resetFilters} testId="projects-filter">
+          <FilterGroup label="Status">
+            <FilterChip on={status === 'all'} onClick={() => setStatus('all')}>All</FilterChip>
+            {PROJECT_STATUSES.map((s) => (
+              <FilterChip key={s} on={status === s} onClick={() => setStatus(s)}>{PROJECT_STATUS_LABELS[s]}</FilterChip>
             ))}
-          </div>
-        </section>
-      )}
-
-      <div className="proj__controls">
-        <div className="proj__search">
-          <Search size={15} aria-hidden />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, client, address, county…"
-            aria-label="Search projects"
-            data-testid="projects-search"
-          />
-        </div>
-        <button
-          type="button"
-          className={`proj__chip${showFilters || from || to || assignee ? ' is-on' : ''}`}
-          onClick={() => setShowFilters((v) => !v)}
-          data-testid="projects-filters-toggle"
-        >
-          <SlidersHorizontal size={13} aria-hidden /> Date &amp; people
-        </button>
-        <div className="proj__filters">
-          <button type="button" className={`proj__chip${status === 'all' ? ' is-on' : ''}`} onClick={() => setStatus('all')}>
-            All
-          </button>
-          {PROJECT_STATUSES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`proj__chip${status === s ? ' is-on' : ''}`}
-              onClick={() => setStatus(s)}
-            >
-              {PROJECT_STATUS_LABELS[s]}
-            </button>
-          ))}
-          <label className="proj__archived">
-            <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
-            Archived
-          </label>
+          </FilterGroup>
+          <FilterGroup label="Sort by">
+            {SORT_OPTIONS.map((o) => (
+              <FilterChip key={o.key} on={sort === o.key} onClick={() => setSort(o.key)}>{o.label}</FilterChip>
+            ))}
+          </FilterGroup>
+          <FilterGroup label="Created or worked on between">
+            <label className="lst-date">from <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label className="lst-date">to <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          </FilterGroup>
+          <FilterGroup label="Show">
+            <label className="lst-check">
+              <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
+              Archived projects instead of live ones
+            </label>
+          </FilterGroup>
+        </ListingFilter>
+        <div className="lst-toolbar__right">
+          <Link href="/admin/jobs" className="lst-chip">All jobs</Link>
         </div>
       </div>
 
-      {showFilters && (
-        <div className="proj__advanced" data-testid="projects-advanced-filters">
-          <label className="proj__adv-field">
-            <span>Active from</span>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} data-testid="projects-from" />
-          </label>
-          <label className="proj__adv-field">
-            <span>to</span>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} data-testid="projects-to" />
-          </label>
-          <label className="proj__adv-field proj__adv-field--wide">
-            <span>Assigned to</span>
-            <input
-              value={assignee}
-              onChange={(e) => setAssignee(e.target.value)}
-              placeholder="Name or email of a crew member"
-              data-testid="projects-assignee"
-            />
-          </label>
-          {(from || to || assignee) && (
-            <button
-              type="button"
-              className="proj__chip"
-              onClick={() => { setFrom(''); setTo(''); setAssignee(''); }}
-              data-testid="projects-clear-filters"
-            >
-              Clear
-            </button>
-          )}
-          <p className="proj__adv-note">
-            {/* Said out loud because the alternative behaviours are both defensible, and somebody
-                searching January for a project created then would otherwise think it was lost. */}
-            A date range matches projects <strong>created</strong> in it or <strong>worked on</strong> during it.
-            &ldquo;Assigned to&rdquo; finds projects with a job that person is on.
-          </p>
+      {error ? (
+        <div className="lst-empty" role="alert">
+          <h2>Projects could not be loaded</h2>
+          <p>{error}</p>
+          <button type="button" className="lst-empty__link" onClick={() => void load()}>Try again</button>
         </div>
-      )}
+      ) : null}
 
-      {error && <div className="proj-page__error" role="alert">{error}</div>}
+      {loading ? (
+        <ul className="lst-list" aria-busy="true">
+          {[1, 2, 3].map((i) => <li key={i} className="lst-skeleton" />)}
+        </ul>
+      ) : null}
 
-      {loading && <div className="proj-page__loading"><p>Loading projects…</p></div>}
-
-      {!loading && projects.length === 0 && (
-        <div className="proj-page__empty" data-testid="projects-empty">
-          <FolderKanban size={30} aria-hidden />
-          <h2>{search || status !== 'all' || archived ? 'Nothing matches that' : 'No projects yet'}</h2>
+      {!loading && !error && view.total === 0 ? (
+        <div className="lst-empty" data-testid="projects-empty">
+          <FolderKanban size={28} aria-hidden="true" />
+          <h2>{filtering ? 'Nothing matches that' : 'No projects yet'}</h2>
           <p>
-            A project holds the jobs for one client on one parcel — the boundary survey, the topo,
-            the staking. Create one, then add jobs inside it.
+            {filtering
+              ? 'Try a different search, or '
+              : 'A project holds the jobs for one client on one parcel — the boundary survey, the topo, the staking. '}
+            {filtering ? (
+              <button type="button" className="lst-empty__link" onClick={() => { setSearch(''); setApplied(''); resetFilters(); }}>clear the filters</button>
+            ) : null}
+            {filtering ? '.' : ''}
           </p>
-          <Link href="/admin/projects/new" className="proj-page__btn proj-page__btn--primary">
-            <Plus size={15} aria-hidden /> New Project
-          </Link>
+          {!filtering ? (
+            <Link href="/admin/projects/new" className="lst-new"><Plus size={15} aria-hidden="true" /> New Project</Link>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {!loading && projects.length > 0 && (
-        <div className="proj__grid" data-testid="projects-grid">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className="proj__card"
-              onClick={() => router.push(`/admin/projects/${p.id}`)}
-              data-testid={`project-card-${p.id}`}
-            >
-              <div className="proj__card-head">
-                <span className="proj__number">{p.project_number ?? '—'}</span>
-                <span
-                  className="proj__status"
-                  style={{ background: `${PROJECT_STATUS_COLORS[p.status]}18`, color: chipInk(PROJECT_STATUS_COLORS[p.status]) }}
-                >
-                  {PROJECT_STATUS_LABELS[p.status]}
-                </span>
-              </div>
-              <h3 className="proj__name">{p.name}</h3>
-
-              {(p.client_name || p.client_company) && (
-                <p className="proj__meta"><User size={13} aria-hidden /> {p.client_company || p.client_name}</p>
-              )}
-              {(p.address || p.city || p.county) && (
-                <p className="proj__meta">
-                  <MapPin size={13} aria-hidden /> {[p.address, p.city, p.county && `${p.county} Co.`].filter(Boolean).join(', ')}
-                </p>
-              )}
-
-              {/* The count is the point of the container: a project with 4 jobs is the thing the
-                  firm could not previously see at all. */}
-              <div className="proj__stats">
-                <span className="proj__stat">
-                  <strong>{p.rollup.jobs}</strong> job{p.rollup.jobs === 1 ? '' : 's'}
-                </span>
-                <span className="proj__stat"><strong>{money(p.rollup.billable)}</strong> billable</span>
-                {p.rollup.outstanding > 0 && (
-                  <span className="proj__stat proj__stat--owed"><strong>{money(p.rollup.outstanding)}</strong> owed</span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      {!loading && !error && view.total > 0 ? (
+        <>
+          <ul className="lst-list" data-testid="projects-grid">
+            {view.rows.map((p) => {
+              const lines = addressLines(p);
+              const due = p.rollup.next_deadline;
+              const overdue = isOverdue(due);
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="lst-card"
+                    onClick={() => router.push(`/admin/projects/${p.id}`)}
+                    data-testid={`project-card-${p.id}`}
+                  >
+                    <div className="lst-card__head">
+                      <h3 className="lst-card__name">{p.name}</h3>
+                      <span className={`lst-status lst-status--${STATUS_TONE[p.status]}`}>{PROJECT_STATUS_LABELS[p.status]}</span>
+                    </div>
+                    <div className="lst-card__lines">
+                      <div className="lst-card__line">
+                        <span className="lst-card__k">Customer</span>
+                        <span className="lst-card__v lst-card__v--strong">{p.client_company || p.client_name || '—'}</span>
+                      </div>
+                      <div className="lst-card__line">
+                        <span className="lst-card__k">Created</span>
+                        <span className="lst-card__v">{formatDate(p.created_at)}</span>
+                      </div>
+                      <div className="lst-card__line">
+                        <span className="lst-card__k">Deadline</span>
+                        <span className={`lst-card__v${overdue ? ' lst-card__v--overdue' : ''}`}>
+                          {due ? `${formatDate(due)}${overdue ? ' · overdue' : ''}` : p.rollup.jobs > 0 && p.rollup.completed === p.rollup.jobs ? 'All jobs complete' : 'No deadline set'}
+                        </span>
+                      </div>
+                      <div className="lst-card__line">
+                        <span className="lst-card__k">{lines.length > 1 ? 'Addresses' : 'Address'}</span>
+                        <span className="lst-card__v">
+                          {lines.length > 0 ? lines.join(' · ') : '—'}
+                          {p.county ? <span className="lst-card__address-sub"> · {p.county} County</span> : null}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="lst-card__foot">
+                      <span className={`lst-card__stat${p.rollup.jobs > 0 && p.rollup.completed === p.rollup.jobs ? ' lst-card__stat--good' : ''}`}>
+                        <strong>{p.rollup.completed}/{p.rollup.jobs}</strong> jobs complete
+                      </span>
+                      <span className={`lst-card__stat${p.rollup.outstanding > 0 ? ' lst-card__stat--owed' : p.rollup.billable > 0 ? ' lst-card__stat--good' : ''}`}>
+                        <strong>{money(p.rollup.paid)} / {money(p.rollup.quoted)}</strong> paid
+                      </span>
+                      <span className="lst-card__id">{p.project_number ?? '—'}</span>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <ListingPager page={view.page} pages={view.pages} onPage={setPage} />
+          {view.pages > 1 ? <p className="lst-showing">Showing {view.rows.length} of {view.total}</p> : null}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -103,6 +103,8 @@ export interface ResearchProject {
   job_id?: string | null;
   /** The engagement (public.projects) this research is attached to — seed 633. */
   project_id?: string | null;
+  /** Attached by the list API for the listing card's "Connected project" foot. */
+  linked_project?: { id: string; project_number: string | null; name: string } | null;
   name: string;
   description?: string | null;
   property_address?: string | null;

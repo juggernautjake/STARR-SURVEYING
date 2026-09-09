@@ -89,8 +89,12 @@ describe('a field on screen is only useful if it is SAVED', () => {
 describe('what moved off the form, on purpose', () => {
   it('the instrument number is a typed information line; the current owner stays a fixed field under the Property ID', () => {
     // Owner, 2026-09-09 follow-up: "place the current owner name field beneath the property id field."
-    expect(src).toContain('id="np-owner"');
-    expect(src.indexOf('id="np-owner"')).toBeGreaterThan(src.indexOf('id="np-parcel"'));
+    // Presence first, then order — an ordering probe alone passes when the parcel field is GONE.
+    const parcelAt = src.search(/id="np-parcel"/);
+    const ownerAt = src.search(/id="np-owner"/);
+    expect(parcelAt).toBeGreaterThan(-1);
+    expect(ownerAt).toBeGreaterThan(-1);
+    expect(ownerAt).toBeGreaterThan(parcelAt);
     expect(src).not.toContain('id="np-instrument"');
     expect(src).toContain("from '@/lib/research/intake-info'");
     expect(src).toContain('linesToSupplemental(lines)');

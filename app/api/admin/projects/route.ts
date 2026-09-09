@@ -115,15 +115,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // When each project's newest job moved — half of "worked on", and invisible from `projects` alone
   // because editing a job does not touch its parent row.
   const jobTouched = new Map<string, string>();
+  // Distinct job site lines per project — "address(es)" on the listing card.
+  const jobAddresses = new Map<string, Set<string>>();
   if (ids.length > 0) {
     const { data: jobs } = await supabaseAdmin
       .from('jobs')
-      .select('project_id, updated_at, quote_amount, final_amount, amount_paid, stage, is_archived, deleted_at')
+      // `deadline`, `address`, `city` joined the select on 2026-09-09: the listing card shows the
+      // nearest open job deadline and the job addresses beside the project's own.
+      .select('project_id, updated_at, quote_amount, final_amount, amount_paid, stage, is_archived, deleted_at, deadline, address, city')
       .in('project_id', ids);
-    for (const j of (jobs ?? []) as Array<JobMoney & { project_id: string; updated_at: string | null }>) {
+    for (const j of (jobs ?? []) as Array<JobMoney & { project_id: string; updated_at: string | null; address?: string | null; city?: string | null }>) {
       const list = byProject.get(j.project_id);
       if (list) list.push(j);
       else byProject.set(j.project_id, [j]);
+      if (!j.deleted_at && j.address?.trim()) {
+        const line = [j.address.trim(), j.city?.trim()].filter(Boolean).join(', ');
+        const set = jobAddresses.get(j.project_id) ?? new Set<string>();
+        set.add(line);
+        jobAddresses.set(j.project_id, set);
+      }
       const prev = jobTouched.get(j.project_id);
       if (j.updated_at && (!prev || j.updated_at > prev)) jobTouched.set(j.project_id, j.updated_at);
     }
@@ -163,6 +173,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return {
       ...p,
       rollup: rollUp(byProject.get(p.id) ?? []),
+      job_addresses: [...(jobAddresses.get(p.id) ?? [])],
       last_touched_at: touched,
       opened_by_me_at: openedByMe,
     };

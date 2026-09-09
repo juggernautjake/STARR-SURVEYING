@@ -1,23 +1,27 @@
-// app/admin/research/_tabs/ProjectsTab.tsx — a tab of the Research portal.
+// app/admin/research/_tabs/ProjectsTab.tsx — Research Projects, stacked (owner's drawing, 2026-09-09).
 //
-// C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
-// Was `/admin/research/page.tsx, the projects list`; the old route stays and forwards.
+// "Research Page.pdf": the same frame as the Projects list — a search bar with a Search button, a
+// Filter dropdown, "+ New Research Project" on the right, and the research projects stacked
+// vertically — each card the project name with its research-status chip, the address in bold, and
+// along the bottom the creation date on the left and the connected project on the right.
 //
-// This one was the PORTAL's own page rather than a page beneath it, so it is a directory deeper
-// than it used to be and four relative imports moved with it. The six tabs beside it came from
-// directories at this same depth and paid nothing.
-// app/admin/research/page.tsx — Property Research project list
+// The list part of this tab was a grid of cards with a row of eight stage chips; it is now the shared
+// listing frame (`app/admin/components/listing`) with research-shaped cards. What stays: the worker
+// status banner, the `?new=1` / `?new=1&job=<id>` deep links, and the error state as its OWN state
+// rather than an empty list wearing red (E2).
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Microscope, Plus, Link2 } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
-import { PIPELINE_STAGES, workflowStepToStage } from '@/types/research';
-import Tooltip from '../components/Tooltip';
 import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import NewResearchProjectModal from '../components/NewResearchProjectModal';
 import { ErrorState } from '../components/ui';
+import { SORT_OPTIONS, sortRows, paginate, formatDate, type SortKey } from '@/lib/admin/listing';
+import { ListingSearch, ListingFilter, FilterGroup, FilterChip, ListingPager } from '../../components/listing/ListingControls';
+import '../../components/listing/Listing.css';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -29,19 +33,34 @@ const STATUS_LABELS: Record<WorkflowStep, string> = {
   complete: 'Complete',
 };
 
+const STATUS_TONE: Record<WorkflowStep, 'accent' | 'warn' | 'good' | 'muted'> = {
+  upload: 'muted', configure: 'accent', analyzing: 'warn', review: 'warn', drawing: 'accent', verifying: 'accent', complete: 'good',
+};
+
+const STATUS_ORDER: WorkflowStep[] = ['upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'];
+
+/** The sort keys that mean something for research — there is no deadline here. */
+const RESEARCH_SORTS = SORT_OPTIONS.filter((o) => o.key !== 'due_soonest');
+
 export default function ProjectsTab() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { reportPageError } = usePageError('ResearchListPage');
 
-  const [projects, setProjects] = useState<ResearchProject[]>([]);
+  const [all, setAll] = useState<ResearchProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [applied, setApplied] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | WorkflowStep>('all');
+  const [sort, setSort] = useState<SortKey>('newest');
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+
+  const activeFilters = (statusFilter !== 'all' ? 1 : 0) + (sort !== 'newest' ? 1 : 0);
+  const resetFilters = () => { setStatusFilter('all'); setSort('newest'); };
+
   const userRoles = session?.user?.roles || ['employee'];
   const canAccessResearch = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher') || userRoles.includes('drawer') || userRoles.includes('field_crew') || userRoles.includes('tech_support');
 
@@ -67,164 +86,104 @@ export default function ProjectsTab() {
     if (jobIdFromLink) setShowCreate(true);
   }, [jobIdFromLink]);
 
-  // Debounced search: auto-reload 400ms after typing stops
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // The whole list (the API pages at 200), so sorting and paging happen here like the Projects list.
   const loadProjects = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (search) params.set('search', search);
-      const res = await fetch(`/api/admin/research?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(data.projects || []);
-        setTotal(data.total || 0);
-      } else {
-        setLoadError('Failed to load projects. Please try again.');
+      const rows: ResearchProject[] = [];
+      for (let offset = 0; offset < 2000; offset += 200) {
+        const params = new URLSearchParams({ limit: '200', offset: String(offset) });
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (applied.trim()) params.set('search', applied.trim());
+        const res = await fetch(`/api/admin/research?${params}`);
+        if (!res.ok) {
+          setLoadError('Failed to load projects. Please try again.');
+          setLoading(false);
+          return;
+        }
+        const data = await res.json() as { projects?: ResearchProject[]; total?: number };
+        rows.push(...(data.projects ?? []));
+        if ((data.projects ?? []).length < 200 || rows.length >= (data.total ?? 0)) break;
       }
+      setAll(rows);
     } catch (err) {
       setLoadError('Unable to connect. Check your internet connection.');
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load projects' });
     }
     setLoading(false);
-  }, [search, statusFilter, reportPageError]);
+  }, [applied, statusFilter, reportPageError]);
 
+  useEffect(() => { void loadProjects(); }, [loadProjects]);
   useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      loadProjects();
-    }, 400);
-    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-  }, [search, statusFilter, loadProjects]);
+    const t = setTimeout(() => setApplied(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+  useEffect(() => { setPage(1); }, [applied, statusFilter, sort]);
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    loadProjects();
-  }
-
-  // ── ONE NUMBERING SYSTEM (U3-D) ────────────────────────────────────────────────────────────
-  //
-  // This card said "Step 1 of 7" and the project page's stepper said "Stage 1 of 4", about the
-  // same project, on two screens somebody moves between in one click. Seven is the count of DB
-  // statuses; four is the count of stages a person actually works through, and `PIPELINE_STAGES`
-  // in types/research.ts is already the mapping between them.
-  //
-  // The stages are what the pipeline stepper draws and what the operator is told they are on, so
-  // the card follows the stepper rather than the other way round. Derived from the same constant,
-  // so a fifth stage moves both.
-  function stageNumber(status: WorkflowStep): number {
-    const stage = workflowStepToStage(status);
-    return Math.max(1, PIPELINE_STAGES.findIndex(s => s.key === stage) + 1);
-  }
+  const sorted = useMemo(
+    () => sortRows(all.map((p) => ({ ...p, updated_at: (p as { updated_at?: string | null }).updated_at ?? p.created_at })), sort),
+    [all, sort],
+  );
+  const view = paginate(sorted, page);
 
   if (!session?.user) return null;
   if (sessionStatus === 'authenticated' && !canAccessResearch) return null;
 
-  // Determine empty state message
-  const hasActiveSearch = search.trim().length > 0;
-  const hasActiveFilter = statusFilter !== 'all';
+  const filtering = Boolean(applied.trim() || activeFilters > 0);
 
   return (
     <>
-      <div className="research-page">
+      <div className="lst lst--research research-page" data-testid="research-list">
         {/* R2 — a dead research worker used to look like a slow page. Quiet when the engine is
             healthy; one sentence when it is not, plus what that means for a run started now. */}
         <WorkerStatusBanner />
 
-        {/* Header */}
-        <div className="research-page__header">
-          <h1 className="research-page__title">Property Research</h1>
-          <div className="research-page__actions">
-            {/* Secondary, not three primaries in three colours — see the note on
-                .research-page__secondary-btn. Both of these also exist as portal tabs directly
-                above; they stay because they are the two a researcher reaches for from here. */}
-            <button
-              className="research-page__secondary-btn"
-              onClick={() => router.push('/admin/research/coverage')}
-              title="Which Texas counties we have clerk adapters for"
-            >
-              Coverage
-            </button>
-            <button
-              className="research-page__secondary-btn"
-              onClick={() => router.push('/admin/research/testing')}
-              title="Run a single scraper or adapter by hand"
-            >
-              Testing Lab
-            </button>
-            <button className="research-page__new-btn" onClick={() => setShowCreate(true)}>
-              + New Research Project
+        <header className="lst-head">
+          <h1 className="lst-title">
+            <Microscope size={22} className="lst-title__icon" aria-hidden="true" /> Research Projects
+            {!loading && !loadError ? <span className="lst-count">{view.total} {view.total === 1 ? 'project' : 'projects'}</span> : null}
+          </h1>
+        </header>
+
+        <ListingSearch
+          value={search}
+          onChange={setSearch}
+          onSubmit={() => setApplied(search)}
+          placeholder="Search research by name, address or county…"
+          testId="research-search"
+        />
+
+        <div className="lst-toolbar">
+          <ListingFilter active={activeFilters} onReset={resetFilters} testId="research-filter">
+            <FilterGroup label="Research status">
+              <FilterChip on={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>All</FilterChip>
+              {STATUS_ORDER.map((s) => (
+                <FilterChip key={s} on={statusFilter === s} onClick={() => setStatusFilter(s)}>{STATUS_LABELS[s]}</FilterChip>
+              ))}
+            </FilterGroup>
+            <FilterGroup label="Sort by">
+              {RESEARCH_SORTS.map((o) => (
+                <FilterChip key={o.key} on={sort === o.key} onClick={() => setSort(o.key)}>{o.label}</FilterChip>
+              ))}
+            </FilterGroup>
+          </ListingFilter>
+          <div className="lst-toolbar__right">
+            <button type="button" className="lst-new" onClick={() => setShowCreate(true)} data-testid="research-new">
+              <Plus size={15} aria-hidden="true" /> New Research Project
             </button>
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="research-page__controls">
-          <form className="research-page__search" onSubmit={handleSearch}>
-            <input
-              type="text"
-              className="research-page__search-input"
-              placeholder="Search by name, address, or county..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                type="button"
-                className="research-page__search-clear"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                style={{ background: 'none', border: 'none', color: 'var(--theme-fg-muted, #9CA3AF)', cursor: 'pointer', padding: '0 0.5rem', fontSize: '1.1rem' }}
-              >
-                &times;
-              </button>
-            )}
-          </form>
-          <div className="research-page__status-filters">
-            {[
-              { key: 'all', tip: 'Show all research projects regardless of their current workflow stage.' },
-              { key: 'upload', tip: 'Projects in the document upload phase. Deed records, plats, and other source documents are being added for AI analysis.' },
-              { key: 'configure', tip: 'Projects being configured for analysis. Select which data categories to extract and choose an analysis template.' },
-              { key: 'analyzing', tip: 'Projects currently being analyzed by AI. Documents are being processed to extract bearings, distances, monuments, and other survey data.' },
-              { key: 'review', tip: 'Projects with completed analysis ready for review. Extracted data points and discrepancies between documents can be inspected and verified.' },
-              { key: 'drawing', tip: 'Projects in the drawing generation phase. AI is creating survey plat drawings from the extracted data with proper geometry and annotations.' },
-              { key: 'verifying', tip: 'Projects where the AI-generated drawing is being compared against source documents to verify accuracy and flag any discrepancies.' },
-              { key: 'complete', tip: 'Completed research projects. All documents have been analyzed, drawings generated, and verification completed.' },
-            ].map(s => (
-              <Tooltip key={s.key} text={s.tip} position="bottom" delay={500}>
-                <button
-                  className={`research-page__status-chip ${statusFilter === s.key ? 'research-page__status-chip--active' : ''}`}
-                  onClick={() => setStatusFilter(s.key)}
-                >
-                  {s.key === 'all' ? 'All' : STATUS_LABELS[s.key as WorkflowStep]}
-                </button>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
-
-        {/* Loading skeleton */}
         {loading && (
-          <div className="research-page__grid">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="research-card research-card--skeleton">
-                <div className="research-card__skeleton-line research-card__skeleton-line--medium" />
-                <div className="research-card__skeleton-line research-card__skeleton-line--long" />
-                <div className="research-card__skeleton-line research-card__skeleton-line--short" />
-              </div>
-            ))}
-          </div>
+          <ul className="lst-list" aria-busy="true">
+            {[1, 2, 3].map((i) => <li key={i} className="lst-skeleton" />)}
+          </ul>
         )}
 
         {/* ── Error state ──────────────────────────────────────────────────────────────────────
-            Was the EMPTY-state markup with an inline `#DC2626` on the title, so a failed request
-            rendered as an empty list wearing red. Those are different answers to "where are my
-            projects": empty means the query WORKED and there is nothing to show; failed means we
-            do not know. Telling somebody they have no projects when the request never returned is
-            worse than telling them nothing. (Phase E2.) */}
+            Its own state, not the empty-state markup wearing red: empty means the query WORKED and
+            there is nothing to show; failed means we do not know. (Phase E2.) */}
         {!loading && loadError && (
           <ErrorState
             title="Your projects could not be loaded"
@@ -233,83 +192,66 @@ export default function ProjectsTab() {
           />
         )}
 
-        {/* Empty state — contextual messaging */}
-        {!loading && !loadError && projects.length === 0 && (
-          <div className="research-page__empty">
-            {hasActiveSearch || hasActiveFilter ? (
-              <>
-                <div className="research-page__empty-title">No matching projects</div>
-                <div className="research-page__empty-text">
-                  {hasActiveSearch && <>No projects match &ldquo;{search}&rdquo;. </>}
-                  {hasActiveFilter && <>Try changing the status filter or </>}
-                  {!hasActiveFilter && <>Try a different search term or </>}
-                  <button
-                    style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'inherit' }}
-                    onClick={() => { setSearch(''); setStatusFilter('all'); }}
-                  >
-                    clear all filters
-                  </button>.
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="research-page__empty-icon">&#128300;</div>
-                <div className="research-page__empty-title">No research projects yet</div>
-                <div className="research-page__empty-text">
-                  Create your first AI-powered property research project to analyze deeds, plats, and survey documents.
-                </div>
-                <button className="research-page__new-btn" onClick={() => setShowCreate(true)}>
-                  + New Research Project
-                </button>
-              </>
-            )}
+        {!loading && !loadError && view.total === 0 && (
+          <div className="lst-empty" data-testid="research-empty">
+            <Microscope size={28} aria-hidden="true" />
+            <h2>{filtering ? 'No matching research projects' : 'No research projects yet'}</h2>
+            <p>
+              {filtering ? (
+                <>
+                  Try a different search, or{' '}
+                  <button type="button" className="lst-empty__link" onClick={() => { setSearch(''); setApplied(''); resetFilters(); }}>clear the filters</button>.
+                </>
+              ) : 'Start with the address or the Property ID; the run finds the deeds, plats and maps.'}
+            </p>
+            {!filtering ? (
+              <button type="button" className="lst-new" onClick={() => setShowCreate(true)}>
+                <Plus size={15} aria-hidden="true" /> New Research Project
+              </button>
+            ) : null}
           </div>
         )}
 
-        {/* Project cards */}
-        {!loading && projects.length > 0 && (
-          <div className="research-page__grid">
-            {projects.map(project => (
-              <div
-                key={project.id}
-                className="research-card"
-                onClick={() => router.push(`/admin/research/${project.id}`)}
-              >
-                <div className="research-card__header">
-                  <h3 className="research-card__name">{project.name}</h3>
-                  <span className={`research-card__status research-card__status--${project.status}`}>
-                    {STATUS_LABELS[project.status]}
-                  </span>
-                </div>
-                {project.property_address && (
-                  <div className="research-card__address">
-                    {project.property_address}
-                    {project.county && `, ${project.county} County`}
-                    {project.state && `, ${project.state}`}
-                  </div>
-                )}
-                {project.description && (
-                  <div className="research-card__address" style={{ marginBottom: 0 }}>
-                    {project.description.length > 100 ? project.description.slice(0, 100) + '...' : project.description}
-                  </div>
-                )}
-                <div className="research-card__meta">
-                  <span className="research-card__meta-item">
-                    Stage {stageNumber(project.status)} of {PIPELINE_STAGES.length} — {STATUS_LABELS[project.status]}
-                  </span>
-                </div>
-                <div className="research-card__date">
-                  Created {new Date(project.created_at).toLocaleDateString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && total > 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--theme-fg-muted, #9CA3AF)', fontSize: '0.85rem', marginTop: '1rem' }}>
-            Showing {projects.length} of {total} projects
-          </div>
+        {!loading && !loadError && view.total > 0 && (
+          <>
+            <ul className="lst-list" data-testid="research-grid">
+              {view.rows.map((project) => {
+                const linked = project.linked_project ?? null;
+                return (
+                  <li key={project.id}>
+                    <button
+                      type="button"
+                      className="lst-card"
+                      onClick={() => router.push(`/admin/research/${project.id}`)}
+                      data-testid={`research-card-${project.id}`}
+                    >
+                      <div className="lst-card__head">
+                        <h3 className="lst-card__name">{project.name}</h3>
+                        <span className={`lst-status lst-status--${STATUS_TONE[project.status]}`}>{STATUS_LABELS[project.status]}</span>
+                      </div>
+                      <p className="lst-card__address">
+                        {project.property_address || (project.parcel_id ? `Property ID ${project.parcel_id}` : 'No address on file')}
+                        {project.county ? <span className="lst-card__address-sub"> · {project.county} County{project.state ? `, ${project.state}` : ''}</span> : null}
+                      </p>
+                      <div className="lst-card__foot">
+                        <span className="lst-card__stat">Created <strong>{formatDate(project.created_at)}</strong></span>
+                        {linked ? (
+                          <span className="lst-card__link">
+                            <Link2 size={13} aria-hidden="true" />
+                            {[linked.project_number, linked.name].filter(Boolean).join(' — ')}
+                          </span>
+                        ) : (
+                          <span className="lst-card__link lst-card__link--none">Not connected to a project</span>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <ListingPager page={view.page} pages={view.pages} onPage={setPage} />
+            {view.pages > 1 ? <p className="lst-showing">Showing {view.rows.length} of {view.total}</p> : null}
+          </>
         )}
       </div>
 

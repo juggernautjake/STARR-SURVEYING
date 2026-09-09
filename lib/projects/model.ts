@@ -121,7 +121,13 @@ export interface JobMoney {
   stage?: string | null;
   deleted_at?: string | null;
   is_archived?: boolean | null;
+  /** The job's deadline — the project has none of its own (owner, 2026-09-09: the card shows the
+   *  nearest open job deadline). */
+  deadline?: string | null;
 }
+
+/** The job stage that means "done" — the listing counts these as complete. */
+export const JOB_STAGE_COMPLETED = 'completed';
 
 export interface ProjectRollup {
   jobs: number;
@@ -132,6 +138,11 @@ export interface ProjectRollup {
   billable: number;
   paid: number;
   outstanding: number;
+  /** Live jobs at the completed stage — "2/3 jobs complete" on the listing card. */
+  completed: number;
+  /** The soonest deadline among live jobs that are not complete, or null. Past-due ones count —
+   *  they are the most urgent, not the least. */
+  next_deadline: string | null;
 }
 
 /**
@@ -143,7 +154,8 @@ export interface ProjectRollup {
  */
 export function rollUp(jobs: JobMoney[]): ProjectRollup {
   const live = jobs.filter((j) => !j.deleted_at);
-  let quoted = 0, billable = 0, paid = 0, archived = 0;
+  let quoted = 0, billable = 0, paid = 0, archived = 0, completed = 0;
+  let nextDeadline: string | null = null;
 
   for (const j of live) {
     const q = num(j.quote_amount);
@@ -152,6 +164,8 @@ export function rollUp(jobs: JobMoney[]): ProjectRollup {
     billable += f > 0 ? f : q;
     paid += num(j.amount_paid);
     if (j.is_archived) archived += 1;
+    if (j.stage === JOB_STAGE_COMPLETED) completed += 1;
+    else if (j.deadline && (!nextDeadline || j.deadline < nextDeadline)) nextDeadline = j.deadline;
   }
 
   return {
@@ -164,6 +178,8 @@ export function rollUp(jobs: JobMoney[]): ProjectRollup {
     // Never negative: an overpayment is a credit to be handled on the job, not a negative balance
     // that quietly cancels out another job's genuine debt in the project total.
     outstanding: round2(Math.max(0, billable - paid)),
+    completed,
+    next_deadline: nextDeadline,
   };
 }
 

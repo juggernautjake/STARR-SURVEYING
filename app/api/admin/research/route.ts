@@ -75,7 +75,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ projects: data || [], total: count || 0 });
+  // ── THE CONNECTED PROJECT, IN ONE QUERY (2026-09-09) ─────────────────────────────────────────
+  // The listing card's foot names the project the research is attached to (seed 633). Fetched for
+  // the page in one `in()` rather than N+1, and attached as `linked_project` — null when unlinked.
+  const rows = (data || []) as Array<Record<string, unknown> & { project_id?: string | null }>;
+  const projectIds = [...new Set(rows.map((r) => r.project_id).filter((x): x is string => typeof x === 'string' && x.length > 0))];
+  const linked = new Map<string, { id: string; project_number: string | null; name: string }>();
+  if (projectIds.length > 0) {
+    const { data: projs } = await supabaseAdmin
+      .from('projects')
+      .select('id, project_number, name')
+      .in('id', projectIds);
+    for (const p of (projs ?? []) as Array<{ id: string; project_number: string | null; name: string }>) linked.set(p.id, p);
+  }
+  const projects = rows.map((r) => ({ ...r, linked_project: r.project_id ? (linked.get(r.project_id) ?? null) : null }));
+
+  return NextResponse.json({ projects, total: count || 0 });
 }, { routeName: 'research' });
 
 /* POST — Create a new research project */
