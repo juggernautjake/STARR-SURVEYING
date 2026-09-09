@@ -85,6 +85,7 @@ import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
 import { getClerkAdapter } from './services/clerk-registry.js';
+import { listCountyProfiles, resolveCountyProfile, tierCounts, toProfileView } from './counties/profile.js';
 import { searchDepsFromAdapter } from './chain-of-title/chain-search-deps.js';
 import { SiteHealthMonitor } from './infra/site-health-monitor.js';
 // Phase 13 imports
@@ -3824,6 +3825,21 @@ app.get('/research/active', requireAuth, (_req: Request, res: Response) => {
   // A review in flight is work a rebuild would kill, exactly like a research run — it counts.
   const reviews = Array.from(activeReviews.entries()).map(([projectId, r]) => ({ projectId, ...r }));
   res.json({ count: pipelines.length + reviews.length, pipelines, reviews });
+});
+
+// ── GET /research/county-profiles ──────────────────────────────────────────
+//
+// One profile per county (2026-09-09): curated (a person drove every site; a dedicated run),
+// vendor-default (vendors known from the registries; the generic run with those shapes) or
+// fallback (the statewide aggregator only). The Coverage page reads this, so what a surveyor is
+// told about a county is what the router will actually do with it.
+app.get('/research/county-profiles', requireAuth, (_req: Request, res: Response) => {
+  const profiles = listCountyProfiles();
+  res.json({ count: profiles.length, tiers: tierCounts(profiles), profiles: profiles.map(toProfileView) });
+});
+
+app.get('/research/county-profiles/:county', requireAuth, (req: Request, res: Response) => {
+  res.json(toProfileView(resolveCountyProfile(String(req.params.county ?? ''))));
 });
 
 // ── DELETE /research/result/:projectId ─────────────────────────────────────

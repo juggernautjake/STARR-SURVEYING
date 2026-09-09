@@ -27,6 +27,7 @@
 'use client';
 
 import AdapterHealthPanel from '../coverage/AdapterHealthPanel';
+import CountyProfilesPanel from '../coverage/CountyProfilesPanel';
 import MeasuredCoverage from '../coverage/MeasuredCoverage';
 import '../coverage/MeasuredCoverage.css';
 import '../coverage/AdapterHealth.css';
@@ -92,6 +93,10 @@ export default function CoverageTab() {
           pending.
         </p>
       </header>
+
+      {/* One profile per county (owner, 2026-09-09): curated / vendor-default / fallback, from the
+          worker's own resolver — the tier shown is the tier the router acts on. */}
+      <CountyProfilesPanel />
 
       {/* Roadmap §9.8 — the runtime counterpart to the compile-time map below. That registry says
           which counties we INTEND to cover; this says which registered portals are actually

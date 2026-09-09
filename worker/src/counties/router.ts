@@ -16,7 +16,9 @@
  *      module.ts that fills in `CountyModule` (counties/county-module.ts) — the shared orchestrator
  *      runs it; do NOT copy orchestrator.ts
  *   2. Export run{County}CountyResearch from its index.ts (see counties/milam/index.ts)
- *   3. Add the county to the dedicated-module arm of the switch below and to COUNTY_SPECIFIC_MODULES
+ *   3. Write counties/{county-name}/profile.ts — sites with verifiedAt dates, capabilities, the
+ *      recipe, golden parcels — and add it to CURATED in counties/profile.ts. That is the routing:
+ *      runCountyResearch asks the profile for the module; there is no county switch to extend
  *   4. Add its address detection beside isBellCountyAddress / isMilamCountyAddress
  */
 
@@ -24,6 +26,7 @@ import type { PipelineInput, PipelineResult } from '../types/index.js';
 import type { BellResearchResult } from './bell/types/research-result.js';
 import { resolveCounty, TEXAS_COUNTIES, type CountyRecord } from '../lib/county-fips.js';
 import { describeAbort } from '../research/abort-reason.js';
+import { resolveCountyProfile, listCuratedProfiles } from './profile.js';
 
 // ── Unified Input ───────────────────────────────────────────────────
 
@@ -160,30 +163,24 @@ export type UnifiedResearchResult = CountySpecificResult | GenericPipelineResult
  * Counties with dedicated research modules.
  * These get full county-specific scraping, analysis, and reporting.
  */
-const COUNTY_SPECIFIC_MODULES = ['bell', 'milam'] as const;
-
+/**
+ * Counties with dedicated research modules — DERIVED from the curated profiles (2026-09-09), so a
+ * county cannot be listed here without a profile, and a profile cannot exist without being routed.
+ */
 export function hasCountySpecificModule(county: string): boolean {
-  return COUNTY_SPECIFIC_MODULES.includes(
-    county.toLowerCase().trim() as typeof COUNTY_SPECIFIC_MODULES[number],
-  );
+  return resolveCountyProfile(county).tier === 'curated';
 }
 
 export function getCountiesWithModules(): string[] {
-  return [...COUNTY_SPECIFIC_MODULES];
+  return listCuratedProfiles().map((p) => p.key);
 }
 
 // ── Bell County Auto-Detection ──────────────────────────────────────
 
-/**
- * Bell County cities and communities in Texas.
- * Used to auto-detect Bell County from an address string.
- */
-export const BELL_COUNTY_CITIES = [
-  'belton', 'killeen', 'temple', 'harker heights', 'nolanville', 'salado',
-  'holland', 'rogers', 'troy', 'moody', 'bartlett', 'little river-academy',
-  'little river academy', 'copperas cove', 'morgans point resort', 'moffat',
-  'pendleton', 'eddy', 'heidenheimer', 'academy', 'prairie dell',
-] as const;
+// BELL_COUNTY_CITIES lives in `./bell/config/towns.ts` (2026-09-09) so the Bell profile can read
+// it without importing this router — profile.ts and router.ts import each other.
+export { BELL_COUNTY_CITIES } from './bell/config/towns.js';
+import { BELL_COUNTY_CITIES } from './bell/config/towns.js';
 
 /**
  * Bell County ZIP code ranges (Texas).
@@ -563,22 +560,25 @@ export async function runCountyResearch(
 
   const county = input.county.toLowerCase().trim();
 
-  console.log(`[CountyRouter] ${input.projectId}: routing to county="${county}" address="${input.address ?? ''}"`);
+  // ── THE PROFILE DECIDES (2026-09-09) ──────────────────────────────────────────────────────
+  //
+  // One resolver answers "what do we know about this county": a curated profile carries the
+  // dedicated module's loader; a vendor-default or fallback profile has none and the generic
+  // pipeline runs with the vendor shapes. The switch below used to name each curated county.
+  const profile = resolveCountyProfile(input.county);
+  console.log(`[CountyRouter] ${input.projectId}: routing to county="${county}" tier=${profile.tier} address="${input.address ?? ''}"`);
+  onProgress({
+    phase: 'Router',
+    message: profile.statement,
+    timestamp: new Date().toISOString(),
+  });
+  if (profile.module) {
+    const load = profile.module.load;
+    const dedicated: DedicatedModule = { name: profile.name, key: profile.key, load };
+    return runDedicatedModule(dedicated, input, onProgress, signal);
+  }
 
   switch (county) {
-    // ── Dedicated county modules — Bell, Milam ──────────────────────
-    //
-    // One arm for every county with its own module (2026-09-09). The body that used to sit here
-    // named Bell nine times and would have had to be copied for Milam; it is `runDedicatedModule`
-    // below, and the only county-shaped things in it are the name and the loader.
-    case 'bell':
-    case 'milam': {
-      const dedicated: DedicatedModule = county === 'bell'
-        ? { name: 'Bell', key: 'bell', load: async () => (await import('./bell/index.js')).runBellCountyResearch }
-        : { name: 'Milam', key: 'milam', load: async () => (await import('./milam/index.js')).runMilamCountyResearch };
-      return runDedicatedModule(dedicated, input, onProgress, signal);
-    }
-
     // ── All Counties — Generic Pipeline ─────────────────────────────
     default: {
       onProgress({
@@ -694,11 +694,7 @@ export async function runCountyResearch(
 // ── Dedicated module runner ─────────────────────────────────────────
 
 /** The entry point every dedicated county module exports — Bell's shape, which Milam shares. */
-type DedicatedRunner = (
-  input: import('./bell/types/research-input.js').BellResearchInput,
-  onProgress: (p: CountyResearchProgress) => void,
-  signal?: AbortSignal,
-) => Promise<BellResearchResult>;
+type DedicatedRunner = import('./profile.js').DedicatedRunner;
 
 interface DedicatedModule {
   /** "Bell", "Milam" — the word the log and the result carry. */

@@ -32,8 +32,11 @@ import {
 import {
   findRoute,
   workspaceOf,
+  WORKSPACES,
+  type AdminRoute,
   type Workspace,
 } from '@/lib/admin/route-registry';
+import { iconForName } from '@/lib/admin/route-icons';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import { railOrderFor } from '@/lib/admin/personas';
@@ -107,21 +110,9 @@ export default function IconRail() {
       </nav>
       {pinnedEntries.length > 0 ? (
         <nav className="admin-rail__pinned" aria-label="Pinned pages">
-          {pinnedEntries.map((route) => {
-            const isActive = pathname === route.href;
-            return (
-              <Link
-                key={route.href}
-                href={route.href}
-                title={route.label}
-                aria-label={`Pinned: ${route.label}`}
-                aria-current={isActive ? 'page' : undefined}
-                className={`admin-rail__icon admin-rail__icon--pin${isActive ? ' admin-rail__icon--active' : ''}`}
-              >
-                <Star size={18} fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
-              </Link>
-            );
-          })}
+          {pinnedEntries.map((route) => (
+            <PinnedRailLink key={route.href} route={route} isActive={pathname === route.href} />
+          ))}
         </nav>
       ) : null}
       <div className="admin-rail__tools">
@@ -139,5 +130,37 @@ export default function IconRail() {
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * A pinned page in the rail.
+ *
+ * ── THE STARS ALL LOOKED THE SAME (owner, 2026-09-09) ────────────────────────────────────────
+ *
+ * Every pinned page rendered as an identical star, so with two or more pins nothing on the rail
+ * said which was which — only the browser's native `title`, which takes a second to appear and
+ * is easy never to see. A pin now shows the PAGE'S OWN icon with a small star badge, and an
+ * immediate tooltip on hover or keyboard focus naming the page and its workspace.
+ */
+function PinnedRailLink({ route, isActive }: { route: AdminRoute; isActive: boolean }) {
+  const Icon = iconForName(route.iconName);
+  const workspace = WORKSPACES[route.workspace]?.label;
+  const tipId = `pin-tip-${route.href.replace(/[^a-z0-9]/gi, '-')}`;
+  return (
+    <Link
+      href={route.href}
+      aria-label={`Pinned: ${route.label}`}
+      aria-describedby={tipId}
+      aria-current={isActive ? 'page' : undefined}
+      className={`admin-rail__icon admin-rail__icon--pin${isActive ? ' admin-rail__icon--active' : ''}`}
+    >
+      <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+      <Star size={9} fill="currentColor" strokeWidth={0} aria-hidden="true" className="admin-rail__pin-badge" />
+      <span role="tooltip" id={tipId} className="admin-rail__tip">
+        <strong>{route.label}</strong>
+        {workspace ? <span>{workspace}</span> : null}
+      </span>
+    </Link>
   );
 }

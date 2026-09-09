@@ -199,10 +199,15 @@ describe('county support', () => {
   it('agrees with the worker about which counties have an adapter', () => {
     // A county this file claims is supported and the worker cannot handle is worse than a missing
     // one: the request gets past the guard and fails somewhere less legible.
-    const router = fs.readFileSync(path.join(ROOT, 'worker/src/counties/router.ts'), 'utf8');
-    const declared = /COUNTY_SPECIFIC_MODULES\s*=\s*\[([^\]]*)\]/.exec(router)?.[1] ?? '';
-    const workerCounties = [...declared.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-    expect(workerCounties).toEqual([...SUPPORTED_COUNTIES].sort());
+    //
+    // Since 2026-09-09 the worker's list is the CURATED county profiles (worker/src/counties/profile.ts).
+    // The app's list may be SHORTER — verify-lot reads Bell CAD's ArcGIS service from the app and has
+    // no Milam counterpart yet — but never longer.
+    const profiles = fs.readFileSync(path.join(ROOT, 'worker/src/counties/profile.ts'), 'utf8');
+    const declared = /const CURATED: CountyProfile\[\] = \[([^\]]*)\]/.exec(profiles)?.[1] ?? '';
+    const workerCounties = [...declared.matchAll(/([A-Z]+)_PROFILE/g)].map((m) => m[1].toLowerCase()).sort();
+    expect(workerCounties.length).toBeGreaterThan(0);
+    for (const county of SUPPORTED_COUNTIES) expect(workerCounties).toContain(county);
   });
 
   it('normalises the county name the way the pipeline does', () => {

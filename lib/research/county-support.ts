@@ -22,11 +22,13 @@
 // and it is not even what the code does. Same behaviour, honest sentence, one place to change when the
 // second adapter lands.
 //
-// Kept in sync with `worker/src/counties/router.ts` COUNTY_SPECIFIC_MODULES, which is the list that
-// actually decides at run time. A test asserts the two agree, because a county that this file claims
-// is supported and the worker cannot handle is worse than one that is simply missing.
+// Checked against the worker's CURATED county profiles (`worker/src/counties/profile.ts`), which is
+// the list that actually decides at run time. A test asserts this list is a SUBSET of that one: a
+// county this file claims is supported and the worker cannot handle is worse than one that is simply
+// missing. It may be shorter — `verify-lot` reads Bell CAD's ArcGIS service from the app directly and
+// has no counterpart for Milam yet (the worker's Milam run does the equivalent from the worker).
 
-/** Counties with a working research adapter. Grow this when an adapter ships, never for a customer. */
+/** Counties this APP-SIDE lot check can research. Grow this when an adapter ships, never for a customer. */
 export const SUPPORTED_COUNTIES = ['bell'] as const;
 
 export type SupportedCounty = (typeof SUPPORTED_COUNTIES)[number];

@@ -59,8 +59,70 @@
   color: rgba(255, 220, 130, 0.85);
 }
 
+.admin-rail__icon--pin {
+  position: relative;
+}
+
 .admin-rail__icon--pin:hover {
+  color: #FFF;
+}
+
+/* pinned-pages 2026-09-09 — the page's own icon with a star badge, and a tooltip that appears at
+   once on hover or focus. Every pin used to be the same star, so nothing told two pins apart. */
+.admin-rail__pin-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
   color: #FCD34D;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
+}
+
+.admin-rail__tip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #1F2937;
+  color: #FFF;
+  font-size: 12px;
+  line-height: 1.25;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 80;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+.admin-rail__tip strong {
+  font-weight: 600;
+}
+
+.admin-rail__tip span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+}
+
+.admin-rail__tip::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-right-color: #1F2937;
+  border-left: 0;
+}
+
+.admin-rail__icon--pin:hover .admin-rail__tip,
+.admin-rail__icon--pin:focus-visible .admin-rail__tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 
 .admin-rail__tools {

@@ -68,10 +68,12 @@ describe('the module is wired — assert the CALLERS', () => {
     expect(getCountiesWithModules()).toEqual(['bell', 'milam']);
     expect(hasCountySpecificModule('Milam')).toBe(true);
     expect(hasCountySpecificModule('Coryell')).toBe(false); // control
+    // Since 2026-09-09 the router dispatches from the county profile: the loader lives in
+    // counties/milam/profile.ts and the router asks the profile for it.
     const router = read('counties/router.ts');
-    expect(router).toContain("case 'milam':");
-    expect(router).toContain("await import('./milam/index.js')).runMilamCountyResearch");
+    expect(router).toContain('const profile = resolveCountyProfile(input.county);');
     expect(router).toContain('runDedicatedModule(dedicated, input, onProgress, signal)');
+    expect(read('counties/milam/profile.ts')).toContain("await import('./index.js')).runMilamCountyResearch");
   });
   it('the orchestrator reads its scrapers from the module, not from Bell by name', () => {
     const orch = read('counties/bell/orchestrator.ts');
