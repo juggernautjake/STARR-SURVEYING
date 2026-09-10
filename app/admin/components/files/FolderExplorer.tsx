@@ -33,7 +33,7 @@ import {
 import SharedFileViewer from './FileViewer';
 import DownloadAllButton from './DownloadAllButton';
 import FileComments from './FileComments';
-import FilePicker, { type PickedNode } from './FilePicker';
+import FileExplorerDialog from './FileExplorerDialog';
 import { formatBytes, formatWhen } from './format';
 import { downloadFile } from '@/lib/files/download';
 import { fileKind } from '@/lib/files/viewer-model';
@@ -410,7 +410,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     await uploadFiles(outcome.files);
   }
 
-  async function attachFromExplorer(node: PickedNode) {
+  async function attachFromExplorer(node: { id: string; name: string }) {
     setPickerOpen(false);
     if (!target || target.kind !== 'job') return;
     setBusy(`Attaching ${node.name}…`);
@@ -628,7 +628,17 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
         </div>
       )}
 
-      <FilePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={(n) => void attachFromExplorer(n)} mode="file" title="Attach a document from Files" actionLabel="Attach" />
+      <FileExplorerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        mode="file"
+        title="Attach a document from Files"
+        subtitle="The job keeps a link to the document — no copy is made."
+        actions={[{ key: 'attach', label: 'Attach', primary: true }]}
+        canChoose={(n) => n.node_type === 'file' && !n.id.startsWith('mnt:')}
+        hint="a document from My files or Shared files"
+        onPick={(p) => void attachFromExplorer({ id: p.id, name: p.name })}
+      />
 
       {viewerId && viewerCollection.files.some((f) => f.id === viewerId) && (
         <SharedFileViewer

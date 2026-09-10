@@ -734,10 +734,11 @@ describe('the shared file viewer re-fits when it turns a page', () => {
     expect(src.length).toBeGreaterThan(5000);
   });
 
-  it('and the jobs viewer is an adapter over it, not a copy', () => {
-    const jobs = read('app/admin/components/jobs/FileViewer.tsx');
-    expect(jobs).toContain("from '@/app/admin/components/files/FileViewer'");
-    expect(stripJs(jobs), 'the adapter grew its own rotation').not.toContain('setRotation');
+  it('and no other viewer exists beside it', () => {
+    // The jobs adapter (app/admin/components/jobs/FileViewer.tsx) went with the panels that used
+    // it, 2026-09-10; the FolderExplorer mounts the shared viewer directly.
+    expect(fs.existsSync(path.join(process.cwd(), 'app/admin/components/jobs/FileViewer.tsx'))).toBe(false);
+    expect(read('app/admin/components/files/FolderExplorer.tsx')).toContain("import SharedFileViewer from './FileViewer'");
   });
 
   it('reads the shared module rather than a fourth copy of the arithmetic', () => {

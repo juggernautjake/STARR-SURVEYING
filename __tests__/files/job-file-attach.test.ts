@@ -91,7 +91,7 @@ describe('F5 — a link, not a copy', () => {
     const attach = s.slice(s.indexOf('async function attachFromExplorer'), s.indexOf('// ── which page-owned panel'));
     expect(attach, 'the attach must not send a file_url').not.toMatch(/file_url/);
     expect(attach).toMatch(/file_node_id:\s*node\.id/);
-    expect(s).toMatch(/onPick=\{\(n\) => void attachFromExplorer\(n\)\}/);
+    expect(s).toMatch(/onPick=\{\(p\) => void attachFromExplorer\(\{ id: p\.id, name: p\.name \}\)\}/);
   });
 
   it('downloads a linked file through the explorer route, not from the job row', () => {
@@ -206,9 +206,12 @@ describe('F5 — wired, not merely authored', () => {
     expect(s).toMatch(/\{target\.kind === 'job' && \(/);
   });
 
-  it('reuses the shared FilePicker in file mode instead of a second browser', () => {
+  it('reuses the ONE file explorer pop-up in file mode instead of a second browser', () => {
+    // 2026-09-10: FilePicker retired for FileExplorerDialog — the same pop-up the viewer's SEND TO
+    // and the explorer's Move open.
     const s = src(MANAGER);
-    expect(s).toMatch(/from '(\.\/|@\/app\/admin\/components\/files\/)FilePicker'/);
+    expect(s).toMatch(/from '(\.\/|@\/app\/admin\/components\/files\/)FileExplorerDialog'/);
     expect(s).toMatch(/mode="file"/);
+    expect(fs.existsSync(path.join(process.cwd(), 'app/admin/components/files/FilePicker.tsx')), 'the old picker is back').toBe(false);
   });
 });

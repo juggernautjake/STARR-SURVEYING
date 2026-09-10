@@ -24,11 +24,12 @@ import {
 } from 'lucide-react';
 import {
   fileKind, neighbourIndex, applyRename, normalizeTags,
-  type ViewerCollection, type ViewerFile, type ViewerCapabilities, type Destination,
+  type ViewerCollection, type ViewerFile, type ViewerCapabilities,
 } from '@/lib/files/viewer-model';
 import { downloadFile, canChooseWhereToSave, type SaveOutcome } from '@/lib/files/download';
 import { nextRotation, rotationFit, clampZoom, type Rotation } from '@/lib/viewers/viewer-fit';
 import { formatBytes, formatWhen } from './format';
+import FileExplorerDialog from './FileExplorerDialog';
 import './FileViewer.css';
 
 export interface FileViewerProps {
@@ -383,8 +384,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const [nameDraft, setNameDraft] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [destinations, setDestinations] = useState<Destination[] | null>(null);
-  const [destinationId, setDestinationId] = useState('');
+  /** SEND TO opens the one file explorer pop-up; the chosen folder comes back with copy or move. */
+  const [sendOpen, setSendOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   useEffect(() => { setNotesDraft(file?.notes ?? ''); setRenaming(false); setError(null); }, [file?.id, file?.notes]);
 
@@ -403,11 +404,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     if (next === file.name) return;
     void run('Rename', async () => patchLocal(await capabilities.rename!(file, next)));
   };
-  const openDestinations = async () => {
-    if (!file || !capabilities.destinations || destinations) return;
-    setDestinations(await capabilities.destinations(file));
-  };
-  useEffect(() => { setDestinations(null); setDestinationId(''); }, [file?.id]);
+  useEffect(() => { setSendOpen(false); }, [file?.id]);
 
   const canEdit = Boolean(capabilities.rename || capabilities.updateNotes || capabilities.updateTags || capabilities.move || capabilities.copy || capabilities.delete);
 
@@ -416,6 +413,29 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
 
   return (
     <div className={`fv-overlay${closing ? ' fv-overlay--closing' : ''}`} role="dialog" aria-modal="true" aria-label={`Viewing ${file.name}`}>
+      {sendOpen ? (
+        <FileExplorerDialog
+          open
+          mode="folder"
+          title={`Send "${file.name}" to…`}
+          subtitle="Open a folder to go into it, then copy or move the file there."
+          hint={capabilities.sendHint}
+          canChoose={(n) => n.node_type === 'folder' && (capabilities.canSendTo ? capabilities.canSendTo({ id: n.id, name: n.name, access: n.access }) : (!n.id.startsWith('mnt:') && (n.access === 'edit' || n.access === 'manage')))}
+          actions={[
+            ...(capabilities.copy ? [{ key: 'copy', label: 'Copy here' }] : []),
+            ...(capabilities.move ? [{ key: 'move', label: 'Move here', primary: true }] : []),
+          ]}
+          onClose={() => setSendOpen(false)}
+          onPick={(p, action) => {
+            const d = { id: p.id, label: p.trail.join(' › ') || p.name };
+            if (action === 'copy' && capabilities.copy) {
+              void run('Copy', async () => { await capabilities.copy!(file, d); setNotice(`Copied to ${d.label}.`); window.setTimeout(() => setNotice(null), 4000); });
+            } else if (action === 'move' && capabilities.move) {
+              void run('Move', async () => { await capabilities.move!(file, d); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else setCurrentId(next[Math.min(index, next.length - 1)].id); });
+            }
+          }}
+        />
+      ) : null}
       <div className={`fv${infoOpen ? ' fv--info' : ''}`}>
         {/* ── Header: ‹ name › centred, the position beneath (owner, 2026-09-10) ────────────
             The arrows sit directly either side of the name, in the middle of the bar — before this
@@ -583,26 +603,19 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                 <p className="fv-info__ro">{file.tags?.length ? file.tags.join(', ') : 'No tags.'}</p>
               )}
 
-              {(capabilities.move || capabilities.copy) && capabilities.destinations ? (
+              {capabilities.move || capabilities.copy ? (
                 <>
                   <h3 className="fv-info__h"><FolderInput size={13} aria-hidden="true" /> Send to</h3>
+                  {/* ── ONE BUTTON, THE ONE EXPLORER (owner, 2026-09-10) ─────────────────────────
+                      "Instead of the 'Choose a destination…' menu, there will just be a SEND TO
+                      button that when clicked will open up the file explorer and they can then
+                      choose a folder … copy it there or move it there." The pop-up is
+                      FileExplorerDialog; which folders qualify is the adapter's `canSendTo`. */}
                   <div className="fv-info__send">
-                    <select className="fv-info__select" value={destinationId} onFocus={() => void openDestinations()} onChange={(e) => setDestinationId(e.target.value)} aria-label="Destination">
-                      <option value="">{destinations ? 'Choose a destination…' : 'Loading destinations…'}</option>
-                      {(destinations ?? []).map((d) => <option key={d.id} value={d.id}>{d.label}{d.hint ? ` — ${d.hint}` : ''}</option>)}
-                    </select>
-                    <div className="fv-info__send-actions">
-                      {capabilities.copy ? (
-                        <button type="button" className="fv-btn" disabled={!destinationId || busy !== null} onClick={() => { const d = destinations?.find((x) => x.id === destinationId); if (d) void run('Copy', async () => { await capabilities.copy!(file, d); setNotice(`Copied to ${d.label}.`); window.setTimeout(() => setNotice(null), 4000); }); }}>
-                          <Copy size={14} aria-hidden="true" /> Copy there
-                        </button>
-                      ) : null}
-                      {capabilities.move ? (
-                        <button type="button" className="fv-btn" disabled={!destinationId || busy !== null} onClick={() => { const d = destinations?.find((x) => x.id === destinationId); if (d) void run('Move', async () => { await capabilities.move!(file, d); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else setCurrentId(next[Math.min(index, next.length - 1)].id); }); }}>
-                          <FolderInput size={14} aria-hidden="true" /> Move there
-                        </button>
-                      ) : null}
-                    </div>
+                    <button type="button" className="fv-btn fv-btn--send" disabled={busy !== null} onClick={() => setSendOpen(true)} data-testid="fv-send-to">
+                      <FolderInput size={14} aria-hidden="true" /> Send to…
+                    </button>
+                    {capabilities.sendHint ? <p className="fv-info__ro">Goes to {capabilities.sendHint}.</p> : null}
                   </div>
                 </>
               ) : null}

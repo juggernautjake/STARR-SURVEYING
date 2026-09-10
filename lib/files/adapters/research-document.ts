@@ -67,15 +67,6 @@ async function patchDoc(projectId: string, id: string, body: Record<string, unkn
   return json.document as ResearchDocLike;
 }
 
-export async function researchDestinations(currentProjectId: string): Promise<Destination[]> {
-  const res = await fetch('/api/admin/research?limit=100');
-  if (!res.ok) return [];
-  const body = await res.json() as { projects?: Array<{ id: string; name: string; property_address?: string | null; county?: string | null }> };
-  return (body.projects ?? [])
-    .filter((p) => p.id !== currentProjectId)
-    .map((p) => ({ id: p.id, label: p.name, hint: [p.property_address, p.county && `${p.county} County`].filter(Boolean).join(' · ') || 'research project' }));
-}
-
 export interface ResearchDocCapabilityHooks {
   projectId: string;
   docFor: (id: string) => ResearchDocLike | undefined;
@@ -86,7 +77,10 @@ export interface ResearchDocCapabilityHooks {
 export function researchDocCapabilities(hooks: ResearchDocCapabilityHooks): ViewerCapabilities {
   const after = (d: ResearchDocLike) => { hooks.onChanged(); return researchDocToViewerFile({ ...(hooks.docFor(d.id) ?? {}), ...d } as ResearchDocLike); };
   const send = async (id: string, mode: 'move' | 'copy', destination: Destination) => {
-    const res = await fetch(`/api/admin/research/${hooks.projectId}/documents/${id}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, target_project_id: destination.id }) });
+    // The pop-up's folder is a research project under Research Documents: mnt:research:<projectId>.
+    const target = destination.id.startsWith('mnt:research:') ? destination.id.slice('mnt:research:'.length) : destination.id;
+    if (target === hooks.projectId) throw new Error('The document is already in this research project.');
+    const res = await fetch(`/api/admin/research/${hooks.projectId}/documents/${id}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, target_project_id: target }) });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     hooks.onChanged();
@@ -99,7 +93,8 @@ export function researchDocCapabilities(hooks: ResearchDocCapabilityHooks): View
     },
     updateNotes: async (file, notes) => after(await patchDoc(hooks.projectId, file.id, { notes })),
     updateTags: async (file, tags) => after(await patchDoc(hooks.projectId, file.id, { tags })),
-    destinations: async () => researchDestinations(hooks.projectId),
+    canSendTo: (folder) => /^mnt:research:[^:]+$/.test(folder.id) && folder.id !== `mnt:research:${hooks.projectId}`,
+    sendHint: 'another research project, under Research Documents',
     move: async (file, destination) => send(file.id, 'move', destination),
     copy: async (file, destination) => send(file.id, 'copy', destination),
     ...(hooks.onDelete ? { delete: async (file) => { await hooks.onDelete!(file.id); } } : {}),

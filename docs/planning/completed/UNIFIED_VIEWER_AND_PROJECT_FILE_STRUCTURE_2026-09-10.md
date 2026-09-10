@@ -112,3 +112,44 @@ moved into the explorer; guards re-pointed).
   too, and see only the Research folder inside a job.
 - The old `?tab=photos|videos|research|cad` deep links land on the Files tab's matching folder.
 - `.trv` files land in Documents (the extension is not in the CAD list); say if they are CAD.
+
+---
+
+## 7. Later the same day (2026-09-10)
+
+**The viewer header** — ‹ name › centred, "4 / 11 files · Page 1 of 3" beneath. And the viewer
+imports `pdfjs-dist/build/pdf.min.mjs`: the unminified `pdf.mjs` is itself a webpack bundle whose
+`__webpack_require__` collides with Next's under `next dev` (module evaluation died in
+`__webpack_require__.r` with "Object.defineProperty called on non-object") while `next build`,
+which mangles names, passed — so production rendered and dev did not. Types: `types/pdfjs-min.d.ts`.
+A stale PWA service worker on localhost also served old chunks during the repro: unregister + clear
+caches before believing a dev reproduction.
+
+**Zoom at the cursor** — ctrl/⌘ + wheel (which is also what a trackpad pinch sends) zooms at the
+cursor, continuously from the fitted size; the wheel listener is native and non-passive.
+
+**NEW bubbles + due bubbles** — a new job writes one `job_created` notification per company user who
+works jobs (the creator excepted). Unread = NEW on the Work icon, "New" on the flyout's Job Projects
+row, NEW beside Created on the project cards, New on job cards and the project page's job rows;
+opening the job reads it (`/api/admin/jobs/new`; `lib/admin/use-new-jobs.ts` is the one client
+reader). Beside Deadline: DUE IN TWO DAYS / DUE IN ONE DAY / DUE TODAY / PAST DUE by calendar day
+(`dueBubble` in `lib/admin/listing.ts`). Guard: `__tests__/jobs/new-job-badges.test.ts`.
+
+**ONE file explorer pop-up** — `app/admin/components/files/FileExplorerDialog.tsx` (+ `.css`), the
+Windows-Explorer-shaped modal: places on the left (My files, Shared files, Job Projects, Jobs,
+Research Documents, Drawings, Receipts, Job Files, Field Media, People's files), the folder on the
+right with a breadcrumb and Up, four views (large icons with image previews, small icons, list,
+details), search across everything (mounts included), and a footer that carries the caller's
+actions. It replaced `FilePicker.tsx`:
+
+- the viewer's Send To is one **Send to…** button → the pop-up in folder mode with **Copy here** /
+  **Move here**; which folders qualify is each adapter's `canSendTo` (explorer: any folder you can
+  edit; job files: a job's Research / CAD / Photos / Videos / Documents folder or a project's
+  documents — the send route now takes the destination's `section`; research documents: another
+  research project under Research Documents, which became a folder per research project);
+- attach-from-Files on the FolderExplorer opens it in file mode;
+- the explorer page's Move opens it with "Move here".
+
+Retired with it: `app/admin/components/jobs/FileViewer.tsx` (the adapter whose callers went with
+the tabs), `lib/files/adapters/job-file.ts`, `FileDetailsPanel.tsx`. Guard:
+`__tests__/files/file-explorer-dialog.test.ts`.

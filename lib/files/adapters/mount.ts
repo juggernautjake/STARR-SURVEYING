@@ -9,8 +9,7 @@
 
 import type { ViewerFile, ViewerCapabilities, Destination } from '../viewer-model';
 import type { MountNode } from '../mount-node';
-import { JOB_FOLDERS, jobFolder, type JobFolderKey } from '../job-folders';
-import { jobFileDestinations } from './job-file';
+import { jobFolder, parseJobFolderId, parseProjectDocsId } from '../job-folders';
 
 export async function mountViewUrl(id: string): Promise<string | null> {
   const res = await fetch(`/api/admin/files/${id}/download?inline=1`);
@@ -58,11 +57,29 @@ export interface MountCapabilityHooks {
   url: (id: string) => string | null;
 }
 
-/** The standard folders of the SAME job, as destinations — moving a photo to Documents is a section edit. */
-function sameJobFolderDestinations(current: JobFolderKey | null): Destination[] {
-  return JOB_FOLDERS
-    .filter((f) => f.uploadSection && f.key !== current)
-    .map((f) => ({ id: `folder:${f.key}`, label: f.label, hint: 'this job' }));
+/** Where a job file can go: one of a job's standard folders, or a project's documents — as the
+ *  explorer pop-up names them (mnt:jobs:<job>:<folder>, mnt:projects:<p>:<job>:<folder>, mnt:projects:<p>:docs). */
+function jobFileTarget(destination: Destination): { job_id?: string; project_id?: string; section: string; file_type: string | null } {
+  const jf = parseJobFolderId(destination.id);
+  if (jf) {
+    const spec = jobFolder(jf.folder);
+    if (!spec?.uploadSection) throw new Error(`${spec?.label ?? 'That folder'} does not take files.`);
+    return { job_id: jf.jobId, section: spec.uploadSection, file_type: spec.uploadFileType };
+  }
+  const pd = parseProjectDocsId(destination.id);
+  if (pd) return { project_id: pd.projectId, section: 'project', file_type: null };
+  throw new Error("A job file goes to a job's Research, CAD, Photos, Videos or Documents folder, or to a project's documents.");
+}
+
+const canReceiveJobFile = (folder: { id: string }): boolean => {
+  const jf = parseJobFolderId(folder.id);
+  if (jf) return Boolean(jobFolder(jf.folder)?.uploadSection);
+  return Boolean(parseProjectDocsId(folder.id));
+};
+
+async function sendJobFile(id: string, mode: 'move' | 'copy', target: ReturnType<typeof jobFileTarget>): Promise<void> {
+  const res = await fetch(`/api/admin/jobs/files/${id}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, ...target }) });
+  if (!res.ok) { const json = await res.json().catch(() => ({})); throw new Error(json.error ?? `HTTP ${res.status}`); }
 }
 
 export function mountCapabilities(hooks: MountCapabilityHooks): ViewerCapabilities {
@@ -101,36 +118,24 @@ export function mountCapabilities(hooks: MountCapabilityHooks): ViewerCapabiliti
       else throw new Error('Tags are kept on job files and research documents.');
       return refreshed(file.id);
     },
-    destinations: async (file) => {
-      const s = src(file.id);
-      if (s?.table !== 'job_files') return [];
-      const current = jobFolder(hooks.nodeFor(file.id)?.folder_key ?? null)?.key ?? null;
-      const others = await jobFileDestinations({ job_id: s.job_id ?? null, project_id: s.project_id ?? null });
-      return [...(s.job_id ? sameJobFolderDestinations(current) : []), ...others];
-    },
+    canSendTo: canReceiveJobFile,
+    sendHint: "a job's Research / CAD / Photos / Videos / Documents folder, or a project's documents",
     move: async (file, destination) => {
       const s = src(file.id);
       if (s?.table !== 'job_files') throw new Error('Only job files can be moved from here.');
-      const [kind, target] = destination.id.split(':');
-      if (kind === 'folder') {
-        const spec = jobFolder(target);
-        if (!spec?.uploadSection) throw new Error('That folder does not take files.');
-        await patchJson(`/api/admin/jobs/files/${s.id}`, { section: spec.uploadSection, ...(spec.uploadFileType ? { file_type: spec.uploadFileType } : {}) });
+      const t = jobFileTarget(destination);
+      if (t.job_id && t.job_id === s.job_id) {
+        // Same job, another standard folder: a section edit, nothing moves in storage.
+        await patchJson(`/api/admin/jobs/files/${s.id}`, { section: t.section, ...(t.file_type ? { file_type: t.file_type } : {}) });
       } else {
-        const body = kind === 'job' ? { mode: 'move', job_id: target } : { mode: 'move', project_id: target };
-        const res = await fetch(`/api/admin/jobs/files/${s.id}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) { const json = await res.json().catch(() => ({})); throw new Error(json.error ?? `HTTP ${res.status}`); }
+        await sendJobFile(s.id, 'move', t);
       }
       await hooks.onChanged();
     },
     copy: async (file, destination) => {
       const s = src(file.id);
       if (s?.table !== 'job_files') throw new Error('Only job files can be copied from here.');
-      const [kind, target] = destination.id.split(':');
-      if (kind === 'folder') throw new Error('A file is in one folder of a job at a time — move it instead.');
-      const body = kind === 'job' ? { mode: 'copy', job_id: target } : { mode: 'copy', project_id: target };
-      const res = await fetch(`/api/admin/jobs/files/${s.id}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) { const json = await res.json().catch(() => ({})); throw new Error(json.error ?? `HTTP ${res.status}`); }
+      await sendJobFile(s.id, 'copy', jobFileTarget(destination));
       await hooks.onChanged();
     },
     delete: async (file) => {

@@ -27,7 +27,7 @@ import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import { downloadFile, downloadZip } from '@/lib/files/download';
 import { zipName } from '@/lib/files/viewer-model';
 import { explorerNodeToViewerFile, explorerCapabilities, explorerViewUrl, isMountId } from '@/lib/files/adapters/explorer';
-import FilePicker, { type PickedNode } from '@/app/admin/components/files/FilePicker';
+import FileExplorerDialog from '@/app/admin/components/files/FileExplorerDialog';
 import {
   Folder,
   FileText,
@@ -896,7 +896,7 @@ export default function FilesPage(): React.ReactElement {
   // hold a destination in your head while walking there. Picking the destination is one step.
   const [movePickerOpen, setMovePickerOpen] = useState(false);
 
-  const moveSelectedTo = useCallback(async (dest: PickedNode) => {
+  const moveSelectedTo = useCallback(async (dest: { id: string; name: string }) => {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
     setBusy(true);
@@ -1341,13 +1341,14 @@ export default function FilesPage(): React.ReactElement {
           API would have to reject anyway. (Moving a folder into its own DESCENDANT is refused
           server-side, which is where a cycle check belongs — the client cannot know the subtree
           without fetching it.) */}
-      <FilePicker
+      <FileExplorerDialog
         open={movePickerOpen}
         onClose={() => setMovePickerOpen(false)}
-        onPick={(dest) => void moveSelectedTo(dest)}
         mode="folder"
         title={`Move ${selected.size} item${selected.size === 1 ? '' : 's'}`}
-        actionLabel="Move here"
+        actions={[{ key: 'move', label: 'Move here', primary: true }]}
+        hint="any folder you can edit"
+        onPick={(p) => void moveSelectedTo({ id: p.id, name: p.name })}
         excludeIds={[...selected]}
       />
 

@@ -313,8 +313,8 @@ describe('the mount adapter routes each edit to the row behind the file', () => 
   it('job files: label / description / tags / section through the job-file PATCH; send; delete', () => {
     expect(code).toContain('/api/admin/jobs/files/${s.id}`, { label:');
     expect(code).toContain('{ description: notes.trim() || null }');
-    expect(code).toContain('{ section: spec.uploadSection');
-    expect(code).toContain('/api/admin/jobs/files/${s.id}/send');
+    expect(code).toContain('{ section: t.section');
+    expect(code).toContain('/api/admin/jobs/files/${id}/send');
     expect(code).toContain('/api/admin/jobs/files?id=${encodeURIComponent(s.id)}`, { method: \'DELETE\' }');
   });
   it('research documents: label / notes / tags through their own PATCH', () => {
@@ -325,8 +325,10 @@ describe('the mount adapter routes each edit to the row behind the file', () => 
     expect(code).toContain("throw new Error('This file is renamed where it lives");
     expect(code).toContain("throw new Error('Only job files can be moved from here.')");
   });
-  it('a move within the job is a section edit, offered as the other standard folders', () => {
-    expect(code).toContain('function sameJobFolderDestinations(');
-    expect(code).toContain("id: `folder:${f.key}`");
+  it('a move within the job is a section edit; a folder the pop-up names resolves to a job + section', () => {
+    // 2026-09-10: destinations come from the file explorer pop-up (mnt:… folder ids), not a list.
+    expect(code).toContain('function jobFileTarget(destination: Destination)');
+    expect(code).toContain('const canReceiveJobFile = (folder: { id: string }): boolean');
+    expect(code).toContain('if (t.job_id && t.job_id === s.job_id) {');
   });
 });

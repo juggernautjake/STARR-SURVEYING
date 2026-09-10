@@ -18,7 +18,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { bucketOf, downloadHref, shapeOf, jobFileStoragePath, type JobFileRow } from '@/lib/jobs/file-storage';
 
-interface SendBody { mode?: 'move' | 'copy'; job_id?: string | null; project_id?: string | null }
+interface SendBody { mode?: 'move' | 'copy'; job_id?: string | null; project_id?: string | null; section?: string | null; file_type?: string | null }
 
 export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { id: string } }) => {
   const session = await auth();
@@ -29,6 +29,10 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
   if (!mode) return NextResponse.json({ error: 'mode must be "move" or "copy".' }, { status: 400 });
 
   const jobId = typeof body.job_id === 'string' && body.job_id ? body.job_id : null;
+  // The standard folder the file lands in at the destination (lib/files/job-folders.ts) — sent by
+  // the explorer pop-up when a folder rather than a bare job was chosen (2026-09-10).
+  const section = typeof body.section === 'string' && body.section.trim() ? body.section.trim() : null;
+  const fileType = typeof body.file_type === 'string' && body.file_type.trim() ? body.file_type.trim() : null;
   let projectId = typeof body.project_id === 'string' && body.project_id ? body.project_id : null;
   if (!jobId && !projectId) return NextResponse.json({ error: 'A destination job_id or project_id is required.' }, { status: 400 });
 
@@ -56,7 +60,7 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
   if (mode === 'move') {
     const { data: moved, error } = await supabaseAdmin
       .from('job_files')
-      .update({ job_id: jobId, project_id: projectId })
+      .update({ job_id: jobId, project_id: projectId, ...(section ? { section } : {}), ...(fileType ? { file_type: fileType } : {}) })
       .eq('id', row.id)
       .select()
       .single();
@@ -96,12 +100,12 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
       project_id: projectId,
       file_name: row.file_name ?? row.name ?? 'file',
       name: row.name ?? row.file_name ?? 'file',
-      file_type: row.file_type ?? 'other',
+      file_type: fileType ?? row.file_type ?? 'other',
       file_size: row.file_size ?? null,
       file_size_bytes: row.file_size_bytes ?? null,
       mime_type: row.mime_type ?? null,
       content_type: row.content_type ?? null,
-      section: row.section ?? 'general',
+      section: section ?? row.section ?? 'general',
       description: row.description ?? null,
       label: row.label ?? null,
       tags: row.tags ?? [],

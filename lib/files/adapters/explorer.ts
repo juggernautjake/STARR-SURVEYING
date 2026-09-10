@@ -2,7 +2,7 @@
 // shared viewer sees it. Bytes come from the explorer's own signed-URL route (a 2 h inline URL for
 // viewing); rename / move / copy / notes / tags go through the routes the explorer already has.
 
-import type { ViewerFile, ViewerCapabilities, Destination } from '../viewer-model';
+import type { ViewerFile, ViewerCapabilities } from '../viewer-model';
 
 export interface ExplorerNodeLike {
   id: string;
@@ -49,28 +49,6 @@ async function patchNode(id: string, body: Record<string, unknown>): Promise<Exp
   return json.node as ExplorerNodeLike;
 }
 
-/** Folders a file can be sent to: the breadcrumb's ancestors and the sibling folders of its own folder. */
-export async function explorerDestinations(currentParentId: string | null, crumbs: Array<{ id: string | null; name: string }>): Promise<Destination[]> {
-  const out: Destination[] = [];
-  const seen = new Set<string>();
-  for (const c of crumbs) {
-    const id = c.id ?? 'root';
-    if (id === (currentParentId ?? 'root') || seen.has(id) || isMountId(id)) continue;
-    seen.add(id);
-    out.push({ id, label: c.name, hint: 'up the tree' });
-  }
-  const res = await fetch(`/api/admin/files?parent=${encodeURIComponent(currentParentId ?? 'root')}`);
-  if (res.ok) {
-    const body = await res.json() as { nodes?: ExplorerNodeLike[] };
-    for (const n of body.nodes ?? []) {
-      if (n.node_type !== 'folder' || isMountId(n.id) || seen.has(n.id)) continue;
-      seen.add(n.id);
-      out.push({ id: n.id, label: n.name, hint: 'folder here' });
-    }
-  }
-  return out;
-}
-
 export interface ExplorerCapabilityHooks {
   canEdit: (node: ExplorerNodeLike) => boolean;
   nodeFor: (id: string) => ExplorerNodeLike | undefined;
@@ -89,7 +67,8 @@ export function explorerCapabilities(hooks: ExplorerCapabilityHooks, url: (id: s
     rename: async (file, newName) => { if (!editable(file.id)) throw new Error('read-only'); return after(await patchNode(file.id, { name: newName })); },
     updateNotes: async (file, notes) => { if (!editable(file.id)) throw new Error('read-only'); return after(await patchNode(file.id, { notes })); },
     updateTags: async (file, tags) => { if (!editable(file.id)) throw new Error('read-only'); return after(await patchNode(file.id, { tags })); },
-    destinations: async () => explorerDestinations(hooks.currentParentId, hooks.crumbs),
+    canSendTo: (folder) => !isMountId(folder.id) && (folder.access === 'edit' || folder.access === 'manage'),
+    sendHint: 'any folder you can edit',
     move: async (file, destination) => { if (!editable(file.id)) throw new Error('read-only'); await patchNode(file.id, { parent_id: destination.id === 'root' ? null : destination.id }); hooks.onChanged(); },
     copy: async (file, destination) => {
       const res = await fetch(`/api/admin/files/${file.id}/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_id: destination.id === 'root' ? null : destination.id }) });

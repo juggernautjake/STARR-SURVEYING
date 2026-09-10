@@ -63,8 +63,10 @@ export interface ViewerCapabilities {
   renameFolder?: (folder: ViewerFolder, newName: string) => Promise<ViewerFolder>;
   updateFolderNotes?: (folder: ViewerFolder, notes: string) => Promise<ViewerFolder>;
   updateFolderTags?: (folder: ViewerFolder, tags: string[]) => Promise<ViewerFolder>;
-  /** Where a file can be sent. Called when the move/copy panel opens. */
-  destinations?: (file: ViewerFile) => Promise<Destination[]>;
+  /** Whether a folder in the explorer pop-up may be chosen as this surface's destination. Absent →
+   *  any folder the person can edit (the explorer's own rule). The pop-up shows `sendHint`. */
+  canSendTo?: (folder: { id: string; name: string; access: string }) => boolean;
+  sendHint?: string;
   move?: (file: ViewerFile, destination: Destination) => Promise<void>;
   copy?: (file: ViewerFile, destination: Destination) => Promise<void>;
   delete?: (file: ViewerFile) => Promise<void>;

@@ -180,6 +180,7 @@ export async function listMount(mountId: string, user: FileUser, isAdmin: boolea
 
   if (key === 'jobs') return listJobsMount(segments, user, isAdmin);
   if (key === 'projects') return listProjectsMount(segments, user, isAdmin);
+  if (key === 'research') return listResearchMount(segments);
 
   // Every other source is a flat folder. Extra segments mean a FILE id was passed where a folder
   // was expected — listing the whole folder instead would quietly answer a different question.
@@ -245,20 +246,6 @@ export async function listMount(mountId: string, user: FileUser, isAdmin: boolea
           r.uploaded_at ?? r.created_at ?? '',
         ),
       );
-    return { ok: true, name: source.label, nodes };
-  }
-
-  if (key === 'research') {
-    const { data, error } = await supabaseAdmin
-      .from('research_documents')
-      .select('id, original_filename, document_label, storage_path, file_type, file_size_bytes, created_at')
-      .not('storage_path', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(LIMIT);
-    if (error) return { ok: false, status: 500, error: error.message };
-    const nodes = (data ?? []).map((r: { id: string; original_filename: string | null; document_label: string | null; storage_path: string; file_type: string | null; file_size_bytes: number | null; created_at: string }) =>
-      file(r.id, r.document_label?.trim() || r.original_filename?.trim() || 'Document', mimeFromPath(r.storage_path) ?? (r.file_type ? `application/${r.file_type}` : null), r.file_size_bytes, r.created_at),
-    );
     return { ok: true, name: source.label, nodes };
   }
 
@@ -1013,5 +1000,79 @@ export async function listMountTree(
       total_files: total,
       truncated,
     },
+  };
+}
+
+// ── Research Documents: a folder per research project (owner, 2026-09-10) ──────────────────────
+//
+// The flat "every research document" list became one folder per research project, so the explorer
+// pop-up has somewhere a research document can be SENT (the folder id is the research project id:
+// `mnt:research:<researchProjectId>`), and so 500 documents from forty projects read as forty
+// folders rather than one wall. Document ids are unchanged (`mnt:research:<docId>`) — the two share
+// a prefix but never a value, both being UUIDs from different tables.
+
+async function listResearchMount(segments: string[]): Promise<MountListResult> {
+  const root = `${MOUNT_PREFIX}research`;
+  const label = 'Research Documents';
+  if (segments.length > 1) return { ok: false, status: 404, error: 'That is a file, not a folder.' };
+
+  if (segments.length === 0) {
+    const { data, error } = await supabaseAdmin
+      .from('research_projects')
+      .select('id, name, property_address, county, updated_at, created_at')
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(LIMIT);
+    if (error) return { ok: false, status: 500, error: error.message };
+    type Row = { id: string; name: string | null; property_address: string | null; county: string | null; updated_at: string | null; created_at: string | null };
+    const nodes: MountNode[] = ((data ?? []) as Row[]).map((p) => ({
+      id: `${root}:${p.id}`,
+      parent_id: root,
+      node_type: 'folder',
+      name: p.name?.trim() || p.property_address?.trim() || 'Untitled research',
+      mime_type: null,
+      size_bytes: null,
+      updated_at: p.updated_at ?? p.created_at ?? '',
+      access: 'view',
+      ...(p.property_address || p.county ? { blurb: [p.property_address, p.county ? `${p.county} County` : null].filter(Boolean).join(' · ') } : {}),
+    }));
+    return { ok: true, name: label, nodes, trail: [{ id: root, name: label }] };
+  }
+
+  const [projectId] = segments;
+  const { data: proj } = await supabaseAdmin.from('research_projects').select('id, name, property_address').eq('id', projectId).maybeSingle();
+  const project = proj as { id: string; name: string | null; property_address: string | null } | null;
+  if (!project) return { ok: false, status: 404, error: 'That research project is not here.' };
+  const projLabel = project.name?.trim() || project.property_address?.trim() || 'Untitled research';
+  const projNode = `${root}:${project.id}`;
+
+  const { data, error } = await supabaseAdmin
+    .from('research_documents')
+    .select('id, original_filename, document_label, storage_path, file_type, file_size_bytes, created_at, notes, tags')
+    .eq('research_project_id', project.id)
+    .not('storage_path', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(LIMIT);
+  if (error) return { ok: false, status: 500, error: error.message };
+  type Doc = { id: string; original_filename: string | null; document_label: string | null; storage_path: string; file_type: string | null; file_size_bytes: number | null; created_at: string; notes: string | null; tags: string[] | null };
+  const nodes: MountNode[] = ((data ?? []) as Doc[]).map((r) => ({
+    id: `${root}:${r.id}`,
+    parent_id: projNode,
+    node_type: 'file',
+    name: r.document_label?.trim() || r.original_filename?.trim() || 'Document',
+    mime_type: mimeFromPath(r.storage_path) ?? (r.file_type ? `application/${r.file_type}` : null),
+    size_bytes: r.file_size_bytes,
+    updated_at: r.created_at,
+    access: 'download',
+    source: { table: 'research_documents', id: r.id, research_project_id: project.id },
+    notes: r.notes ?? null,
+    tags: r.tags ?? [],
+    ...(r.original_filename ? { original_name: r.original_filename } : {}),
+  }));
+  return {
+    ok: true,
+    name: projLabel,
+    nodes,
+    trail: [{ id: root, name: label }, { id: projNode, name: projLabel }],
+    openHref: `/admin/research/${project.id}`,
   };
 }
