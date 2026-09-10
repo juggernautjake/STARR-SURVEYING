@@ -147,8 +147,9 @@ export default function JobsPortal() {
           )}
           {isAdmin && active === 'projects' && (
             <div className="jbp-portal__actions">
-              <Link className="jbp-portal__action" href="/admin/projects/new">
-                <FolderPlus size={14} aria-hidden /> New project
+              {/* The brand gradient (owner, 2026-09-09) — the class comes with the Projects tab's sheet. */}
+              <Link className="jbp-portal__action lst-new lst-new--brand" href="/admin/projects/new" data-testid="projects-new">
+                <FolderPlus size={14} aria-hidden /> New Project
               </Link>
             </div>
           )}

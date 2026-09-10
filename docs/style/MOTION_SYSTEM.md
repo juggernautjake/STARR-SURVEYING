@@ -28,8 +28,9 @@ with this one on motion, this one wins — §10 of the style guide predates the 
 2. **Arrive slow, leave fast.** Entrances use `--ease-out` and `--motion-base`; exits use
    `--ease-in` and `--motion-fast`. A thing that took 220 ms to arrive and vanishes in 0 ms reads
    as a glitch; one that takes 340 ms to leave reads as sluggish.
-3. **Only opacity and transform.** (Plus `grid-template-rows` for the unfold.) Never animate
-   width, height, margin, padding, top/left or font-size — they force layout on every frame.
+3. **Only opacity and transform.** (Plus `grid-template-rows` for the unfold, and
+   `background-position` for the project card's gradient sweep — a paint, not a layout.) Never
+   animate width, height, margin, padding, top/left or font-size — they force layout on every frame.
 4. **Nothing loops except "still working".** Shimmer, pulse, sweep and spin are the only
    infinite animations, and each means something is loading or live.
 5. **One overshoot at most, and only on small things.** `--ease-spring` is for a tick, a badge,
@@ -66,7 +67,8 @@ The older `--transition-fast / -base / -slow` tokens still resolve, to these val
 |---|---|---|---|---|---|---|
 | **Page section, panel** | fade + rise (`ui-rise`, base, ease-out) | none (route change) | — | — | — | `.m-enter` |
 | **List of cards** (listing pages, results) | each card rises, staggered by `--i` | none | lift −1 px, edge widens, chevron slides in | scale 0.985 | — | `.m-stagger`, `.m-pressable` |
-| **Card that opens** (project, research, job) | as above | — | lift + shadow | scale | — | `.m-pressable` |
+| **Card that opens** (research, job) | as above | — | lift + shadow | scale | — | `.m-pressable` |
+| **Project card** (the brand gradient) | as above | — | the blue→red gradient slides across (`background-position`, 2× slow), the red edge turns white, the card grows 1.2 % | settles to 1.004 | — | `.lst--projects .lst-card` |
 | **Modal / dialog** | overlay fades (fast); card rises + scales (`ui-rise-scale`, base) | overlay fades out, card sinks (`ui-sink`, fast, ease-in) — **always played before unmount** | — | — | progress bar while working | — |
 | **Dropdown / popover panel** (Filter, menus) | `ui-drop` (fast) | none (instant) | — | — | — | — |
 | **Disclosure / unfold** (info card, category picker, accordion) | `ui-unfold` (base) — grid-row trick, nothing below jumps | instant | — | — | — | `.m-unfold` |
@@ -109,14 +111,17 @@ The listings and the modal set these; the older admin pages migrate toward them 
   in the accent.
 - **Filter:** a "Filter ▾" button with a count badge, opening a panel of labelled chip groups
   (Status / Sort by / dates / Show) with Reset and Done.
-- **Card:** 14 px radius, 1.5 px border, 5 px coloured left edge (solid brand blue for projects; a
-  brand-red-to-blue gradient for research — the edge is how a family is told apart, the controls
-  stay identical), name + status chip on the first line,
+- **Card:** 14 px radius, 5 px coloured left edge, name + status chip on the first line. Two
+  families: the **project card** is the brand gradient (blue → red) with white text, a red edge,
+  and white status tags; the **research card** is a white card with a red-to-blue edge. The
+  controls stay identical on both pages. Name + status chip on the first line,
   key/value lines in `--text-sm`, a dashed footer for the facts that matter.
 - **Status chip:** uppercase 0.74 rem, 8 px radius, tinted background + 1 px border, four tones
   only — `accent` (in progress), `warn` (needs a person), `good` (done), `muted` (not started).
-- **Buttons:** primary = accent fill + white text + soft shadow, 10 px radius; ghost = bordered
-  transparent; destructive = danger text on transparent. 40 px control height (contract §).
+- **Buttons:** primary = accent fill + white text + soft shadow, 10 px radius; **brand** =
+  the blue → red gradient with white text, sliding on hover (`.lst-new--brand`, reserved for the
+  page's one main action, e.g. "+ New Project"); ghost = bordered transparent; destructive =
+  danger text on transparent. 40 px control height (contract §).
 - **Dialog:** 18 px radius card, header with a gradient tint, a scrolling body of section cards
   (title on the border, number badge), a footer with status text + Cancel + primary.
 - **Empty state:** dashed 14 px frame, icon, one heading, one sentence, one action.

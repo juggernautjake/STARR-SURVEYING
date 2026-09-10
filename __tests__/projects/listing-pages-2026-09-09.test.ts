@@ -108,6 +108,17 @@ describe('both pages share the frame and read as siblings', () => {
     expect(css).toContain('.lst-card__lines--grid { display: grid;');
     expect(readSource(PROJECTS)).toContain('className="lst-card__lines lst-card__lines--grid"');
   });
+  it('the project card wears the brand gradient with white text; the New Project button too (owner, 2026-09-09)', () => {
+    const css = readSource(SHEET);
+    expect(css).toMatch(/\.lst--projects \.lst-card \{[^}]*background-image: linear-gradient\(115deg, var\(--lst-accent\)[^}]*var\(--lst-red\) 100%\)/s);
+    expect(css).toContain('.lst--projects .lst-card::before { background: var(--lst-red);');
+    expect(css).toMatch(/\.lst--projects \.lst-card:hover \{[^}]*background-position: 100% 50%;[^}]*transform: scale\(1\.012\);/s);
+    expect(css).toContain('.lst--projects .lst-card:hover::before { background: var(--lst-on); }');
+    expect(css).toContain('.lst--projects .lst-card__name,');
+    expect(css).toMatch(/\.lst-new--brand[^{]*\{[^}]*background-image: linear-gradient\(115deg/s);
+    expect(readSource('app/admin/jobs/page.tsx')).toContain('className="jbp-portal__action lst-new lst-new--brand"');
+    expect(readSource(PROJECTS)).toContain('className="lst-new lst-new--brand"');
+  });
   it('and are told apart by a root modifier the sheet styles differently', () => {
     expect(readSource(PROJECTS)).toContain('className="lst lst--projects"');
     expect(readSource(RESEARCH)).toContain('className="lst lst--research research-page"');

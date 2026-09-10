@@ -346,6 +346,71 @@
 .lst-status--live { gap: 0.4rem; }
 .lst-status__dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; animation: ui-pulse 1.6s var(--ease-in-out) infinite; }
 
+/* ── The project card: the brand gradient (owner, 2026-09-09) ──────────────
+   "a gradient from blue to red, the highlight on the left just red, and on hover the gradient
+   animates and moves across the element, the highlight becomes white and the element shifts size
+   slightly. The text should just be white always." The gradient is twice the card's width and
+   slides on hover — background-position is the one non-transform property the motion system lets
+   a card animate, and only here. */
+.lst--projects .lst-card {
+  --lst-red: var(--color-brand-red, #BD1218);
+  --lst-on: var(--theme-accent-fg, #FFFFFF);
+  border-color: transparent;
+  color: var(--lst-on);
+  background-image: linear-gradient(115deg, var(--lst-accent) 0%, var(--lst-accent) 28%, var(--lst-red) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--lst-accent) 22%, transparent);
+  transition:
+    background-position calc(var(--motion-slow) * 2) var(--ease-in-out),
+    transform var(--motion-base) var(--ease-out),
+    box-shadow var(--motion-base) var(--ease-out);
+}
+.lst--projects .lst-card::before { background: var(--lst-red); transition: background var(--motion-base), width var(--motion-fast); }
+.lst--projects .lst-card:hover {
+  border-color: transparent;
+  background-position: 100% 50%;
+  transform: scale(1.012);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--lst-red) 28%, transparent);
+}
+.lst--projects .lst-card:hover::before { background: var(--lst-on); }
+.lst--projects .lst-card:active { transform: scale(1.004); }
+.lst--projects .lst-card:focus-visible { outline-color: var(--lst-on); }
+.lst--projects .lst-card__name,
+.lst--projects .lst-card__v--strong,
+.lst--projects .lst-card__stat strong,
+.lst--projects .lst-card__stat--good strong,
+.lst--projects .lst-card__stat--owed strong,
+.lst--projects .lst-card__go { color: var(--lst-on); }
+.lst--projects .lst-card__lines,
+.lst--projects .lst-card__v,
+.lst--projects .lst-card__foot,
+.lst--projects .lst-card__address-sub { color: color-mix(in srgb, var(--lst-on) 88%, transparent); }
+.lst--projects .lst-card__k,
+.lst--projects .lst-card__id { color: color-mix(in srgb, var(--lst-on) 72%, transparent); }
+.lst--projects .lst-card__v--overdue { color: var(--lst-on); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lst-on) 60%, transparent); }
+.lst--projects .lst-card__foot { border-top-color: color-mix(in srgb, var(--lst-on) 35%, transparent); }
+/* Chips sit on the gradient as white tags; their tone lives in the text. */
+.lst--projects .lst-status { background: color-mix(in srgb, var(--lst-on) 94%, transparent); border-color: transparent; }
+.lst--projects .lst-status--accent { color: var(--lst-accent); }
+.lst--projects .lst-status--muted { color: var(--theme-fg-secondary, #475569); }
+
+/* The brand button — the same gradient, white text; "+ New Project" on the projects surfaces. */
+/* Two classes: the portal header styles its own .jbp-portal__action later in the cascade. */
+.lst-new.lst-new--brand, .lst a.lst-new--brand, a.lst-new.lst-new--brand {
+  --lst-red: var(--color-brand-red, #BD1218);
+  color: var(--theme-accent-fg, #FFFFFF);
+  background-image: linear-gradient(115deg, var(--theme-accent, #1D3095) 0%, var(--theme-accent, #1D3095) 30%, var(--lst-red) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  border: none;
+  transition: background-position calc(var(--motion-slow) * 2) var(--ease-in-out), transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast);
+}
+/* White text, whatever a route sheet says about anchors — the portal header colours every <a>
+   with a rule more specific than a class can beat without this. One !important, documented. */
+.lst-new.lst-new--brand, .lst-new.lst-new--brand:hover, .lst-new.lst-new--brand:visited, .lst-new.lst-new--brand svg { color: var(--theme-accent-fg, #FFFFFF) !important; }
+.lst-new.lst-new--brand:hover { background-position: 100% 50%; filter: none; box-shadow: 0 8px 20px color-mix(in srgb, var(--lst-red) 30%, transparent); transform: translateY(var(--motion-lift)); }
+
 /* ── Pager, states ──────────────────────────────────────────────────────── */
 
 .lst-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.5rem 0 1rem; }

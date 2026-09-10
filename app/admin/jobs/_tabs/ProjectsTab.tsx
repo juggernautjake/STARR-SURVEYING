@@ -214,7 +214,7 @@ export default function ProjectsPage() {
             {filtering ? '.' : ''}
           </p>
           {!filtering ? (
-            <Link href="/admin/projects/new" className="lst-new"><Plus size={15} aria-hidden="true" /> New Project</Link>
+            <Link href="/admin/projects/new" className="lst-new lst-new--brand"><Plus size={15} aria-hidden="true" /> New Project</Link>
           ) : null}
         </div>
       ) : null}
