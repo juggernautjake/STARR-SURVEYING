@@ -213,9 +213,10 @@ describe('job detail page — Schedule tab wired in', () => {
     expect(SRC).toMatch(/import JobPhaseScheduler from '\.\/JobPhaseScheduler';/);
   });
 
-  it("declares a 'schedule' tab option between Overview and Research", () => {
+  it("declares a 'schedule' tab option between Overview and Files", () => {
+    // 2026-09-10: Research / CAD / Photos / Videos folded into the Files tab (the standard folders).
     expect(SRC).toMatch(
-      /key: 'overview'[\s\S]*?key: 'schedule'[\s\S]*?key: 'research'/,
+      /key: 'overview'[\s\S]*?key: 'schedule'[\s\S]*?key: 'files'/,
     );
   });
 

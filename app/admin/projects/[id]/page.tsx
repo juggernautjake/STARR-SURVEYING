@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG } from '../../components/jobs/JobCard';
-import ProjectFilesPanel from '../../components/projects/ProjectFilesPanel';
+import FolderExplorer from '../../components/files/FolderExplorer';
 import ProjectMoneyPanel from '../../components/projects/ProjectMoneyPanel';
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, projectLabel, type ProjectStatus,
@@ -217,6 +217,7 @@ export default function ProjectDetailPage() {
             )}
           </section>
 
+
           {/* ── The facts every job inherits, plus the totals ─────────────────────────────────── */}
           <aside className="pd__side">
             {/* Replaced the read-only roll-up (2026-08-19): the same totals, plus a straightforward
@@ -242,9 +243,6 @@ export default function ProjectDetailPage() {
               {!site && !project.county && <p className="pd__note">No site details on this project.</p>}
             </div>
 
-            {/* Real upload, plus both ways out to the wider file system. */}
-            <ProjectFilesPanel projectId={project.id} />
-
             {project.description && (
               <div className="pd__card"><h3>About</h3><p className="pd__line">{project.description}</p></div>
             )}
@@ -261,6 +259,21 @@ export default function ProjectDetailPage() {
             </div>
           </aside>
         </div>
+
+        {/* ── The project's files, in the standard structure (owner, 2026-09-10) ─────────────
+            Project documents beside the job folders, each job holding Research / CAD / Photos /
+            Videos — the same folders the File Explorer shows under Job Projects. Replaced the
+            documents panel in the sidebar, which could hold the contract but could not show a
+            job's photos. */}
+        <section className="pd__main pd__files" data-testid="project-files">
+          <div className="pd__section-head">
+            <h2><FolderKanban size={16} aria-hidden /> Files</h2>
+          </div>
+          <FolderExplorer
+            rootId={`mnt:projects:${project.id}`}
+            title={projectLabel(project)}
+          />
+        </section>
       </div>
     </div>
   );

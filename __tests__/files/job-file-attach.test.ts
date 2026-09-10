@@ -28,7 +28,9 @@ const src = (p: string) =>
 /** Raw source, comments included — for the one assertion that is ABOUT the comments. */
 const raw = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const ROUTE = 'app/api/admin/jobs/files/route.ts';
-const MANAGER = 'app/admin/components/jobs/JobFileManager.tsx';
+// 2026-09-10: the job page's file manager was retired for the FolderExplorer (the standard
+// folders); the attach flow lives there now, and these guards followed it.
+const MANAGER = 'app/admin/components/files/FolderExplorer.tsx';
 const JOBPAGE = 'app/admin/jobs/[id]/page.tsx';
 const SEED = 'seeds/583_job_files_file_node_link.sql';
 
@@ -86,9 +88,10 @@ describe('F5 — a link, not a copy', () => {
 
   it('never writes bytes for an attach — the client sends no file_url', () => {
     const s = src(MANAGER);
-    const pick = s.slice(s.indexOf('onPick='));
-    expect(pick, 'the picker callback must not send a file_url').not.toMatch(/file_url/);
-    expect(pick).toMatch(/file_node_id:\s*node\.id/);
+    const attach = s.slice(s.indexOf('async function attachFromExplorer'), s.indexOf('// ── which page-owned panel'));
+    expect(attach, 'the attach must not send a file_url').not.toMatch(/file_url/);
+    expect(attach).toMatch(/file_node_id:\s*node\.id/);
+    expect(s).toMatch(/onPick=\{\(n\) => void attachFromExplorer\(n\)\}/);
   });
 
   it('downloads a linked file through the explorer route, not from the job row', () => {
@@ -99,7 +102,10 @@ describe('F5 — a link, not a copy', () => {
     // storage-backed upload ended up with no download button at all. There is one control now, and
     // the href comes from `downloadHref`, so this asserts the rule where it now lives.
     expect(src('lib/jobs/file-storage.ts')).toMatch(/case 'linked':[\s\S]{0,400}\/api\/admin\/files\/\$\{row\.file_node_id\}\/download/);
-    expect(src(MANAGER)).toMatch(/hrefOf\(file\)/);
+    // The explorer lists a linked row AS its explorer document, so every open and download of it
+    // goes through /api/admin/files/<node>/download with the viewer's own access.
+    expect(src('lib/files/mounts.ts')).toMatch(/shape === 'linked' && r\.file_node_id \? r\.file_node_id/);
+    expect(src(MANAGER)).toMatch(/\/api\/admin\/files\/\$\{id\}\/download/);
   });
 
   it('and a job attachment never serves a linked document itself', () => {
@@ -118,10 +124,11 @@ describe('F5 — a dead link is labelled, not hidden', () => {
     expect(s).toMatch(/available:\s*false/);
   });
 
-  it('the UI says which of the two states a linked row is in', () => {
-    const s = src(MANAGER);
-    expect(s).toMatch(/no copy stored/i);
-    expect(s).toMatch(/unavailable/i);
+  it('the listing says a linked row has no copy of its own, and a gone document opens to "not here"', () => {
+    // The listing swaps in the explorer id; the job download route refuses to serve a linked row's
+    // bytes itself and points at Files; a document that is gone answers 404 from the explorer route.
+    expect(src('lib/files/mounts.ts')).toMatch(/shape === 'linked' && r\.file_node_id/);
+    expect(src('lib/files/mounts.ts')).toMatch(/a link to a document in Files — open it there/);
   });
 
   it('resolves node metadata in ONE batched query, not per row', () => {
@@ -175,33 +182,33 @@ describe('F5 — the schema change', () => {
 });
 
 describe('F5 — wired, not merely authored', () => {
-  it('the job page passes a handler, so the button actually appears', () => {
-    // This repo's signature defect is a component built and never connected. The button renders only
-    // when `onAttachFromFiles` is supplied, so the wiring IS the feature.
-    expect(src(JOBPAGE)).toMatch(/onAttachFromFiles=\{attachFileFromExplorer\}/);
+  it('the job page mounts the explorer on the job, so the button actually appears', () => {
+    // This repo's signature defect is a component built and never connected. The explorer is the
+    // Files tab, rooted at the job's own mount, so the wiring IS the feature.
+    expect(src(JOBPAGE)).toMatch(/<FolderExplorer[\s\S]{0,120}rootId=\{`mnt:jobs:\$\{jobId\}`\}/);
   });
 
   it('the handler posts file_node_id to the job-files endpoint', () => {
-    const s = src(JOBPAGE);
-    const fn = s.slice(s.indexOf('async function attachFileFromExplorer'));
+    const s = src(MANAGER);
+    const fn = s.slice(s.indexOf('async function attachFromExplorer'));
     expect(fn.slice(0, 900)).toMatch(/\/api\/admin\/jobs\/files/);
     expect(fn.slice(0, 900)).toMatch(/file_node_id/);
   });
 
   it('the handler surfaces the server’s error rather than inventing one', () => {
-    const s = src(JOBPAGE);
-    const fn = s.slice(s.indexOf('async function attachFileFromExplorer'));
-    expect(fn.slice(0, 900)).toMatch(/body\?\.error/);
+    const s = src(MANAGER);
+    const fn = s.slice(s.indexOf('async function attachFromExplorer'));
+    expect(fn.slice(0, 900)).toMatch(/b\.error/);
   });
 
-  it('the manager only renders the button when it can do something', () => {
+  it('the explorer only renders the button where an attach can land — a job folder', () => {
     const s = src(MANAGER);
-    expect(s).toMatch(/\{onAttachFromFiles && \(/);
+    expect(s).toMatch(/\{target\.kind === 'job' && \(/);
   });
 
   it('reuses the shared FilePicker in file mode instead of a second browser', () => {
     const s = src(MANAGER);
-    expect(s).toMatch(/from '@\/app\/admin\/components\/files\/FilePicker'/);
+    expect(s).toMatch(/from '(\.\/|@\/app\/admin\/components\/files\/)FilePicker'/);
     expect(s).toMatch(/mode="file"/);
   });
 });

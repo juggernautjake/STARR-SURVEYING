@@ -21,25 +21,26 @@ const names = (roles: string[], admin = false) => mountRootNodes(u(roles), admin
 // Jobs mount a permissions hole wearing a folder icon — see the `jobKindNodes` gating tests.
 describe('files/mounts: mountRootNodes role gating', () => {
   it('admins see every source', () => {
-    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Projects']);
+    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Job Projects']);
   });
 
   it('developers see every source without the admin flag', () => {
-    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Projects']);
+    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Job Projects']);
   });
 
   it('field crew see job files + field media, and the Jobs folder that arranges them', () => {
-    expect(names(['field_crew'])).toEqual(['Job Files', 'Field Media', 'Jobs', 'Projects']);
+    expect(names(['field_crew'])).toEqual(['Job Files', 'Field Media', 'Jobs', 'Job Projects']);
   });
 
   it('researchers and drawers see research documents', () => {
-    // A researcher is NOT in the Jobs union, so this list is unchanged — which is the assertion
-    // that proves the new mount did not quietly widen everyone's access.
-    expect(names(['researcher'])).toEqual(['Research Documents']);
+    // A researcher IS in the Jobs union since 2026-09-10: a job folder has a Research folder
+    // (research documents became job-scoped with seed 633). Inside, the per-source gates still
+    // show them that folder and nothing else — see __tests__/files/jobs-mount.test.ts.
+    expect(names(['researcher'])).toEqual(['Research Documents', 'Jobs', 'Job Projects']);
     // F1 (2026-08-11) — a drawer now also sees Drawings. That is the point of the source: the
     // owner asked to find 'all of the drawings' in the file manager, and the people who make them
     // are the ones who need it.
-    expect(names(['drawer'])).toEqual(['Research Documents', 'Drawings', 'Jobs', 'Projects']);
+    expect(names(['drawer'])).toEqual(['Research Documents', 'Drawings', 'Jobs', 'Job Projects']);
   });
 
   it('a base employee sees no read-only sources', () => {

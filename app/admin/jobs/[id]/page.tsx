@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
-import JobFileManager from '../../components/jobs/JobFileManager';
+import FolderExplorer from '../../components/files/FolderExplorer';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
 // originating lead so the running conversation isn't lost after
 // conversion.
@@ -20,8 +20,6 @@ import JobOriginatingLead from './JobOriginatingLead';
 import JobResearchPacket from './JobResearchPacket';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
-import JobCadPanel from '../../components/jobs/JobCadPanel';
-import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
 import { jobMapsUrl, hasJobLocation, telHref } from '@/lib/jobs/location';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
@@ -90,12 +88,13 @@ interface Job {
 const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   { key: 'overview', label: 'Overview', Icon: ClipboardList, tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
   { key: 'schedule', label: 'Schedule', Icon: CalendarDays, tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
-  { key: 'research', label: 'Research', Icon: Search, tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
-  { key: 'cad', label: 'CAD', Icon: DraftingCompass, tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
+  // ── ONE Files tab (owner, 2026-09-10) ─────────────────────────────────────────────────────
+  // Research, CAD, Files, Photos and Videos were five bubbles holding five arrangements of the
+  // same job. They are the standard folders of one explorer now — the same folders the backend
+  // File Explorer shows under Job Projects — with the research records under Research and the
+  // drawing tools under CAD. Old tab keys still land somewhere: see `openTab`.
+  { key: 'files', label: 'Files', Icon: Folder, tip: 'Every file for this job in its standard folders — Research, CAD, Photos, Videos, Documents. Upload into a folder, open anything in the viewer, or view all files across the folders at once. Research notes live under Research; drawings under CAD.' },
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
-  { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
-  { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
-  { key: 'videos', label: 'Videos', Icon: Video, tip: 'Field video for this job — access routes, site conditions, anything a still photo cannot explain. Plays in the browser; no download needed.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
@@ -112,12 +111,10 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  // Live tab counts. CAD + Photos report theirs via onCountChange when
-  // their tab is opened (we avoid preloading photos — their data URLs
-  // are heavy). null = not yet known, so no badge shows.
-  const [cadCount, setCadCount] = useState<number | null>(null);
-  const [photoCount, setPhotoCount] = useState<number | null>(null);
-  const [videoCount, setVideoCount] = useState<number | null>(null);
+  /** Every file under the job, reported by the explorer after each load — the Files badge. */
+  const [filesTotal, setFilesTotal] = useState<number | null>(null);
+  /** The standard folder the Files tab should open on (the stage timeline asks for Research / CAD). */
+  const [filesFolder, setFilesFolder] = useState<string | null>(null);
   /** Every tab's count, fetched once on load so the strip is informative before anything is opened. */
   const [tabCountsLoaded, setTabCountsLoaded] = useState<Record<string, number>>({});
   // contacts plan Slice 6 — linked-contacts state for the overview tab.
@@ -131,7 +128,6 @@ export default function JobDetailPage() {
   /** The project this job belongs to (2026-08-19). Loaded separately so a slow projects query can
    *  never delay the job itself — the header simply shows no parent until it arrives. */
   const [project, setProject] = useState<{ id: string; project_number: string | null; name: string } | null>(null);
-  const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; download_href?: string | null; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
   const [payments, setPayments] = useState<{ id: string; amount: number; payment_type: string; payment_method?: string; reference_number?: string; notes?: string; paid_at: string; recorded_by: string }[]>([]);
@@ -228,6 +224,17 @@ export default function JobDetailPage() {
     }
   }, [job, jobId, router, reportPageError]);
 
+  /** Open a tab by its key — the old Research / CAD / Photos / Videos keys land on the Files tab's
+   *  matching folder, so the stage timeline and every old link still arrive somewhere sensible. */
+  const openTab = useCallback((tab: string) => {
+    if (tab === 'research' || tab === 'cad' || tab === 'photos' || tab === 'videos') {
+      setFilesFolder(tab);
+      setActiveTab('files');
+      return;
+    }
+    setActiveTab(tab);
+  }, []);
+
   // Load tab-specific data on tab change
   useEffect(() => {
     if (!jobId) return;
@@ -242,14 +249,11 @@ export default function JobDetailPage() {
       // contacts plan Slice 6 — linked contacts for the Contacts panel.
       fetch(`/api/admin/jobs/contacts?job_id=${jobId}`).then(r => r.json()).then(d => setContactLinks(d.links || [])).catch((err: unknown) => { handleError(err, 'load contacts'); });
     }
-    if (activeTab === 'research') {
+    if (activeTab === 'files') {
       fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { handleError(err, 'load research'); });
     }
     if (activeTab === 'fieldwork') {
       fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { handleError(err, 'load field data'); });
-    }
-    if (activeTab === 'files') {
-      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { handleError(err, 'load files'); });
     }
     if (activeTab === 'financial') {
       fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch((err: unknown) => { handleError(err, 'load payments'); });
@@ -342,61 +346,6 @@ export default function JobDetailPage() {
     }
   }
 
-  async function uploadFile(file: {
-    file_name: string; file_type: string; file_size: number; section: string; description: string;
-    mime_type?: string;
-    // The storage shape (2026-08-19). `file_url` remains only for the legacy inline path.
-    file_id?: string; storage_path?: string; file_url?: string;
-  }) {
-    try {
-      await fetch('/api/admin/jobs/files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, ...file }),
-      });
-      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload files' }); });
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'upload file' });
-    }
-  }
-
-  /**
-   * F5 — attach an existing File Explorer document to this job.
-   *
-   * Same endpoint as `uploadFile`, minus the bytes: the server stores a reference and re-checks that
-   * the attacher can actually download the document, so this handler deliberately does not try to
-   * validate anything itself. A 403 here means the permission check did its job, and the message the
-   * server sends is more accurate than one written on the client, so it is surfaced verbatim.
-   */
-  async function attachFileFromExplorer(attach: {
-    file_node_id: string; file_name: string; file_type: string; section: string; description: string;
-  }) {
-    try {
-      const res = await fetch('/api/admin/jobs/files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, ...attach }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Attach failed (${res.status})`);
-      }
-      const d = await fetch(`/api/admin/jobs/files?job_id=${jobId}`).then((r) => r.json());
-      setFiles(d.files || []);
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'attach file from explorer' });
-    }
-  }
-
-  async function deleteFile(id: string) {
-    try {
-      await fetch(`/api/admin/jobs/files?id=${id}`, { method: 'DELETE' });
-      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload files after delete' }); });
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete file' });
-    }
-  }
-
   async function addResearch(item: { category: string; title: string; content: string; source: string; reference_number: string }) {
     try {
       await fetch('/api/admin/jobs/research', {
@@ -480,9 +429,7 @@ export default function JobDetailPage() {
   // badge without another round trip; the loaded count is the floor, not a cache to fight.
   const tabCounts: Record<string, number | undefined> = {
     ...tabCountsLoaded,
-    ...(cadCount !== null ? { cad: cadCount } : {}),
-    ...(photoCount !== null ? { photos: photoCount } : {}),
-    ...(videoCount !== null ? { videos: videoCount } : {}),
+    ...(filesTotal !== null ? { files: filesTotal } : {}),
     ...(research.length > 0 ? { research: research.length } : {}),
     ...(fieldData.length > 0 ? { fieldwork: fieldData.length } : {}),
   };
@@ -581,8 +528,8 @@ export default function JobDetailPage() {
                 ...job,
                 counts: {
                   files: job.file_count,
-                  photos: photoCount ?? undefined,
-                  drawings: cadCount ?? undefined,
+                  photos: tabCountsLoaded.photos,
+                  drawings: tabCountsLoaded.cad,
                   research: research.length || undefined,
                   hours: job.total_hours,
                 },
@@ -649,7 +596,7 @@ export default function JobDetailPage() {
         // Opening a stage just moves the tab strip. It is not a change to the job, so it does not
         // go through `advanceStage` — clicking Research to read last month's deed work must never
         // re-stage a job that is out for delivery.
-        onOpen={setActiveTab}
+        onOpen={openTab}
       />
 
       {/* Tabs */}
@@ -694,10 +641,10 @@ export default function JobDetailPage() {
           <div className="job-detail__overview">
             {/* Quick actions — jump straight into the parts of the job */}
             <div className="job-detail__quick-actions">
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('research')}><Search size={14} strokeWidth={2} /> Add research</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('cad')}><DraftingCompass size={14} strokeWidth={2} /> Start a drawing</button>
+              <button className="job-detail__quick-action" onClick={() => openTab('research')}><Search size={14} strokeWidth={2} /> Add research</button>
+              <button className="job-detail__quick-action" onClick={() => openTab('cad')}><DraftingCompass size={14} strokeWidth={2} /> Start a drawing</button>
               <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}><Folder size={14} strokeWidth={2} /> Add files</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('photos')}><Camera size={14} strokeWidth={2} /> Add photos</button>
+              <button className="job-detail__quick-action" onClick={() => openTab('photos')}><Camera size={14} strokeWidth={2} /> Add photos</button>
               <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}><HardHat size={14} strokeWidth={2} /> Field work</button>
             </div>
             <div className="job-detail__overview-grid">
@@ -913,44 +860,6 @@ export default function JobDetailPage() {
           />
         )}
 
-        {activeTab === 'research' && (
-          <>
-            {/* ── THE OTHER END OF THE JOB LINK (Phase J2) ────────────────────────────────────
-                `research_projects.job_id` has existed since seeds/090 with an index on it, and
-                until J1 nothing in the product wrote it. This is the side a person actually starts
-                from: they are looking at a job and want the deeds for it.
-
-                The link carries the job id, so the research form opens pre-filled from this job
-                AND already attached to it — the attachment is the thing that gets forgotten when
-                it has to be made afterwards, and research nobody attached is research nobody
-                bills for. */}
-            <div className="job-research-start">
-              <div>
-                <strong>Property research</strong>
-                <p>
-                  STARR RECON searches the county records for this property, captures the sources,
-                  and extracts the data. It opens with this job&apos;s address already filled in.
-                </p>
-              </div>
-              <a
-                className="job-research-start__btn"
-                href={`/admin/research?new=1&job=${jobId}`}
-              >
-                Start property research
-              </a>
-            </div>
-            <JobResearchPanel
-              research={research}
-              onAdd={addResearch}
-              onDelete={deleteResearch}
-            />
-          </>
-        )}
-
-        {activeTab === 'cad' && (
-          <JobCadPanel jobId={jobId} jobName={job.name} onCountChange={setCadCount} />
-        )}
-
         {activeTab === 'fieldwork' && (
           <>
           {/* C0c — RPLS-authored instructions, rehomed from the Work Mode field-crew shell (D8).
@@ -990,53 +899,79 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'files' && (
-          <>
-            <JobFileManager
-              jobId={jobId}
-              files={files}
-              onUpload={uploadFile}
-              onDelete={deleteFile}
-              onAttachFromFiles={attachFileFromExplorer}
-            />
-            {/* The other direction of the same link (2026-08-19). The File Explorer now carries a
-                folder per job holding this job's files, photos, receipts, drawings and field media
-                in one place — which is the view somebody wants when they are looking for a file
-                rather than working the job. Until this, that folder existed and nothing pointed at
-                it, which is this codebase's most frequent defect. */}
-            <p className="job-files__explorer-link">
-              <Link href={`/admin/files?node=mnt:jobs:${jobId}`}>
-                <FolderOpen size={13} aria-hidden /> Open this job&rsquo;s folder in Files
-              </Link>
-              <span> — everything attached to this job in one place, including receipts and drawings.</span>
-            </p>
-            {/* The second half of what was asked for: "from there I should also be able to view all
-                of the files on the platform if I want to." A folder that is a dead end makes people
-                navigate by URL. */}
-            <p className="job-files__explorer-link">
-              <Link href="/admin/files" data-testid="job-all-files-link">
-                <Files size={13} aria-hidden /> Browse all files on the platform
-              </Link>
-              {project && (
+          <FolderExplorer
+            rootId={`mnt:jobs:${jobId}`}
+            title={job.job_number ? `${job.job_number} — ${job.name}` : job.name}
+            initialFolder={filesFolder}
+            onTotalChange={setFilesTotal}
+            folderExtras={{
+              research: (
                 <>
-                  <span> · </span>
-                  <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="job-project-files-link">
-                    Everything in {project.project_number ?? 'this project'}
-                  </Link>
+                  {/* ── THE OTHER END OF THE JOB LINK (Phase J2) ─────────────────────────────
+                      `research_projects.job_id` has existed since seeds/090 with an index on it,
+                      and until J1 nothing in the product wrote it. This is the side a person
+                      actually starts from: they are looking at a job and want the deeds for it.
+                      The link carries the job id, so the research form opens pre-filled from
+                      this job AND already attached to it. Its documents land in this folder. */}
+                  <div className="job-research-start">
+                    <div>
+                      <strong>Property research</strong>
+                      <p>
+                        STARR RECON searches the county records for this property, captures the sources,
+                        and extracts the data. Every document it retrieves is filed in this Research folder.
+                      </p>
+                    </div>
+                    <a
+                      className="job-research-start__btn"
+                      href={`/admin/research?new=1&job=${jobId}`}
+                    >
+                      Start property research
+                    </a>
+                  </div>
+                  <JobResearchPanel
+                    research={research}
+                    onAdd={addResearch}
+                    onDelete={deleteResearch}
+                  />
                 </>
-              )}
-            </p>
-          </>
-        )}
-
-        {activeTab === 'photos' && (
-          <JobPhotoGallery jobId={jobId} onCountChange={setPhotoCount} />
-        )}
-
-        {/* Same component, different medium (2026-08-19). The upload, drag-and-drop, delete and
-            keyboard navigation are identical; only the section, the accepted types and whether a
-            tile is an <img> or a <video> differ. */}
-        {activeTab === 'videos' && (
-          <JobPhotoGallery jobId={jobId} media="videos" onCountChange={setVideoCount} />
+              ),
+              cad: (
+                <div className="job-cad-start">
+                  <div>
+                    <strong>Starr CAD</strong>
+                    <p>Draft this job&apos;s survey in the editor. Drawings you save stay linked to the job and are listed above; open one from the list.</p>
+                  </div>
+                  <a
+                    href={`/admin/cad?job=${encodeURIComponent(jobId)}&job_name=${encodeURIComponent(job.name)}`}
+                    className="jobs-page__btn jobs-page__btn--primary"
+                    data-testid="job-new-drawing"
+                  >
+                    ✏️ New Drawing
+                  </a>
+                </div>
+              ),
+              root: (
+                <>
+                  {/* The other direction of the same link (2026-08-19). The File Explorer carries the
+                      same folder under Job Projects — the view somebody wants when they are looking
+                      for a file rather than working the job. */}
+                  <p className="job-files__explorer-link">
+                    <Link href="/admin/files" data-testid="job-all-files-link">
+                      <Files size={13} aria-hidden /> Browse all files on the platform
+                    </Link>
+                    {project && (
+                      <>
+                        <span> · </span>
+                        <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="job-project-files-link">
+                          Everything in {project.project_number ?? 'this project'}
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                </>
+              ),
+            }}
+          />
         )}
 
         {activeTab === 'financial' && (

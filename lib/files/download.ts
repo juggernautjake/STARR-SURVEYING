@@ -126,6 +126,8 @@ export async function downloadFile(url: string, name: string, mime?: string | nu
 export interface ZipEntry {
   name: string;
   url: string;
+  /** A folder path inside the archive ("24-103 — Smith/Photos"); the whole-job zip keeps its structure. */
+  folder?: string | null;
 }
 
 export interface ZipProgress {
@@ -153,7 +155,15 @@ export async function downloadZip(
   signal?: AbortSignal,
 ): Promise<ZipResult> {
   const zip = new JSZip();
-  const taken = new Set<string>();
+  // Member names are unique PER FOLDER of the archive, so two jobs can each hold a scan.pdf.
+  const takenIn = new Map<string, Set<string>>();
+  const memberName = (entry: ZipEntry) => {
+    const folder = (entry.folder ?? '').split('/').map((seg) => sanitizeFilename(seg.trim(), '')).filter(Boolean).join('/');
+    let taken = takenIn.get(folder);
+    if (!taken) { taken = new Set<string>(); takenIn.set(folder, taken); }
+    const base = zipMemberName(entry.name, taken);
+    return folder ? folder + '/' + base : base;
+  };
   const failed: Array<{ name: string; reason: string }> = [];
   let done = 0;
   const queue = [...entries];
@@ -164,7 +174,7 @@ export async function downloadZip(
       onProgress?.({ done, total: entries.length, current: entry.name });
       try {
         const blob = await fetchBlob(entry.url, signal);
-        zip.file(zipMemberName(entry.name, taken), blob);
+        zip.file(memberName(entry), blob);
       } catch (err) {
         failed.push({ name: entry.name, reason: err instanceof Error ? err.message : String(err) });
       }

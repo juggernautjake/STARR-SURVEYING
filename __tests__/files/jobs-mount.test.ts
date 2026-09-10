@@ -66,38 +66,62 @@ describe('the Jobs mount exists and is a mount like the others', () => {
 describe('a job folder cannot leak what its source would not', () => {
   const src = () => code(read(MOUNTS));
 
-  it('each kind names the SOURCE whose gate applies, rather than its own role list', () => {
+  it('each standard folder names the SOURCES whose gates apply, rather than its own role list', () => {
     // A second role list is a second thing to forget to update. Receipts are admin/developer only;
-    // job files are also field_crew. If a kind could declare its own gate, the Jobs mount would
-    // drift into being more permissive than the folders it mirrors.
-    const s = src();
-    expect(s).toMatch(/key: 'receipts', label: 'Receipts', gate: 'receipts'/);
-    expect(s).toMatch(/key: 'files', label: 'Files', gate: 'job-files'/);
-    expect(s).toMatch(/key: 'photos', label: 'Photos', gate: 'job-files'/);
-    expect(s).toMatch(/key: 'drawings', label: 'Drawings', gate: 'drawings'/);
-    expect(s).toMatch(/key: 'field-media', label: 'Field Media', gate: 'field-media'/);
+    // job files are also field_crew. If a folder could declare its own gate, the Jobs mount would
+    // drift into being more permissive than the flat mounts it rearranges. Since 2026-09-10 the
+    // table is lib/files/job-folders.ts (shared with the explorer that uploads into the folders).
+    const folders = code(read('lib/files/job-folders.ts'));
+    const spec = (key: string) => {
+      const at = folders.indexOf(`key: '${key}'`);
+      expect(at, `no ${key} folder`).toBeGreaterThan(-1);
+      return folders.slice(at, folders.indexOf('},', at));
+    };
+    expect(spec('research')).toContain("sources: ['research', 'job-files']");
+    expect(spec('cad')).toContain("sources: ['drawings', 'job-files']");
+    expect(spec('photos')).toContain("sources: ['job-files', 'field-media']");
+    expect(spec('videos')).toContain("sources: ['job-files', 'field-media']");
+    expect(spec('receipts')).toContain("sources: ['receipts']");
+    expect(folders, 'a folder declares roles of its own').not.toMatch(/roles:/);
   });
 
-  it('the visible kinds are filtered through canSee, per caller', () => {
-    expect(src()).toMatch(/function kindsVisibleTo[\s\S]{0,400}canSee\(gate, user, isAdmin\)/);
+  it('every source fetch inside a job folder re-checks that source\'s gate', () => {
+    // The folder is only the door. Each table is read behind canSeeKey(<its source>), so a field
+    // crew member opening a job folder gets the photos and not the receipts.
+    const s = src();
+    expect(s).toMatch(/function foldersVisibleTo[\s\S]{0,300}canSeeKey\(key, user, isAdmin\)/);
+    for (const key of ['job-files', 'research', 'drawings', 'field-media', 'receipts']) {
+      expect(s, `${key} is read without its gate`).toContain(`if (canSeeKey('${key}', user, isAdmin))`);
+    }
   });
 
-  it('level 3 resolves the kind out of the VISIBLE list, so a forbidden slug 404s', () => {
-    // Reading the kind from JOB_KINDS instead would list receipts to somebody who cannot see the
-    // Receipts folder — the permissions hole this mount is most likely to grow.
+  it('the standard four are always listed; the catch-alls only when they hold something', () => {
     const s = src();
-    expect(s).toMatch(/const kind = kinds\.find\(\(k\) => k\.key === kindSeg\)/);
+    expect(s).toMatch(/\.filter\(\(f\) => f\.standard \|\| \(byFolder\.get\(f\.key\)\?\.length \?\? 0\) > 0\)/);
+  });
+
+  it('level 3 resolves the folder out of the VISIBLE list, so a forbidden slug 404s', () => {
+    // Reading from JOB_FOLDERS instead would list receipts to somebody who cannot see the Receipts
+    // folder — the permissions hole this mount is most likely to grow.
+    const s = src();
+    expect(s).toMatch(/const kind = folders\.find\(\(k\) => k\.key === kindSeg\)/);
     expect(s).toContain('That folder is not here.');
   });
 
-  it('the jobs source itself is gated by the union of the kinds, not left open', () => {
+  it('research documents reach a job through BOTH links: the join table and the older column', () => {
+    const s = src();
+    expect(s).toContain(".from('research_project_jobs').select('research_project_id').eq('job_id', jobId)");
+    expect(s).toContain(".from('research_projects').select('id').eq('job_id', jobId)");
+  });
+
+  it('the jobs source is gated by the union of the folders\' sources, not left open', () => {
     const s = src();
     const line = s.split('\n').find((l) => l.includes("key: 'jobs'")) ?? '';
     expect(line).toContain("'admin'");
     expect(line).toContain("'field_crew'");
-    // A researcher sees research documents, which are NOT a job kind — so the Jobs door does not
-    // open for them. If research ever becomes job-scoped this list grows with it.
-    expect(line.includes("'researcher'")).toBe(false);
+    // Research became job-scoped (seed 633), so a researcher is in the union now — and inside a
+    // job folder they see the Research folder and nothing else, by the per-source gates above.
+    expect(line).toContain("'researcher'");
   });
 });
 
