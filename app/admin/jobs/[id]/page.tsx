@@ -13,6 +13,7 @@ import {
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
+import { markJobSeen } from '@/lib/admin/use-new-jobs';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
 // originating lead so the running conversation isn't lost after
 // conversion.
@@ -173,6 +174,9 @@ export default function JobDetailPage() {
   }, [jobId]);
 
   useEffect(() => { void loadCounts(); }, [loadCounts]);
+
+  // Opening the job is reviewing it (owner, 2026-09-10): the NEW bubbles and the bell entry clear.
+  useEffect(() => { if (jobId) markJobSeen(jobId); }, [jobId]);
 
   // Inline-edit save: PUT the single changed field, then patch local
   // state so the UI reflects it without a full reload. Throws on

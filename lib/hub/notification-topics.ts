@@ -69,6 +69,8 @@ export const NOTIFICATION_TOPICS: Readonly<Record<string, Topic>> = {
   job_assignment: { widgetIds: ['my-jobs', 'job-activity-feed'], quickActionIds: [] },
   job_update: { widgetIds: ['my-jobs', 'job-activity-feed'], quickActionIds: [] },
   job_stage: { widgetIds: ['my-jobs', 'job-activity-feed', 'pipeline-status'], quickActionIds: [] },
+  // 2026-09-10 — a job was created; unread = the NEW bubbles on the Work icon, the flyout and the listings.
+  job_created: { widgetIds: ['my-jobs', 'job-activity-feed'], quickActionIds: [] },
   job_team: { widgetIds: ['my-jobs', 'job-activity-feed'], quickActionIds: [] },
   assignment: { widgetIds: ['my-jobs', 'assignments-due'], quickActionIds: [] },
 

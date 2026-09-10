@@ -27,7 +27,7 @@ import {
   type ViewerCollection, type ViewerFile, type ViewerCapabilities, type Destination,
 } from '@/lib/files/viewer-model';
 import { downloadFile, canChooseWhereToSave, type SaveOutcome } from '@/lib/files/download';
-import { nextRotation, rotationFit, clampZoom, MIN_ZOOM, MAX_ZOOM, type Rotation } from '@/lib/viewers/viewer-fit';
+import { nextRotation, rotationFit, clampZoom, type Rotation } from '@/lib/viewers/viewer-fit';
 import { formatBytes, formatWhen } from './format';
 import './FileViewer.css';
 
@@ -47,7 +47,9 @@ export interface FileViewerProps {
   extra?: (file: ViewerFile) => React.ReactNode;
 }
 
-const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2, 3, 4];
+/** One wheel notch, one +/− press: a quarter in, a fifth out — the same ratio both ways. */
+const ZOOM_IN = 1.25;
+const ZOOM_OUT = 0.8;
 
 // ── pdf.js, loaded on first use ───────────────────────────────────────────
 
@@ -151,6 +153,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   /** How much smaller a fitted image has to be to survive a quarter turn (lib/viewers/viewer-fit). */
   const [turnFit, setTurnFit] = useState(1);
   const pdfRef = useRef<PdfDocument | null>(null);
+  /** The scale "Fit" rendered the PDF at, so a zoom step out of fit is continuous, not a jump. */
+  const fitScaleRef = useRef<number | null>(null);
   const renderTaskRef = useRef<{ cancel(): void } | null>(null);
   const [textBody, setTextBody] = useState<string | null>(null);
 
@@ -198,6 +202,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     const pdfPage = await doc.getPage(page);
     const base = pdfPage.getViewport({ scale: 1, rotation });
     const fitScale = Math.min((stage.clientWidth - 48) / base.width, (stage.clientHeight - 48) / base.height);
+    fitScaleRef.current = fitScale;
     const scale = (fit ? fitScale : zoom) * (window.devicePixelRatio || 1);
     const viewport = pdfPage.getViewport({ scale, rotation });
     canvas.width = Math.floor(viewport.width);
@@ -240,15 +245,39 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const prevIndex = file ? neighbourIndex(files, file.id, -1) : null;
   const nextIndex = file ? neighbourIndex(files, file.id, 1) : null;
 
-  const zoomBy = useCallback((dir: 1 | -1) => {
+  /** The scale the document is shown at right now — the zoom, or, at fit, whatever fit produced. */
+  const effectiveZoom = useCallback((): number => {
+    if (!fit) return zoom;
+    if (kind === 'pdf') return fitScaleRef.current ?? 1;
+    const img = imgRef.current;
+    if (kind === 'image' && img && img.naturalWidth > 0) return (img.clientWidth / img.naturalWidth) * turnFit;
+    return 1;
+  }, [fit, zoom, kind, turnFit]);
+
+  // ── ZOOM AT THE CURSOR (owner, 2026-09-10) ─────────────────────────────────────────────────
+  // `anchor` is a viewport point (the wheel event's clientX/Y). The document is centred in the
+  // stage and drawn with translate(pan) scale(zoom), so a document point at offset u from the
+  // centre sits at centre + pan + zoom·u. Keeping the point under the cursor still across a zoom
+  // change means pan' = c − k·(c − pan), with c the cursor relative to the stage centre and k the
+  // ratio of the new scale to the old. Without an anchor (the +/− keys, the toolbar) the zoom is
+  // about the centre, and pan scales with it so the view does not slide.
+  const zoomBy = useCallback((dir: 1 | -1, anchor?: { x: number; y: number }) => {
+    const current = effectiveZoom();
+    const next = clampZoom(current * (dir > 0 ? ZOOM_IN : ZOOM_OUT));
+    if (next === current) return;
+    const k = next / current;
     setFit(false);
-    setZoom((z) => {
-      const current = z;
-      const next = dir > 0 ? ZOOM_STEPS.find((s) => s > current + 0.001) ?? Math.min(MAX_ZOOM, current * 1.25)
-                           : [...ZOOM_STEPS].reverse().find((s) => s < current - 0.001) ?? Math.max(MIN_ZOOM, current / 1.25);
-      return clampZoom(next);
-    });
-  }, []);
+    setZoom(next);
+    const stage = stageRef.current;
+    if (anchor && stage) {
+      const r = stage.getBoundingClientRect();
+      const cx = anchor.x - (r.left + r.width / 2);
+      const cy = anchor.y - (r.top + r.height / 2);
+      setPan((p) => ({ x: cx - k * (cx - p.x), y: cy - k * (cy - p.y) }));
+    } else {
+      setPan((p) => ({ x: p.x * k, y: p.y * k }));
+    }
+  }, [effectiveZoom]);
   const fitToScreen = useCallback(() => { setFit(true); setZoom(1); setPan({ x: 0, y: 0 }); }, []);
 
   // A turned image is measured as the browser laid it out (clientWidth, not the transformed box)
@@ -311,11 +340,22 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     setPan({ x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) });
   };
   const onPointerUp = () => { drag.current = null; };
-  const onWheel = (e: React.WheelEvent) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    zoomBy(e.deltaY < 0 ? 1 : -1);
-  };
+  // Ctrl/⌘ + wheel zooms at the cursor. A trackpad pinch arrives as exactly this — a wheel event
+  // with ctrlKey set — so pinching zooms too. Attached natively and non-passive: React registers
+  // wheel as passive, where preventDefault is ignored and the browser would zoom the whole page.
+  const zoomByRef = useRef(zoomBy);
+  useEffect(() => { zoomByRef.current = zoomBy; }, [zoomBy]);
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomByRef.current(e.deltaY < 0 ? 1 : -1, { x: e.clientX, y: e.clientY });
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, [file?.id]);
 
   // ── download ──
   const [downloading, setDownloading] = useState(false);
@@ -469,7 +509,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             </div>
           ) : null}
           <div className="fv-tools__group fv-tools__hint">
-            {kind === 'image' || kind === 'pdf' ? 'Drag to pan · Ctrl + scroll to zoom' : null}
+            {kind === 'image' || kind === 'pdf' ? 'Drag to pan · Ctrl + scroll or pinch to zoom at the cursor' : null}
           </div>
         </div>
 
@@ -482,7 +522,6 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            onWheel={onWheel}
           >
             {loading ? <div className="fv-loading"><Loader2 size={22} className="fv-spin motion-essential" aria-hidden="true" /> Loading…</div> : null}
             {loadError ? <div className="fv-message" role="alert"><AlertTriangle size={18} aria-hidden="true" /> Could not open this file: {loadError}</div> : null}

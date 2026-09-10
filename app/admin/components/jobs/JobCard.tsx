@@ -2,6 +2,9 @@
 'use client';
 
 import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
+import { dueBubble } from '@/lib/admin/listing';
+// The bubbles (.lst-bubble) live with the listing frame; a card can render on a page that never mounted it.
+import '@/app/admin/components/listing/Listing.css';
 
 interface JobTeamMember {
   user_email: string;
@@ -52,15 +55,19 @@ const SURVEY_TYPES: Record<string, string> = {
   other: 'Other',
 };
 
-export default function JobCard({ job, onClick }: { job: Job; onClick?: () => void }) {
+export default function JobCard({ job, onClick, isNew = false }: { job: Job; onClick?: () => void; isNew?: boolean }) {
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
+  const dueTag = dueBubble(job.deadline);
   const teamCount = job.job_team?.length || 0;
   const tags = job.job_tags?.map(t => typeof t === 'string' ? t : t.tag) || [];
 
   return (
     <button className="job-card" onClick={onClick} type="button">
       <div className="job-card__header">
-        <span className="job-card__number">{job.job_number}</span>
+        <span className="job-card__number">
+          {job.job_number}
+          {isNew ? <span className="lst-bubble lst-bubble--new" data-testid="job-new">New</span> : null}
+        </span>
         <span
           className="job-card__stage"
           style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}
@@ -83,6 +90,12 @@ export default function JobCard({ job, onClick }: { job: Job; onClick?: () => vo
           <span className="job-card__detail-icon">📋</span>
           {SURVEY_TYPES[job.survey_type] || job.survey_type}
         </span>
+        {dueTag && (
+          <span className="job-card__detail">
+            <span className="job-card__detail-icon">📅</span>
+            <span className={`lst-bubble lst-bubble--${dueTag.tone}`} data-testid="job-due">{dueTag.label}</span>
+          </span>
+        )}
         {job.acreage && (
           <span className="job-card__detail">
             <span className="job-card__detail-icon">📏</span>

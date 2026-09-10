@@ -7,6 +7,7 @@ import { List, LayoutGrid, Trash2, Briefcase } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
+import { useNewJobs } from '@/lib/admin/use-new-jobs';
 import Tooltip from '../../research/components/Tooltip';
 
 const STAGE_TOOLTIPS: Record<string, string> = {
@@ -94,6 +95,7 @@ const jobRestoreOverlayStyle: CSSProperties = {
 export default function AllJobsPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const newJobs = useNewJobs();
   const { safeFetch, safeAction, reportPageError } = usePageError('AllJobsPage');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,6 +332,7 @@ export default function AllJobsPage() {
                 {viewMode === 'grid' ? (
                   <JobCard
                     job={job}
+                    isNew={newJobs.jobIds.has(job.id)}
                     onClick={() => router.push(`/admin/jobs/${job.id}`)}
                   />
                 ) : (
@@ -337,7 +340,10 @@ export default function AllJobsPage() {
                     className="jobs-page__list-item"
                     onClick={() => router.push(`/admin/jobs/${job.id}`)}
                   >
-                    <span className="jobs-page__list-number">{job.job_number}</span>
+                    <span className="jobs-page__list-number">
+                      {job.job_number}
+                      {newJobs.jobIds.has(job.id) ? <span className="lst-bubble lst-bubble--new">New</span> : null}
+                    </span>
                     <span className="jobs-page__list-name">{job.name}</span>
                     <span className="jobs-page__list-type">{SURVEY_TYPES[job.survey_type] || job.survey_type}</span>
                     <span className="jobs-page__list-client">{job.client_name || '—'}</span>

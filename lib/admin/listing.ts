@@ -91,3 +91,30 @@ export function isOverdue(iso?: string | null, now = new Date()): boolean {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return d.getTime() < today.getTime();
 }
+
+// ── Due bubbles (owner, 2026-09-10) ──────────────────────────────────────────────────────────────
+//
+// "If a job has a due date and the due date is within two days, it should have a bubble next to
+// the due date row that says DUE IN TWO DAYS, then DUE IN ONE DAY, then DUE TODAY, then PAST DUE."
+// Calendar days, not 48 hours: a deadline of Friday is "in two days" all of Wednesday.
+
+export type DueTone = 'soon' | 'today' | 'past';
+
+export interface DueBubble {
+  label: string;
+  tone: DueTone;
+}
+
+export function dueBubble(iso?: string | null, now = new Date()): DueBubble | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) return { label: 'Past due', tone: 'past' };
+  if (days === 0) return { label: 'Due today', tone: 'today' };
+  if (days === 1) return { label: 'Due in one day', tone: 'soon' };
+  if (days === 2) return { label: 'Due in two days', tone: 'soon' };
+  return null;
+}

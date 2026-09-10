@@ -373,3 +373,43 @@ export async function notifyACCEnrollment(userEmail: string, courseId: string) {
     source_id: courseId,
   });
 }
+
+// ─── A new job (owner, 2026-09-10) ───────────────────────────────────────────
+
+/** Roles that work jobs — the people a new job is news to. The creator is left out: they have seen it. */
+const JOB_AUDIENCE_ROLES = new Set(['admin', 'developer', 'tech_support', 'field_crew', 'drawer', 'researcher', 'bookkeeper']);
+
+/**
+ * A job was created: one `job_created` notification per company user who works jobs. The row is
+ * the "NEW" marker everywhere — the Work icon's bubble, the flyout's "New", the listing cards, the
+ * project page — and opening the job reads it (/api/admin/jobs/new). Returns the recipient count.
+ */
+export async function notifyJobCreated(job: {
+  id: string;
+  job_number: string | null;
+  name: string;
+  project_name?: string | null;
+  created_by: string;
+}): Promise<number> {
+  const { data } = await supabaseAdmin
+    .from('registered_users')
+    .select('email, roles')
+    .ilike('email', '%@starr-surveying.com');
+  const recipients = ((data ?? []) as Array<{ email: string; roles: string[] | null }>)
+    .filter((u) => u.email.toLowerCase() !== job.created_by.toLowerCase())
+    .filter((u) => (u.roles ?? []).some((r) => JOB_AUDIENCE_ROLES.has(String(r).toLowerCase())))
+    .map((u) => u.email);
+  if (recipients.length === 0) return 0;
+  const label = [job.job_number, job.name].filter(Boolean).join(' — ');
+  await notifyMany(recipients, {
+    type: 'job_created',
+    title: `🆕 New job: ${label}`,
+    body: job.project_name ? `Created in ${job.project_name}. Open it to review the details.` : 'Open it to review the details.',
+    icon: '🆕',
+    link: `/admin/jobs/${job.id}`,
+    source_type: 'job',
+    source_id: job.id,
+    escalation_level: 'normal',
+  });
+  return recipients.length;
+}

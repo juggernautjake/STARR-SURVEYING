@@ -313,6 +313,29 @@
 .lst-card__v { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lst-card__v--strong { font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
 .lst-card__v--overdue { color: var(--theme-danger-fg, #B91C1C); font-weight: 600; }
+
+/* ── Bubbles beside a row (owner, 2026-09-10): NEW beside Created; the due state beside Deadline. */
+.lst-bubble {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+  animation: ui-pop var(--motion-base) var(--ease-spring) both;
+}
+.lst-bubble--new { background: var(--color-brand-red, #BD1218); color: #FFF; }
+.lst-bubble--soon { background: var(--theme-warning-bg, #FEF3C7); color: var(--theme-warning-fg, #92400E); }
+.lst-bubble--today { background: var(--color-brand-red, #BD1218); color: #FFF; }
+.lst-bubble--past { background: var(--theme-danger-fg, #B91C1C); color: #FFF; }
+/* The project cards are white-on-gradient; the bubbles keep their own colours and a white ring so
+   they read as bubbles, not as part of the text. */
+.lst--projects .lst-bubble { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
 .lst-card__address { margin: 0.1rem 0 0.2rem; font-size: 1rem; font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
 .lst-card__address-sub { font-weight: 400; color: var(--theme-fg-secondary, #475569); font-size: 0.85rem; }
 

@@ -11,6 +11,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useNewJobs } from '@/lib/admin/use-new-jobs';
+import '@/app/admin/components/listing/Listing.css';
 import { useParams, useRouter } from 'next/navigation';
 import {
   FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, Trash2, Briefcase, Check, Pencil,
@@ -50,6 +52,7 @@ const money = (n: number) =>
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const newJobs = useNewJobs();
   const { reportPageError } = usePageError('ProjectDetailPage');
   const [error, setErrorText] = useState<string | null>(null);
   const setError = useCallback((m: string) => { setErrorText(m); reportPageError(m); }, [reportPageError]);
@@ -201,7 +204,10 @@ export default function ProjectDetailPage() {
                   return (
                     <li key={j.id}>
                       <Link href={`/admin/jobs/${j.id}`} className="pd__job">
-                        <span className="pd__job-num">{j.job_number}</span>
+                        <span className="pd__job-num">
+                          {j.job_number}
+                          {newJobs.jobIds.has(j.id) ? <span className="lst-bubble lst-bubble--new" data-testid="project-job-new">New</span> : null}
+                        </span>
                         <span className="pd__job-name">{j.name}</span>
                         <span className="pd__job-stage" style={{ background: `${stage.color}18`, color: stage.color }}>
                           {stage.label}

@@ -25,6 +25,7 @@ import {
 // T2. §11 of PAGE_CONSOLIDATION: which pages this FIRM uses, a different question from "may
 // you" and answered in `accessibleRoutes` so all four nav surfaces cannot disagree.
 import { useFeatureToggles } from '@/lib/admin/use-feature-toggles';
+import { useNewJobs } from '@/lib/admin/use-new-jobs';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import type { UserRole } from '@/lib/auth-roles';
@@ -74,6 +75,11 @@ export default function WorkspaceFlyout({
   );
   const isCompanyUser = isInternalUser(session);
   const toggles = useFeatureToggles();
+  // ── NEW (owner, 2026-09-10) — jobs this person has not opened yet ─────────────────────────
+  // The Work icon carries a NEW bubble while there are any, and the Job Projects row inside says
+  // New, so the trail from the rail to the job is marked the whole way. Cleared by opening the job.
+  const newJobs = useNewJobs();
+  const hasNewJobs = workspace === 'work' && newJobs.jobIds.size > 0;
 
   const routes = useMemo(() => {
     return accessibleRoutes({ roles, isCompanyUser, toggles })
@@ -161,6 +167,7 @@ export default function WorkspaceFlyout({
         onClick={() => trackNavEvent('nav.workspace.click', { workspace, href: meta.href })}
       >
         <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+        {hasNewJobs ? <span className="admin-rail__new" data-testid="rail-new-jobs" aria-label={`${newJobs.jobIds.size} new job${newJobs.jobIds.size === 1 ? '' : 's'}`}>NEW</span> : null}
       </Link>
       {open && routes.length > 0 ? (
         <div
@@ -189,7 +196,10 @@ export default function WorkspaceFlyout({
                   onClick={dismiss}
                   role="menuitem"
                 >
-                  <span className="admin-rail__flyout-link-label">{route.label}</span>
+                  <span className="admin-rail__flyout-link-label">
+                    {route.label}
+                    {hasNewJobs && route.href === '/admin/jobs' ? <span className="admin-rail__flyout-new" data-testid="flyout-new-jobs">New</span> : null}
+                  </span>
                   {route.description ? (
                     <span className="admin-rail__flyout-link-meta">{route.description}</span>
                   ) : null}

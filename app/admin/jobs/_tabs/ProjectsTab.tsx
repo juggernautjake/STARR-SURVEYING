@@ -19,7 +19,8 @@ import { useRouter } from 'next/navigation';
 import { FolderKanban, Plus, ChevronRight } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from '@/lib/projects/model';
-import { SORT_OPTIONS, sortRows, paginate, formatDate, money, isOverdue, type SortKey } from '@/lib/admin/listing';
+import { SORT_OPTIONS, sortRows, paginate, formatDate, money, isOverdue, dueBubble, type SortKey } from '@/lib/admin/listing';
+import { useNewJobs } from '@/lib/admin/use-new-jobs';
 import { ListingSearch, ListingFilter, FilterGroup, FilterChip, ListingPager } from '../../components/listing/ListingControls';
 
 interface Rollup {
@@ -57,6 +58,8 @@ function addressLines(p: Project): string[] {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  // NEW beside Created when the project holds a job this person has not opened (owner, 2026-09-10).
+  const newJobs = useNewJobs();
   const { reportPageError } = usePageError('ProjectsPage');
 
   const [all, setAll] = useState<Project[]>([]);
@@ -226,6 +229,8 @@ export default function ProjectsPage() {
               const lines = addressLines(p);
               const due = p.rollup.next_deadline;
               const overdue = isOverdue(due);
+              const dueTag = dueBubble(due);
+              const isNew = newJobs.projectIds.has(p.id);
               return (
                 <li key={p.id} className="lst-list__item" style={{ '--i': i } as CSSProperties}>
                   <button
@@ -246,12 +251,16 @@ export default function ProjectsPage() {
                       </div>
                       <div className="lst-card__line">
                         <span className="lst-card__k">Created</span>
-                        <span className="lst-card__v">{formatDate(p.created_at)}</span>
+                        <span className="lst-card__v">
+                          {formatDate(p.created_at)}
+                          {isNew ? <span className="lst-bubble lst-bubble--new" data-testid="project-new">New</span> : null}
+                        </span>
                       </div>
                       <div className="lst-card__line">
                         <span className="lst-card__k">Deadline</span>
                         <span className={`lst-card__v${overdue ? ' lst-card__v--overdue' : ''}`}>
-                          {due ? `${formatDate(due)}${overdue ? ' · overdue' : ''}` : p.rollup.jobs > 0 && p.rollup.completed === p.rollup.jobs ? 'All jobs complete' : 'No deadline set'}
+                          {due ? formatDate(due) : p.rollup.jobs > 0 && p.rollup.completed === p.rollup.jobs ? 'All jobs complete' : 'No deadline set'}
+                          {dueTag ? <span className={`lst-bubble lst-bubble--${dueTag.tone}`} data-testid="project-due">{dueTag.label}</span> : null}
                         </span>
                       </div>
                       <div className="lst-card__line">

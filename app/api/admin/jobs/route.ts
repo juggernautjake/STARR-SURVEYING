@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
+import { notifyJobCreated } from '@/lib/notifications';
 import { recordMilestone, toCents } from '@/lib/pipeline/events';
 import { inheritFromProject, INHERITED_FIELDS } from '@/lib/projects/model';
 
@@ -256,6 +257,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       tags.map((tag: string) => ({ job_id: job.id, tag }))
     );
     if (tagErr) warnings.push(`Tags not saved: ${tagErr.message}`);
+  }
+
+  // ── EVERYONE WHO WORKS JOBS HEARS ABOUT IT (owner, 2026-09-10) ─────────────────────────────
+  // One `job_created` notification per company user (the creator excepted): the bell entry, the
+  // phone push, and the NEW bubbles on the Work icon, the flyout and the listings are all that
+  // one unread row — opening the job reads it. A failure here is a warning, not a failed create.
+  try {
+    await notifyJobCreated({
+      id: (job as { id: string }).id,
+      job_number: (job as { job_number?: string | null }).job_number ?? finalJobNumber ?? null,
+      name,
+      project_name: (project as { name?: string | null }).name ?? null,
+      created_by: session.user.email,
+    });
+  } catch (e) {
+    warnings.push(`Team not notified: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   if (lead_rpls_email) {
