@@ -239,7 +239,7 @@ export default function ProjectsPage() {
                       <h3 className="lst-card__name">{p.name}</h3>
                       <span className={`lst-status lst-status--${STATUS_TONE[p.status]}`}>{PROJECT_STATUS_LABELS[p.status]}</span>
                     </div>
-                    <div className="lst-card__lines">
+                    <div className="lst-card__lines lst-card__lines--grid">
                       <div className="lst-card__line">
                         <span className="lst-card__k">Customer</span>
                         <span className="lst-card__v lst-card__v--strong">{p.client_company || p.client_name || '—'}</span>

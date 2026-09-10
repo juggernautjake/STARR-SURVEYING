@@ -101,6 +101,13 @@ describe('both pages share the frame and read as siblings', () => {
       expect(src, f).toContain('paginate(sorted, page)');
     }
   });
+  it('the column is centred and wide enough for a desktop; the project facts go two-column on wide cards', () => {
+    // Owner, 2026-09-09: a 1040 px column pinned left on a 1900 px screen left the right side dead.
+    const css = readSource(SHEET);
+    expect(css).toMatch(/\.lst \{[^}]*max-width: 1280px;[^}]*margin: 0 auto;/s);
+    expect(css).toContain('.lst-card__lines--grid { display: grid;');
+    expect(readSource(PROJECTS)).toContain('className="lst-card__lines lst-card__lines--grid"');
+  });
   it('and are told apart by a root modifier the sheet styles differently', () => {
     expect(readSource(PROJECTS)).toContain('className="lst lst--projects"');
     expect(readSource(RESEARCH)).toContain('className="lst lst--research research-page"');
