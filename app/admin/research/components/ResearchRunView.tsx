@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { formatElapsed, type RunState } from '@/lib/research/run-state';
 import { hasStoredFile, storedFileUrl } from '@/lib/research/stored-file';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import { useRunState, type RunDocument, type StartRunInput } from './useRunState';
 import RunDiffPanel from './RunDiffPanel';
 import ReportCardPanel from './ReportCardPanel';
@@ -407,6 +408,16 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
 
   return (
     <>
+      <div className="rrv__dl-all">
+        <DownloadAllButton
+          className="rrv__doc-view"
+          title="Retrieved documents"
+          label={`Download all (${docs.filter((d) => hasStoredFile(d) && storedFileUrl(d)).length})`}
+          getEntries={() => docs
+            .filter((d) => hasStoredFile(d) && storedFileUrl(d))
+            .map((d) => ({ name: d.document_label || d.original_filename || 'document', url: storedFileUrl(d) as string }))}
+        />
+      </div>
       <ul className="rrv__docs">
         {docs.map((d) => {
           // ── OPENABLE THE MOMENT IT LANDS, NOT WHEN THE RUN ENDS ────────────────────────

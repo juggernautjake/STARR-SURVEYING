@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import { Loader2, FolderOpen, Eye, Download, Trash2, Link2, MessageSquare, Tag } from 'lucide-react';
 import FileViewer, { isImageFile } from './FileViewer';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
+import { downloadFile } from '@/lib/files/download';
+import { jobFileDisplayName } from '@/lib/files/adapters/job-file';
 import FilePicker from '@/app/admin/components/files/FilePicker';
 import { matchesTags, tagFacets } from '@/lib/files/labels';
 
@@ -401,6 +404,17 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         </div>
       ) : (
         <div className="job-files__list">
+          {/* One .zip of every file in this section, saved where the person chooses (owner, 2026-09-09). */}
+          <div className="job-files__dl-all">
+            <DownloadAllButton
+              className="job-files__item-btn job-files__item-btn--wide"
+              title={`${activeSection} files`}
+              label={`Download all (${sectionFiles.filter((f) => hrefOf(f)).length})`}
+              getEntries={() => sectionFiles
+                .filter((f) => hrefOf(f) && !(f.file_node_id && !f.linked_file?.available))
+                .map((f) => ({ name: jobFileDisplayName(f), url: hrefOf(f) as string }))}
+            />
+          </div>
           {sectionFiles.map(file => {
             const typeIcon = FILE_TYPE_ICONS[file.file_type] || FILE_TYPE_ICONS.other;
             const typeLabel = FILE_TYPES[file.file_type]?.label || 'Other';
@@ -501,17 +515,22 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                       file resolves to the EXPLORER's own route, which re-checks the viewer's access.
                       Whoever attached it had access; whoever is looking now must too. A linked row
                       whose document is gone shows no button, because there is nothing to hand over. */}
+                  {/* Fetches the bytes and opens the OS save dialog (lib/files/download.ts). The old
+                      `<a download>` pointed at a route that redirected cross-origin, where the
+                      attribute is ignored — a PDF navigated the whole page into the browser's
+                      viewer (owner, 2026-09-09: "it just opens up the computer file explorer"). */}
                   {hrefOf(file) && !(file.file_node_id && !file.linked_file?.available) && (
-                    <a
-                      href={hrefOf(file) as string}
-                      download={file.file_name}
+                    <button
+                      type="button"
                       className="job-files__item-btn"
+                      onClick={() => void downloadFile(hrefOf(file) as string, jobFileDisplayName(file), file.mime_type)}
                       title={file.file_node_id
-                        ? 'Download from the File Explorer (checks your own permissions)'
-                        : 'Download'}
+                        ? 'Save from the File Explorer (checks your own permissions)'
+                        : 'Save to your computer'}
+                      aria-label={`Download ${jobFileDisplayName(file)}`}
                     >
                       <Download size={15} strokeWidth={2} />
-                    </a>
+                    </button>
                   )}
                   {onDelete && (
                     <button className="job-files__item-btn job-files__item-btn--delete" onClick={() => onDelete(file.id)} title="Delete">

@@ -134,3 +134,6 @@ _*.mjs
 _*.png
 # Screenshot output from verify:brand-page and verify:viewer.
 _qa/
+
+# pdf.js worker + decoders, copied from node_modules by scripts/copy-pdfjs-assets.mjs (prebuild/predev)
+public/pdfjs/

@@ -12,6 +12,7 @@ import { accessForNode, siblingNames, collectSubtreeIds, NODE_COLS } from '@/lib
 import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName, wouldCreateCycle } from '@/lib/files/tree';
 import { recordFileEvent, recordFileEvents } from '@/lib/files/audit-log';
+import { parseTags } from '@/lib/files/labels';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
   if (!session?.user?.email) return null;
@@ -34,12 +35,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });
   const node = chain[chain.length - 1];
   if (!canEdit(access)) return NextResponse.json({ error: 'You cannot edit this item.' }, { status: 403 });
-  if (node.is_system || node.is_personal_root) {
+  const body = (await req.json().catch(() => ({}))) as { name?: string; parent_id?: string | null; notes?: string | null; tags?: string[] | string };
+  const updates: Record<string, unknown> = {};
+  // ── Notes + tags (seed 634) — allowed on any node the caller can edit, system folders included:
+  //    a note on "Shared" is a note, not a rename. ─────────────────────────────────────────────
+  if ('notes' in body) updates.notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 4000) : null;
+  if ('tags' in body) updates.tags = parseTags(body.tags);
+  const wantsNameOrMove = typeof body.name === 'string' || body.parent_id !== undefined;
+  if (wantsNameOrMove && (node.is_system || node.is_personal_root)) {
     return NextResponse.json({ error: 'System folders cannot be renamed or moved.' }, { status: 400 });
   }
-
-  const body = (await req.json().catch(() => ({}))) as { name?: string; parent_id?: string | null };
-  const updates: Record<string, unknown> = {};
   let targetParentId = node.parent_id;
   // Names, not just ids, so the history reads like a sentence instead of a pair of UUIDs. The
   // chain ends with the node itself, so its parent is the entry before it; `null` means the top

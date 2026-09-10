@@ -2316,3 +2316,12 @@
   outline: 2px solid var(--theme-accent, #1D3095);
   outline-offset: 2px;
 }
+
+/* ── "Download all" — one .zip of the folder on screen (unified viewer, 2026-09-10) ─────────── */
+.job-files__dl-all { display: flex; justify-content: flex-end; padding: 0.25rem 0.35rem 0.5rem; }
+.job-files__item-btn--wide { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--color-border); font-weight: 600; }
+.job-files__item-btn--wide:disabled { opacity: 0.6; cursor: wait; }
+.jpg__dl-all { display: flex; justify-content: flex-end; margin: 0.75rem 0 0.25rem; }
+.jpg__dl-all .fv-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-bg-elevated); color: var(--color-text); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.jpg__dl-all .fv-btn:hover { background: var(--color-bg-subtle); }
+.jpg__dl-all .fv-btn:disabled { opacity: 0.6; cursor: wait; }

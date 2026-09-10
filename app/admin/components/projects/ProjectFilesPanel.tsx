@@ -28,6 +28,9 @@ import { readVideoDuration } from '@/lib/jobs/video-split-run';
 // download-only here, which meant leaving the app to read the thing the page is about. It carries
 // its own stylesheet, so it renders correctly outside the /admin/jobs route tree.
 import FileViewer, { type ViewerFile } from '@/app/admin/components/jobs/FileViewer';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
+import { downloadFile } from '@/lib/files/download';
+import { jobFileDisplayName } from '@/lib/files/adapters/job-file';
 
 interface ProjectFile {
   id: string;
@@ -228,6 +231,16 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
       )}
 
       {files.length > 0 && (
+        <div className="pfiles__dl-all">
+          <DownloadAllButton
+            className="pfiles__btn pfiles__btn--wide"
+            title="Project documents"
+            label={`Download all (${files.filter((f) => f.download_href).length})`}
+            getEntries={() => files.filter((f) => f.download_href).map((f) => ({ name: jobFileDisplayName(f), url: f.download_href as string }))}
+          />
+        </div>
+      )}
+      {files.length > 0 && (
         <ul className="pfiles" data-testid="project-files">
           {files.map((f) => (
             <li key={f.id} className="pfiles__item">
@@ -248,9 +261,9 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
               </span>
               <span className="pfiles__actions">
                 {f.download_href && (
-                  <a className="pfiles__btn" href={f.download_href} target="_blank" rel="noreferrer" title={`Download ${f.file_name}`} aria-label={`Download ${f.file_name}`}>
+                  <button type="button" className="pfiles__btn" onClick={() => void downloadFile(f.download_href as string, jobFileDisplayName(f), f.mime_type)} title={`Save ${f.file_name} to your computer`} aria-label={`Download ${f.file_name}`}>
                     <Download size={14} aria-hidden />
-                  </a>
+                  </button>
                 )}
                 <button type="button" className="pfiles__btn pfiles__btn--danger" onClick={() => remove(f)} title={`Delete ${f.file_name}`} aria-label={`Delete ${f.file_name}`}>
                   <Trash2 size={14} aria-hidden />

@@ -38,6 +38,9 @@ export interface FileNodeRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** seed 634 — a person's note and tags on a file OR a folder. */
+  notes?: string | null;
+  tags?: string[] | null;
 }
 
 export interface ListedNode extends FileNodeRow {
@@ -48,7 +51,7 @@ export interface ListedNode extends FileNodeRow {
 }
 
 export const NODE_COLS =
-  'id, parent_id, node_type, name, owner_email, is_personal_root, is_system, permission_mode, storage_bucket, storage_path, mime_type, size_bytes, created_by, created_at, updated_at';
+  'id, parent_id, node_type, name, owner_email, is_personal_root, is_system, permission_mode, storage_bucket, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, notes, tags';
 
 export async function getNode(id: string): Promise<FileNodeRow | null> {
   const { data } = await supabaseAdmin

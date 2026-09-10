@@ -11,7 +11,7 @@
 // drag files in from the OS to upload). Brand-styled, mobile-first. The in-app
 // viewer (F6) and permissions dialog (F7) layer on next.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 // From `kinds`, NOT `server` — server.ts imports supabaseAdmin, which holds the service-role key
 // and must never be reachable from a client component's import graph.
 import { FILE_KINDS, kindOf } from '@/lib/files/kinds';
@@ -22,6 +22,11 @@ import { MAX_UPLOAD_BYTES, contentTypeForUpload } from '@/lib/files/upload';
 import { explainPutFailure, isVideoUpload, megabytes } from '@/lib/storage/uploads';
 import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
+import SharedFileViewer from '@/app/admin/components/files/FileViewer';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
+import { downloadFile, downloadZip } from '@/lib/files/download';
+import { zipName } from '@/lib/files/viewer-model';
+import { explorerNodeToViewerFile, explorerCapabilities, explorerViewUrl, isMountId } from '@/lib/files/adapters/explorer';
 import FilePicker, { type PickedNode } from '@/app/admin/components/files/FilePicker';
 import {
   Folder,
@@ -83,6 +88,9 @@ interface FileNode {
   size_bytes: number | null;
   updated_at: string;
   access: AccessLevel;
+  /** seed 634 — a person's note and tags, on files and folders alike. */
+  notes?: string | null;
+  tags?: string[] | null;
   /** F1 — set on mounted nodes whose natural action is a PAGE rather than a download. Today that is
    *  CAD drawings: `cad_drawings.document` is JSONB in the database, and a `.starr` blob is not what
    *  anyone wants when they click a drawing — opening it in the editor is. */
@@ -527,29 +535,56 @@ export default function FilesPage(): React.ReactElement {
     load(parentId);
   }
 
+  // ── DOWNLOAD = THE OS SAVE DIALOG (owner, 2026-09-09) ──────────────────────────────────────
+  // The bytes are fetched here and handed to lib/files/download.ts, which opens "Save as" (or, where
+  // that API is missing, downloads under the suggested name). The old `window.open` on a signed URL
+  // depended on a popup being allowed and put the file in a new tab.
   async function download(n: FileNode) {
     const res = await fetch(`/api/admin/files/${n.id}/download`);
     if (!res.ok) {
       setError(await errOf(res, 'Could not download.'));
       return;
     }
-    const { url } = await res.json();
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const { url, name, mime_type } = await res.json();
+    try {
+      await downloadFile(url, name ?? n.name, mime_type ?? n.mime_type);
+    } catch (err) {
+      setError(`Could not download ${n.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
-  // ---- in-app viewer (F6) -----------------------------------------------
+  /** The files of the folder on screen, with fresh signed URLs — what "Download all" zips. */
+  async function folderEntries(list: FileNode[]) {
+    const files = list.filter((n) => n.node_type === 'file' && canDownload(n.access));
+    const entries = await Promise.all(files.map(async (n) => {
+      const res = await fetch(`/api/admin/files/${n.id}/download`);
+      if (!res.ok) return null;
+      const { url, name } = await res.json();
+      return typeof url === 'string' ? { name: (name as string) ?? n.name, url } : null;
+    }));
+    return entries.filter((e): e is { name: string; url: string } => e !== null);
+  }
+
+  // ---- in-app viewer (F6) — the shared viewer (owner, 2026-09-09) ----------------------------
+  // Every file in the folder gets a viewing URL so ‹ › can walk the whole folder; the first one is
+  // fetched before the viewer opens, the rest arrive in the background.
+  const [viewerUrls, setViewerUrls] = useState<Record<string, string>>({});
   const openViewer = useCallback(async (n: FileNode) => {
     setViewerLoading(true);
     setError(null);
-    const res = await fetch(`/api/admin/files/${n.id}/download?inline=1`);
+    const url = await explorerViewUrl(n.id);
     setViewerLoading(false);
-    if (!res.ok) {
-      setError(await errOf(res, 'Could not open this file.'));
+    if (!url) {
+      setError('Could not open this file.');
       return;
     }
-    const { url } = await res.json();
+    setViewerUrls((m) => ({ ...m, [n.id]: url }));
     setViewer({ node: n, url });
-  }, []);
+    const others = nodes.filter((x) => x.node_type === 'file' && x.id !== n.id && !x.open_href);
+    void Promise.all(others.map(async (x) => [x.id, await explorerViewUrl(x.id)] as const)).then((pairs) => {
+      setViewerUrls((m) => { const next = { ...m }; for (const [id, u] of pairs) if (u) next[id] = u; return next; });
+    });
+  }, [nodes]);
 
   function onNameClick(n: FileNode) {
     if (n.node_type === 'folder') { setParentId(n.id); return; }
@@ -561,26 +596,23 @@ export default function FilesPage(): React.ReactElement {
     else download(n);
   }
 
-  const previewList = nodes.filter(isPreviewable);
-  function stepViewer(dir: 1 | -1) {
-    if (!viewer || previewList.length < 2) return;
-    const idx = previewList.findIndex((p) => p.id === viewer.node.id);
-    if (idx === -1) return;
-    const next = previewList[(idx + dir + previewList.length) % previewList.length];
-    openViewer(next);
-  }
-
-  useEffect(() => {
-    if (!viewer) return undefined;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setViewer(null);
-      else if (e.key === 'ArrowRight') stepViewer(1);
-      else if (e.key === 'ArrowLeft') stepViewer(-1);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewer, nodes]);
+  /** The folder's files as the shared viewer sees them — every file, not only the previewable ones,
+   *  so a .docx still shows its details and saves; it just has no preview. */
+  const viewerCollection = useMemo(() => ({
+    id: parentId ?? 'root',
+    title: breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : 'Files',
+    files: nodes
+      .filter((n) => n.node_type === 'file' && !n.open_href)
+      .map((n) => explorerNodeToViewerFile(n, viewerUrls[n.id] ?? (viewer?.node.id === n.id ? viewer.url : null))),
+  }), [nodes, viewerUrls, viewer, parentId, breadcrumb]);
+  const viewerCapabilities = useMemo(() => explorerCapabilities({
+    canEdit: (n) => canEdit(n.access as AccessLevel),
+    nodeFor: (id) => nodes.find((n) => n.id === id),
+    currentParentId: parentId,
+    crumbs: breadcrumb.map((c) => ({ id: c.id, name: c.name })),
+    onChanged: () => load(parentId),
+    onDelete: async (n) => { await remove(n as FileNode); },
+  }, (id) => viewerUrls[id] ?? null), [nodes, parentId, breadcrumb, viewerUrls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function rename(n: FileNode) {
     const name = window.prompt('Rename to:', n.name);
@@ -828,8 +860,18 @@ export default function FilesPage(): React.ReactElement {
   }
 
   async function downloadSelected() {
-    for (const n of selectedNodes()) {
-      if (n.node_type === 'file' && canDownload(n.access)) await download(n);
+    const picked = selectedNodes().filter((n) => n.node_type === 'file' && canDownload(n.access));
+    if (picked.length === 1) { await download(picked[0]); return; }
+    if (picked.length === 0) return;
+    setBusy(true);
+    try {
+      const entries = await folderEntries(picked);
+      const result = await downloadZip(entries, zipName(`${picked.length} files`));
+      if (result.failed.length > 0) setError(`Left out of the .zip: ${result.failed.map((x) => x.name).join(', ')}.`);
+    } catch (err) {
+      setError(`Could not build the .zip: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -998,6 +1040,15 @@ export default function FilesPage(): React.ReactElement {
       <header className="fx__head">
         <h1 className="fx__title">Files</h1>
         <div className="fx__actions">
+          {nodes.some((n) => n.node_type === 'file' && canDownload(n.access)) && (
+            <DownloadAllButton
+              className="fx-btn fx-btn--ghost"
+              title={breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : 'Files'}
+              label={`Download all (${nodes.filter((n) => n.node_type === 'file' && canDownload(n.access)).length})`}
+              getEntries={() => folderEntries(nodes)}
+              disabled={busy}
+            />
+          )}
           {clip && (
             <button type="button" className="fx-btn fx-btn--paste" onClick={paste} disabled={!canWriteHere || busy} data-testid="fx-paste">
               <ClipboardPaste size={16} /> Paste {clip.ids.length} {clip.mode === 'cut' ? '(move)' : '(copy)'}
@@ -1305,71 +1356,14 @@ export default function FilesPage(): React.ReactElement {
       )}
 
       {viewer && (
-        <div
-          className="fx__viewer"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Preview of ${viewer.node.name}`}
-          data-testid="fx-viewer"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setViewer(null);
-          }}
-        >
-          <div className="fx__viewer-bar">
-            <span className="fx__viewer-name" title={viewer.node.name}>{viewer.node.name}</span>
-            <div className="fx__viewer-tools">
-              {canDownload(viewer.node.access) && (
-                <button type="button" className="fx__viewer-btn" onClick={() => download(viewer.node)} title="Download" aria-label="Download">
-                  <Download size={18} />
-                </button>
-              )}
-              <button type="button" className="fx__viewer-btn" onClick={() => setViewer(null)} title="Close" aria-label="Close preview" data-testid="fx-viewer-close">
-                <X size={18} />
-              </button>
-            </div>
-          </div>
-
-          {previewList.length > 1 && (
-            <button type="button" className="fx__viewer-nav fx__viewer-nav--prev" onClick={() => stepViewer(-1)} aria-label="Previous">
-              <ChevronLeft size={28} />
-            </button>
-          )}
-          {previewList.length > 1 && (
-            <button type="button" className="fx__viewer-nav fx__viewer-nav--next" onClick={() => stepViewer(1)} aria-label="Next">
-              <ChevronRight size={28} />
-            </button>
-          )}
-
-          <div className="fx__viewer-stage">
-            {isImage(viewer.node.mime_type) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={viewer.url} alt={viewer.node.name} className="fx__viewer-img" />
-            ) : isPdf(viewer.node.mime_type) ? (
-              <iframe src={viewer.url} title={viewer.node.name} className="fx__viewer-frame" />
-            ) : isVideo(viewer.node.mime_type, viewer.node.name) ? (
-              // The browser's own transport: scrubbing, volume, fullscreen, picture-in-picture and
-              // captions all work correctly there, on a phone as well as a desktop. `preload
-              // ="metadata"` so opening a 500 MB walkthrough fetches its header, not the film.
-              <video
-                src={viewer.url}
-                className="fx__viewer-video"
-                controls
-                autoPlay
-                playsInline
-                preload="metadata"
-                data-testid="fx-viewer-video"
-              />
-            ) : (
-              <div className="fx__viewer-fallback">
-                <FileText size={40} />
-                <p>This file can’t be previewed.</p>
-                <button type="button" className="fx-btn" onClick={() => download(viewer.node)}>
-                  <Download size={16} /> Download
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <SharedFileViewer
+          collection={viewerCollection}
+          fileId={viewer.node.id}
+          capabilities={isMountId(viewer.node.id) ? {} : viewerCapabilities}
+          onClose={() => setViewer(null)}
+          onCurrentChange={(id) => { const n = nodes.find((x) => x.id === id); if (n && n.id !== viewer.node.id) setViewer({ node: n, url: viewerUrls[id] ?? '' }); }}
+          onFileRemoved={() => { setViewer(null); load(parentId); }}
+        />
       )}
 
       {splitState && (

@@ -12,6 +12,7 @@ import {
 } from '@/lib/viewers/viewer-fit';
 // A `storage_url` is a string built by `getPublicUrl`, never a check that the file exists.
 import { storedFileUrl } from '@/lib/research/stored-file';
+import { downloadFile } from '@/lib/files/download';
 import { confidencePercentLabel } from '@/lib/research/confidence-scale';
 // Markup that survives closing the viewer, kept apart from the original (research plan R24).
 import {
@@ -181,7 +182,6 @@ export default function SourceDocumentViewer({
   /** The download anchor in the toolbar. The `d` shortcut clicks the real link rather than
    *  building a second download path — one implementation, so the key and the button cannot end up
    *  saving different things. */
-  const downloadRef = useRef<HTMLAnchorElement>(null);
 
   // Auto-focus the modal on mount so arrow keys work immediately
   useEffect(() => {
@@ -318,6 +318,17 @@ export default function SourceDocumentViewer({
       .slice(0, 80) || 'document';
     return total > 1 ? `${base}-p${pageIndex + 1}.png` : `${base}.png`;
   }, [doc.document_label, doc.original_filename]);
+
+  /** Save what is on screen — the current page image, or the PDF — through the OS save dialog
+   *  (lib/files/download.ts). One control, never a navigation (owner, 2026-09-09). */
+  const downloadCurrent = useCallback(async () => {
+    const url = pageImageUrls[currentPage] ?? pdfUrl;
+    if (!url) return;
+    const isPageImage = Boolean(pageImageUrls[currentPage]);
+    const name = isPageImage ? downloadName(currentPage, pageImageUrls.length) : (doc.original_filename || `${downloadName(0, 1).replace(/\.png$/, '')}.pdf`);
+    try { await downloadFile(url, name); } catch (err) { console.error('[viewer] download failed', err); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageImageUrls, currentPage, pdfUrl, doc.original_filename]);
 
   // Re-fit when the panel resizes — opening the drawing sidebar, rotating a tablet, or dragging the
   // window narrower all change what "the whole page" means.
@@ -692,21 +703,15 @@ export default function SourceDocumentViewer({
                 <span className="research-viewer__img-zoom-info" aria-live="polite">{rotation}°</span>
               )}
 
-              {/* ── Save the file you are looking at ────────────────────────────────────────
-                  Cross-origin the `download` attribute is ignored and this opens a tab instead;
-                  both endings put the file in somebody's hands. See `downloadName`. */}
-              <a
-                ref={downloadRef}
-                href={imgUrl}
-                download={downloadName(currentPage, pageImageUrls.length)}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* ── Save the page you are looking at — the OS save dialog, never a tab ──── */}
+              <button
+                type="button"
                 className="research-viewer__img-download"
-                title={`Download this page (D) — ${downloadName(currentPage, pageImageUrls.length)}`}
-                onClick={(e) => e.stopPropagation()}
+                title={`Save this page (D) — ${downloadName(currentPage, pageImageUrls.length)}`}
+                onClick={(e) => { e.stopPropagation(); void downloadCurrent(); }}
               >
                 ⇓
-              </a>
+              </button>
 
               {/* Draw controls */}
               <span className="research-viewer__img-divider" />
@@ -942,17 +947,14 @@ export default function SourceDocumentViewer({
               >
                 {isFullscreen ? '⤡ Exit full screen' : '⤢ Full screen'}
               </button>
-              <a
-                href={pdfUrl}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 className="research-viewer__pdf-open-btn"
-                title="Download this document"
-                onClick={(e) => e.stopPropagation()}
+                title="Save this document to your computer"
+                onClick={(e) => { e.stopPropagation(); void downloadCurrent(); }}
               >
-                ⇓ Download
-              </a>
+                ⇓ Save as…
+              </button>
             </div>
           </div>
           <iframe
@@ -1042,7 +1044,7 @@ export default function SourceDocumentViewer({
         case 'rotate-cw':   rotateBy('cw'); break;
         case 'rotate-ccw':  rotateBy('ccw'); break;
         case 'fullscreen':  toggleFullscreen(); break;
-        case 'download':    downloadRef.current?.click(); break;
+        case 'download':    void downloadCurrent(); break;
         default: break;
       }
       // Only prevented for keys that were actually handled — `preventDefault` on the whole handler

@@ -4,7 +4,9 @@
   "description": "Professional Land Surveying Website - TypeScript/NextJS",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "next build",
     "build:desktop": "node scripts/prepare-desktop-build.mjs run -- next build",
     "build:desktop:stash": "node scripts/prepare-desktop-build.mjs stash",
@@ -110,6 +112,7 @@
     "next": "14.2.35",
     "next-auth": "^5.0.0-beta.30",
     "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "5.4.296",
     "pdfkit": "^0.17.2",
     "pg": "^8.22.0",
     "pixi.js": "^7.4.3",

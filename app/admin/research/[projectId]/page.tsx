@@ -1,6 +1,8 @@
 // app/admin/research/[projectId]/page.tsx — Research project hub
 'use client';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { storedFileUrl } from '@/lib/research/stored-file';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import {
   Upload, Microscope, ClipboardList, HardHat, Search, FolderOpen, MapPin,
   Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera, PackageCheck,
@@ -2135,6 +2137,15 @@ export default function ResearchProjectPage() {
                   into the dedicated viewer (whose ‹ › arrows walk this same list) and Source ↗. Before
                   this, the Review stage could open a document only from a data point's "view source"
                   link or the artifact gallery — a deed nobody had extracted from was unreachable. */}
+              {reviewTab === 'documents' && (
+                <div className="review-docs__dl-all">
+                  <DownloadAllButton
+                    title="Research documents"
+                    label={`Download all (${documents.filter((d) => storedFileUrl(d)).length})`}
+                    getEntries={() => documents.filter((d) => storedFileUrl(d)).map((d) => ({ name: d.document_label || d.original_filename || 'document', url: storedFileUrl(d) as string }))}
+                  />
+                </div>
+              )}
               {reviewTab === 'documents' && (
                 <ReviewDocumentsList
                   docs={documents}

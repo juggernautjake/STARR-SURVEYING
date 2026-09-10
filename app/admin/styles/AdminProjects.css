@@ -545,3 +545,8 @@
 @media (max-width: 560px) {
   .proj__adv-field, .proj__adv-field--wide { flex: 1 1 100%; }
 }
+
+/* ── "Download all" — one .zip of the project's documents (unified viewer, 2026-09-10) ─────── */
+.pfiles__dl-all { display: flex; justify-content: flex-end; margin: 0.5rem 0 0; }
+.pfiles__btn--wide { width: auto; gap: 0.35rem; padding: 0.3rem 0.7rem; font-size: 0.8rem; font-weight: 600; }
+.pfiles__btn--wide:disabled { opacity: 0.6; cursor: wait; }

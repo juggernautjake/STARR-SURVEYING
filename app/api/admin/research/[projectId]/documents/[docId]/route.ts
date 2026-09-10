@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { parseTags } from '@/lib/files/labels';
 
 function extractIds(req: NextRequest): { projectId: string | null; docId: string | null } {
   const afterResearch = req.nextUrl.pathname.split('/research/')[1];
@@ -135,3 +136,32 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({ success: true });
 }, { routeName: 'research/documents/detail' });
+
+/* PATCH — the person's own facts about a document: its display name, a note, tags (seed 634).
+ *
+ * Owner, 2026-09-09: the shared file viewer renames, annotates and tags every kind of file. Nothing
+ * the worker wrote (text, OCR, relevance, lineage) is reachable from here. */
+export const PATCH = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { projectId, docId } = extractIds(req);
+  if (!projectId || !docId) return NextResponse.json({ error: 'Project ID and Document ID required' }, { status: 400 });
+
+  const body = (await req.json().catch(() => ({}))) as { document_label?: string | null; notes?: string | null; tags?: string[] | string };
+  const patch: Record<string, unknown> = {};
+  if ('document_label' in body) {
+    const label = typeof body.document_label === 'string' ? body.document_label.trim().slice(0, 200) : '';
+    patch.document_label = label || null;
+  }
+  if ('notes' in body) patch.notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 4000) : null;
+  if ('tags' in body) patch.tags = parseTags(body.tags);
+  if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });
+
+  const { data: existing } = await supabaseAdmin.from('research_documents').select('id, research_project_id').eq('id', docId).maybeSingle();
+  if (!existing) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+  if (existing.research_project_id !== projectId) return NextResponse.json({ error: 'Document does not belong to this project' }, { status: 403 });
+
+  const { data, error } = await supabaseAdmin.from('research_documents').update(patch).eq('id', docId).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ document: data });
+}, { routeName: 'research/documents/patch' });

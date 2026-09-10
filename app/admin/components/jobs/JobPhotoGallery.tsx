@@ -18,6 +18,8 @@ import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split'
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
 // The one viewer, shared with the Files tab and the project panel — see the lightbox below.
 import FileViewer, { type ViewerFile } from './FileViewer';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
+import { jobFileDisplayName } from '@/lib/files/adapters/job-file';
 
 interface Photo {
   id: string;
@@ -591,6 +593,15 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
         </div>
       )}
 
+      {photos.length > 0 && (
+        <div className="jpg__dl-all">
+          <DownloadAllButton
+            title="Job photos"
+            label={`Download all (${photos.filter((p) => p.download_href).length})`}
+            getEntries={() => photos.filter((p) => p.download_href).map((p) => ({ name: jobFileDisplayName(p), url: p.download_href as string }))}
+          />
+        </div>
+      )}
       {photos.length > 0 && (
         <div
           style={{

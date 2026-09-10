@@ -42,7 +42,9 @@ const stripJs = (src: string) =>
     .replace(/(^|[^:'"`])\/\/[^\n]*/g, (m, p1: string) => p1 + ' '.repeat(m.length - p1.length));
 const VIEWER = 'app/admin/research/components/SourceDocumentViewer.tsx';
 const GALLERY = 'app/admin/research/components/ArtifactGallery.tsx';
-const FILE_VIEWER = 'app/admin/components/jobs/FileViewer.tsx';
+// 2026-09-10: the jobs FileViewer became a thin adapter over the ONE shared viewer; the rotation
+// arithmetic — and so these guards — live there now.
+const FILE_VIEWER = 'app/admin/components/files/FileViewer.tsx';
 const MEDIA_VIEWER = 'app/admin/components/MediaViewer.tsx';
 
 /** A typical viewer panel inside the modal. */
@@ -473,10 +475,14 @@ describe('the viewer wires the new controls', () => {
     expect(src.slice(at, at + 200)).toContain('panelRef.current');
   });
 
-  it('offers a download, and the key clicks the same link the button is', () => {
-    // Two implementations is how the key and the button end up saving different things.
-    expect(src, 'no download control at all').toMatch(/download=\{downloadName\(/);
-    expect(src).toContain("case 'download':    downloadRef.current?.click()");
+  it('offers a download, and the key runs the same save the button does', () => {
+    // Two implementations is how the key and the button end up saving different things. Since
+    // 2026-09-10 both go through lib/files/download (the OS "Save as" dialog) — no `<a download>`,
+    // which navigated the page into the browser's PDF viewer when the route redirected.
+    expect(src, 'no download control at all').toContain('void downloadCurrent(); }}');
+    expect(src).toContain("case 'download':    void downloadCurrent()");
+    expect(src).toContain("from '@/lib/files/download'");
+    expect(src, 'a download anchor is back').not.toMatch(/<a[^>]*\sdownload=/);
   });
 
   it('the download name is derived from the document and page, and is safe as a filename', () => {
@@ -647,10 +653,13 @@ describe('the gallery lightbox wires the same controls', () => {
     expect(src).toContain('requestFullscreen()');
   });
 
-  it('offers a real download AND the open-in-a-tab link, which are two different acts', () => {
-    // Before this only `↗` existed. It opens the file; it does not save it.
-    expect(src).toMatch(/download=\{downloadName\}/);
-    expect(src).toContain('Open in a new tab');
+  it('offers ONE download, through the OS save dialog', () => {
+    // Before 2026-09-10 the lightbox had a save link AND an open-in-a-tab link; the owner asked for
+    // one download button per viewer, and one that never navigates the page.
+    expect(src).toContain('onClick={() => void downloadCurrent()}');
+    expect(src).toContain("from '@/lib/files/download'");
+    expect(src, 'the second control is back').not.toContain('Open in a new tab');
+    expect(src, 'a download anchor is back').not.toMatch(/<a[^>]*\sdownload=/);
   });
 
   it('the keyboard moved into the lightbox and nothing left behind fires twice', () => {
@@ -715,7 +724,7 @@ describe('the two viewers agree about what a key means', () => {
 // `MediaViewer` (messaging, CAD, learn) had no rotate at all, and a hard `MIN_SCALE = 1` that would
 // have made adding one produce the same crop.
 
-describe('the jobs file viewer re-fits when it turns a page', () => {
+describe('the shared file viewer re-fits when it turns a page', () => {
   const src = read(FILE_VIEWER);
   const code = stripJs(src);
 
@@ -725,18 +734,27 @@ describe('the jobs file viewer re-fits when it turns a page', () => {
     expect(src.length).toBeGreaterThan(5000);
   });
 
+  it('and the jobs viewer is an adapter over it, not a copy', () => {
+    const jobs = read('app/admin/components/jobs/FileViewer.tsx');
+    expect(jobs).toContain("from '@/app/admin/components/files/FileViewer'");
+    expect(stripJs(jobs), 'the adapter grew its own rotation').not.toContain('setRotation');
+  });
+
   it('reads the shared module rather than a fourth copy of the arithmetic', () => {
     expect(src).toContain("from '@/lib/viewers/viewer-fit'");
     expect(code).toContain('rotationFit({');
+    expect(code).toContain("nextRotation(rotation, 'cw')");
+    expect(code).toContain('clampZoom(');
   });
 
   it('no call site still turns the page without re-fitting', () => {
-    // Both the R key and the toolbar button used to do `setRotation((d) => (d + 90) % 360)`
-    // directly. Either one left behind is the bug, in half the cases.
+    // A bare `setRotation((r) => (r + 90) % 360)` on the button or the key is the bug, in half
+    // the cases: the image turns and its long side runs off the short side of the stage.
     expect(code, 'a call site still rotates without re-fitting')
-      .not.toMatch(/setRotation\(\(d\) => \(d \+ 90\) % 360\)/);
+      .not.toMatch(/setRotation\(\([a-z]\) => \([a-z] \+ 90\) % 360\)/);
     expect(code).toContain('rotate()');
     expect(code).toContain('onClick={rotate}');
+    expect(code, 'the turn fit is not applied at fit').toContain('scale(${fit ? turnFit : zoom})');
   });
 
   it('measures the laid-out image, not the transformed box', () => {
@@ -748,11 +766,16 @@ describe('the jobs file viewer re-fits when it turns a page', () => {
   });
 
   it('and the rotate handler is in the key effect deps, or R turns from 0 every time', () => {
-    // `rotate` closes over `rotation` now. A stale closure would rotate 0 → 90 on every press.
-    const at = code.indexOf("case 'r': case 'R'");
+    // `rotate` closes over `rotation`. A stale closure would rotate 0 → 90 on every press.
+    const at = code.indexOf("e.key === 'r' || e.key === 'R'");
     expect(at).toBeGreaterThan(-1);
     const deps = code.slice(at, code.indexOf('}, [', at) + 200);
     expect(deps).toMatch(/\}, \[[^\]]*rotate[^\]]*\]/);
+  });
+
+  it('a new file clears the turn and its fit together', () => {
+    const at = code.indexOf('setRotation(0); setTurnFit(1);');
+    expect(at, 'the turn fit survives into the next file').toBeGreaterThan(-1);
   });
 });
 

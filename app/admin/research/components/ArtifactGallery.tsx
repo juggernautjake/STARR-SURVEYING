@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { downloadFile } from '@/lib/files/download';
 
 // ── ONE SET OF VIEWER RULES, TWO VIEWERS ────────────────────────────────────────────────────────
 //
@@ -504,7 +505,6 @@ function Lightbox({
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const downloadRef = useRef<HTMLAnchorElement>(null);
 
   // Reset zoom, pan AND rotation when the artifact changes. Rotation resets here where it does not
   // in the document viewer, and the difference is the unit of work: pages of one deed share an
@@ -605,6 +605,12 @@ function Lightbox({
     return fromFile || 'artifact';
   })();
 
+  /** ONE download control for the lightbox: the OS save dialog (lib/files/download.ts). */
+  const downloadCurrent = async () => {
+    if (!viewUrl) return;
+    try { await downloadFile(viewUrl, downloadName); } catch (err) { console.error('[artifacts] download failed', err); }
+  };
+
   // ── The keyboard, on the same map the document viewer uses ──────────────────────────────────
   //
   // It used to live in the parent and handled Escape and the two arrows. Everything else here acts
@@ -624,7 +630,7 @@ function Lightbox({
       if (intent === 'prev-page') { onPrev(); e.preventDefault(); return; }
       if (intent === 'next-page') { onNext(); e.preventDefault(); return; }
       if (intent === 'fullscreen') { toggleFullscreen(); e.preventDefault(); return; }
-      if (intent === 'download') { downloadRef.current?.click(); e.preventDefault(); return; }
+      if (intent === 'download') { void downloadCurrent(); e.preventDefault(); return; }
 
       // The rest only mean something for an image. On a PDF the iframe has its own controls, and
       // on an unsupported type there is nothing to zoom.
@@ -679,30 +685,16 @@ function Lightbox({
                   title="Keyboard shortcuts">⌨</button>
           {viewUrl && (
             <>
-              {/* Two links, because they are two different acts and one button cannot be both.
-                  ⇓ SAVES the file; ↗ OPENS it, which is what you want for a PDF you are about to
-                  read in the browser's own viewer. Before this only the second existed and it was
-                  labelled with a download-shaped tooltip. */}
-              <a
-                ref={downloadRef}
-                href={viewUrl}
-                download={downloadName}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* ONE control: the OS save dialog, under a name somebody can find again. The old
+                  pair (⇓ that behaved like ↗ cross-origin, and ↗) is gone — owner, 2026-09-09. */}
+              <button
+                type="button"
                 className="artifact-lightbox__download"
-                title={`Download (D) — ${downloadName}`}
+                title={`Save as… (D) — ${downloadName}`}
+                onClick={() => void downloadCurrent()}
               >
                 ⇓
-              </a>
-              <a
-                href={viewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="artifact-lightbox__download"
-                title="Open in a new tab"
-              >
-                ↗
-              </a>
+              </button>
             </>
           )}
           <button onClick={onClose} className="artifact-lightbox__close" title="Close (Esc)">✕</button>

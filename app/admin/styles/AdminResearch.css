@@ -14286,3 +14286,12 @@
 .fpl__filed { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--theme-success-fg, #166534); }
 .fpl__error { color: var(--theme-danger-fg, #991B1B); flex-basis: 100%; }
 .fpl__btn { margin: 0; display: inline-flex; align-items: center; gap: 0.35rem; }
+
+/* ── "Download all" — one .zip of the documents on screen (unified viewer, 2026-09-10) ─────── */
+.rrv__dl-all { display: flex; justify-content: flex-end; margin: 0 0 0.5rem; }
+.rrv__dl-all .rrv__doc-view { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: 0; padding: 0.3rem 0.7rem; }
+.rrv__dl-all .rrv__doc-view:disabled { opacity: 0.6; cursor: wait; }
+.review-docs__dl-all { display: flex; justify-content: flex-end; margin: 0 0 0.5rem; }
+.review-docs__dl-all .fv-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid var(--color-info); background: none; color: var(--color-info); font-size: 12px; font-weight: 600; cursor: pointer; }
+.review-docs__dl-all .fv-btn:hover { background: var(--color-info-surface); }
+.review-docs__dl-all .fv-btn:disabled { opacity: 0.6; cursor: wait; }

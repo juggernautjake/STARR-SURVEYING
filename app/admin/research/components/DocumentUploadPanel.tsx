@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import SourceDocumentViewer from './SourceDocumentViewer';
@@ -360,6 +361,12 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
               📂 Documents ({documents.length})
             </span>
             <div className="research-upload__list-select-controls" onClick={e => e.stopPropagation()}>
+              <DownloadAllButton
+                className="research-search__select-btn"
+                title="Uploaded documents"
+                label={`Download all (${documents.filter((d) => storedFileUrl(d)).length})`}
+                getEntries={() => documents.filter((d) => storedFileUrl(d)).map((d) => ({ name: d.document_label || d.original_filename || 'document', url: storedFileUrl(d) as string }))}
+              />
               <button
                 className="research-search__select-btn"
                 onClick={selectAllDocs}
@@ -482,167 +489,3 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
 // ── Document Viewer Modal ─────────────────────────────────────────────────────
 
 /** Determine the viewer mode based on file type or URL */
-function getViewerMode(doc: ResearchDocument): 'image' | 'pdf' | 'text' | 'none' {
-  const ft = (doc.file_type ?? '').toLowerCase();
-  const filename = (doc.original_filename ?? '').toLowerCase();
-
-  // Extract the path component from the URL (ignore query params/fragments)
-  // to avoid false-positive extension matches like "?thumb=photo.png"
-  let urlPath = '';
-  try {
-    urlPath = doc.storage_url ? new URL(doc.storage_url).pathname.toLowerCase() : '';
-  } catch {
-    urlPath = (doc.storage_url ?? '').toLowerCase();
-  }
-
-  // TIFFs are not displayable in browsers — fall through to text or none
-  const isTiff = ft === 'tiff' || ft === 'tif' || filename.endsWith('.tiff') || filename.endsWith('.tif');
-  if (isTiff) {
-    return doc.extracted_text ? 'text' : 'none';
-  }
-
-  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif'].some(
-    ext => ft === ext || filename.endsWith(`.${ext}`) || urlPath.endsWith(`.${ext}`),
-  );
-  if (isImage) return 'image';
-
-  const isPdf = ft === 'pdf' || filename.endsWith('.pdf') || urlPath.endsWith('.pdf');
-  if (isPdf) return 'pdf';
-
-  if (doc.extracted_text) return 'text';
-
-  // If a storage URL exists but we don't know the type, try to display as image.
-  //
-  // `hasStoredFile`, not `doc.storage_url`: a row whose `storage_path` is null advertises a file
-  // that was never written, and guessing "image" for it opens the viewer on a URL that 400s. With
-  // no file and no text, `'none'` is the truthful answer — and the viewer says so.
-  if (hasStoredFile(doc)) return 'image';
-
-  return 'none';
-}
-
-interface DocumentViewerModalProps {
-  doc: ResearchDocument;
-  onClose: () => void;
-}
-
-function DocumentViewerModal({ doc, onClose }: DocumentViewerModalProps) {
-  const [imgError, setImgError] = useState(false);
-  const [pdfError, setPdfError] = useState(false);
-  const mode = getViewerMode(doc);
-  const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); },
-    [onClose],
-  );
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  const title = doc.document_label || doc.original_filename || 'Document';
-  // Everything below renders from this. Nulling it here means one change covers the image, the PDF
-  // frame and the download link, rather than three sites that have to agree.
-  const storageUrl = storedFileUrl(doc);
-
-  return (
-    <div
-      className="docviewer-overlay"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div className="docviewer" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="docviewer__header">
-          <div className="docviewer__header-info">
-            <span className="docviewer__header-icon" aria-hidden="true">
-              {typeInfo?.icon || (mode === 'pdf' ? '📄' : mode === 'image' ? '🖼️' : '📝')}
-            </span>
-            <div>
-              <div className="docviewer__header-title">{title}</div>
-              <div className="docviewer__header-meta">
-                {typeInfo && <span>{typeInfo.label}</span>}
-                {doc.file_size_bytes && <span>{formatFileSize(doc.file_size_bytes)}</span>}
-                {doc.page_count && <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
-              </div>
-            </div>
-          </div>
-          <div className="docviewer__header-actions">
-            {storageUrl && (
-              <a
-                href={storageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="docviewer__open-btn"
-                title="Open in new tab"
-                onClick={e => e.stopPropagation()}
-              >
-                ↗ Open
-              </a>
-            )}
-            <button className="docviewer__close" onClick={onClose} aria-label="Close viewer">
-              &times;
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="docviewer__body">
-          {mode === 'image' && storageUrl && !imgError && (
-            <div className="docviewer__image-wrap">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={storageUrl}
-                alt={title}
-                className="docviewer__image"
-                onError={() => setImgError(true)}
-              />
-            </div>
-          )}
-          {mode === 'image' && storageUrl && imgError && (
-            <div className="docviewer__error">
-              <p>⚠️ Could not load image.</p>
-              <a href={storageUrl} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
-                Open file in new tab ↗
-              </a>
-            </div>
-          )}
-          {mode === 'pdf' && storageUrl && !pdfError && (
-            <div className="docviewer__pdf-wrap">
-              <iframe
-                src={`${storageUrl}#toolbar=1&navpanes=0&scrollbar=1`}
-                title={title}
-                className="docviewer__pdf-iframe"
-                onError={() => setPdfError(true)}
-              />
-            </div>
-          )}
-          {mode === 'pdf' && storageUrl && pdfError && (
-            <div className="docviewer__error">
-              <p>⚠️ Could not load PDF in the browser viewer.</p>
-              <a href={storageUrl} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
-                Open PDF in new tab ↗
-              </a>
-            </div>
-          )}
-          {mode === 'text' && (
-            <pre className="docviewer__text">{doc.extracted_text}</pre>
-          )}
-          {mode === 'none' && (
-            <div className="docviewer__error">
-              <p>No preview available for this document.</p>
-              {doc.source_url && (
-                <a href={doc.source_url} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
-                  View source ↗
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

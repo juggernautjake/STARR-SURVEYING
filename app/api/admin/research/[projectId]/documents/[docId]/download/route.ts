@@ -52,7 +52,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Try to get a signed URL valid for 60 minutes
   const { data: signedData, error: signErr } = await supabaseAdmin.storage
     .from(RESEARCH_DOCUMENTS_BUCKET)
-    .createSignedUrl(doc.storage_path, 3600);  // 60 min
+    // `download` → Content-Disposition: attachment, named — a link to this never lands in the
+    // browser's PDF viewer (owner, 2026-09-09). The shared viewer fetches the bytes itself anyway.
+    .createSignedUrl(doc.storage_path, 3600, { download: doc.original_filename || 'document' });  // 60 min
 
   if (signErr || !signedData?.signedUrl) {
     // Fall back to direct download via storage API

@@ -31,6 +31,10 @@ import {
 // why that matters: the route it posts to is what stamps `source_type: 'user_upload'`, and that
 // one value is what every "Uploaded" pill, filter and count on this page reads.
 import { ACCEPT_ATTRIBUTE, uploadDocuments, validateFiles } from '../../components/upload-documents';
+import SharedFileViewer from '@/app/admin/components/files/FileViewer';
+import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
+import { downloadFile } from '@/lib/files/download';
+import { researchDocCapabilities } from '@/lib/files/adapters/research-document';
 
 type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved' | 'images';
 type SortBy = 'date' | 'type' | 'name' | 'size';
@@ -66,6 +70,8 @@ export default function ProjectDocumentsPage() {
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<DocumentCard | null>(null);
+  /** The shared viewer, over every card that has a file (owner, 2026-09-09). */
+  const [viewerId, setViewerId] = useState<string | null>(null);
 
   // ── ADDING A FILE WHERE THE FILES ARE (N4) ────────────────────────────────────────────────
   //
@@ -476,19 +482,47 @@ export default function ProjectDocumentsPage() {
               </dl>
 
               {selected.fileUrl && (
-                <a
-                  href={selected.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                  Open full size
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewerId(selected.id)}
+                    className="inline-block px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    Open in viewer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void downloadFile(selected.fileUrl as string, selected.title)}
+                    className="inline-block px-3 py-1.5 border border-gray-600 text-gray-100 rounded text-sm hover:bg-gray-800"
+                  >
+                    Save as…
+                  </button>
+                </div>
               )}
             </div>
           </aside>
         )}
       </div>
+      {viewerId && (
+        <SharedFileViewer
+          collection={{
+            id: projectId,
+            title: 'Research documents',
+            files: documents.filter((d) => d.fileUrl).map((d) => ({
+              id: d.id, name: d.title, mime: d.isImage ? 'image/png' : null, size: d.sizeBytes, url: d.fileUrl,
+              downloadUrl: `/api/admin/research/${projectId}/documents/${d.id}/download`, pageCount: d.pageCount,
+              meta: [{ label: 'Kind', value: KIND_LABEL[d.kind] }, { label: 'Source', value: d.sourceLabel }],
+            })),
+          }}
+          fileId={viewerId}
+          capabilities={researchDocCapabilities({
+            projectId,
+            docFor: (id) => { const c = documents.find((d) => d.id === id); return c ? { id: c.id, research_project_id: projectId, original_filename: c.title } : undefined; },
+            onChanged: () => { void loadDocuments(); },
+          })}
+          onClose={() => setViewerId(null)}
+        />
+      )}
     </div>
   );
 }
