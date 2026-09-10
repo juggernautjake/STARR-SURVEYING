@@ -109,8 +109,9 @@ The listings and the modal set these; the older admin pages migrate toward them 
   in the accent.
 - **Filter:** a "Filter ▾" button with a count badge, opening a panel of labelled chip groups
   (Status / Sort by / dates / Show) with Reset and Done.
-- **Card:** 14 px radius, 1.5 px border, 5 px coloured left edge (solid for projects, dashed for
-  research — the edge is how a family is told apart), name + status chip on the first line,
+- **Card:** 14 px radius, 1.5 px border, 5 px coloured left edge (solid brand blue for projects; a
+  brand-red-to-blue gradient for research — the edge is how a family is told apart, the controls
+  stay identical), name + status chip on the first line,
   key/value lines in `--text-sm`, a dashed footer for the facts that matter.
 - **Status chip:** uppercase 0.74 rem, 8 px radius, tinted background + 1 px border, four tones
   only — `accent` (in progress), `warn` (needs a person), `good` (done), `muted` (not started).

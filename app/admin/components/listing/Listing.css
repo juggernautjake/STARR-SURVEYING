@@ -3,7 +3,7 @@
  * One vocabulary for both lists. `.lst-card` is the shared card; `.lst--projects` and
  * `.lst--research` on the page root set the accent, so the two pages read as siblings — the same
  * search bar, Filter dropdown, stacked cards and pager — and still tell apart at a glance:
- * projects carry a solid brand-blue edge and a money/jobs footer, research a teal edge, a bolder
+ * projects carry a solid brand-blue edge and a money/jobs footer, research a red-to-blue edge, a bolder
  * address line and a "Connected project" foot. Tokens only. */
 
 .lst {
@@ -19,10 +19,13 @@
   max-width: 1280px;
   margin: 0 auto;
 }
+/* Research keeps the SAME controls as projects (blue buttons, chips, focus) — consistency first —
+   and is told apart by its edge: the brand red running into the brand blue (owner, 2026-09-09:
+   "red or blue … or a gradient of red and blue"). The teal edge it had was not a brand colour. */
 .lst--research {
-  --lst-accent: color-mix(in srgb, var(--theme-success, #10B981) 55%, var(--theme-accent, #1D3095));
-  --lst-tint: color-mix(in srgb, var(--theme-success, #10B981) 10%, var(--theme-bg-surface, #FFFFFF));
+  --lst-red: var(--color-brand-red, #BD1218);
 }
+.lst--research .lst-title__icon { color: var(--lst-red); }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 
@@ -266,8 +269,9 @@
   background: var(--lst-accent);
 }
 .lst--research .lst-card::before {
-  background: repeating-linear-gradient(180deg, var(--lst-accent) 0 10px, transparent 10px 15px);
+  background: linear-gradient(180deg, var(--lst-red) 0%, var(--lst-accent) 100%);
 }
+.lst--research .lst-card:hover { border-color: color-mix(in srgb, var(--lst-red) 50%, var(--lst-accent)); }
 .lst-card:hover { border-color: var(--lst-accent); box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 10%, transparent); transform: translateY(var(--motion-lift)); }
 .lst-card:active { transform: scale(var(--motion-press)); transition-duration: var(--motion-instant); }
 .lst-card::before { transition: width var(--motion-fast); }
