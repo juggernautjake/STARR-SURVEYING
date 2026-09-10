@@ -65,7 +65,12 @@ const PDFJS_ASSETS = '/pdfjs/';
 let pdfLibPromise: Promise<PdfLib> | null = null;
 function loadPdfLib(): Promise<PdfLib> {
   if (!pdfLibPromise) {
-    pdfLibPromise = import('pdfjs-dist').then((mod) => {
+    // The MINIFIED build on purpose. pdf.mjs is itself a webpack bundle with its own
+    // __webpack_require__; under next dev (eval-wrapped modules) that name collides with Next's and
+    // module evaluation dies in __webpack_require__.r with 'Object.defineProperty called on
+    // non-object' — while next build, which mangles names, passes. pdf.min.mjs has them mangled
+    // already, so it evaluates the same way in both (2026-09-10).
+    pdfLibPromise = import('pdfjs-dist/build/pdf.min.mjs').then((mod) => {
       const lib = mod as unknown as PdfLib;
       // The worker is a static file copied from node_modules by scripts/copy-pdfjs-assets.mjs
       // (prebuild/predev). Bundling it by URL worked in dev and failed the production build: the
@@ -169,6 +174,9 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
         setPageCount(doc.numPages);
         setLoading(false);
       } catch (err) {
+        // The message is shown; the stack goes to the console, because "defineProperty called on
+        // non-object" says nothing about WHERE without it.
+        console.error('[FileViewer] could not open the PDF', err);
         if (!cancelled) { setLoadError(err instanceof Error ? err.message : String(err)); setLoading(false); }
       }
     })();
@@ -369,14 +377,19 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   return (
     <div className={`fv-overlay${closing ? ' fv-overlay--closing' : ''}`} role="dialog" aria-modal="true" aria-label={`Viewing ${file.name}`}>
       <div className={`fv${infoOpen ? ' fv--info' : ''}`}>
-        {/* ── Header: ‹ name › ─────────────────────────────────────────── */}
+        {/* ── Header: ‹ name › centred, the position beneath (owner, 2026-09-10) ────────────
+            The arrows sit directly either side of the name, in the middle of the bar — before this
+            the name and ‹ hugged the left edge and › sat far to the right, so the pair read as two
+            unrelated controls. The kind icon keeps the left, the actions keep the right; the middle
+            column is what is centred. */}
         <header className="fv-head">
-          <div className="fv-head__nav">
+          <div className="fv-head__side"><KindIcon file={file} /></div>
+          <div className="fv-head__center">
+            <div className="fv-head__nav">
             <button type="button" className="fv-nav" onClick={() => goTo(-1)} disabled={prevIndex === null} aria-label="Previous file" title="Previous (←)">
               <ChevronLeft size={20} aria-hidden="true" />
             </button>
             <div className="fv-head__name">
-              <KindIcon file={file} />
               {renaming && capabilities.rename ? (
                 <input
                   className="fv-head__rename"
@@ -398,11 +411,16 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                   {capabilities.rename ? <Pencil size={12} aria-hidden="true" className="fv-head__pencil" /> : null}
                 </button>
               )}
-              <span className="fv-head__count">{index + 1} of {files.length}</span>
             </div>
             <button type="button" className="fv-nav" onClick={() => goTo(1)} disabled={nextIndex === null} aria-label="Next file" title="Next (→)">
               <ChevronRight size={20} aria-hidden="true" />
             </button>
+            </div>
+            {/* Where you are: file N of M, and the page for a multi-page document. */}
+            <span className="fv-head__count" aria-live="polite">
+              {index + 1} / {files.length}{files.length === 1 ? ' file' : ' files'}
+              {kind === 'pdf' && pageCount ? ` · Page ${page} of ${pageCount}` : ''}
+            </span>
           </div>
           <div className="fv-head__actions">
             <button type="button" className="fv-btn fv-btn--primary" onClick={download} disabled={downloading} title={canChooseWhereToSave() ? 'Choose where to save this file' : 'Download this file'}>

@@ -32,16 +32,20 @@
 
 /* ── Header: ‹ name › ─────────────────────────────────────────────────── */
 
+/* Three columns — the kind icon, the centred ‹ name › block, the actions — so the middle is truly
+   the middle of the bar whatever the actions weigh (owner, 2026-09-10). */
 .fv-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(2.5rem, 1fr) auto minmax(2.5rem, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 0.75rem 0.6rem 0.5rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--theme-border, #E2E8F0);
   background: var(--theme-bg-surface, #FFFFFF);
 }
-.fv-head__nav { display: flex; align-items: center; gap: 0.35rem; min-width: 0; flex: 1; }
+.fv-head__side { display: flex; align-items: center; justify-self: start; color: var(--theme-fg-secondary, #475569); }
+.fv-head__center { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; min-width: 0; max-width: 100%; justify-self: center; }
+.fv-head__nav { display: flex; align-items: center; justify-content: center; gap: 0.5rem; min-width: 0; max-width: 100%; }
 .fv-nav {
   display: inline-flex;
   align-items: center;
@@ -58,13 +62,15 @@
 .fv-nav:hover:not(:disabled) { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
 .fv-nav:active:not(:disabled) { transform: scale(0.94); }
 .fv-nav:disabled { opacity: 0.35; cursor: not-allowed; }
-.fv-head__name { display: flex; align-items: center; gap: 0.5rem; min-width: 0; flex: 1; color: var(--theme-fg-secondary, #475569); }
+.fv-head__name { display: flex; align-items: center; justify-content: center; gap: 0.5rem; min-width: 0; max-width: min(56vw, 44rem); color: var(--theme-fg-secondary, #475569); }
 .fv-head__title {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
   padding: 0.3rem 0.5rem;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -96,8 +102,8 @@
   font-weight: 700;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent, #1D3095) 18%, transparent);
 }
-.fv-head__count { flex-shrink: 0; font-size: 0.78rem; color: var(--theme-fg-muted, #64748B); font-variant-numeric: tabular-nums; }
-.fv-head__actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+.fv-head__count { font-size: 0.78rem; color: var(--theme-fg-muted, #64748B); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fv-head__actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; justify-self: end; }
 
 .fv-btn {
   display: inline-flex;
@@ -318,5 +324,6 @@
   .fv-body { flex-direction: column; }
   .fv-info { width: auto; max-height: 45%; border-left: none; border-top: 1px solid var(--theme-border, #E2E8F0); }
   .fv-tools__hint { display: none; }
-  .fv-head__count { display: none; }
+  .fv-head { grid-template-columns: auto 1fr auto; gap: 0.5rem; }
+  .fv-head__name { max-width: 100%; }
 }
