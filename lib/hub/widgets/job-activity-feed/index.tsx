@@ -106,7 +106,7 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
         const job = it.job_name ?? it.job_number ?? it.job_id ?? 'job';
         const meta = [job, showActor ? (it.actor ?? 'system') : null, showTime && it.at ? formatAge(it.at) : null]
           .filter(Boolean).join(' · ');
-        const href = it.job_id ? jobHref(it.job_id) : '/admin/jobs';
+        const href = it.job_id ? jobHref(it.job_id) : '/admin/jobs?tab=jobs';
         return (
           <li key={it.id}>
             <Link href={href} style={rowStyle} aria-label={`${it.label} — open ${job}`}>

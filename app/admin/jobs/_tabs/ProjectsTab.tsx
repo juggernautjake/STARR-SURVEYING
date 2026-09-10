@@ -174,7 +174,7 @@ export default function ProjectsPage() {
           </FilterGroup>
         </ListingFilter>
         <div className="lst-toolbar__right">
-          <Link href="/admin/jobs" className="lst-chip">All jobs</Link>
+          <Link href="/admin/jobs?tab=jobs" className="lst-chip">All jobs</Link>
         </div>
       </div>
 

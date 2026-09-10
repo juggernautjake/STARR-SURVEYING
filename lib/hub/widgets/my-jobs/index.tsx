@@ -169,7 +169,7 @@ function MyJobsWidget({ size, content }: WidgetProps<MyJobsContent>) {
   // most important stat"). Links to the jobs page.
   if (bucket === 'tiny') {
     return (
-      <Link href="/admin/jobs" style={tinyWrapStyle} aria-label={`${jobs.length} jobs`}>
+      <Link href="/admin/jobs?tab=jobs" style={tinyWrapStyle} aria-label={`${jobs.length} jobs`}>
         <span style={tinyCountStyle}>{jobs.length}</span>
         <span style={tinyLabelStyle}>{jobs.length === 1 ? 'job' : 'jobs'}</span>
       </Link>

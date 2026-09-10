@@ -30,10 +30,10 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // instead of the personal `/admin/my-jobs` filter. The widget's
   // header still shows the user's own jobs; the footer link gives
   // them a one-click jump to every job they can see.
-  'my-jobs': { href: '/admin/jobs', label: 'jobs' },
+  'my-jobs': { href: '/admin/jobs?tab=jobs', label: 'jobs' },
   'assignments-due': { href: '/admin/assignments', label: 'assignments' },
   'field-data-pending': { href: '/admin/field-data', label: 'field data' },
-  'job-activity-feed': { href: '/admin/jobs', label: 'jobs' },
+  'job-activity-feed': { href: '/admin/jobs?tab=jobs', label: 'jobs' },
   // consolidation Slice 5 (2026-05-30) — unified Activity widget;
   // footer points at the cross-job activity timeline since both
   // modes (job-events + recent-pages) center on that hub area.

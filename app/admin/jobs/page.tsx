@@ -82,7 +82,9 @@ const PORTAL: PortalSpec = {
     { id: 'weather', label: 'Weather', icon: CloudSun, hint: 'What the sky is doing over the jobs, and whether the crews can work.', roles: [...WORK_VIEW, 'field_crew'] as never },
     { id: 'compliance', label: 'Compliance', icon: BadgeCheck, hint: 'Licences, insurance and calibration — what is current, and what lapses next.', roles: WORK_VIEW as never },
   ],
-  defaultTab: 'jobs',
+  // Projects first (owner, 2026-09-09): the nav row is "Job Projects" and lands on the project
+  // listing. Anything that means the jobs list links `?tab=jobs`.
+  defaultTab: 'projects',
 };
 
 export default function JobsPortal() {

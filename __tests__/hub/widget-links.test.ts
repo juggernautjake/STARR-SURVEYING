@@ -108,7 +108,8 @@ describe('widget-links — every mapped target is a real-looking route', () => {
     // hub-widget-routing 2026-05-30 — `my-jobs` footer now points at
     // the org-wide /admin/jobs page (per user feedback), not the
     // personal `/admin/my-jobs` filter.
-    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/jobs', label: 'jobs' });
+    // `?tab=jobs` since 2026-09-09: the portal opens on Projects by default, and this widget means the jobs list.
+    expect(widgetGoToTarget('my-jobs')).toEqual({ href: '/admin/jobs?tab=jobs', label: 'jobs' });
     expect(widgetGoToTarget('quick-actions')).toBeNull();
     expect(widgetGoToTarget('not-a-widget')).toBeNull();
   });

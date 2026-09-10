@@ -48,7 +48,7 @@ describe('/admin/calendar/page.tsx — P3 derivation', () => {
 
   it('CTA only renders for the no-events case (not all-hidden — there is no jobs link to fix that)', () => {
     expect(SRC).toMatch(
-      /\{emptyKind === 'no-events' && \(\s*\n\s*<Link\s*\n\s*href="\/admin\/jobs"/,
+      /\{emptyKind === 'no-events' && \(\s*\n\s*<Link\s*\n\s*href="\/admin\/jobs\?tab=jobs"/,
     );
   });
 

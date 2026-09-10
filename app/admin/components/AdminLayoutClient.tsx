@@ -91,7 +91,7 @@ export const PAGE_TITLES: Record<string, string> = {
   // /admin/profile + /admin/my-jobs page-titles removed in
   // consolidation Slice 2 — the pages were deleted; middleware
   // redirects the URLs to /admin/me?tab=… before they ever render.
-  '/admin/jobs': 'All Jobs',
+  '/admin/jobs': 'Job Projects',
   '/admin/jobs/new': 'New Job',
   '/admin/jobs/import': 'Import Jobs',
   '/admin/employees': 'Employees',

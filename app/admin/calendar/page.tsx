@@ -603,7 +603,7 @@ export default function CalendarPage() {
           <span className="calendar-page__empty-message">{emptyMessage}</span>
           {emptyKind === 'no-events' && (
             <Link
-              href="/admin/jobs"
+              href="/admin/jobs?tab=jobs"
               className="calendar-page__empty-cta"
               data-action="open-jobs-from-empty"
             >

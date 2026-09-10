@@ -65,7 +65,7 @@ const COUNTERS: Record<string, Counter[]> = {
         .eq('is_archived', false)
         .eq('status', 'active'),
     ),
-    counter('Active jobs', '/admin/jobs', () =>
+    counter('Active jobs', '/admin/jobs?tab=jobs', () =>
       supabaseAdmin
         .from('jobs')
         .select('id', { count: 'exact', head: true })
@@ -73,7 +73,7 @@ const COUNTERS: Record<string, Counter[]> = {
         .eq('is_archived', false)
         .not('stage', 'in', '("delivered","cancelled")'),
     ),
-    counter('Priority jobs', '/admin/jobs', () =>
+    counter('Priority jobs', '/admin/jobs?tab=jobs', () =>
       supabaseAdmin
         .from('jobs')
         .select('id', { count: 'exact', head: true })

@@ -288,7 +288,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // signed-in account. Weather moved behind a narrower one; it had no middleware entry at all.
   //
   // C10's rule checked: neither has a dynamic child.
-  { href: '/admin/jobs', label: 'Jobs & Projects', workspace: 'work', iconName: 'ListChecks', description: 'Every job and the projects they belong to, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import', 'rain', 'forecast', 'conditions', 'licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours', 'weather', 'compliance'] },
+  // Owner, 2026-09-09: "under the work icon it should be just 'Job Projects', and when clicked it
+  // should take the user to the project listing page, not the job listing page." The portal's
+  // default tab is now `projects` (app/admin/jobs/page.tsx), so this href lands there; links that
+  // mean the JOBS list say `?tab=jobs`.
+  { href: '/admin/jobs', label: 'Job Projects', workspace: 'work', iconName: 'FolderKanban', description: 'Every project and the jobs inside it, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import', 'rain', 'forecast', 'conditions', 'licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours', 'weather', 'compliance'] },
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────

@@ -55,7 +55,7 @@ export const HELP_CATALOG: HelpCatalog = {
       'Hours Approval funnels every submitted timesheet through a single queue — approve in bulk by selecting rows.',
     ],
     resources: [
-      { label: 'All jobs', href: '/admin/jobs' },
+      { label: 'All jobs', href: '/admin/jobs?tab=jobs' },
       { label: 'Field team', href: '/admin/team' },
       { label: 'Hours approval', href: '/admin/hours?tab=approvals' },
     ],
