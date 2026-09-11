@@ -130,6 +130,8 @@ interface IncomingFormData {
   projectDetails?: string;
   preferredContact?: string;
   howHeard?: string;
+  /** "Text me updates" checkbox. JSON sends a boolean; multipart sends "true"/"on". */
+  smsConsent?: boolean | string;
 
   // Alternative naming (from ContactForm component)
   full_name?: string;
@@ -162,6 +164,8 @@ interface NormalizedData {
   projectDetails: string;
   preferredContact: string;
   howHeard: string;
+  /** The customer ticked "Text me updates". Recorded on the lead so a text to them is defensible. */
+  smsConsent: boolean;
   source: string;
   subject: string;
   message: string;
@@ -1268,6 +1272,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       projectDetails: body.projectDetails || body.project_description || '',
       preferredContact: body.preferredContact || body.preferred_contact_method || 'email',
       howHeard: body.howHeard || body.how_heard || '',
+      smsConsent: body.smsConsent === true || body.smsConsent === 'true' || body.smsConsent === 'on',
       source: body.source || 'contact-form',
       subject: body.subject || '',
       message: body.message || '',
@@ -1322,7 +1327,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         city: undefined,
         state: undefined,
         serviceType,
-        projectDetails: projectDetailsForLead,
+        projectDetails: [projectDetailsForLead, data.smsConsent ? 'Customer consented to SMS updates (web form).' : '']
+          .filter(Boolean)
+          .join('\n'),
         estimatedAcreage,
         referenceNumber,
         source: isCalculator ? 'Pricing Calculator' : 'Website',
