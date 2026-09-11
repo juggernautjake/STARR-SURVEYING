@@ -12,13 +12,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useNewJobs } from '@/lib/admin/use-new-jobs';
+import { usePageTitle } from '@/lib/admin/page-title';
 import '@/app/admin/components/listing/Listing.css';
 import { useParams, useRouter } from 'next/navigation';
 import {
   FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, Trash2, Briefcase, Check, Pencil,
+  CalendarDays, Ruler, DollarSign, ChevronRight, Star,
 } from 'lucide-react';
+import { formatDate, dueBubble } from '@/lib/admin/listing';
 import { usePageError } from '../../hooks/usePageError';
-import { STAGE_CONFIG } from '../../components/jobs/JobCard';
+import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import FolderExplorer from '../../components/files/FolderExplorer';
 import ProjectMoneyPanel from '../../components/projects/ProjectMoneyPanel';
 import {
@@ -36,9 +39,11 @@ interface Project {
 
 interface Job {
   id: string; job_number: string; name: string; survey_type: string; stage: string;
-  address: string | null; deadline: string | null;
+  address: string | null; city: string | null; state: string | null; zip: string | null; county: string | null;
+  subdivision: string | null; lot_number: string | null; abstract_number: string | null; acreage: number | null;
+  deadline: string | null; created_at: string;
   quote_amount: number | null; final_amount: number | null; amount_paid: number | null;
-  is_archived: boolean;
+  payment_status: string | null; is_priority: boolean; is_archived: boolean;
 }
 
 interface Rollup {
@@ -58,6 +63,8 @@ export default function ProjectDetailPage() {
   const setError = useCallback((m: string) => { setErrorText(m); reportPageError(m); }, [reportPageError]);
 
   const [project, setProject] = useState<Project | null>(null);
+  // The bar says which project this is, not "Admin" (owner, 2026-09-10).
+  usePageTitle(project ? projectLabel(project) : null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [rollup, setRollup] = useState<Rollup | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,7 +137,6 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const site = [project.address, project.city, project.state, project.zip].filter(Boolean).join(', ');
   const hasClient = Boolean(project.client_company || project.client_name || project.client_email || project.client_phone);
 
   return (
@@ -191,7 +197,7 @@ export default function ProjectDetailPage() {
                 <p>No jobs in this project yet.</p>
                 <p className="pd__empty-sub">
                   A project usually holds several — the boundary survey, then the topo, then the
-                  staking. Each one inherits this project&rsquo;s client and site.
+                  staking. Each one inherits this project&rsquo;s client and carries its own address.
                 </p>
                 <Link href={`/admin/jobs/new?project=${project.id}`} className="proj-page__btn proj-page__btn--primary">
                   <Plus size={15} aria-hidden /> New job in this project
@@ -199,22 +205,79 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <ul className="pd__jobs" data-testid="project-jobs">
+                {/* ── EACH JOB IN FULL (owner, 2026-09-10) ──────────────────────────────────────
+                    "Each job should have its own quote and address and name and job number and all
+                    of that." A row used to be number · name · stage · one figure. A card now carries
+                    the property (the address is the JOB's — a project has none), the survey type and
+                    acreage, the deadline with its due bubble, and the money in three figures. */}
                 {jobs.map((j) => {
                   const stage = STAGE_CONFIG[j.stage] ?? { label: j.stage, color: 'var(--theme-fg-secondary, #6B7280)' };
+                  const street = [j.address, j.city].filter(Boolean).join(', ');
+                  const locale = [j.state, j.zip].filter(Boolean).join(' ');
+                  const legal = [j.subdivision, j.lot_number ? `Lot ${j.lot_number}` : null, j.abstract_number ? `Abstract ${j.abstract_number}` : null].filter(Boolean).join(' · ');
+                  const due = dueBubble(j.deadline);
+                  const quoted = j.final_amount ?? j.quote_amount;
+                  const paid = j.amount_paid ?? 0;
+                  // The status the payments route writes: unpaid → partial → paid. "—" until a quote exists.
+                  const payStatus = quoted != null ? (j.payment_status ?? (paid >= quoted && quoted > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid')) : null;
+                  const PAY_LABEL: Record<string, string> = { paid: 'Paid', partial: 'Partially paid', unpaid: 'Unpaid' };
                   return (
                     <li key={j.id}>
-                      <Link href={`/admin/jobs/${j.id}`} className="pd__job">
-                        <span className="pd__job-num">
-                          {j.job_number}
-                          {newJobs.jobIds.has(j.id) ? <span className="lst-bubble lst-bubble--new" data-testid="project-job-new">New</span> : null}
-                        </span>
-                        <span className="pd__job-name">{j.name}</span>
-                        <span className="pd__job-stage" style={{ background: `${stage.color}18`, color: stage.color }}>
-                          {stage.label}
-                        </span>
-                        <span className="pd__job-money">
-                          {j.final_amount || j.quote_amount ? money(j.final_amount || j.quote_amount || 0) : '—'}
-                        </span>
+                      <Link href={`/admin/jobs/${j.id}`} className={`pd__jobcard${j.is_archived ? ' pd__jobcard--archived' : ''}`} data-testid={`project-job-${j.id}`}>
+                        <div className="pd__jobcard-head">
+                          <span className="pd__jobcard-num">
+                            {j.is_priority ? <Star size={12} className="pd__jobcard-priority" aria-label="Priority" /> : null}
+                            {j.job_number}
+                            {newJobs.jobIds.has(j.id) ? <span className="lst-bubble lst-bubble--new" data-testid="project-job-new">New</span> : null}
+                          </span>
+                          <span className="pd__jobcard-stage" style={{ background: `${stage.color}18`, color: stage.color }}>
+                            {stage.label}
+                          </span>
+                          <ChevronRight size={16} className="pd__jobcard-go" aria-hidden />
+                        </div>
+                        <h3 className="pd__jobcard-name">{j.name}</h3>
+                        <div className="pd__jobcard-facts">
+                          <div className="pd__jobcard-fact pd__jobcard-fact--wide">
+                            <span className="pd__jobcard-k"><MapPin size={12} aria-hidden /> Address</span>
+                            <span className="pd__jobcard-v">
+                              {street || <span className="pd__jobcard-muted">—</span>}
+                              {locale ? <span className="pd__jobcard-sub"> {locale}</span> : null}
+                              {j.county ? <span className="pd__jobcard-sub"> · {j.county} County</span> : null}
+                              {legal ? <span className="pd__jobcard-legal">{legal}</span> : null}
+                            </span>
+                          </div>
+                          <div className="pd__jobcard-fact">
+                            <span className="pd__jobcard-k"><Ruler size={12} aria-hidden /> Survey</span>
+                            <span className="pd__jobcard-v">
+                              {SURVEY_TYPES[j.survey_type] ?? j.survey_type ?? <span className="pd__jobcard-muted">—</span>}
+                              {j.acreage != null ? <span className="pd__jobcard-sub"> · {j.acreage} acres</span> : null}
+                            </span>
+                          </div>
+                          <div className="pd__jobcard-fact">
+                            <span className="pd__jobcard-k"><CalendarDays size={12} aria-hidden /> Deadline</span>
+                            <span className="pd__jobcard-v">
+                              {j.deadline ? formatDate(j.deadline) : <span className="pd__jobcard-muted">—</span>}
+                              {due ? <span className={`lst-bubble lst-bubble--${due.tone}`}>{due.label}</span> : null}
+                            </span>
+                          </div>
+                          <div className="pd__jobcard-money-row">
+                          <div className="pd__jobcard-fact pd__jobcard-fact--money">
+                            <span className="pd__jobcard-k"><DollarSign size={12} aria-hidden /> {j.final_amount != null ? 'Final amount' : 'Quote'}</span>
+                            <span className="pd__jobcard-v pd__jobcard-money">{quoted != null ? money(quoted) : <span className="pd__jobcard-muted">—</span>}</span>
+                          </div>
+                          <div className="pd__jobcard-fact pd__jobcard-fact--money">
+                            <span className="pd__jobcard-k">Payment</span>
+                            <span className="pd__jobcard-v">
+                              {payStatus ? (
+                                <>
+                                  <span className={`pd__jobcard-pay pd__jobcard-pay--${payStatus}`} data-testid="project-job-pay">{PAY_LABEL[payStatus] ?? payStatus}</span>
+                                  {quoted != null && payStatus !== 'paid' ? <span className="pd__jobcard-sub"> {money(paid)} of {money(quoted)}</span> : null}
+                                </>
+                              ) : <span className="pd__jobcard-muted">—</span>}
+                            </span>
+                          </div>
+                          </div>
+                        </div>
                       </Link>
                     </li>
                   );
@@ -237,16 +300,6 @@ export default function ProjectDetailPage() {
               {project.client_email && <p className="pd__line"><Mail size={13} aria-hidden /> <a href={`mailto:${project.client_email}`}>{project.client_email}</a></p>}
               {project.client_phone && <p className="pd__line"><Phone size={13} aria-hidden /> <a href={`tel:${project.client_phone}`}>{project.client_phone}</a></p>}
               {!hasClient && <p className="pd__note">No client details on this project.</p>}
-            </div>
-
-            <div className="pd__card">
-              <h3>Site</h3>
-              {site && <p className="pd__line"><MapPin size={13} aria-hidden /> {site}</p>}
-              {project.county && <p className="pd__line">{project.county} County</p>}
-              {project.subdivision && <p className="pd__line">{project.subdivision}{project.lot_number ? `, Lot ${project.lot_number}` : ''}</p>}
-              {project.abstract_number && <p className="pd__line">Abstract {project.abstract_number}</p>}
-              {project.acreage != null && <p className="pd__line">{project.acreage} acres</p>}
-              {!site && !project.county && <p className="pd__note">No site details on this project.</p>}
             </div>
 
             {project.description && (

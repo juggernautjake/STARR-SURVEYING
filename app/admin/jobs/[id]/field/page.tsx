@@ -34,6 +34,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { usePageTitle } from '@/lib/admin/page-title';
 import { useSession } from 'next-auth/react';
 // The approved research packet, read in the truck without opening the research UI (plan R26).
 import JobResearchPacket from '../JobResearchPacket';
@@ -203,6 +204,7 @@ export default function JobFieldDataPage() {
   const jobId = typeof params?.id === 'string' ? params.id : null;
 
   const [data, setData] = useState<FieldDataResponse | null>(null);
+  usePageTitle(data?.job ? `Field captures — ${[data.job.job_number, data.job.name].filter(Boolean).join(' — ')}` : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);

@@ -17,9 +17,9 @@ const COLS =
   + ' is_archived, is_priority, created_by, created_at, updated_at, deleted_at';
 
 const JOB_COLS =
-  'id, job_number, name, survey_type, stage, address, city, county, deadline, quote_amount,'
-  + ' final_amount, amount_paid, payment_status, client_name, is_priority, is_archived,'
-  + ' created_at, updated_at, deleted_at';
+  'id, job_number, name, survey_type, stage, address, city, state, zip, county, subdivision,'
+  + ' lot_number, abstract_number, acreage, deadline, quote_amount, final_amount, amount_paid,'
+  + ' payment_status, client_name, is_priority, is_archived, created_at, updated_at, deleted_at';
 
 /** Fields a PATCH may set. Deliberately explicit: a spread of the body would let a caller write
  *  `id`, `org_id` or `created_by`, and "the client sent it" is not authorisation. */

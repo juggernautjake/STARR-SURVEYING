@@ -60,7 +60,7 @@ const PORTAL: PortalSpec = {
   route: '/admin/jobs',
   tabs: [
     { id: 'jobs', label: 'Jobs', icon: ListChecks, hint: 'Every job, its stage, and who is on it.', roles: WORK_VIEW as never },
-    { id: 'projects', label: 'Projects', icon: FolderKanban, hint: 'The containers jobs belong to — one client, one site, many jobs.', roles: WORK_VIEW as never },
+    { id: 'projects', label: 'Projects', icon: FolderKanban, hint: 'The containers jobs belong to — one client, many jobs, each with its own site.', roles: WORK_VIEW as never },
     { id: 'field-data', label: 'Field data', icon: MapPin, hint: 'What the crews have sent back, and what is still on a collector.', roles: WORK_VIEW as never },
     // The hint carries a distinction the registry description used to: this is a WORKING feed and
     // not a compliance record — the Audit Log is that. §2.6 of the platform audit found five places

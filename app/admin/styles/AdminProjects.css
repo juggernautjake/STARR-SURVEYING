@@ -309,46 +309,54 @@
   color: var(--color-brand-navy, #1D3095);
 }
 
-/* The job rows. This is the class that silently matched nothing under styled-jsx, because it sits
- * on a <Link>. */
-.pd__jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
-.pd__job {
-  display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  /* A near-invisible hairline made three jobs read as one block of text, especially on a phone
-   * where each job occupies three lines. A tinted ground separates them at a glance without
-   * turning the list into a table. */
+/* ── Each job in full (owner, 2026-09-10) ────────────────────────────────────────────────────────
+ * The list of jobs inside a project. A card per job — number, stage, name, then the property (the
+ * address is the JOB's; a project has none), the survey, the deadline, and the money in three
+ * figures. The class sits on a <Link>. */
+.pd__jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.pd__jobcard {
+  display: block;
+  padding: 0.75rem 0.9rem 0.8rem;
   border: 1px solid var(--theme-border, #E5E7EB);
-  background: var(--color-bg-subtle, #F9FAFB);
-  border-radius: 9px;
+  border-left: 4px solid var(--color-brand-navy, #1D3095);
+  background: var(--theme-bg-surface, #FFFFFF);
+  border-radius: 12px;
   text-decoration: none;
   color: inherit;
-  transition: border-color 120ms, background 120ms, box-shadow 120ms;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
 }
-.pd__job:hover {
-  border-color: var(--color-brand-navy, #1D3095);
-  background: var(--theme-brand-tint, #FAFBFF);
-  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.08);
-}
-.pd__job:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
-.pd__job-num { font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted, #6B7280); white-space: nowrap; }
-.pd__job-name { font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; line-height: 1.35; color: var(--color-brand-navy, #1D3095); }
-.pd__job:hover .pd__job-name { text-decoration: underline; }
-.pd__job-stage { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; white-space: nowrap; }
-.pd__job-money { font-size: 0.82rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); white-space: nowrap; text-align: right; }
+.pd__jobcard:hover { border-color: var(--color-brand-navy, #1D3095); box-shadow: 0 8px 20px rgba(29, 48, 149, 0.10); transform: translateY(var(--motion-lift)); }
+.pd__jobcard:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
+.pd__jobcard--archived { opacity: 0.7; border-left-color: var(--theme-fg-muted, #9CA3AF); }
+.pd__jobcard-head { display: flex; align-items: center; gap: 0.5rem; }
+.pd__jobcard-num { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted, #6B7280); letter-spacing: 0.02em; }
+.pd__jobcard-priority { color: var(--color-brand-red, #BD1218); fill: currentColor; }
+.pd__jobcard-stage { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.pd__jobcard-go { margin-left: auto; color: var(--theme-fg-muted, #9CA3AF); transition: transform var(--motion-fast), color var(--motion-fast); }
+.pd__jobcard:hover .pd__jobcard-go { color: var(--color-brand-navy, #1D3095); transform: translateX(3px); }
+.pd__jobcard-name { margin: 0.35rem 0 0.6rem; font-family: 'Sora', sans-serif; font-size: 1.02rem; font-weight: 700; line-height: 1.3; color: var(--color-brand-navy, #1D3095); overflow-wrap: anywhere; }
+.pd__jobcard:hover .pd__jobcard-name { text-decoration: underline; }
+.pd__jobcard-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem 1rem; }
+.pd__jobcard-fact { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.pd__jobcard-fact--wide { grid-column: 1 / -1; }
+.pd__jobcard-k { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted, #6B7280); }
+.pd__jobcard-v { font-size: 0.88rem; font-weight: 600; color: var(--theme-fg-primary, #1F2937); overflow-wrap: anywhere; }
+.pd__jobcard-sub { font-weight: 500; color: var(--theme-fg-secondary, #4B5563); }
+.pd__jobcard-legal { display: block; font-size: 0.78rem; font-weight: 500; color: var(--color-text-muted, #6B7280); }
+.pd__jobcard-muted { font-weight: 500; color: var(--color-text-muted, #9CA3AF); }
+.pd__jobcard-money-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem 1rem; margin-top: 0.2rem; padding-top: 0.5rem; border-top: 1px dashed var(--theme-border, #E5E7EB); }
+.pd__jobcard-fact--money { min-width: 0; }
+.pd__jobcard-money { font-variant-numeric: tabular-nums; }
+.pd__jobcard-pay { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.02em; }
+.pd__jobcard-pay--paid { background: var(--theme-success-bg, #ECFDF5); color: var(--theme-success-fg, #047857); }
+.pd__jobcard-pay--partial { background: var(--theme-warning-bg, #FFFBEB); color: var(--theme-warning-fg, #92400E); }
+.pd__jobcard-pay--unpaid { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #B91C1C); }
 
-/* On a phone a four-column row cannot hold a job number, a name, a stage pill and a figure. Two
- * rows: identity on top, status and money beneath — which is also the order somebody reads them. */
 @media (max-width: 640px) {
-  .pd__job { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0.35rem; }
-  .pd__job-num { grid-column: 1; }
-  .pd__job-money { grid-column: 2; grid-row: 1; }
-  .pd__job-name { grid-column: 1 / -1; grid-row: 2; }
-  .pd__job-stage { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+  .pd__jobcard-facts, .pd__jobcard-money-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* (the old .pd__job rows went with the cards, 2026-09-10) */
 
 .pd__empty { text-align: center; padding: 1.5rem 1rem; color: var(--color-text-muted, #6B7280); }
 .pd__empty p { margin: 0 0 0.4rem; }

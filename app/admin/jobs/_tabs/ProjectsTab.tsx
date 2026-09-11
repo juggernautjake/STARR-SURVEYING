@@ -50,10 +50,16 @@ const STATUS_TONE: Record<ProjectStatus, 'accent' | 'warn' | 'good' | 'muted'> =
 };
 
 /** The project's own site line, then any job site that differs from it. */
+/** The addresses on a card are the JOBS' — a project has none of its own (owner, 2026-09-10):
+ *  "we might have a project that has multiple properties with different addresses." */
 function addressLines(p: Project): string[] {
-  const own = [p.address, p.city].filter(Boolean).join(', ').trim();
-  const extra = (p.job_addresses ?? []).filter((a) => a && a.toLowerCase() !== own.toLowerCase());
-  return [own, ...extra].filter(Boolean);
+  const seen = new Set<string>();
+  return (p.job_addresses ?? []).filter((a) => {
+    const k = a.trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 export default function ProjectsPage() {
@@ -265,9 +271,10 @@ export default function ProjectsPage() {
                       </div>
                       <div className="lst-card__line">
                         <span className="lst-card__k">{lines.length > 1 ? 'Addresses' : 'Address'}</span>
-                        <span className="lst-card__v">
-                          {lines.length > 0 ? lines.join(' · ') : '—'}
-                          {p.county ? <span className="lst-card__address-sub"> · {p.county} County</span> : null}
+                        <span className="lst-card__v lst-card__v--addresses">
+                          {lines.length > 0
+                            ? lines.map((l) => <span key={l} className="lst-card__address-line">{l}</span>)
+                            : <span className="lst-card__address-sub">No job addresses yet</span>}
                         </span>
                       </div>
                     </div>

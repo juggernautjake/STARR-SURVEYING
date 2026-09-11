@@ -23,8 +23,6 @@ export default function NewProjectPage() {
   const [form, setForm] = useState({
     name: '', description: '',
     client_name: '', client_company: '', client_email: '', client_phone: '',
-    address: '', city: '', state: 'TX', zip: '', county: '',
-    subdivision: '', abstract_number: '', lot_number: '', acreage: '',
     notes: '',
   });
 
@@ -41,10 +39,12 @@ export default function NewProjectPage() {
   const suggestion = useMemo(
     () => suggestProjectName({
       client: form.client_company || form.client_name,
-      location: form.subdivision || form.address || form.city,
+      // No site on a project (2026-09-10): the jobs carry the addresses, so the suggestion is the
+      // client and the date.
+      location: '',
       date: new Date(),
     }),
-    [form.client_company, form.client_name, form.subdivision, form.address, form.city],
+    [form.client_company, form.client_name],
   );
   const canSuggest = suggestion.length > 0 && suggestion !== form.name.trim();
 
@@ -60,9 +60,6 @@ export default function NewProjectPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        // An empty acreage box means "not known", not zero — sending 0 would claim the parcel has
-        // no area, and that number ends up on reports.
-        acreage: form.acreage.trim() ? Number.parseFloat(form.acreage) : null,
       }),
     });
     setSaving(false);
@@ -122,19 +119,6 @@ export default function NewProjectPage() {
           <label className="pf__field"><span>Company</span><input value={form.client_company} onChange={set('client_company')} /></label>
           <label className="pf__field"><span>Email</span><input type="email" value={form.client_email} onChange={set('client_email')} /></label>
           <label className="pf__field"><span>Phone</span><input value={form.client_phone} onChange={set('client_phone')} /></label>
-        </fieldset>
-
-        <fieldset className="pf__set">
-          <legend>Site</legend>
-          <label className="pf__field pf__field--wide"><span>Address</span><input value={form.address} onChange={set('address')} /></label>
-          <label className="pf__field"><span>City</span><input value={form.city} onChange={set('city')} /></label>
-          <label className="pf__field"><span>State</span><input value={form.state} onChange={set('state')} maxLength={2} /></label>
-          <label className="pf__field"><span>ZIP</span><input value={form.zip} onChange={set('zip')} /></label>
-          <label className="pf__field"><span>County</span><input value={form.county} onChange={set('county')} /></label>
-          <label className="pf__field"><span>Subdivision</span><input value={form.subdivision} onChange={set('subdivision')} /></label>
-          <label className="pf__field"><span>Lot</span><input value={form.lot_number} onChange={set('lot_number')} /></label>
-          <label className="pf__field"><span>Abstract no.</span><input value={form.abstract_number} onChange={set('abstract_number')} /></label>
-          <label className="pf__field"><span>Acreage</span><input type="number" step="0.01" value={form.acreage} onChange={set('acreage')} /></label>
         </fieldset>
 
         <fieldset className="pf__set">

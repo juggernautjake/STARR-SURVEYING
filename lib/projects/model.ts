@@ -66,13 +66,16 @@ export function nextProjectNumber(year: number, existing: string[]): string {
   return `${prefix}${String(max + 1).padStart(4, '0')}`;
 }
 
-/** The fields a project owns and a new job starts life with. */
+/** The fields a project owns and a new job starts life with.
+ *
+ *  The CLIENT and the lead surveyor — never the site. Owner, 2026-09-10: "the project info does
+ *  not have an address, but the individual jobs do. We might have a project that has multiple
+ *  properties with different addresses." So a project is one client's engagement; each job inside
+ *  it names its own property. (The site columns still exist on `projects` for rows created before
+ *  this; nothing reads them now.) */
 export const INHERITED_FIELDS = [
   'customer_id',
   'client_name', 'client_email', 'client_phone', 'client_company', 'client_address',
-  'address', 'city', 'state', 'zip', 'county',
-  'subdivision', 'abstract_number', 'lot_number', 'acreage',
-  'latitude', 'longitude',
   'lead_rpls_email',
 ] as const;
 

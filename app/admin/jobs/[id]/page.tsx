@@ -14,6 +14,7 @@ import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
 import { markJobSeen } from '@/lib/admin/use-new-jobs';
+import { usePageTitle } from '@/lib/admin/page-title';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
 // originating lead so the running conversation isn't lost after
 // conversion.
@@ -110,6 +111,8 @@ export default function JobDetailPage() {
   const { safeFetch, safeAction, reportPageError } = usePageError('JobDetailPage');
 
   const [job, setJob] = useState<Job | null>(null);
+  // The bar says which job this is, not "Job Detail" (owner, 2026-09-10).
+  usePageTitle(job ? [job.job_number, job.name].filter(Boolean).join(' — ') : null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   /** Every file under the job, reported by the explorer after each load — the Files badge. */

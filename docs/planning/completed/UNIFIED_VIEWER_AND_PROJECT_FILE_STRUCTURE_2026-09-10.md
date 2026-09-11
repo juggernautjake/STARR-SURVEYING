@@ -153,3 +153,18 @@ actions. It replaced `FilePicker.tsx`:
 Retired with it: `app/admin/components/jobs/FileViewer.tsx` (the adapter whose callers went with
 the tabs), `lib/files/adapters/job-file.ts`, `FileDetailsPanel.tsx`. Guard:
 `__tests__/files/file-explorer-dialog.test.ts`.
+
+**A project has no address; its jobs do** — "we might have a project that has multiple properties
+with different addresses." `INHERITED_FIELDS` is the client and the lead surveyor only; the project
+forms lost the Site fieldset; the listing card's Address row lists the jobs' addresses one per line
+(and a search by street / city / county reaches them through the jobs); the project page lost the
+Site card and shows each job in full — number, stage, name, address with county and legal
+description, survey type and acreage, deadline with its due bubble, created, and quote / paid /
+owed. The new-job form fills the client from the project and never the site.
+
+**Page titles** — `lib/admin/page-title.ts`: a page that knows its subject calls `usePageTitle()`
+and the bar (and the browser tab) say "P-2026-0012 — HILDA WALL THORNDALE" / "26146 — HILDA WALL
+SURVEY" / "Edit P-2026-0012 — …" / "Field captures — 26146 — …" instead of "Admin" or "Job
+Detail". The route rules gained Edit Project / Project Detail / Field Captures for the moment
+before the data lands. The store hook is read above the layout's early returns (hook order).
+Guard: `__tests__/projects/job-addresses-and-titles.test.ts`.

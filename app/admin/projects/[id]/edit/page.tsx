@@ -24,12 +24,12 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { FolderKanban, ArrowLeft, Check, Archive, ArchiveRestore } from 'lucide-react';
 import { usePageError } from '../../../hooks/usePageError';
+import { usePageTitle } from '@/lib/admin/page-title';
 
 const FIELDS = [
   'name', 'description',
   'client_name', 'client_company', 'client_email', 'client_phone',
-  'address', 'city', 'state', 'zip', 'county',
-  'subdivision', 'abstract_number', 'lot_number', 'acreage',
+  // No site fields (2026-09-10): a project has no address; each job inside it has its own.
   'notes',
 ] as const;
 
@@ -46,6 +46,7 @@ export default function EditProjectPage() {
 
   const [form, setForm] = useState<Form>(EMPTY);
   const [number, setNumber] = useState<string>('');
+  usePageTitle(number ? `Edit ${number}${form.name ? ` — ${form.name}` : ''}` : null);
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,7 +83,6 @@ export default function EditProjectPage() {
         // A cleared box means "no longer known", which is null — not the empty string, which would
         // read as a real value of nothing and print as a blank line on a report.
         ...Object.fromEntries(FIELDS.map((f) => [f, form[f].trim() === '' ? null : form[f]])),
-        acreage: form.acreage.trim() ? Number.parseFloat(form.acreage) : null,
       }),
     });
     setSaving(false);
@@ -149,19 +149,6 @@ export default function EditProjectPage() {
           <label className="pf__field"><span>Company</span><input value={form.client_company} onChange={set('client_company')} /></label>
           <label className="pf__field"><span>Email</span><input type="email" value={form.client_email} onChange={set('client_email')} /></label>
           <label className="pf__field"><span>Phone</span><input value={form.client_phone} onChange={set('client_phone')} /></label>
-        </fieldset>
-
-        <fieldset className="pf__set">
-          <legend>Site</legend>
-          <label className="pf__field pf__field--wide"><span>Address</span><input value={form.address} onChange={set('address')} /></label>
-          <label className="pf__field"><span>City</span><input value={form.city} onChange={set('city')} /></label>
-          <label className="pf__field"><span>State</span><input value={form.state} onChange={set('state')} maxLength={2} /></label>
-          <label className="pf__field"><span>ZIP</span><input value={form.zip} onChange={set('zip')} /></label>
-          <label className="pf__field"><span>County</span><input value={form.county} onChange={set('county')} /></label>
-          <label className="pf__field"><span>Subdivision</span><input value={form.subdivision} onChange={set('subdivision')} /></label>
-          <label className="pf__field"><span>Lot</span><input value={form.lot_number} onChange={set('lot_number')} /></label>
-          <label className="pf__field"><span>Abstract no.</span><input value={form.abstract_number} onChange={set('abstract_number')} /></label>
-          <label className="pf__field"><span>Acreage</span><input type="number" step="0.01" value={form.acreage} onChange={set('acreage')} /></label>
         </fieldset>
 
         <fieldset className="pf__set">

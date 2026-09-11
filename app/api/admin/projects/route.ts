@@ -86,12 +86,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     query = query.lte('created_at', end);
   }
   if (search) {
-    // Widened beyond name/number/client/address: county and city are how a surveyor describes a
-    // job out loud, and the company is often the only name anyone remembers.
+    // A project has no address of its own (2026-09-10) — the addresses live on its jobs. So a
+    // search by street, city or county goes to the jobs first, and the projects holding a match
+    // come back alongside the ones matched by name, number, client or description. County and
+    // city are how a surveyor describes a job out loud; the company is often the only name anyone
+    // remembers.
+    const { data: jobHits } = await supabaseAdmin
+      .from('jobs')
+      .select('project_id')
+      .is('deleted_at', null)
+      .or(`address.ilike.%${search}%,city.ilike.%${search}%,county.ilike.%${search}%,subdivision.ilike.%${search}%,name.ilike.%${search}%,job_number.ilike.%${search}%`)
+      .limit(500);
+    const hitIds = [...new Set(((jobHits ?? []) as Array<{ project_id: string | null }>).map((j) => j.project_id).filter((id): id is string => Boolean(id)))];
     query = query.or(
       `name.ilike.%${search}%,project_number.ilike.%${search}%,client_name.ilike.%${search}%,`
-      + `client_company.ilike.%${search}%,address.ilike.%${search}%,city.ilike.%${search}%,`
-      + `county.ilike.%${search}%,subdivision.ilike.%${search}%,description.ilike.%${search}%`,
+      + `client_company.ilike.%${search}%,description.ilike.%${search}%`
+      + (hitIds.length > 0 ? `,id.in.(${hitIds.join(',')})` : ''),
     );
   }
 
@@ -122,14 +132,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .from('jobs')
       // `deadline`, `address`, `city` joined the select on 2026-09-09: the listing card shows the
       // nearest open job deadline and the job addresses beside the project's own.
-      .select('project_id, updated_at, quote_amount, final_amount, amount_paid, stage, is_archived, deleted_at, deadline, address, city')
+      .select('project_id, updated_at, quote_amount, final_amount, amount_paid, stage, is_archived, deleted_at, deadline, address, city, county')
       .in('project_id', ids);
-    for (const j of (jobs ?? []) as Array<JobMoney & { project_id: string; updated_at: string | null; address?: string | null; city?: string | null }>) {
+    for (const j of (jobs ?? []) as Array<JobMoney & { project_id: string; updated_at: string | null; address?: string | null; city?: string | null; county?: string | null }>) {
       const list = byProject.get(j.project_id);
       if (list) list.push(j);
       else byProject.set(j.project_id, [j]);
       if (!j.deleted_at && j.address?.trim()) {
-        const line = [j.address.trim(), j.city?.trim()].filter(Boolean).join(', ');
+        const line = [[j.address.trim(), j.city?.trim()].filter(Boolean).join(', '), j.county?.trim() ? `${j.county.trim()} County` : null].filter(Boolean).join(' · ');
         const set = jobAddresses.get(j.project_id) ?? new Set<string>();
         set.add(line);
         jobAddresses.set(j.project_id, set);

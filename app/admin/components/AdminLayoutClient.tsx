@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import PageOffGate from './PageOffGate';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
+import { usePageTitleStore } from '@/lib/admin/page-title';
 import Fieldbook from './Fieldbook';
 import DiscussionThreadButton from './DiscussionThreadButton';
 import FloatingMessenger from './FloatingMessenger';
@@ -183,6 +184,11 @@ function getTitle(p: string): string {
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
   if (p.includes('/learn/students/')) return 'Student Detail';
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
+  // 2026-09-10 — the detail pages set their OWN title (usePageTitle: "P-2026-0013 — ROUND ROCK
+  // HOUSING AUTHORITY", "26143 — LANCE LANE PROPERTY"); these are what shows until their data lands.
+  if (/^\/admin\/projects\/[^/]+\/edit$/.test(p)) return 'Edit Project';
+  if (/^\/admin\/projects\/[^/]+$/.test(p) && !PAGE_TITLES[p]) return 'Project Detail';
+  if (/^\/admin\/jobs\/[^/]+\/field$/.test(p)) return 'Field Captures';
   if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
   if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';
   if (p.startsWith('/admin/discussions/') && !PAGE_TITLES[p]) return 'Discussion Thread';
@@ -193,6 +199,9 @@ function getTitle(p: string): string {
 function Inner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  // A page that knows its subject overrides the route rule (lib/admin/page-title.ts). Read here,
+  // above the early returns, or the hook count changes between renders.
+  const ownTitle = usePageTitleStore((s) => s.title);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // cad-exit-return-path 2026-05-30 — record the prior admin path
   // whenever the user navigates INTO /admin/cad, so the CAD Exit
@@ -225,7 +234,7 @@ function Inner({ children }: { children: React.ReactNode }) {
   // Only the EDITOR, not the designs list: the list is an ordinary page and the dock belongs on it.
   // Only the EDITOR, not the designs list: the list is an ordinary page and the dock belongs on it.
   const isPageDesigner = pathname.startsWith('/admin/design/') && pathname.split('/').length === 4;
-  const pageTitle = getTitle(pathname);
+  const pageTitle = ownTitle ?? getTitle(pathname);
 
   return (
     <ErrorProvider>

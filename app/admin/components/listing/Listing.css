@@ -314,6 +314,10 @@
 .lst-card__v--strong { font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
 .lst-card__v--overdue { color: var(--theme-danger-fg, #B91C1C); font-weight: 600; }
 
+/* One address per line — the jobs' addresses, since a project has none (2026-09-10). */
+.lst-card__v--addresses { display: flex; flex-direction: column; gap: 0.1rem; white-space: normal; }
+.lst-card__address-line { display: block; }
+
 /* ── Bubbles beside a row (owner, 2026-09-10): NEW beside Created; the due state beside Deadline. */
 .lst-bubble {
   display: inline-block;

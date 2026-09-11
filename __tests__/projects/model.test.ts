@@ -27,35 +27,36 @@ describe('project numbering', () => {
 });
 
 describe('what a job inherits', () => {
+  // 2026-09-10: the CLIENT and the lead surveyor — never the site. A project has no address; its
+  // jobs each name their own property.
   const project = {
-    client_name: 'Smith Holdings', client_email: 'ops@smith.example',
+    client_name: 'Jane Smith', client_email: 'j@x.com', customer_id: 'c1', lead_rpls_email: 'rpls@x.com',
     address: '100 County Rd 12', county: 'Doña Ana', state: 'NM',
-    customer_id: 'cust-1', lead_rpls_email: 'rpls@starr-surveying.com',
   };
 
-  it('fills the blanks', () => {
+  it('fills the client and the lead surveyor from the project', () => {
     const job = inheritFromProject(project, { name: 'Boundary' });
-    expect(job.client_name).toBe('Smith Holdings');
-    expect(job.county).toBe('Doña Ana');
-    expect(job.customer_id).toBe('cust-1');
+    expect(job.client_name).toBe('Jane Smith');
+    expect(job.customer_id).toBe('c1');
+    expect(job.lead_rpls_email).toBe('rpls@x.com');
   });
 
-  it('NEVER overwrites what the caller supplied', () => {
-    // Somebody typing a different address is telling you the job is on the adjoining parcel. The
-    // project overwriting that would discard the more specific of the two facts.
-    const job = inheritFromProject(project, { address: '102 County Rd 12' });
-    expect(job.address).toBe('102 County Rd 12');
-    expect(job.county).toBe('Doña Ana'); // the untouched ones still fill
+  it('never fills the site — an old project row\'s address does not become the job\'s', () => {
+    const job = inheritFromProject(project, { name: 'Boundary' });
+    expect(job.address).toBeUndefined();
+    expect(job.county).toBeUndefined();
+    expect(job.state).toBeUndefined();
+  });
+
+  it('what the caller supplies wins', () => {
+    const job = inheritFromProject(project, { client_name: 'The Buyer' });
+    expect(job.client_name).toBe('The Buyer');
+    expect(job.customer_id).toBe('c1'); // the untouched ones still fill
   });
 
   it('treats whitespace as absent, so a blank box still inherits', () => {
     const job = inheritFromProject(project, { client_name: '   ' });
-    expect(job.client_name).toBe('Smith Holdings');
-  });
-
-  it('does not invent values the project does not have', () => {
-    const job = inheritFromProject({ client_name: 'X' }, { name: 'Topo' });
-    expect(job.city).toBeUndefined();
+    expect(job.client_name).toBe('Jane Smith');
   });
 
   it('leaves fields that are not inherited alone', () => {
@@ -64,9 +65,9 @@ describe('what a job inherits', () => {
     expect(job.stage).toBeUndefined();
   });
 
-  it('reports what has diverged', () => {
-    const job = inheritFromProject(project, { address: '102 County Rd 12' });
-    expect(overriddenFields(project, job)).toEqual(['address']);
+  it('reports which inherited fields diverged', () => {
+    const job = inheritFromProject(project, { client_email: 'other@x.com' });
+    expect(overriddenFields(project, job)).toEqual(['client_email']);
   });
 
   it('reports nothing diverged for a pure inherit', () => {

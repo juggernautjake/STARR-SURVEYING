@@ -133,15 +133,8 @@ export default function NewJobPage() {
       fill('client_phone', p.client_phone);
       fill('client_company', p.client_company);
       fill('client_address', p.client_address);
-      fill('address', p.address);
-      fill('city', p.city);
-      fill('state', p.state);
-      fill('zip', p.zip);
-      fill('county', p.county);
-      fill('subdivision', p.subdivision);
-      fill('abstract_number', p.abstract_number);
-      fill('lot_number', p.lot_number);
-      fill('acreage', p.acreage);
+      // The site is NOT filled from the project (2026-09-10): a project has no address; every job
+      // names its own property — "we might have a project that has multiple properties".
       fill('lead_rpls_email', p.lead_rpls_email);
       return next;
     });
@@ -289,7 +282,7 @@ export default function NewJobPage() {
                 <label className="job-form__label" htmlFor="job-project">
                   <span className="job-form__label-row">
                     Project *
-                    <Tooltip text="Every job belongs to a project — the engagement for one client on one parcel. A project usually holds several jobs: the boundary survey, then the topo, then the staking. Picking one fills in its client and site details below." position="right">
+                    <Tooltip text="Every job belongs to a project — the engagement for one client on one parcel. A project usually holds several jobs: the boundary survey, then the topo, then the staking. Picking one fills in its client details below; the property is this job’s own." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -313,7 +306,7 @@ export default function NewJobPage() {
                 </select>
                 <p className="job-form__hint">
                   {projectId
-                    ? 'This job’s client and site were filled in from the project. Change anything below that differs for this job.'
+                    ? 'This job’s client was filled in from the project. Enter this job’s own address under Property Information — every job names its property.'
                     : 'Every job belongs to a project.'}{' '}
                   <Link href="/admin/projects/new">Create a new project</Link>
                 </p>
