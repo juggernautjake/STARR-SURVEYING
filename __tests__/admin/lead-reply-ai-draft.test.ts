@@ -26,7 +26,7 @@ describe('SYSTEM_PROMPT shape', () => {
   it("declares the firm's identity + the firm's contact line", () => {
     expect(SYSTEM_PROMPT).toMatch(/Starr Surveying/);
     expect(SYSTEM_PROMPT).toMatch(/info@starr-surveying\.com/);
-    expect(SYSTEM_PROMPT).toMatch(/\(936\) 662-0077/);
+    expect(SYSTEM_PROMPT).toMatch(/\(833\) 842-6971/);
   });
 
   it("enforces HTML-only output + bans inventing pricing / dates", () => {
