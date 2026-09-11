@@ -106,7 +106,7 @@ export default function ContactPage(): React.ReactElement {
   const contactCards: ContactInfo[] = [
     {
       icon: '📞',
-      label: 'Hank Maddux',
+      label: 'Office (rings Hank)',
       value: '(833) 842-6971',
       link: 'tel:8338426971',
       linkType: 'tel',
@@ -231,7 +231,7 @@ export default function ContactPage(): React.ReactElement {
           projectDetails: '',
           preferredContact: 'email',
           howHeard: '',
-    smsConsent: false,
+          smsConsent: false,
         });
         setAttachments([]);
       } else {
