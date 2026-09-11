@@ -107,8 +107,8 @@ export default function ContactPage(): React.ReactElement {
     {
       icon: '📞',
       label: 'Hank Maddux',
-      value: '(936) 662-0077',
-      link: 'tel:9366620077',
+      value: '(833) 842-6971',
+      link: 'tel:8338426971',
       linkType: 'tel',
     },
     {
@@ -701,8 +701,8 @@ export default function ContactPage(): React.ReactElement {
             Call us directly for quick answers and to schedule your survey.
           </p>
           <div className="contact-cta__buttons">
-            <a href="tel:9366620077" className="contact-cta__btn contact-cta__btn--primary">
-              📞 Call (936) 662-0077
+            <a href="tel:8338426971" className="contact-cta__btn contact-cta__btn--primary">
+              📞 Call (833) 842-6971
             </a>
             <a href="mailto:info@starr-surveying.com" className="contact-cta__btn contact-cta__btn--secondary">
               ✉️ Send Email

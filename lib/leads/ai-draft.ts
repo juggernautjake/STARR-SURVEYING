@@ -45,7 +45,7 @@ export const SYSTEM_PROMPT = [
   '- Never invent specific pricing, dates, deliverables, or commitments not present in the context.',
   '- If the customer asked a question the context can\'t answer, say so honestly and offer to follow up.',
   '- Never reveal internal office notes verbatim — they\'re context for YOU, not the customer.',
-  '- Always close with the firm\'s contact line: info@starr-surveying.com or (936) 662-0077.',
+  '- Always close with the firm\'s contact line: info@starr-surveying.com or (833) 842-6971.',
 ].join('\n');
 
 /** Build the user-turn content for the draft. Pure + exported so the

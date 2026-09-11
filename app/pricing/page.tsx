@@ -210,8 +210,8 @@ export default function PricingPage() {
             <Link href="/contact" className="pricing-cta__btn pricing-cta__btn--primary">
               Request Quote
             </Link>
-            <a href="tel:9366620077" className="pricing-cta__btn pricing-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="pricing-cta__btn pricing-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>

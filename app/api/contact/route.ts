@@ -936,7 +936,7 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
       
       <div class="cta-section">
         <p style="margin-bottom: 15px; color: ${COLORS.gray};">Questions? Give us a call!</p>
-        <a href="tel:9366620077" class="cta-button" style="color: #FFFFFF;">Call (936) 662-0077</a>
+        <a href="tel:8338426971" class="cta-button" style="color: #FFFFFF;">Call (833) 842-6971</a>
       </div>
       
       <p class="timestamp">Submitted on ${timestamp}</p>
@@ -1072,7 +1072,7 @@ function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, i
     for (const a of data.attachments) text += `- ${a.name} (${formatBytes(a.size)})\n`;
   }
 
-  text += `\nIf you have any urgent questions, please call us at (936) 662-0077.\n\n`;
+  text += `\nIf you have any urgent questions, please call us at (833) 842-6971.\n\n`;
   text += `---\n`;
   text += `Starr Surveying\n`;
   text += `${COMPANY.address}\n`;
@@ -1620,7 +1620,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         success: false,
-        message: 'Failed to send your request. Please try again or call us directly at (936) 662-0077.',
+        message: 'Failed to send your request. Please try again or call us directly at (833) 842-6971.',
         error: 'Email service error',
       },
       { status: 500 }

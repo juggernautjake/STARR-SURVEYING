@@ -39,7 +39,7 @@ describe('businessNode', () => {
   });
 
   it('gives the phone number in E.164, not the display format', () => {
-    // `(936) 662-0077` in `telephone` is not wrong enough to break anything and not right enough to
+    // `(833) 842-6971` in `telephone` is not wrong enough to break anything and not right enough to
     // be matched against the Google Business Profile listing.
     const node = businessNode();
     expect(node.telephone).toBe(PHONE_E164);

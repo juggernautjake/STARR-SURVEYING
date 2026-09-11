@@ -645,8 +645,8 @@ export default function SurveyCalculator() {
                     Please contact us directly and we&apos;ll provide a detailed estimate for your project.
                   </p>
                   <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <a href="tel:9366620077" className="pricing-calculator__result-btn" style={{ background: '#1D3095' }}>
-                      📞 Call (936) 662-0077
+                    <a href="tel:8338426971" className="pricing-calculator__result-btn" style={{ background: '#1D3095' }}>
+                      📞 Call (833) 842-6971
                     </a>
                     <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
                       Contact Page
@@ -705,8 +705,8 @@ export default function SurveyCalculator() {
                     >
                       📧 Send This Estimate & Request Quote
                     </button>
-                    <a href="tel:9366620077" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
-                      📞 Call (936) 662-0077
+                    <a href="tel:8338426971" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
+                      📞 Call (833) 842-6971
                     </a>
                   </div>
                 ) : (

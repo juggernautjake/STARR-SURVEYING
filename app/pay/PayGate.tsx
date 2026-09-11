@@ -109,8 +109,8 @@ export default function PayGate({ children }: { children: React.ReactNode }): Re
 
           {/* The call route matters more here than anywhere else on the site: this page exists to tell
               someone they cannot pay online yet, so it must not be a dead end. 44px tap target. */}
-          <a className="pay-hero__call" href="tel:+19366620077" data-testid="pay-gate-call">
-            <span aria-hidden>📞</span> Call (936) 662-0077
+          <a className="pay-hero__call" href="tel:+18338426971" data-testid="pay-gate-call">
+            <span aria-hidden>📞</span> Call (833) 842-6971
           </a>
         </div>
       </section>

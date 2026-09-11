@@ -21,9 +21,9 @@ export interface TenantProfile {
   contactEmail: string;
   /** Where a customer complains. Falls back to contactEmail rather than inventing `support@`. */
   supportEmail: string;
-  /** As a human reads it — "(936) 662-0077". Null when unset. */
+  /** As a human reads it — "(833) 842-6971". Null when unset. */
   phone: string | null;
-  /** As a `tel:` link wants it — "+19366620077". Derived, never stored twice. */
+  /** As a `tel:` link wants it — "+18338426971". Derived, never stored twice. */
   phoneE164: string | null;
   /** Two-letter state. Surveying is licensed per state, so this is not cosmetic. */
   state: string;
@@ -59,7 +59,7 @@ export const EMPTY_PROFILE: TenantProfile = {
   logoUrl: null,
 };
 
-/** "(936) 662-0077" → "+19366620077". Returns null when there are not enough digits to dial, because
+/** "(833) 842-6971" → "+18338426971". Returns null when there are not enough digits to dial, because
  *  a half-formed `tel:` link is a button that fails silently when tapped. */
 export function toE164(phone: string | null | undefined, country = '1'): string | null {
   if (!phone) return null;

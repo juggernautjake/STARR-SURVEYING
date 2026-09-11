@@ -14,8 +14,8 @@ import type { FirmIdentity } from '@/lib/payments/invoice-email';
 
 export const TEST_FIRM: FirmIdentity = {
   name: 'Starr Surveying',
-  phone: '(936) 662-0077',
-  phoneE164: '+19366620077',
+  phone: '(833) 842-6971',
+  phoneE164: '+18338426971',
 };
 
 export const TEST_FIRM_OTHER: FirmIdentity = {

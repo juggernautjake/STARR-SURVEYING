@@ -471,8 +471,8 @@ export default function ResourcesPage(): React.ReactElement {
             <Link href="/contact" className="resources-cta__btn resources-cta__btn--primary">
               Contact Us
             </Link>
-            <a href="tel:9366620077" className="resources-cta__btn resources-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="resources-cta__btn resources-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>

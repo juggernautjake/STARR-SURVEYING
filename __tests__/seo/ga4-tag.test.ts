@@ -76,7 +76,7 @@ describe('event routing', () => {
   it('names a destination on EVERY send once both are configured', async () => {
     const tag = await loadTag('G-ABC1234XYZ');
     tag.trackConversion('SS-1234', 'home_page');
-    tag.trackPhoneClick('tel-9366620077-abc');
+    tag.trackPhoneClick('tel-18338426971-abc');
     tag.trackEvent('quote_calculated', 'engagement');
 
     // 5 = trackConversion (Ads + GA4) + trackPhoneClick (Ads + GA4) + trackEvent (GA4 only).

@@ -32,9 +32,9 @@ export const BUSINESS_NAME = 'Starr Surveying';
  *  and it is what lets Google match this site to filings and licences in the corporate name. */
 export const LEGAL_NAME = 'Starr Technical Services Inc.';
 
-export const PHONE_DISPLAY = '(936) 662-0077';
+export const PHONE_DISPLAY = '(833) 842-6971';
 /** E.164, which is the only format `telephone` should carry: it is unambiguous about country. */
-export const PHONE_E164 = '+1-936-662-0077';
+export const PHONE_E164 = '+1-833-842-6971';
 export const EMAIL = 'info@starr-surveying.com';
 
 // ── OFFICE ──────────────────────────────────────────────────────────────────────────────────────

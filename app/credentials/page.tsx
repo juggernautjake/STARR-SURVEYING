@@ -293,8 +293,8 @@ export default function CredentialsPage(): React.ReactElement {
             <Link href="/contact" className="credentials-cta__btn credentials-cta__btn--primary">
               Get Started
             </Link>
-            <a href="tel:9366620077" className="credentials-cta__btn credentials-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="credentials-cta__btn credentials-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>
