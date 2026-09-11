@@ -17,6 +17,15 @@ import { encodeState, decodeState, emptyState, stateCookieHeader, readStateCooki
 import { parseEnvelope, RECORDING_NOTICE, greeting } from '@/lib/receptionist/brain';
 import { recipientsFor, outcomeText, notifyOwners } from '@/lib/receptionist/notify';
 import { twiml, say, gather, esc } from '@/lib/twilio/twiml';
+// The routes persist to Supabase; in tests there is no database, so the call-record layer is a
+// no-op. What is under test is the TwiML and the gate, not the storage.
+vi.mock('@/lib/receptionist/calls', async (orig) => ({
+  ...(await orig<typeof import('@/lib/receptionist/calls')>()),
+  startCall: async () => null,
+  updateCall: async () => null,
+  getCallBySid: async () => null,
+  appendTurns: async () => undefined,
+}));
 import { POST as entry } from '@/app/api/twilio/receptionist/route';
 import { POST as afterDial } from '@/app/api/twilio/receptionist/after-dial/route';
 import { POST as screen } from '@/app/api/twilio/receptionist/screen/route';
@@ -114,9 +123,11 @@ describe('who gets told', () => {
   it('never throws when a text fails, and still emails', async () => {
     const send = vi.fn<(i: { to: string; body: string }) => Promise<boolean>>().mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(true);
     const email = vi.fn(async () => true);
+    const inApp = vi.fn(async () => 2);
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const r = await notifyOwners({ from: '+1', facts: { kind: 'customer' }, summary: 's' }, { send, email, env });
-    expect(r).toEqual({ texted: 1, emailed: true });
+    const r = await notifyOwners({ from: '+1', facts: { kind: 'customer' }, summary: 's' }, { send, email, inApp, env });
+    expect(r).toEqual({ texted: 1, emailed: true, belled: 2 });
+    expect(inApp).toHaveBeenCalledOnce();
     spy.mockRestore();
   });
 });
@@ -133,7 +144,7 @@ describe('entry route', () => {
     const res = await entry(signed('https://www.starr-surveying.com/api/twilio/receptionist', { From: '+12545550100', To: '+18335550000', CallSid: 'CA1' }));
     expect(res.status).toBe(200);
     const xml = await res.text();
-    expect(xml).toContain('<Dial timeout="25" action="/api/twilio/receptionist/after-dial" method="POST" callerId="+18335550000">');
+    expect(xml).toMatch(/<Dial timeout="25" action="\/api\/twilio\/receptionist\/after-dial" method="POST" callerId="\+18335550000" record="record-from-answer-dual" recordingStatusCallback="\/api\/twilio\/recording"[^>]*>/);
     expect(xml).toContain('<Number url="/api/twilio/receptionist/screen" method="POST">+19365550001</Number>');
     expect(xml).not.toContain('<Gather input="speech"');
   });

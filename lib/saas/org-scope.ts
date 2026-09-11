@@ -207,6 +207,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'payroll_runs',
   'personnel_skills',
   'personnel_unavailability',
+  'phone_calls',
   'portal_stage_labels',
   'project_cleanup_log',
   'projects',

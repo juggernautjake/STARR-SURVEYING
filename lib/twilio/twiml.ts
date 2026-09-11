@@ -4,7 +4,10 @@
 // text value goes through `esc`, so a caller's name containing an ampersand cannot break the
 // document (a malformed TwiML response makes Twilio read an error to the caller and hang up).
 
-export const RECEPTIONIST_VOICE = 'Google.en-US-Neural2-D';
+// Twilio speaks with Google's Chirp 3 HD generative voices (public beta, 2026): natural prosody,
+// real pauses, numbers read like a person. Override with RECEPTIONIST_VOICE, e.g.
+// Google.en-US-Chirp3-HD-Charon (male) or Polly.Ruth-Generative.
+export const RECEPTIONIST_VOICE = process.env.RECEPTIONIST_VOICE || 'Google.en-US-Chirp3-HD-Aoede';
 
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] as string));
@@ -34,8 +37,15 @@ export function record(action: string, transcribeCallback: string, maxSeconds = 
 
 /** Ring a phone. `screenUrl` is fetched on the callee's leg when it answers (a whisper), and the
  *  bridge only happens if that TwiML returns without hanging up. `action` receives DialCallStatus. */
-export function dial(number: string, opts: { timeout: number; callerId: string; action: string; screenUrl?: string }): string {
-  const attrs = [`timeout="${opts.timeout}"`, `action="${esc(opts.action)}"`, 'method="POST"', opts.callerId ? `callerId="${esc(opts.callerId)}"` : ''].filter(Boolean).join(' ');
+export function dial(number: string, opts: { timeout: number; callerId: string; action: string; screenUrl?: string; recordingCallback?: string }): string {
+  const attrs = [
+    `timeout="${opts.timeout}"`,
+    `action="${esc(opts.action)}"`,
+    'method="POST"',
+    opts.callerId ? `callerId="${esc(opts.callerId)}"` : '',
+    // Record the human conversation from the moment it is answered, one party per channel.
+    opts.recordingCallback ? `record="record-from-answer-dual" recordingStatusCallback="${esc(opts.recordingCallback)}" recordingStatusCallbackMethod="POST"` : '',
+  ].filter(Boolean).join(' ');
   const num = opts.screenUrl ? `<Number url="${esc(opts.screenUrl)}" method="POST">${esc(number)}</Number>` : esc(number);
   return `<Dial ${attrs}>${num}</Dial>`;
 }
