@@ -40,6 +40,20 @@ export function ownerPhone(env: Record<string, string | undefined> = process.env
  *  configurable on purpose. */
 export const RECORDING_NOTICE = 'This call may be recorded for quality and record-keeping.';
 
+// Owner, 2026-09-11: "I think we should make it just 20 seconds." Measured on his carrier: voicemail
+// picks up at about 22 seconds, so 20 also means the whisper rarely has to talk to a voicemail box.
+export const RING_SECONDS = 20;
+
+/** What the caller hears before the owner's phone rings: the notice, and a reason to stay on. */
+export function holdNotice(): string {
+  return `Thanks for calling ${BUSINESS_NAME}. ${RECORDING_NOTICE} Please hold while we connect you.`;
+}
+
+/** The whisper on the owner's leg. No number: on that leg Twilio's From is our own callerId. */
+export function whisperText(): string {
+  return `${BUSINESS_NAME} call. Press any key to accept.`;
+}
+
 export function greeting(): string {
   return `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}. ${OWNER} is away from the phone right now, but I can help you get started. Is this about a survey, or something else?`;
 }

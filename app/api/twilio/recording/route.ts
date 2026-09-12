@@ -21,10 +21,16 @@ export async function POST(request: Request): Promise<Response> {
   if (!validTwilioSignature(publicUrlOf(request), params, request.headers.get('x-twilio-signature'))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
-  if (params.RecordingStatus && params.RecordingStatus !== 'completed') return new Response('', { status: 204 });
+  if (params.RecordingStatus && params.RecordingStatus !== 'completed') return new Response(null, { status: 204 });
   const callSid = params.CallSid ?? '';
   const call = await getCallBySid(supabaseAdmin, callSid);
-  if (!call) return new Response('', { status: 204 });
+  if (!call) return new Response(null, { status: 204 });
+  const incoming = Number(params.RecordingDuration) || 0;
+  // Two recordings can exist for one call (the dial leg's and the AI leg's). Keep the longer: the
+  // shorter is a voicemail greeting the whisper talked to, or a leg that ended in seconds.
+  if (call.recording_sid && call.recording_sid !== params.RecordingSid && (call.recording_duration ?? 0) >= incoming) {
+    return new Response(null, { status: 204 });
+  }
 
   const patch: Parameters<typeof updateCall>[2] = {
     recording_sid: params.RecordingSid ?? null,
@@ -43,5 +49,5 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
   await updateCall(supabaseAdmin, callSid, patch);
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 }

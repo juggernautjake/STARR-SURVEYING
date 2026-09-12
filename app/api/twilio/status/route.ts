@@ -5,6 +5,10 @@
 // and — for a call nobody handled — a "missed call" notice to the owners.
 //
 // PUBLIC BY DESIGN: Twilio-signed, like the receptionist routes.
+//
+// 204s are built with a null body. `new Response('', { status: 204 })` throws in Node's fetch
+// (a 204 may not carry a body, and an empty string counts as one), which is exactly the HTTP 500
+// Twilio's debugger logged against this route on the first live calls, 2026-09-11.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
@@ -21,10 +25,10 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const status = params.CallStatus ?? '';
-  if (!FINAL.has(status)) return new Response('', { status: 204 });
+  if (!FINAL.has(status)) return new Response(null, { status: 204 });
   const callSid = params.CallSid ?? '';
   const call = await getCallBySid(supabaseAdmin, callSid);
-  if (!call) return new Response('', { status: 204 });
+  if (!call) return new Response(null, { status: 204 });
 
   const duration = Number(params.CallDuration) || call.duration_seconds;
   const unhandled = !call.answered_by;
@@ -38,5 +42,5 @@ export async function POST(request: Request): Promise<Response> {
     await notifyOwners({ from: call.from_number, facts: { kind: 'unknown' }, summary: `missed: hung up after ${duration ?? '?'} seconds, before anyone answered`, callId: call.id, answeredBy: 'none' });
     await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
   }
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 }

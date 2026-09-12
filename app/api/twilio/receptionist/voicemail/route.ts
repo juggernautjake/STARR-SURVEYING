@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
       answeredBy: 'voicemail',
     });
     await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
-    return new Response('', { status: 204 });
+    return new Response(null, { status: 204 });
   }
 
   // Recording just finished.
