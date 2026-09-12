@@ -67,6 +67,8 @@ const GATES = [
  * `…/invoice/[number]/*` payment routes had no throttle at all until this sweep found them.
  */
 const INTENTIONALLY_PUBLIC = new Map([
+  // ── crawler-facing text, no data, no input ──────────────────────────────────────────────────
+  ['app/llms.txt/route.ts', 'static business summary for AI assistants (llmstxt.org); built from lib/seo/business.ts'],
   // ── the public forms and portal ────────────────────────────────────────────────────────────────
   ['app/api/contact/route.ts', 'the public quote form — throttled (A1-2), honeypotted (A1-3), storage-capped (A1-5)'],
   // ── Twilio webhooks: the X-Twilio-Signature (HMAC of the exact URL + params with the auth token) is
@@ -76,6 +78,9 @@ const INTENTIONALLY_PUBLIC = new Map([
   ['app/api/twilio/receptionist/after-dial/route.ts', 'Twilio <Dial> action — signature-verified; AI answers when the owner did not'],
   ['app/api/twilio/receptionist/turn/route.ts', 'Twilio voice webhook — signature-verified; one caller utterance per request'],
   ['app/api/twilio/receptionist/voicemail/route.ts', 'Twilio recording/transcription callback — signature-verified'],
+  ['app/api/twilio/receptionist/test-entry/route.ts', 'Twilio voice webhook for test calls placed by admins — signature-verified; the row is flagged is_test'],
+  ['app/api/twilio/receptionist/relay-ended/route.ts', 'Twilio <Connect> action — signature-verified; wraps up a ConversationRelay call or falls back to <Gather>'],
+  ['app/api/twilio/receptionist/relay-turn/route.ts', 'app-to-app: called by worker/relay with the shared RECEPTIONIST_RELAY_SECRET (constant-time compare); streams the brain\x27s reply'],
   ['app/api/twilio/sms/route.ts', 'Twilio inbound SMS webhook — signature-verified; forwards to owners'],
   ['app/api/twilio/recording/route.ts', 'Twilio recording-status callback — signature-verified'],
   ['app/api/twilio/status/route.ts', 'Twilio call-status callback — signature-verified'],

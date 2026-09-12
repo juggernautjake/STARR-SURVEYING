@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePageError } from '../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 
-type Filter = 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none';
+type Filter = 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none' | 'test';
 
 function when(iso: string): { day: string; time: string } {
   const d = new Date(iso);
@@ -41,12 +41,15 @@ export default function CallsPage(): React.ReactElement {
 
   const shown = useMemo(() => {
     if (!calls) return [];
-    if (filter === 'all') return calls;
-    if (filter === 'customer') return calls.filter((c) => c.kind === 'customer' || c.analysis?.caller_type === 'customer' || c.analysis?.caller_type === 'existing_client');
-    return calls.filter((c) => c.answered_by === filter);
+    // Test calls from /admin/dev/receptionist live under their own filter so the log reads as customers.
+    if (filter === 'test') return calls.filter((c) => c.is_test);
+    const real = calls.filter((c) => !c.is_test);
+    if (filter === 'all') return real;
+    if (filter === 'customer') return real.filter((c) => c.kind === 'customer' || c.analysis?.caller_type === 'customer' || c.analysis?.caller_type === 'existing_client');
+    return real.filter((c) => c.answered_by === filter);
   }, [calls, filter]);
 
-  const filters: Array<[Filter, string]> = [['all', 'All'], ['customer', 'Customers'], ['ai', 'Receptionist'], ['owner', 'Hank answered'], ['voicemail', 'Voicemail'], ['none', 'Missed']];
+  const filters: Array<[Filter, string]> = [['all', 'All'], ['customer', 'Customers'], ['ai', 'Receptionist'], ['owner', 'Hank answered'], ['voicemail', 'Voicemail'], ['none', 'Missed'], ['test', 'Test calls']];
 
   return (
     <div className="calls-page">
@@ -81,6 +84,7 @@ export default function CallsPage(): React.ReactElement {
                   <p className="call-card__title">{c.caller_name || fmtPhone(c.from_number)}{c.caller_name ? <span style={{ opacity: .6, fontWeight: 400 }}> · {fmtPhone(c.from_number)}</span> : null}</p>
                   <p className="call-card__summary">{c.analysis?.summary || c.summary || (c.transcript?.length ? c.transcript[0]?.text : 'No transcript yet.')}</p>
                   <div className="call-card__meta">
+                    {c.is_test ? <span className="pill pill--test">Test</span> : null}
                     {c.kind ? <span className={`pill pill--${c.kind}`}>{c.kind}</span> : null}
                     {c.answered_by ? <span className={`pill pill--${c.answered_by}`}>{HOW[c.answered_by] ?? c.answered_by}</span> : null}
                     {c.analysis?.urgency === 'high' ? <span className="pill pill--high">urgent</span> : null}

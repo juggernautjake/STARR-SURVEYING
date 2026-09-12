@@ -68,6 +68,38 @@ services:
       # here is disposable by design, so a rebuild loses nothing that matters.
       - worker-scratch:/app/.scratch
 
+  # The phone receptionist's real-time relay (lib/receptionist/relay.ts). A thin WebSocket bridge
+  # between Twilio ConversationRelay and the app; holds no keys but the shared relay secret. Caddy
+  # proxies wss://worker.starr-surveying.com/relay to it. Same .env as the worker: it reads
+  # APP_BASE_URL and RECEPTIONIST_RELAY_SECRET and ignores the rest.
+  relay:
+    build:
+      context: ./relay
+      args:
+        BUILD_SHA: ${BUILD_SHA:-unknown}
+    image: starr-relay:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 3200
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3200:3200"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3200/healthz', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped

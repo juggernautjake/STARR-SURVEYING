@@ -10,6 +10,7 @@
 // Why JSON-out rather than tools: a phone turn is one exchange, the caller is waiting on the line,
 // and every extra round trip is dead air. One call, one envelope, one TwiML response.
 import { callAi, aiConfigured } from '@/lib/ai/client';
+import { streamAi } from '@/lib/ai/stream';
 import { OFFICE_CITY, OFFICE_REGION, RPLS_LICENSE_NUMBER, BUSINESS_NAME } from '@/lib/seo/business';
 import { knowledgeText, hoursSentence, LAW_DISCLAIMER, OWNER_NAME as OWNER, ASSISTANT_NAME } from './knowledge';
 import { quoteFor, type QuoteRequest } from './quote';
@@ -40,8 +41,26 @@ export function ownerPhone(env: Record<string, string | undefined> = process.env
  *  configurable on purpose. */
 export const RECORDING_NOTICE = 'This call may be recorded for quality and record-keeping.';
 
+// Owner, 2026-09-11: first 20 s, then "can we make it 15 seconds instead of 20 to make sure that it
+// doesn't go to voicemail?" His carrier's voicemail answers at about 22 s; 15 leaves a clear margin
+// so the whisper never plays into his voicemail box.
+export const RING_SECONDS = 15;
+
+/** What the caller hears before the owner's phone rings: the notice, and a reason to stay on. */
+export function holdNotice(): string {
+  return `Thanks for calling ${BUSINESS_NAME}. ${RECORDING_NOTICE} Please hold while we connect you.`;
+}
+
+/** The whisper on the owner's leg. No number: on that leg Twilio's From is our own callerId. */
+export function whisperText(): string {
+  return `${BUSINESS_NAME} call. Press any key to accept.`;
+}
+
+// Owner, 2026-09-11: "The immediate response when the agent answers should be that the customer can
+// leave a message, or they can ask questions and give information about their request … make it
+// very clear that they can simply leave a message too."
 export function greeting(): string {
-  return `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}. ${OWNER} is away from the phone right now, but I can help you get started. Is this about a survey, or something else?`;
+  return `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}. ${OWNER} can't get to the phone right now. You're welcome to just leave him a message, or I can help you right now with questions or a survey request. Which would you like?`;
 }
 
 // ── The script ────────────────────────────────────────────────────────────────────────────────
@@ -50,7 +69,15 @@ export function greeting(): string {
 // circumstantial questions with "normally … but" rather than a flat no, may quote only through the
 // website calculator and only with the subject-to-review disclaimer, and must never invent facts.
 
-export function systemPrompt(): string {
+/** `json`: the whole reply is one JSON envelope (the <Gather> path). `spoken`: the words come first
+ *  as plain text so they can be streamed to the voice as they are written, and the envelope follows
+ *  after a marker (the ConversationRelay path). */
+export type ReplyFormat = 'json' | 'spoken';
+
+export const CONTROL_OPEN = '<<<';
+export const CONTROL_CLOSE = '>>>';
+
+export function systemPrompt(format: ReplyFormat = 'json'): string {
   return `You are ${ASSISTANT_NAME}, the phone receptionist for ${BUSINESS_NAME}, a licensed land surveying firm in ${OFFICE_CITY}, ${OFFICE_REGION}. Calls reach you when ${OWNER}, the owner and Registered Professional Land Surveyor (Texas RPLS #${RPLS_LICENSE_NUMBER}), can't pick up. This is his business line, but callers may also be family, friends, vendors, or existing clients.
 
 ═══ WHAT YOU KNOW (from the website; do not go beyond it) ═══
@@ -99,6 +126,7 @@ ${lawLibraryText()}
 You may give a rough estimate ONLY after you have: the type of survey, the property size in acres, the property type (house in town, rural home, commercial, agricultural, vacant), roughly how many corners, whether there's a house on it, what it's for, and roughly how far from Belton. Ask for these one at a time. When you have them, put a "quote" object in your JSON (see below) instead of guessing a number; the system runs the website's calculator and appends the estimate and the required disclaimer to what you say. Before giving the number, say it's an estimate; after, repeat that any figure is subject to change once a live representative reviews the request. If they want a firm price, that's the written proposal ${OWNER} sends after reviewing. For subdivisions over twelve lots, ALTA surveys on large commercial tracts, or anything unusual, don't estimate; say it needs ${OWNER}'s review.
 
 ═══ HOW YOU HANDLE THE CALL ═══
+0. If the caller just wants to leave a message, say "Sure, go ahead, I'm listening" and let them talk. When they stop, read back the name and number if they gave them, say ${OWNER} will get the message, and mark the call done. Don't turn a message into an interview.
 1. Find out who's calling and why. Family, friends, or anything not about surveying: be friendly, take a short message (what it's about, best number), and wrap up. Don't interrogate a friend.
 2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), the property address or at least the city and county, what they need and what it's for, and any deadline. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
 3. Existing client with a job in progress: take the message and who they are. You can't see job status; ${OWNER} will return the call.
@@ -108,10 +136,23 @@ You may give a rough estimate ONLY after you have: the type of survey, the prope
 7. If the caller asks for voicemail, or the conversation isn't working after two tries, go to voicemail.
 8. When you have what you need or the caller is done, say a short warm goodbye and mark the call done.
 
-Respond ONLY with a JSON object, no prose around it:
-{"say": "what to say next", "next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "address": "...", "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false} }
-Include "quote" only when the caller wants a price and you have those answers. Include only facts you actually learned; keep earlier facts unless the caller corrects them. Put questions you couldn't answer into details. Set readyToSave to true only when kind is customer and you have at least a name and a phone number.`;
+${format === 'json' ? JSON_FORMAT : SPOKEN_FORMAT}`;
 }
+
+const ENVELOPE_FIELDS = `"next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "address": "...", "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false}`;
+const ENVELOPE_RULES = `Include "quote" only when the caller wants a price and you have those answers. Include only facts you actually learned; keep earlier facts unless the caller corrects them. Put questions you couldn't answer into details. Set readyToSave to true only when kind is customer and you have at least a name and a phone number.`;
+
+const JSON_FORMAT = `Respond ONLY with a JSON object, no prose around it:
+{"say": "what to say next", ${ENVELOPE_FIELDS} }
+${ENVELOPE_RULES}`;
+
+// The words first, so the voice can start on sentence one while sentence two is still being written.
+// The marker is three angle brackets because it never occurs in speech and is cheap to detect in a
+// stream; the envelope after it is exactly the JSON path's envelope minus "say".
+const SPOKEN_FORMAT = `Write exactly what you will say, as plain spoken text, nothing else first: no labels, no JSON, no quotes around it. Then, on a new line, write ${CONTROL_OPEN} followed by a JSON object and ${CONTROL_CLOSE}. The JSON object:
+{${ENVELOPE_FIELDS}}
+${ENVELOPE_RULES}
+The spoken part is read aloud the instant you write it, so lead with the answer, keep sentences short, and never refer to the JSON.`;
 
 function transcript(state: CallState): string {
   return state.turns.map((t) => `${t.role === 'caller' ? 'Caller' : 'You'}: ${t.text}`).join('\n');
@@ -144,17 +185,93 @@ const FALLBACK: BrainReply = {
   readyToSave: false,
 };
 
-export async function nextReply(state: CallState, callerText: string, from: string): Promise<BrainReply> {
-  if (!aiConfigured()) return FALLBACK;
+/** Split a streamed spoken-format reply into the words (as they arrive) and the envelope (at the end).
+ *  Holds back the last few characters so a marker split across two deltas is still caught. */
+export function spokenSplitter(onWords: (text: string) => void): { push(delta: string): void; finish(): BrainReply | null } {
+  let buf = '';
+  let control = '';
+  let inControl = false;
+  return {
+    push(delta) {
+      if (inControl) { control += delta; return; }
+      buf += delta;
+      const at = buf.indexOf(CONTROL_OPEN);
+      if (at >= 0) {
+        const words = buf.slice(0, at);
+        if (words) onWords(words);
+        control = buf.slice(at + CONTROL_OPEN.length);
+        buf = '';
+        inControl = true;
+        return;
+      }
+      // Flush everything but a tail long enough to hide a partial marker.
+      const keep = CONTROL_OPEN.length - 1;
+      if (buf.length > keep) {
+        const out = buf.slice(0, buf.length - keep);
+        buf = buf.slice(buf.length - keep);
+        if (out) onWords(out);
+      }
+    },
+    finish() {
+      if (!inControl) {
+        if (buf) onWords(buf);
+        buf = '';
+        return null;
+      }
+      const end = control.indexOf(CONTROL_CLOSE);
+      const json = (end >= 0 ? control.slice(0, end) : control).trim();
+      return parseEnvelope('{"say":"",' + json.replace(/^\{/, ''));
+    },
+  };
+}
+
+/** The streaming twin of nextReply. `onWords` receives the spoken text as it is written; the
+ *  returned reply carries the full text plus the envelope. A failure anywhere falls back to the
+ *  same voicemail line as nextReply, spoken through `onWords` so the caller is never left in silence. */
+export async function streamReply(state: CallState, callerText: string, from: string, onWords: (text: string) => void, signal?: AbortSignal): Promise<BrainReply> {
+  if (!aiConfigured()) { onWords(FALLBACK.say); return FALLBACK; }
+  let spoken = '';
+  const collect = (t: string) => { spoken += t; onWords(t); };
+  const splitterCollect = spokenSplitter(collect);
+  try {
+    await streamAi(
+      { role: 'voice', surface: 'phone-receptionist-relay', system: systemPrompt('spoken'), cacheSystem: true, messages: [{ role: 'user', content: userTurn(state, callerText, from) }], maxTokens: 500, signal },
+      (delta) => splitterCollect.push(delta),
+    );
+    const env = splitterCollect.finish();
+    const reply: BrainReply = env ? { ...env, say: spoken.trim() } : { say: spoken.trim(), next: 'continue', facts: {}, readyToSave: false };
+    if (reply.quote) {
+      const q = quoteFor(reply.quote);
+      if (q) {
+        collect(' ' + q.spoken);
+        reply.say = spoken.trim();
+        reply.facts = { ...reply.facts, details: [reply.facts.details, `Phone estimate given: ${q.serviceName} ${q.low}–${q.high} (assumed: ${q.assumed.join(', ') || 'nothing'})`].filter(Boolean).join(' | ') };
+      }
+    }
+    return reply;
+  } catch (err) {
+    if (signal?.aborted) return { say: spoken.trim(), next: 'continue', facts: {}, readyToSave: false };
+    console.error('[receptionist] AI stream failed:', err);
+    if (!spoken) onWords(FALLBACK.say);
+    return spoken ? { say: spoken.trim(), next: 'continue', facts: {}, readyToSave: false } : FALLBACK;
+  }
+}
+
+function userTurn(state: CallState, callerText: string, from: string): string {
   const known = Object.entries(state.facts).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('; ');
-  const user = [
+  return [
     `Caller ID: ${from || 'unknown'}.`,
     known ? `Facts already collected: ${known}.` : 'No facts collected yet.',
     state.turns.length ? `Conversation so far:\n${transcript(state)}` : 'This is the first thing the caller said.',
     `Caller just said: "${callerText}"`,
   ].join('\n\n');
+}
+
+export async function nextReply(state: CallState, callerText: string, from: string): Promise<BrainReply> {
+  if (!aiConfigured()) return FALLBACK;
+  const user = userTurn(state, callerText, from);
   try {
-    const r = await callAi({ role: 'assistant', surface: 'phone-receptionist', system: systemPrompt(), cacheSystem: true, messages: [{ role: 'user', content: user }], maxTokens: 700 });
+    const r = await callAi({ role: 'voice', surface: 'phone-receptionist', system: systemPrompt(), cacheSystem: true, messages: [{ role: 'user', content: user }], maxTokens: 700 });
     const reply = parseEnvelope(r.text) ?? FALLBACK;
     // The estimate is computed here, never by the model, so the number is the website's and the
     // disclaimer is always attached, word for word.

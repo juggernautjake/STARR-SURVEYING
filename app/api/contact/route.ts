@@ -93,9 +93,11 @@ const COMPANY = {
   address: '3779 W FM 436, Belton, TX 76513',
   website: 'https://starr-surveying.com',
   logoUrl: 'https://starr-surveying.com/logos/starr_surveying_logo_aug_2024_alt.png',
+  // One public number for the whole firm (owner, 2026-09-11: "We should just have the new company
+  // number listed"). It rings Hank first; the receptionist covers when he cannot answer.
   team: [
-    { name: 'Henry "Hank" Maddux', title: 'RPLS #6706', phone: '(936) 662-0077', email: 'hankmaddux@starr-surveying.com' },
-    { name: 'Jacob Maddux', title: 'Party Chief / Survey Technician', phone: '(254) 315-1123', email: 'jacobmaddux@starr-surveying.com' },
+    { name: 'Henry "Hank" Maddux', title: 'RPLS #6706', phone: '(833) 842-6971', email: 'hankmaddux@starr-surveying.com' },
+    { name: 'Jacob Maddux', title: 'Party Chief / Survey Technician', phone: '(833) 842-6971', email: 'jacobmaddux@starr-surveying.com' },
   ],
   proverb: '"Remove not the ancient landmark, which thy fathers have set." — Proverbs 22:28',
 };

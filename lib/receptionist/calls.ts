@@ -52,17 +52,19 @@ export interface PhoneCall {
   lead_id: string | null;
   project_id: string | null;
   duration_seconds: number | null;
+  /** A call placed from /admin/dev/receptionist. Same pipeline, no owner alerts, no lead. */
+  is_test: boolean;
   started_at: string;
   ended_at: string | null;
   notified_at: string | null;
 }
 
 export const CALL_COLUMNS =
-  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, property_address, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, started_at, ended_at, notified_at';
+  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, property_address, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
 
 type Client = Pick<SupabaseClient, 'from'>;
 
-export async function startCall(client: Client, args: { callSid: string; from: string; to: string }): Promise<PhoneCall | null> {
+export async function startCall(client: Client, args: { callSid: string; from: string; to: string; isTest?: boolean }): Promise<PhoneCall | null> {
   const org = await resolveIntakeOrgId(client);
   const row = {
     org_id: 'orgId' in org ? org.orgId : null,
@@ -71,6 +73,7 @@ export async function startCall(client: Client, args: { callSid: string; from: s
     to_number: args.to,
     status: 'ringing',
     transcript: [],
+    ...(args.isTest ? { is_test: true } : {}),
   };
   const { data, error } = await client.from('phone_calls').upsert(row, { onConflict: 'call_sid' }).select(CALL_COLUMNS).maybeSingle();
   if (error) { console.error('[calls] startCall failed:', error); return null; }

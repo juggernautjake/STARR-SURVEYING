@@ -75,7 +75,7 @@ VALUES
     'First contact',
     'intake',
     'Re: Your Starr Surveying request [{{ref_number}}]',
-    '<p>Hello {{first_name}},</p><p>Thank you for reaching out to Starr Surveying. We received your inquiry about {{survey_type}} and have it in our pipeline.</p><p>I''ll review the details and get back to you within one business day with next steps.</p><p>If you have any questions in the meantime, please reply to this email or call us at (936) 662-0077.</p><p>—<br>Starr Surveying<br>info@starr-surveying.com</p>'
+    '<p>Hello {{first_name}},</p><p>Thank you for reaching out to Starr Surveying. We received your inquiry about {{survey_type}} and have it in our pipeline.</p><p>I''ll review the details and get back to you within one business day with next steps.</p><p>If you have any questions in the meantime, please reply to this email or call us at (833) 842-6971.</p><p>—<br>Starr Surveying<br>info@starr-surveying.com</p>'
   ),
   (
     'Quote follow-up',

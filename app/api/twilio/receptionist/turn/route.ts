@@ -6,6 +6,10 @@
 // has a customer's name and number it saves a lead through `insertLeadFromForm` — the same path as
 // the website form, so the lead shows up in /admin/leads and rings the bell like a form would.
 //
+// TIMING. Twilio drops a webhook after 15 s. The reply itself (one Claude call) is the only thing
+// the caller waits for; the lead notifications, the analysis and the owner alerts are handed to
+// `defer` and finish after the TwiML has gone out (measured 16.7 s before this, 2026-09-11).
+//
 // PUBLIC BY DESIGN: Twilio-signed, like the entry route.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -15,9 +19,9 @@ import { gather, hangup, record, say, twiml, twimlResponse } from '@/lib/twilio/
 import { readStateCookie, stateCookieHeader, clearStateCookieHeader, type CallState } from '@/lib/receptionist/state';
 import { nextReply } from '@/lib/receptionist/brain';
 import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
-import { notifyOwners } from '@/lib/receptionist/notify';
 import { appendTurns, factsToColumns, updateCall } from '@/lib/receptionist/calls';
-import { analyzeCall } from '@/lib/receptionist/analysis';
+import { finishCall } from '@/lib/receptionist/finish';
+import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,21 +41,6 @@ function leadFrom(state: CallState, from: string): LeadIntakeInput {
     source: 'Phone (receptionist)',
     howHeard: 'Phone call',
   };
-}
-
-/** Close the call record: facts, summary, analysis, then tell the owners once. */
-async function finish(callSid: string, from: string, state: CallState, summary: string): Promise<void> {
-  const cols = factsToColumns(state.facts);
-  const started = state.started ? Math.round((Date.now() - state.started) / 1000) : null;
-  let call = await updateCall(supabaseAdmin, callSid, { ...cols, summary, status: 'completed', ended_at: new Date().toISOString(), duration_seconds: started });
-  if (call) {
-    const analysis = await analyzeCall(call);
-    if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary || summary })) ?? call;
-  }
-  if (!call?.notified_at) {
-    await notifyOwners({ from, facts: state.facts, summary: call?.analysis?.summary || summary, callId: call?.id, answeredBy: 'ai' });
-    await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
-  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -85,13 +74,13 @@ export async function POST(request: Request): Promise<Response> {
   await updateCall(supabaseAdmin, callSid, factsToColumns(state.facts));
 
   // Save the lead once, the moment there is enough to save.
-  if (reply.readyToSave && !state.facts.leadId) {
+  if (reply.readyToSave && !state.facts.leadId && !state.test) {
     try {
       const lead = await insertLeadFromForm(supabaseAdmin, leadFrom(state, from));
       if (lead) {
         state.facts.leadId = lead.id;
         await updateCall(supabaseAdmin, callSid, { lead_id: lead.id });
-        await notifyIntakeRecipients(supabaseAdmin, { leadId: lead.id, input: leadFrom(state, from) });
+        defer(notifyIntakeRecipients(supabaseAdmin, { leadId: lead.id, input: leadFrom(state, from) }), 'lead notifications');
       }
     } catch (err) {
       console.error('[receptionist] lead save failed:', err);
@@ -108,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (reply.next === 'done' || tooLong) {
     const summary = reply.summary || state.turns.filter((t) => t.role === 'caller').map((t) => t.text).join(' ').slice(0, 300);
-    await finish(callSid, from, state, summary);
+    defer(finishCall(callSid, from, state, summary), 'call wrap-up');
     return twimlResponse(twiml(say(tooLong ? `Thanks, I have what I need. ${OWNER} will call you back. Goodbye.` : reply.say), hangup()), { 'set-cookie': clearStateCookieHeader() });
   }
   return twimlResponse(twiml(say(reply.say), gather('/api/twilio/receptionist/turn')), { 'set-cookie': stateCookieHeader(state) });

@@ -27,6 +27,7 @@
 .pill--ai { background: rgba(255,207,110,.18); border-color: rgba(183,121,31,.6); }
 .pill--voicemail { background: rgba(242,161,192,.18); border-color: rgba(199,79,134,.5); }
 .pill--none { background: rgba(189,18,24,.12); border-color: rgba(189,18,24,.5); }
+.pill--test { background: rgba(255,207,110,.28); border-color: rgba(183,121,31,.7); }
 .pill--high { background: rgba(189,18,24,.12); border-color: rgba(189,18,24,.5); }
 
 .call-detail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 1.2rem; align-items: start; }

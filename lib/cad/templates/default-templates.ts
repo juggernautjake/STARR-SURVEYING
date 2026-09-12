@@ -1,17 +1,22 @@
 // lib/cad/templates/default-templates.ts — Built-in drawing templates
 import type { CompanyInfo, DrawingTemplate } from './types';
+import { BUSINESS_NAME, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2, PHONE_DISPLAY, EMAIL, RPLS_LICENSE_NUMBER } from '@/lib/seo/business';
 import { DEFAULT_CERTIFICATION_CONFIG } from './certification';
 import { DEFAULT_LEGEND_CONFIG } from './legend';
 import { DEFAULT_BORDER_CONFIG } from './sheet-border';
 import { getDefaultNotes } from './standard-notes';
 
+// The title block is a public document: every plat that leaves the office carries this. It used to
+// hold a predecessor firm's details (301 E. Central, a (254) 939 number, RPLS #5634, an old email
+// domain) that were never updated. Now sourced from lib/seo/business.ts so it cannot drift again
+// (owner, 2026-09-11: one company number everywhere).
 export const STARR_COMPANY_INFO: CompanyInfo = {
-  name: 'Starr Surveying Company',
-  address: '301 E. Central Avenue',
-  cityStateZip: 'Belton, TX 76513',
-  phone: '(254) 939-1009',
-  email: 'info@starrsurveying.com',
-  licenseNumber: 'RPLS #5634',
+  name: BUSINESS_NAME,
+  address: OFFICE_ADDRESS_LINE1,
+  cityStateZip: OFFICE_ADDRESS_LINE2,
+  phone: PHONE_DISPLAY,
+  email: EMAIL,
+  licenseNumber: `RPLS #${RPLS_LICENSE_NUMBER}`,
   logo: null,
 };
 

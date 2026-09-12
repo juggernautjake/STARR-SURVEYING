@@ -26,6 +26,8 @@ export interface CallState {
   facts: CallFacts;
   silence: number;   // consecutive empty Gather results
   started: number;   // epoch ms
+  /** A test call from /admin/dev/receptionist: no lead, no owner alerts. */
+  test?: boolean;
 }
 
 export const COOKIE_NAME = 'starr_rcpt';
@@ -54,6 +56,7 @@ export function decodeState(value: string | undefined | null): CallState {
       facts: parsed.facts ?? {},
       silence: parsed.silence ?? 0,
       started: parsed.started ?? Date.now(),
+      ...(parsed.test ? { test: true } : {}),
     };
   } catch {
     return emptyState();

@@ -34,7 +34,9 @@ export type AiRole =
    *  request in some paths, so the tier matters more than the ceiling. */
   | 'guard'
   /** The in-app assistant: conversational, tool-using, latency-visible. */
-  | 'assistant';
+  | 'assistant'
+  /** A live phone call. Every second of model time is dead air for a person holding a phone. */
+  | 'voice';
 
 export interface ModelConfig {
   model: string;
@@ -90,6 +92,13 @@ const ROLE_DEFAULTS: Record<AiRole, ModelConfig> = {
     effort: 'medium',
     thinking: true,
     why: 'Conversational and tool-using. Latency is visible to the user, so the ceiling is not the priority — being able to act correctly is.',
+  },
+  voice: {
+    model: FAST_MODEL,
+    maxTokens: 500,
+    effort: 'low',
+    thinking: false,
+    why: 'The phone receptionist. Measured 2026-09-11 on the assistant role (Opus, adaptive thinking): four seconds of silence per turn, which on a phone reads as a dropped call. Its script is a fixed knowledge base and a short reply, work the fast tier does well; thinking is off because every token of it is silence. Override with AI_MODEL_VOICE.',
   },
 };
 

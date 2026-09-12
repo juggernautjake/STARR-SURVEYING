@@ -16,6 +16,7 @@ import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { factsToColumns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { analyzeCall } from '@/lib/receptionist/analysis';
+import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,22 +31,26 @@ export async function POST(request: Request): Promise<Response> {
 
   if ('TranscriptionStatus' in params || 'TranscriptionText' in params) {
     const transcript = params.TranscriptionStatus === 'completed' ? (params.TranscriptionText ?? '').trim() : '';
-    let call = await updateCall(supabaseAdmin, callSid, { voicemail_text: transcript || null, status: 'completed', ended_at: new Date().toISOString() });
-    if (call) {
-      const analysis = await analyzeCall(call);
-      if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary })) ?? call;
-    }
-    await notifyOwners({
-      from,
-      facts: { ...state.facts, kind: state.facts.kind ?? (call?.kind as never) ?? 'unknown' },
-      summary: call?.analysis?.summary || (transcript ? `voicemail: ${transcript.slice(0, 160)}` : 'left a voicemail (no transcript)'),
-      recordingUrl: params.RecordingUrl ? `${params.RecordingUrl}.mp3` : undefined,
-      transcript: transcript || undefined,
-      callId: call?.id,
-      answeredBy: 'voicemail',
-    });
-    await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
-    return new Response('', { status: 204 });
+    // Analysis (a slower model) and the owner alerts run after the 204 goes back; Twilio only needs
+    // to know the callback was received. See lib/server/defer.ts.
+    defer((async () => {
+      let call = await updateCall(supabaseAdmin, callSid, { voicemail_text: transcript || null, status: 'completed', ended_at: new Date().toISOString() });
+      if (call) {
+        const analysis = await analyzeCall(call);
+        if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary })) ?? call;
+      }
+      await notifyOwners({
+        from,
+        facts: { ...state.facts, kind: state.facts.kind ?? (call?.kind as never) ?? 'unknown' },
+        summary: call?.analysis?.summary || (transcript ? `voicemail: ${transcript.slice(0, 160)}` : 'left a voicemail (no transcript)'),
+        recordingUrl: params.RecordingUrl ? `${params.RecordingUrl}.mp3` : undefined,
+        transcript: transcript || undefined,
+        callId: call?.id,
+        answeredBy: 'voicemail',
+      });
+      await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
+    })(), 'voicemail wrap-up');
+    return new Response(null, { status: 204 });
   }
 
   // Recording just finished.
@@ -58,8 +63,10 @@ export async function POST(request: Request): Promise<Response> {
     recording_source: 'voicemail',
   });
   if (!params.RecordingUrl) {
-    const call = await getCallBySid(supabaseAdmin, callSid);
-    await notifyOwners({ from, facts: state.facts, summary: 'called and hung up before leaving a message', callId: call?.id, answeredBy: 'none' });
+    defer((async () => {
+      const call = await getCallBySid(supabaseAdmin, callSid);
+      await notifyOwners({ from, facts: state.facts, summary: 'called and hung up before leaving a message', callId: call?.id, answeredBy: 'none' });
+    })(), 'hung-up notice');
   }
   return twimlResponse(twiml(say(`Got it. ${OWNER} will get your message. Goodbye.`), hangup()), { 'set-cookie': clearStateCookieHeader() });
 }

@@ -1,33 +1,43 @@
 // app/api/twilio/receptionist/screen/route.ts — the whisper on the owner's leg.
 //
 // Twilio fetches this when the owner's phone answers, BEFORE bridging the caller. If a person
-// answered, they hear who is calling and press a key; the empty <Response/> we return then lets
-// the bridge happen. If the owner's own carrier voicemail answered, nothing presses a key, the
-// <Gather> times out, the <Hangup/> drops this leg, and the parent <Dial> reports no-answer — which
-// is exactly what sends the caller to the AI instead of into a personal voicemail box.
+// answered, they hear that it is a business call and press a key; the call row is marked as
+// accepted by the owner and the empty <Response/> we return lets the bridge happen. If the owner's
+// own carrier voicemail answered, nothing presses a key, the <Gather> times out, the <Hangup/> drops
+// this leg, and ./after-dial — seeing no acceptance on the row — sends the caller to the AI instead
+// of into a personal voicemail box.
+//
+// WHY NO NUMBER IS READ OUT. First live test, 2026-09-11: the whisper read "call from 833 842 6971",
+// the business's own number, because on this leg Twilio's `From` is the callerId we dialled with,
+// not the person calling. The owner: "It might make sense if it just says that the call is Starr
+// Surveying related and doesn't say the number at all." So it does.
 //
 // PUBLIC BY DESIGN: Twilio-signed, like the entry route.
-import { BUSINESS_NAME } from '@/lib/seo/business';
 import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
 import { hangup, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
+import { updateCall } from '@/lib/receptionist/calls';
+import { whisperText } from '@/lib/receptionist/brain';
 
 export const dynamic = 'force-dynamic';
 
-function spokenNumber(e164: string): string {
-  const d = e164.replace(/\D/g, '').slice(-10);
-  return d ? d.split('').join(' ') : 'an unknown number';
-}
-
 export async function POST(request: Request): Promise<Response> {
   const params = await twilioParams(request);
-  if (!validTwilioSignature(publicUrlOf(request), params, request.headers.get('x-twilio-signature'))) {
+  const url = publicUrlOf(request);
+  if (!validTwilioSignature(url, params, request.headers.get('x-twilio-signature'))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
-  if (params.Digits) return twimlResponse(twiml());
-  const caller = params.From ?? '';
+  if (params.Digits) {
+    // A person pressed a key. Record it on the PARENT call (the caller's leg), which is the row the
+    // entry route opened; Twilio sends ParentCallSid on child legs, and the entry route also put it
+    // in the query as a belt-and-braces.
+    const parent = params.ParentCallSid || new URL(url).searchParams.get('parent') || '';
+    if (parent) await updateCall(supabaseAdmin, parent, { status: 'in-progress', answered_by: 'owner' });
+    return twimlResponse(twiml());
+  }
   const xml = twiml(
-    `<Gather numDigits="1" timeout="6" actionOnEmptyResult="false">${say(`${BUSINESS_NAME} call from ${spokenNumber(caller)}. Press any key to accept.`)}</Gather>`,
+    `<Gather numDigits="1" timeout="6" actionOnEmptyResult="false">${say(whisperText())}</Gather>`,
     hangup(),
   );
   return twimlResponse(xml);

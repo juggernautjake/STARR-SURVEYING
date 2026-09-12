@@ -38,14 +38,14 @@ export async function POST(request: Request): Promise<Response> {
 
   const transcriptSid = params.transcript_sid ?? params.TranscriptSid ?? '';
   const status = (params.status ?? params.Status ?? '').toLowerCase();
-  if (!transcriptSid || (status && status !== 'completed')) return new Response('', { status: 204 });
+  if (!transcriptSid || (status && status !== 'completed')) return new Response(null, { status: 204 });
 
   try {
     const t = await getTranscript(transcriptSid);
     const recordingSid = t.channel?.media_properties?.source_sid;
-    if (!recordingSid) return new Response('', { status: 204 });
+    if (!recordingSid) return new Response(null, { status: 204 });
     const call = await getCallByRecordingSid(supabaseAdmin, recordingSid);
-    if (!call) return new Response('', { status: 204 });
+    if (!call) return new Response(null, { status: 204 });
     const sentences = await getTranscriptSentences(transcriptSid);
     const turns: CallTurn[] = sentences.map((s) => ({ role: s.media_channel === 2 ? 'owner' : 'caller', text: s.transcript }));
     let updated = await updateCall(supabaseAdmin, call.call_sid, { transcript: turns, transcript_sid: transcriptSid, transcript_status: 'completed' });
@@ -57,5 +57,5 @@ export async function POST(request: Request): Promise<Response> {
   } catch (err) {
     console.error('[transcript] failed:', err);
   }
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 }
