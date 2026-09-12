@@ -276,6 +276,8 @@ describe('round three: what the third live call taught', () => {
     const { systemPrompt } = await import('@/lib/receptionist/brain');
     const p = systemPrompt('spoken');
     expect(p).toMatch(/letter by letter/);
+    // Owner, 2026-09-12: "should ask how to spell a name, especially a last name, if it is not sure."
+    expect(p).toMatch(/spell your last name/);
     expect(p).toMatch(/ONE ESTIMATE PER CALL/);
     expect(p).toMatch(/TIME LIMIT REACHED/);
     expect(p).toContain('"email": "..."');
