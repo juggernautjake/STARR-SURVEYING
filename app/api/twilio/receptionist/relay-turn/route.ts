@@ -34,7 +34,7 @@ function leadFrom(state: CallState, from: string): LeadIntakeInput {
     phone: f.phone || from,
     propertyAddress: f.address,
     serviceType: f.service,
-    projectDetails: [f.details, `Taken by the phone receptionist from ${from}.`].filter(Boolean).join('\n'),
+    projectDetails: [f.propertyId ? `Property ID: ${f.propertyId}` : null, f.details, `Taken by the phone receptionist from ${from}.`].filter(Boolean).join('\n'),
     referenceNumber: ref,
     source: 'Phone (receptionist)',
     howHeard: 'Phone call',

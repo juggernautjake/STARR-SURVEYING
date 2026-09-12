@@ -15,6 +15,8 @@ export interface CallFacts {
   name?: string;
   phone?: string;
   address?: string;
+  /** The appraisal-district property ID (or parcel/account number), when the caller has it. */
+  propertyId?: string;
   service?: string;
   details?: string;
   /** Read back letter by letter before it is kept (owner: "double check the spelling"). */

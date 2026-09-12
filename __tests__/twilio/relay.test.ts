@@ -278,14 +278,17 @@ describe('round three: what the third live call taught', () => {
     expect(p).toMatch(/letter by letter/);
     // Owner, 2026-09-12: "should ask how to spell a name, especially a last name, if it is not sure."
     expect(p).toMatch(/spell your last name/);
+    expect(p).toMatch(/ONE ESTIMATE PER CALL/);
+    expect(p).toMatch(/TIME LIMIT REACHED/);
+    expect(p).toContain('"email": "..."');
+    // Owner, 2026-09-12: "check and see if the caller has a property id … if they are wanting a quote for a property."
+    expect(p).toMatch(/property ID/);
+    expect(p).toContain('"propertyId": "..."');
   });
   it("keeps every email lowercase and closes the gaps the transcriber leaves (owner, 2026-09-12)", async () => {
     const { parseEnvelope } = await import("@/lib/receptionist/brain");
     const r = parseEnvelope("{\"say\":\"ok\",\"next\":\"continue\",\"facts\":{\"email\":\" Jacob.Maddux At Gmail dot COM \"}}");
     expect(r?.facts.email).toBe("jacob.maddux@gmail.com");
     expect(parseEnvelope("{\"say\":\"ok\",\"facts\":{\"email\":\"not an address\"}}")?.facts.email).toBeUndefined();
-    expect(p).toMatch(/ONE ESTIMATE PER CALL/);
-    expect(p).toMatch(/TIME LIMIT REACHED/);
-    expect(p).toContain('"email": "..."');
   });
 });

@@ -38,6 +38,7 @@ export interface PhoneCall {
   callback_number: string | null;
   caller_email: string | null;
   property_address: string | null;
+  property_id: string | null;
   service: string | null;
   details: string | null;
   transcript: CallTurn[];
@@ -61,7 +62,7 @@ export interface PhoneCall {
 }
 
 export const CALL_COLUMNS =
-  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
+  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
 
 type Client = Pick<SupabaseClient, 'from'>;
 
@@ -126,6 +127,7 @@ export function factsToColumns(f: CallFacts): Partial<PhoneCall> {
     callback_number: f.phone ?? null,
     caller_email: f.email ?? null,
     property_address: f.address ?? null,
+    property_id: f.propertyId ?? null,
     service: f.service ?? null,
     details: f.details ?? null,
     lead_id: f.leadId ?? null,
