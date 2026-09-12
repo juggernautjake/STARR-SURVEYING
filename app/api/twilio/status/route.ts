@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     ended_at: call.ended_at ?? new Date().toISOString(),
     answered_by: unhandled ? 'none' : call.answered_by,
   });
-  if (unhandled && !call.notified_at) {
+  if (unhandled && !call.notified_at && !call.is_test) {
     await notifyOwners({ from: call.from_number, facts: { kind: 'unknown' }, summary: `missed: hung up after ${duration ?? '?'} seconds, before anyone answered`, callId: call.id, answeredBy: 'none' });
     await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
   }

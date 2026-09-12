@@ -39,6 +39,7 @@ export async function POST(request: Request): Promise<Response> {
         const analysis = await analyzeCall(call);
         if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary })) ?? call;
       }
+      if (call?.is_test || state.test) { await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() }); return; }
       await notifyOwners({
         from,
         facts: { ...state.facts, kind: state.facts.kind ?? (call?.kind as never) ?? 'unknown' },
@@ -65,6 +66,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!params.RecordingUrl) {
     defer((async () => {
       const call = await getCallBySid(supabaseAdmin, callSid);
+      if (call?.is_test || state.test) return;
       await notifyOwners({ from, facts: state.facts, summary: 'called and hung up before leaving a message', callId: call?.id, answeredBy: 'none' });
     })(), 'hung-up notice');
   }
