@@ -23,7 +23,7 @@ function fmt(hhmm: string): string {
 
 const body = `# ${BUSINESS_NAME}
 
-> Registered Professional Land Surveyor (Texas RPLS #${RPLS_LICENSE_NUMBER}) serving Central Texas from Belton. Legal name: ${LEGAL_NAME}.
+> Registered Professional Land Surveyor (Texas RPLS #${RPLS_LICENSE_NUMBER}) serving Central Texas from Belton. Legal name: ${LEGAL_NAME.replace(/.$/, '')}.
 
 ## Contact (the only public phone number)
 
