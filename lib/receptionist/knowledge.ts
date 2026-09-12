@@ -188,7 +188,7 @@ export const LAND_LAW: Array<{ topic: string; what: string; source: string }> = 
   {
     topic: 'Who may survey',
     what: 'Only a Registered Professional Land Surveyor licensed by the Texas Board of Professional Engineers and Land Surveyors (TBPELS) may practice land surveying in Texas, and only an RPLS can sign and seal a survey. Surveyors must follow the Board’s professional and technical standards for research, field work, monuments, and the plat.',
-    source: 'Texas Occupations Code Chapter 1071 (the Professional Land Surveying Practices Act) and the Board’s rules in Title 22 of the Texas Administrative Code. Verify a license or file a complaint at pels.texas.gov.',
+    source: 'Texas Occupations Code Chapter 1071 (the Professional Land Surveying Practices Act) and the Board’s rules in Title 22, Chapter 138, Subchapter E of the Texas Administrative Code (professional and technical standards, effective April 1, 2021). Verify a license or file a complaint at pels.texas.gov.',
   },
   {
     topic: 'Encroachments (a neighbor’s shed, fence, or driveway on your side)',
@@ -233,7 +233,7 @@ export const LAND_LAW: Array<{ topic: string; what: string; source: string }> = 
   {
     topic: 'Corner markers (monuments)',
     what: 'Corner pins, caps, and stakes set by a surveyor are the physical evidence of the boundary. Moving, pulling, or covering them does not change the line, exposes the person who does it to liability, and makes the next survey cost more. Leave them alone and call a surveyor if one is disturbed.',
-    source: 'Board rules on monumentation in Title 22 of the Texas Administrative Code; damage to markers is handled under general property and criminal-mischief law.',
+    source: 'The Board’s monumentation rule, 22 Texas Administrative Code Section 138.87; damage to markers is criminal mischief under Texas Penal Code Section 28.03.',
   },
   {
     topic: 'Water boundaries',

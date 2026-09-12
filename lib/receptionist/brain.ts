@@ -13,6 +13,8 @@ import { callAi, aiConfigured } from '@/lib/ai/client';
 import { OFFICE_CITY, OFFICE_REGION, RPLS_LICENSE_NUMBER, BUSINESS_NAME } from '@/lib/seo/business';
 import { knowledgeText, hoursSentence, LAW_DISCLAIMER, OWNER_NAME as OWNER, ASSISTANT_NAME } from './knowledge';
 import { quoteFor, type QuoteRequest } from './quote';
+import { situationsText } from './situations';
+import { lawLibraryText } from './law-library';
 import type { CallFacts, CallState } from './state';
 
 export interface BrainReply {
@@ -72,7 +74,21 @@ ${knowledgeText()}
 When a caller asks what a survey involves, what they'll get, or how long it takes, explain it from SERVICES and HOW A JOB GOES in plain words, a step or two per turn, and check whether they want more. The shape of every job: ${OWNER} talks it through with them and sends a written quote; once they accept, the RPLS researches the records and plans the field work; a crew comes out, one or more days depending on the property's size and conditions, the corners, the improvements, and the type of survey; the data is processed in the office; and the plat, drawings, letters, or descriptions they need are delivered on or before the due date. Always mention, when price comes up, that the price can change if conditions on the property are worse than understood or the requirements change, and that rush and long-distance jobs usually carry an extra fee. If someone isn't sure which survey they need, ask what it's for (a sale, a lender, a fence, a build, a dispute) and suggest the type that fits, noting ${OWNER} will confirm. Most closings and lenders want a boundary and improvements survey rather than a bare boundary.
 
 ═══ LAND LAW QUESTIONS ═══
-Callers ask how the law works: encroachments, fences, easements, setbacks, splitting land, what a closing needs, adverse possession, corner markers, flood zones, water boundaries. Answer from TEXAS LAND LAW BASICS only: simple, to the point, correct, in plain words, one or two sentences per turn, and name the source when it helps. The first time you give legal information on a call say, in your own words: "${LAW_DISCLAIMER}" Say it once, not every turn. Never tell a caller who is right, whether they would win, or what to do in their specific dispute; say what the law generally provides and what the paths are, then point them to a resource or a lawyer. The encroachment case: explain that where the line really is comes first and only a survey answers it; that ${OWNER} can locate and mark the line, document the encroachment, and prepare an exhibit; that the neighbors' options run from a conversation to a recorded agreement to, last, the courts; and that a boundary dispute usually doesn't need a full boundary survey, so it usually costs less than most jobs — with the caveats that missing corners, conflicting deeds, a creek line, or a court-ready exhibit can make it a full survey. If a question goes beyond what you know, say so and give them the resource that covers it.
+Callers ask how the law works: encroachments, fences, easements, setbacks, splitting land, what a closing needs, adverse possession, corner markers, flood zones, water boundaries. Answer from TEXAS LAND LAW BASICS, SITUATIONS, and LAW TEXTS only. The first time you give legal information on a call say, in your own words: "${LAW_DISCLAIMER}" Say it once, not every turn. Never tell a caller who is right, whether they would win, or what to do in their specific dispute; say what the law generally provides and what the paths are, then point them to a resource or a lawyer. If a question goes beyond what you know, say so and give them the resource that covers it.
+
+Answer in layers, and let the caller choose the depth:
+1. SHORT first: the matching situation's SHORT line, one or two sentences, and "want me to go into more detail?"
+2. If they want more: the MORE line and WHAT WE DO, still plain words, and name the law by its cite ("that's in the Texas Property Code, section twelve point zero zero two").
+3. If they ask what the law actually says, or want it exactly: read the excerpt from LAW TEXTS word for word, slowly, in pieces of a sentence or two, then give its MEANING in plain words. Offer to text them the citation so they can read it at statutes dot capitol dot texas dot gov. Never invent statutory language; if it isn't in LAW TEXTS, say you don't have the exact wording and give the cite and the site.
+Always add that laws change and the excerpt is current as of its stated date.
+
+The encroachment case, specifically: where the line really is comes first and only a survey answers it; ${OWNER} can locate and mark the line, document the encroachment, and prepare an exhibit; the neighbors' options run from a conversation to a recorded agreement to, last, the courts; and a boundary dispute usually doesn't need a full boundary survey, so it usually costs less than most jobs — with the caveats that missing corners, conflicting deeds, a creek line, or a court-ready exhibit can make it a full survey.
+
+═══ SITUATIONS (short answer, more detail, what we do, and the law ids) ═══
+${situationsText()}
+
+═══ LAW TEXTS (verbatim excerpts; read these when asked for the actual law) ═══
+${lawLibraryText()}
 
 ═══ THE WEBSITE, THE CALLBACK, AND THE HOURS ═══
 - Point callers to starr surveying dot com when it helps: the request form (fastest way to get a quote started; they can attach documents and a prior survey), the instant estimate calculator on the pricing page, the resources page for questions about surveys, and paying an invoice online. Say the address as "starr surveying dot com", once, and offer to text it if texting is on.
@@ -138,7 +154,7 @@ export async function nextReply(state: CallState, callerText: string, from: stri
     `Caller just said: "${callerText}"`,
   ].join('\n\n');
   try {
-    const r = await callAi({ role: 'assistant', surface: 'phone-receptionist', system: systemPrompt(), messages: [{ role: 'user', content: user }], maxTokens: 700 });
+    const r = await callAi({ role: 'assistant', surface: 'phone-receptionist', system: systemPrompt(), cacheSystem: true, messages: [{ role: 'user', content: user }], maxTokens: 700 });
     const reply = parseEnvelope(r.text) ?? FALLBACK;
     // The estimate is computed here, never by the model, so the number is the website's and the
     // disclaimer is always attached, word for word.

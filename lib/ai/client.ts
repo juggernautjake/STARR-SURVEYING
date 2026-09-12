@@ -51,6 +51,9 @@ export interface AiCallOptions {
   /** Which part of the app is calling. Recorded, and the only way a cost report can name a culprit. */
   surface: string;
   system?: string;
+  /** Mark the system prompt as a prompt-cache breakpoint. Only worth it when the prompt is large
+   *  and byte-identical between calls (the receptionist); the minimum cacheable size is model-dependent. */
+  cacheSystem?: boolean;
   messages: Anthropic.MessageParam[];
   tools?: Anthropic.Tool[];
   toolChoice?: Anthropic.MessageCreateParams['tool_choice'];
@@ -107,7 +110,11 @@ export async function callAi(opts: AiCallOptions): Promise<AiCallResult> {
         {
           ...params,
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-          ...(opts.system ? { system: opts.system } : {}),
+          // A large, stable system prompt (the phone receptionist's) is cached across calls; the
+          // cached prefix costs a tenth of the uncached price after the first turn.
+          ...(opts.system
+            ? { system: opts.cacheSystem ? [{ type: 'text' as const, text: opts.system, cache_control: { type: 'ephemeral' as const } }] : opts.system }
+            : {}),
           messages: opts.messages,
           ...(opts.tools?.length ? { tools: opts.tools } : {}),
           ...(opts.toolChoice ? { tool_choice: opts.toolChoice } : {}),

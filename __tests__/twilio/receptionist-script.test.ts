@@ -11,6 +11,8 @@ import { readFileSync } from 'node:fs';
 import { systemPrompt, parseEnvelope } from '@/lib/receptionist/brain';
 import { knowledgeText, hoursSentence, SERVICES, FAQ, LAND_LAW, LAW_RESOURCES, LAW_DISCLAIMER } from '@/lib/receptionist/knowledge';
 import { OPENING_HOURS } from '@/lib/seo/business';
+import { SITUATIONS } from '@/lib/receptionist/situations';
+import { LAW_TEXTS, lawExcerpt } from '@/lib/receptionist/law-library';
 import { quoteFor, sizeBucket, cornersBucket, QUOTE_DISCLAIMER } from '@/lib/receptionist/quote';
 import { parseAnalysis, transcriptText } from '@/lib/receptionist/analysis';
 import { SURVEY_TYPES } from '@/app/components/surveyConfigs';
@@ -116,6 +118,50 @@ describe('land-law questions: correct, simple, sourced, and never advice', () =>
     expect(k).toContain('pels dot texas dot gov');
     expect(k).toContain('m s c dot fema dot gov');
     expect(k).toContain('texas law help dot org');
+  });
+});
+
+describe('layered legal answers backed by verbatim law', () => {
+  const p = systemPrompt();
+  it('every situation has a short answer, a longer one, what Starr does, and only real law ids', () => {
+    expect(SITUATIONS.length).toBeGreaterThanOrEqual(25);
+    const ids = new Set(LAW_TEXTS.map((l) => l.id));
+    for (const s of SITUATIONS) {
+      expect(s.short.length, s.id).toBeGreaterThan(40);
+      expect(s.more.length, s.id).toBeGreaterThan(40);
+      expect(s.surveyor.length, s.id).toBeGreaterThan(20);
+      for (const id of s.laws) expect(ids.has(id), `${s.id} cites unknown law ${id}`).toBe(true);
+    }
+  });
+  it('every law excerpt is verbatim-tagged with a cite, a source with a current-through date, and a plain meaning', () => {
+    expect(LAW_TEXTS.length).toBeGreaterThanOrEqual(14);
+    for (const l of LAW_TEXTS) {
+      expect(l.cite, l.id).toMatch(/Texas .* Code, Section \d/);
+      expect(l.source, l.id).toMatch(/current (through|as of) [A-Z][a-z]+ \d{1,2}, \d{4}/);
+      expect(l.text.length, l.id).toBeGreaterThan(80);
+      expect(l.plain.length, l.id).toBeGreaterThan(40);
+    }
+    // Spot-checks against the sources: exact phrases that only the real statutes contain.
+    expect(lawExcerpt('cprc-16.026')?.text).toContain('limited in this section to 160 acres');
+    expect(lawExcerpt('occ-1071.251')?.text).toContain('may not engage in the practice of professional surveying unless the person is registered, licensed, or certified');
+    expect(lawExcerpt('agric-143.028')?.text).toContain('at least four feet high');
+    expect(lawExcerpt('water-11.086')?.text).toContain('No person may divert or impound the natural flow of surface waters');
+    expect(lawExcerpt('lgc-212.004')?.text).toContain('parts greater than five acres, where each part has access');
+  });
+  it('the script answers in three layers and never invents statutory language', () => {
+    expect(p).toMatch(/SHORT first/);
+    expect(p).toMatch(/If they ask what the law actually says/);
+    expect(p).toMatch(/word for word/);
+    expect(p).toMatch(/Never invent statutory language/);
+    expect(p).toMatch(/laws change and the excerpt is current as of its stated date/);
+    expect(p).toContain('LAW TEXTS (verbatim excerpts');
+    expect(p).toContain('[cprc-16.026]');
+  });
+  it('gets the surveyor-entry rule right: no general right of entry for private surveys', () => {
+    const s = SITUATIONS.find((x) => x.id === 'surveyor-on-neighbor-land')!;
+    expect(s.short).toMatch(/needs the landowner’s permission/);
+    expect(s.laws).toContain('occ-1071.358');
+    expect(lawExcerpt('occ-1071.358')?.plain).toMatch(/no such right/);
   });
 });
 
