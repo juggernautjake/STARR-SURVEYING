@@ -15,7 +15,7 @@ import { readStateCookie, clearStateCookieHeader } from '@/lib/receptionist/stat
 import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { factsToColumns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
-import { analyzeCall } from '@/lib/receptionist/analysis';
+import { analyzeCall, contactColumns } from '@/lib/receptionist/analysis';
 import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
       let call = await updateCall(supabaseAdmin, callSid, { voicemail_text: transcript || null, status: 'completed', ended_at: new Date().toISOString() });
       if (call) {
         const analysis = await analyzeCall(call);
-        if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary })) ?? call;
+        if (analysis) call = (await updateCall(supabaseAdmin, callSid, { ...contactColumns(call, analysis), analysis, summary: analysis.summary })) ?? call;
       }
       if (call?.is_test || state.test) { await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() }); return; }
       await notifyOwners({
@@ -48,6 +48,7 @@ export async function POST(request: Request): Promise<Response> {
         transcript: transcript || undefined,
         callId: call?.id,
         answeredBy: 'voicemail',
+        call,
       });
       await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
     })(), 'voicemail wrap-up');
@@ -67,7 +68,7 @@ export async function POST(request: Request): Promise<Response> {
     defer((async () => {
       const call = await getCallBySid(supabaseAdmin, callSid);
       if (call?.is_test || state.test) return;
-      await notifyOwners({ from, facts: state.facts, summary: 'called and hung up before leaving a message', callId: call?.id, answeredBy: 'none' });
+      await notifyOwners({ from, facts: state.facts, summary: 'Called and hung up before leaving a message.', callId: call?.id, answeredBy: 'none', call });
     })(), 'hung-up notice');
   }
   return twimlResponse(twiml(say(`Got it. ${OWNER} will get your message. Goodbye.`), hangup()), { 'set-cookie': clearStateCookieHeader() });

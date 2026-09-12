@@ -6,7 +6,7 @@
 // facts and summary are written every time (later is better informed), the analysis runs once, and
 // the owners are told once.
 import { supabaseAdmin } from '@/lib/supabase';
-import { analyzeCall } from './analysis';
+import { analyzeCall, contactColumns } from './analysis';
 import { factsToColumns, getCallBySid, updateCall } from './calls';
 import { notifyOwners } from './notify';
 import type { CallState } from './state';
@@ -18,11 +18,11 @@ export async function finishCall(callSid: string, from: string, state: Pick<Call
   let call = await updateCall(supabaseAdmin, callSid, { ...cols, summary: existing?.summary && !summary ? existing.summary : summary || existing?.summary || null, status: 'completed', ended_at: existing?.ended_at ?? new Date().toISOString(), duration_seconds: started });
   if (call && !call.analysis) {
     const analysis = await analyzeCall(call);
-    if (analysis) call = (await updateCall(supabaseAdmin, callSid, { analysis, summary: analysis.summary || summary })) ?? call;
+    if (analysis) call = (await updateCall(supabaseAdmin, callSid, { ...contactColumns(call, analysis), analysis, summary: analysis.summary || summary })) ?? call;
   }
   // Test calls are reviewed on /admin/calls like any other; they just never ring anyone's phone.
   if (call && !call.notified_at && !call.is_test) {
-    await notifyOwners({ from, facts: state.facts, summary: call.analysis?.summary || summary, callId: call.id, answeredBy: 'ai' });
+    await notifyOwners({ from, facts: state.facts, summary: call.analysis?.summary || summary, callId: call.id, answeredBy: 'ai', call });
     await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
   }
 }

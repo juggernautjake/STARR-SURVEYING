@@ -61,7 +61,10 @@ export default function CallPage(): React.ReactElement {
             <dt>When</dt><dd>{started.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{call.duration_seconds ? ` · ${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s` : ''}</dd>
             <dt>From</dt><dd><a href={`tel:${call.from_number}`}>{fmtPhone(call.from_number)}</a></dd>
             {call.callback_number && call.callback_number !== call.from_number ? <><dt>Callback</dt><dd><a href={`tel:${call.callback_number}`}>{fmtPhone(call.callback_number)}</a></dd></> : null}
+            {call.caller_email ? <><dt>Email</dt><dd><a href={`mailto:${call.caller_email}`}>{call.caller_email}</a></dd></> : null}
             {call.property_address ? <><dt>Property</dt><dd>{call.property_address}</dd></> : null}
+            {call.property_id ? <><dt>Property ID</dt><dd>{call.property_id}</dd></> : null}
+            {call.acres != null ? <><dt>Size</dt><dd>{call.acres} {call.acres === 1 ? 'acre' : 'acres'}</dd></> : null}
             {call.service ? <><dt>Needs</dt><dd>{call.service}</dd></> : null}
             {call.details ? <><dt>Notes</dt><dd>{call.details}</dd></> : null}
           </dl>
@@ -85,7 +88,7 @@ export default function CallPage(): React.ReactElement {
         <section className="call-panel">
           <h2 className="call-panel__title">Recording</h2>
           {call.recording_url ? (
-            <audio controls preload="none" src={`/api/admin/calls/${call.id}/recording`} />
+            <audio id="recording" controls preload="metadata" src={`/api/admin/calls/${call.id}/recording`} />
           ) : (
             <p className="call-panel__empty">{call.status === 'completed' ? 'No recording was captured for this call.' : 'The recording arrives a minute or so after the call ends.'}</p>
           )}

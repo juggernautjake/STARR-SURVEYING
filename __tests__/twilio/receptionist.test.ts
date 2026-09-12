@@ -15,7 +15,8 @@ import { createHmac } from 'node:crypto';
 import { validTwilioSignature, twilioSignature, publicUrlOf } from '@/lib/twilio/signature';
 import { encodeState, decodeState, emptyState, stateCookieHeader, readStateCookie, COOKIE_NAME } from '@/lib/receptionist/state';
 import { parseEnvelope, RECORDING_NOTICE, greeting, holdNotice, whisperText } from '@/lib/receptionist/brain';
-import { recipientsFor, outcomeText, notifyOwners } from '@/lib/receptionist/notify';
+import { recipientsFor, outcomeText, notifyOwners, briefSummary, mergedFacts } from '@/lib/receptionist/notify';
+import { parseByteRange, rangeResponse } from '@/lib/server/range';
 import { twiml, say, gather, esc } from '@/lib/twilio/twiml';
 // The routes persist to Supabase; in tests there is no database, so the call-record layer is a
 // no-op. What is under test is the TwiML and the gate, not the storage.
@@ -119,10 +120,42 @@ describe('who gets told', () => {
     expect(recipientsFor({ kind: 'personal' }, env)).toEqual(['+12545550002']);
   });
   it('the text names the caller, the need, and the lead link', () => {
-    const t = outcomeText({ from: '+12545550100', facts: { kind: 'customer', name: 'Jane', address: '1 Main St', service: 'Boundary survey', leadId: 'L1' }, summary: 'wants a boundary survey next week' });
-    expect(t).toContain('Customer call from Jane (+12545550100)');
+    const t = outcomeText({ from: '+12545550100', facts: { kind: 'customer', name: 'Jane', address: '1 Main St', service: 'Boundary survey', leadId: 'L1' }, summary: 'wants a fence line marked before the contractor starts next week', answeredBy: 'ai' });
+    const lines = t.split('\n');
+    expect(lines[0]).toBe('Starr Surveying: Customer call, handled by Ellie');
+    expect(lines[1]).toBe('Jane · (254) 555-0100');
     expect(t).toContain('Property: 1 Main St');
-    expect(t).toContain('/admin/leads/L1');
+    expect(t).toContain('Needs: Boundary survey');
+    expect(lines[lines.length - 1]).toBe('Listen: https://www.starr-surveying.com/admin/leads/L1');
+  });
+  it('a voicemail with no collected facts still names the caller from the analysis, with ID and acres', () => {
+    const call = {
+      analysis: { summary: 'Bob Jones left a message asking for a boundary survey on his 5 acre place before a fence goes up. He asked for a call back.', caller_type: 'customer' as const, intent: '', urgency: 'normal' as const, sentiment: 'neutral' as const, action_items: [], follow_up: '',
+        contact: { name: 'Bob Jones', phone: '+12545550199', email: 'bob@example.com', address: '400 FM 93, Temple', property_id: '123456', acres: 5, service: 'boundary survey' } },
+    };
+    const t = outcomeText({ from: '+12545550100', facts: {}, summary: call.analysis.summary, callId: 'C1', answeredBy: 'voicemail', call, transcript: 'hi this is bob jones …' });
+    const lines = t.split('\n');
+    expect(lines[0]).toBe('Starr Surveying: New voicemail');
+    expect(lines[1]).toBe('Bob Jones · (254) 555-0199 (called from (254) 555-0100)');
+    expect(lines[2]).toBe('bob@example.com');
+    expect(t).toContain('Property: 400 FM 93, Temple · ID 123456 · 5 ac');
+    expect(t).not.toContain('Needs:'); // the summary already says boundary survey
+    expect(t).not.toContain('"hi this is bob'); // summarised, so the raw words stay off the phone
+    expect(lines[lines.length - 1]).toBe('Listen: https://www.starr-surveying.com/admin/calls/C1');
+    expect(t.length).toBeLessThan(400);
+  });
+  it('facts the receptionist collected beat the row, which beats the analysis', () => {
+    const f = mergedFacts({ facts: { name: 'Spelled Name' }, call: { caller_name: 'Row Name', callback_number: '+12545550001', analysis: { summary: '', caller_type: 'customer', intent: '', urgency: 'normal', sentiment: 'neutral', action_items: [], follow_up: '', contact: { name: 'Guessed', phone: null, email: 'x@y.com', address: null, property_id: null, acres: 2.5, service: null } } } });
+    expect(f).toEqual({ name: 'Spelled Name', phone: '+12545550001', email: 'x@y.com', acres: 2.5 });
+  });
+  it('a missed call reads as one', () => {
+    const t = outcomeText({ from: '+12545550100', facts: {}, summary: 'Hung up after 4 seconds, before anyone answered.', callId: 'C2', answeredBy: 'none' });
+    expect(t.split('\n')).toEqual(['Starr Surveying: Missed call', '(254) 555-0100', 'Hung up after 4 seconds, before anyone answered.', 'Listen: https://www.starr-surveying.com/admin/calls/C2']);
+  });
+  it('briefSummary keeps whole sentences, at most two', () => {
+    expect(briefSummary('One. Two. Three.')).toBe('One. Two.');
+    expect(briefSummary('  Just one without a period ')).toBe('Just one without a period');
+    expect(briefSummary('A'.repeat(50) + ' ' + 'B'.repeat(50), 60)).toBe('A'.repeat(50) + '…');
   });
   it('never throws when a text fails, and still emails', async () => {
     const send = vi.fn<(i: { to: string; body: string }) => Promise<boolean>>().mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(true);
@@ -133,6 +166,30 @@ describe('who gets told', () => {
     expect(r).toEqual({ texted: 1, emailed: true, belled: 2 });
     expect(inApp).toHaveBeenCalledOnce();
     spy.mockRestore();
+  });
+});
+
+describe('recording byte ranges', () => {
+  it('parses open, closed, and suffix ranges against the file size', () => {
+    expect(parseByteRange(null, 100)).toBeNull();
+    expect(parseByteRange('bytes=0-', 100)).toEqual({ start: 0, end: 99 });
+    expect(parseByteRange('bytes=10-19', 100)).toEqual({ start: 10, end: 19 });
+    expect(parseByteRange('bytes=90-500', 100)).toEqual({ start: 90, end: 99 });
+    expect(parseByteRange('bytes=-10', 100)).toEqual({ start: 90, end: 99 });
+    expect(parseByteRange('bytes=100-', 100)).toBe('unsatisfiable');
+    expect(parseByteRange('bytes=0-10,20-30', 100)).toBeNull();
+  });
+  it('answers with a length, and 206 with a content-range for a slice', async () => {
+    const bytes = new Uint8Array(100).map((_, i) => i);
+    const whole = rangeResponse(bytes, null, { 'content-type': 'audio/mpeg' });
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get('content-length')).toBe('100');
+    expect(whole.headers.get('accept-ranges')).toBe('bytes');
+    const part = rangeResponse(bytes, 'bytes=10-19', { 'content-type': 'audio/mpeg' });
+    expect(part.status).toBe(206);
+    expect(part.headers.get('content-range')).toBe('bytes 10-19/100');
+    expect(new Uint8Array(await part.arrayBuffer())).toEqual(new Uint8Array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]));
+    expect(rangeResponse(bytes, 'bytes=500-', {}).status).toBe(416);
   });
 });
 

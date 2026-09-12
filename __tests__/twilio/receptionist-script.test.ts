@@ -236,6 +236,11 @@ describe('call analysis parsing', () => {
     expect(a?.suggested_project?.name).toBe('Boundary - 1 Main St');
     expect(parseAnalysis('nope')).toBeNull();
   });
+  it('reads the contact block, normalising the phone and email and dropping empties', () => {
+    const a = parseAnalysis('{"summary":"s","contact":{"name":"Bob Jones","phone":"254 555 0199","email":"Bob at example dot com","address":null,"property_id":"123456","acres":"about 5","service":null}}');
+    expect(a?.contact).toEqual({ name: 'Bob Jones', phone: '+12545550199', email: 'bob@example.com', address: null, property_id: '123456', acres: 5, service: null });
+    expect(parseAnalysis('{"summary":"s","contact":{"name":null,"phone":"123"}}')?.contact).toBeNull();
+  });
   it('renders a transcript with the right speakers', () => {
     const t = transcriptText([{ role: 'caller', text: 'hi' }, { role: 'assistant', text: 'hello' }, { role: 'owner', text: 'this is Hank' }], 'call me back');
     expect(t).toBe('Caller: hi\nReceptionist: hello\nHank: this is Hank\nVoicemail (transcribed): call me back');

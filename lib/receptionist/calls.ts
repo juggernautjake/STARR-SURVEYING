@@ -23,6 +23,19 @@ export interface CallAnalysis {
   follow_up: string;
   suggested_project?: { name: string; service?: string; address?: string; notes?: string } | null;
   questions_asked?: string[];
+  /** Contact and job facts the analysis read out of the words themselves — the only source when a
+   *  caller just leaves a voicemail. Each field is null unless the caller actually said it. */
+  contact?: CallContact | null;
+}
+
+export interface CallContact {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  property_id: string | null;
+  acres: number | null;
+  service: string | null;
 }
 
 export interface PhoneCall {
@@ -39,6 +52,7 @@ export interface PhoneCall {
   caller_email: string | null;
   property_address: string | null;
   property_id: string | null;
+  acres: number | null;
   service: string | null;
   details: string | null;
   transcript: CallTurn[];
@@ -62,7 +76,7 @@ export interface PhoneCall {
 }
 
 export const CALL_COLUMNS =
-  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
+  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, acres, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
 
 type Client = Pick<SupabaseClient, 'from'>;
 
@@ -128,10 +142,28 @@ export function factsToColumns(f: CallFacts): Partial<PhoneCall> {
     caller_email: f.email ?? null,
     property_address: f.address ?? null,
     property_id: f.propertyId ?? null,
+    acres: f.acres ?? null,
     service: f.service ?? null,
     details: f.details ?? null,
     lead_id: f.leadId ?? null,
   };
+}
+
+/** The inverse: what the call row knows, as facts. Nulls become absent keys. */
+export function factsFromCall(c: Partial<PhoneCall> | null | undefined): CallFacts {
+  if (!c) return {};
+  const f: CallFacts = {};
+  if (c.kind === 'customer' || c.kind === 'personal' || c.kind === 'vendor' || c.kind === 'unknown') f.kind = c.kind;
+  if (c.caller_name) f.name = c.caller_name;
+  if (c.callback_number) f.phone = c.callback_number;
+  if (c.caller_email) f.email = c.caller_email;
+  if (c.property_address) f.address = c.property_address;
+  if (c.property_id) f.propertyId = c.property_id;
+  if (typeof c.acres === 'number' && Number.isFinite(c.acres)) f.acres = c.acres;
+  if (c.service) f.service = c.service;
+  if (c.details) f.details = c.details;
+  if (c.lead_id) f.leadId = c.lead_id;
+  return f;
 }
 
 /** A short human title for lists and notifications. */

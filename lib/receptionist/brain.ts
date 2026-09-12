@@ -130,7 +130,7 @@ You may give a rough estimate ONLY after you have: the type of survey, the prope
 ═══ HOW YOU HANDLE THE CALL ═══
 0. If the caller just wants to leave a message, say "Sure, go ahead, I'm listening" and let them talk. When they stop, read back the name and number if they gave them, say ${OWNER} will get the message, and mark the call done. Don't turn a message into an interview.
 1. Find out who's calling and why. Family, friends, or anything not about surveying: be friendly, take a short message (what it's about, best number), and wrap up. Don't interrogate a friend.
-2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), an email address for the written quote, the property address or at least the city and county, what they need and what it's for, and any deadline. NAMES: the transcript you get is speech recognition, and it guesses at names. If a name is not one you would spell with confidence, and especially for a last name, ask them to spell it ("could you spell your last name for me?"), then read it back letter by letter and keep the spelled version. Plain common names (John Smith) don't need this; anything else does. EMAIL: after they say it, read it back spelled out letter by letter for the part before the at sign ("that's j, a, c, o, b, at gmail dot com, is that right?") and only keep it once they confirm; if they'd rather not give one, that's fine. Email addresses are always all lowercase: never ask about capital letters, and write them in lowercase. PROPERTY ID: when they want a quote on a property, ask whether they have the property ID from the county appraisal district (it's on the tax statement or the appraisal district website; some call it the parcel or account number). It lets ${OWNER} pull the deed and plat before he calls. Read it back digit by digit. If they don't have it handy, the address is enough; don't make them go look. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
+2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), an email address for the written quote, the property address or at least the city and county, what they need and what it's for, and any deadline. NAMES: the transcript you get is speech recognition, and it guesses at names. If a name is not one you would spell with confidence, and especially for a last name, ask them to spell it ("could you spell your last name for me?"), then read it back letter by letter and keep the spelled version. Plain common names (John Smith) don't need this; anything else does. EMAIL: after they say it, read it back spelled out letter by letter for the part before the at sign ("that's j, a, c, o, b, at gmail dot com, is that right?") and only keep it once they confirm; if they'd rather not give one, that's fine. Email addresses are always all lowercase: never ask about capital letters, and write them in lowercase. ACREAGE: when they want a quote, ask roughly how many acres (or lot size) and keep the number in facts.acres. PROPERTY ID: when they want a quote on a property, ask whether they have the property ID from the county appraisal district (it's on the tax statement or the appraisal district website; some call it the parcel or account number). It lets ${OWNER} pull the deed and plat before he calls. Read it back digit by digit. If they don't have it handy, the address is enough; don't make them go look. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
 3. Existing client with a job in progress: take the message and who they are. You can't see job status; ${OWNER} will return the call.
 4. Title companies, lenders, real estate agents: treat as customers, note who they represent.
 5. Vendor, sales, or recruiter: polite, brief, take a message only if they insist.
@@ -142,7 +142,7 @@ You may give a rough estimate ONLY after you have: the type of survey, the prope
 ${format === 'json' ? JSON_FORMAT : SPOKEN_FORMAT}`;
 }
 
-const ENVELOPE_FIELDS = `"next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "email": "...", "address": "...", "propertyId": "...", "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false}`;
+const ENVELOPE_FIELDS = `"next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "email": "...", "address": "...", "propertyId": "...", "acres": number, "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false}`;
 const ENVELOPE_RULES = `Include "quote" only when the caller wants a price and you have those answers. Include only facts you actually learned; keep earlier facts unless the caller corrects them. Put questions you couldn't answer into details. Set readyToSave to true only when kind is customer and you have at least a name and a phone number.`;
 
 const JSON_FORMAT = `Respond ONLY with a JSON object, no prose around it:
@@ -165,9 +165,17 @@ function transcript(state: CallState): string {
  *  address is kept lowercase (owner, 2026-09-12: "assume that emails given are all lowercase").
  *  Spaces the transcriber inserts around "at" and "dot" are removed too. */
 export function normalizeFacts(facts: CallFacts): CallFacts {
-  if (typeof facts.email !== 'string') return facts;
-  const email = facts.email.trim().toLowerCase().replace(/\s+at\s+/g, '@').replace(/\s+dot\s+/g, '.').replace(/\s+/g, '');
-  return { ...facts, email: email.includes('@') ? email : undefined };
+  let out: CallFacts = facts;
+  if (typeof facts.email === 'string') {
+    const email = facts.email.trim().toLowerCase().replace(/\s+at\s+/g, '@').replace(/\s+dot\s+/g, '.').replace(/\s+/g, '');
+    out = { ...out, email: email.includes('@') ? email : undefined };
+  }
+  if ('acres' in facts) {
+    // The model sometimes writes "5 acres" or "about 5"; keep the number, drop the rest.
+    const n = typeof facts.acres === 'number' ? facts.acres : parseFloat(String(facts.acres ?? '').replace(/[^0-9.]/g, ''));
+    out = { ...out, acres: Number.isFinite(n) && n > 0 ? n : undefined };
+  }
+  return out;
 }
 
 export function parseEnvelope(text: string): BrainReply | null {
@@ -265,7 +273,7 @@ export async function streamReply(state: CallState, callerText: string, from: st
     if (reply.quote && !state.facts.quoted) {
       const q = quoteFor(reply.quote);
       if (q) {
-        reply.facts = { ...reply.facts, quoted: true };
+        reply.facts = { ...reply.facts, quoted: true, acres: reply.facts.acres ?? ((reply.quote.acres ?? 0) > 0 ? reply.quote.acres : undefined) };
         collect(' ' + q.spoken);
         reply.say = spoken.trim();
         reply.facts = { ...reply.facts, details: [reply.facts.details, `Phone estimate given: ${q.serviceName} ${q.low}–${q.high} (assumed: ${q.assumed.join(', ') || 'nothing'})`].filter(Boolean).join(' | ') };
@@ -304,7 +312,7 @@ export async function nextReply(state: CallState, callerText: string, from: stri
     if (reply.quote && !state.facts.quoted) {
       const q = quoteFor(reply.quote);
       if (q) {
-        reply.facts = { ...reply.facts, quoted: true };
+        reply.facts = { ...reply.facts, quoted: true, acres: reply.facts.acres ?? ((reply.quote.acres ?? 0) > 0 ? reply.quote.acres : undefined) };
         reply.say = `${reply.say} ${q.spoken}`.trim();
         reply.facts = { ...reply.facts, details: [reply.facts.details, `Phone estimate given: ${q.serviceName} ${q.low}–${q.high} (assumed: ${q.assumed.join(', ') || 'nothing'})`].filter(Boolean).join(' | ') };
       }

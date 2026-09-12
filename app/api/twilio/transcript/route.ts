@@ -14,8 +14,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf } from '@/lib/twilio/signature';
 import { getTranscript, getTranscriptSentences } from '@/lib/twilio/rest';
 import { getCallByRecordingSid, updateCall, type CallTurn } from '@/lib/receptionist/calls';
-import { analyzeCall } from '@/lib/receptionist/analysis';
+import { analyzeCall, contactColumns } from '@/lib/receptionist/analysis';
 import { notifyOwners } from '@/lib/receptionist/notify';
+import { OWNER_NAME } from '@/lib/receptionist/knowledge';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,9 +52,9 @@ export async function POST(request: Request): Promise<Response> {
     let updated = await updateCall(supabaseAdmin, call.call_sid, { transcript: turns, transcript_sid: transcriptSid, transcript_status: 'completed' });
     if (updated) {
       const analysis = await analyzeCall(updated);
-      if (analysis) updated = (await updateCall(supabaseAdmin, call.call_sid, { analysis, summary: analysis.summary, kind: analysis.caller_type === 'personal' ? 'personal' : analysis.caller_type === 'vendor' ? 'vendor' : analysis.caller_type === 'customer' || analysis.caller_type === 'existing_client' ? 'customer' : 'unknown' })) ?? updated;
+      if (analysis) updated = (await updateCall(supabaseAdmin, call.call_sid, { ...contactColumns(updated, analysis), analysis, summary: analysis.summary, kind: analysis.caller_type === 'personal' ? 'personal' : analysis.caller_type === 'vendor' ? 'vendor' : analysis.caller_type === 'customer' || analysis.caller_type === 'existing_client' ? 'customer' : 'unknown' })) ?? updated;
     }
-    await notifyOwners({ from: call.from_number, facts: { kind: (updated?.kind as never) ?? 'unknown', name: updated?.caller_name ?? undefined }, summary: updated?.analysis?.summary || 'transcript ready for the call Hank answered', callId: call.id, answeredBy: 'owner' });
+    await notifyOwners({ from: call.from_number, facts: {}, summary: updated?.analysis?.summary || `Transcript is ready for the call ${OWNER_NAME} answered.`, callId: call.id, answeredBy: 'owner', call: updated ?? call });
   } catch (err) {
     console.error('[transcript] failed:', err);
   }
