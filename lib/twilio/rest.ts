@@ -27,6 +27,16 @@ export async function startCallRecording(callSid: string, statusCallback: string
   });
 }
 
+/** Place an outbound call and run the TwiML at `url` when it is answered. Used by the developer
+ *  page to ring the tester's own phone with the receptionist, so nobody has to call the owner. */
+export async function createCall(args: { to: string; from: string; url: string; statusCallback?: string }): Promise<{ sid: string; status: string }> {
+  return call<{ sid: string; status: string }>(`https://api.twilio.com/2010-04-01/Accounts/${SID()}/Calls.json`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ To: args.to, From: args.from, Url: args.url, Method: 'POST', ...(args.statusCallback ? { StatusCallback: args.statusCallback, StatusCallbackMethod: 'POST' } : {}) }),
+  });
+}
+
 /** Stream a recording's audio. Twilio recording URLs need account auth; the admin route proxies them. */
 export async function fetchRecording(recordingUrl: string, format: 'mp3' | 'wav' = 'mp3'): Promise<Response> {
   const url = recordingUrl.replace(/\.(mp3|wav|json)$/, '') + `.${format}`;

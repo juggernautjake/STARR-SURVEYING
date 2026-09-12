@@ -94,6 +94,7 @@
     "@tiptap/pm": "^2.11.0",
     "@tiptap/react": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
+    "@twilio/voice-sdk": "^2.18.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/katex": "^0.16.8",
     "@types/pdfkit": "^0.17.5",

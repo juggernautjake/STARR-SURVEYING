@@ -50,7 +50,7 @@ export default function CallPage(): React.ReactElement {
       <div className="call-detail__header">
         <div>
           <Link href="/admin/calls" className="call-detail__back">← All calls</Link>
-          <h1 className="call-detail__title">{call.caller_name || fmtPhone(call.from_number)}</h1>
+          <h1 className="call-detail__title">{call.is_test ? <span className="pill pill--test" style={{ marginRight: '.5rem', verticalAlign: 'middle' }}>Test call</span> : null}{call.caller_name || fmtPhone(call.from_number)}</h1>
           <div className="call-card__meta">
             {call.kind ? <span className={`pill pill--${call.kind}`}>{call.kind}</span> : null}
             {call.answered_by ? <span className={`pill pill--${call.answered_by}`}>{HOW[call.answered_by] ?? call.answered_by}</span> : null}

@@ -1,0 +1,17 @@
+{
+  "name": "starr-voice-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WebSocket bridge between Twilio ConversationRelay and the Starr app's phone receptionist. See lib/receptionist/relay.ts.",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}
