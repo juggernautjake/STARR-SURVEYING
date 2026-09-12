@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { systemPrompt, parseEnvelope } from '@/lib/receptionist/brain';
-import { knowledgeText, hoursSentence, SERVICES, FAQ } from '@/lib/receptionist/knowledge';
+import { knowledgeText, hoursSentence, SERVICES, FAQ, LAND_LAW, LAW_RESOURCES, LAW_DISCLAIMER } from '@/lib/receptionist/knowledge';
 import { OPENING_HOURS } from '@/lib/seo/business';
 import { quoteFor, sizeBucket, cornersBucket, QUOTE_DISCLAIMER } from '@/lib/receptionist/quote';
 import { parseAnalysis, transcriptText } from '@/lib/receptionist/analysis';
@@ -80,6 +80,42 @@ describe('Boundary & Improvements is a real survey type everywhere a customer ca
     for (const f of ['app/contact/page.tsx', 'app/page.tsx', 'app/pricing/page.tsx', 'app/resources/page.tsx', 'lib/seo/business.ts']) {
       expect(readFileSync(f, 'utf8'), f).toContain('Boundary & Improvements Survey');
     }
+  });
+});
+
+describe('land-law questions: correct, simple, sourced, and never advice', () => {
+  const p = systemPrompt();
+  const k = knowledgeText();
+  it('carries the disclaimer, says it once, and never picks a side', () => {
+    expect(p).toContain(LAW_DISCLAIMER);
+    expect(LAW_DISCLAIMER).toMatch(/not legal advice/);
+    expect(LAW_DISCLAIMER).toMatch(/laws and rules change/);
+    expect(p).toMatch(/Say it once, not every turn/);
+    expect(p).toMatch(/Never tell a caller who is right/);
+  });
+  it('covers the topics the owner named, each with a source', () => {
+    for (const t of ['Encroachments', 'Adverse possession', 'Fences', 'Easements', 'Setbacks', 'Dividing land', 'Surveys at closing', 'Corner markers', 'Water boundaries', 'Flood zones', 'Finding records', 'Who may survey']) {
+      expect(LAND_LAW.map((l) => l.topic).join('\n'), t).toMatch(new RegExp(t));
+    }
+    for (const l of LAND_LAW) expect(l.source.length, l.topic).toBeGreaterThan(20);
+    expect(k).toMatch(/Occupations Code Chapter 1071/);
+    expect(k).toMatch(/Local Government Code Chapter 212/);
+    expect(k).toMatch(/Civil Practice and Remedies Code Chapter 16/);
+    expect(k).toMatch(/Agriculture Code Chapter 143/);
+    expect(k).toMatch(/T-47/);
+  });
+  it('handles the neighbor’s-shed case the way the owner described', () => {
+    expect(p).toMatch(/where the line really is comes first/);
+    expect(p).toMatch(/usually doesn't need a full boundary survey/);
+    expect(p).toMatch(/usually costs less than most jobs/);
+    expect(p).toMatch(/missing corners, conflicting deeds, a creek line, or a court-ready exhibit/);
+    expect(k).toMatch(/A surveyor cannot decide who owns what/);
+  });
+  it('names online resources in a speakable form', () => {
+    expect(LAW_RESOURCES.length).toBeGreaterThanOrEqual(6);
+    expect(k).toContain('pels dot texas dot gov');
+    expect(k).toContain('m s c dot fema dot gov');
+    expect(k).toContain('texas law help dot org');
   });
 });
 

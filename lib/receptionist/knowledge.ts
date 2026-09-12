@@ -173,6 +173,97 @@ export function hoursSentence(): string {
   return `${h.days[0]} through ${h.days[h.days.length - 1]}, ${t(h.opens)} to ${t(h.closes)}`;
 }
 
+/** Texas land-law basics the receptionist may state — general statements of what the law is, never
+ *  advice on a caller's situation. Owner, 2026-09-11: "give answers that are in accordance with the
+ *  rules and laws and regulations that are on the books … keep answers simple and to the point and
+ *  correct … say that any legal information it gives is not legal advice and that laws and
+ *  regulations are subject to change … point the customer to online resources."
+ *
+ *  Every item names the source so the caller can be pointed to it. Keep citations at the chapter
+ *  level; section numbers change and a wrong one is worse than none. Reviewed against the statutes
+ *  as of September 2026 — re-check when Texas's legislature next meets (odd-numbered years). */
+export const LAW_DISCLAIMER = 'This is general information, not legal advice, and laws and rules change; for your situation, talk to a Texas real estate attorney.';
+
+export const LAND_LAW: Array<{ topic: string; what: string; source: string }> = [
+  {
+    topic: 'Who may survey',
+    what: 'Only a Registered Professional Land Surveyor licensed by the Texas Board of Professional Engineers and Land Surveyors (TBPELS) may practice land surveying in Texas, and only an RPLS can sign and seal a survey. Surveyors must follow the Board’s professional and technical standards for research, field work, monuments, and the plat.',
+    source: 'Texas Occupations Code Chapter 1071 (the Professional Land Surveying Practices Act) and the Board’s rules in Title 22 of the Texas Administrative Code. Verify a license or file a complaint at pels.texas.gov.',
+  },
+  {
+    topic: 'Encroachments (a neighbor’s shed, fence, or driveway on your side)',
+    what: 'An encroachment is an improvement that crosses the property line. The first question is always where the line actually is, and only a survey answers that. Once the line is marked, the usual paths are, in order: talk with the neighbor with the survey in hand; a written, recorded boundary line agreement or a small easement or license if both sides want to leave things as they are; selling or buying the strip; and, only if that fails, a lawsuit (trespass, or a suit to establish the boundary). A surveyor can locate and mark the line and the encroachment, prepare a drawing exhibit for an agreement or for court, and set or replace the corner pins. A surveyor cannot decide who owns what or order anything removed; that is between the owners, or a court.',
+    source: 'Boundary and trespass law is case law and the Texas Property Code; remedies go through the courts. Texaslawhelp.org has plain-language guides.',
+  },
+  {
+    topic: 'What a dispute usually costs',
+    what: 'A boundary dispute usually does not require a full boundary survey of the whole tract. Most of the time the surveyor only needs to research and retrace the one line in question and mark it, which is a smaller job than most surveys and usually costs less. The exceptions: when the corners on that line cannot be found and the whole tract has to be retraced to recover them, when the deeds of the two properties conflict or overlap, when the line is a creek or river, or when the drawing must stand up in court and needs the full record.',
+    source: 'Firm practice; the estimate comes from the same calculator as any other job.',
+  },
+  {
+    topic: 'Adverse possession',
+    what: 'Texas lets someone claim land they have openly and continuously possessed without permission for a set period: three, five, ten, or twenty-five years depending on the circumstances (for example whether they hold a recorded deed or pay the taxes). A fence that has stood for many years does not by itself move a property line, but long use can matter in a dispute. This is exactly the kind of question that needs a lawyer.',
+    source: 'Texas Civil Practice and Remedies Code Chapter 16 (Subchapter B, adverse possession).',
+  },
+  {
+    topic: 'Fences',
+    what: 'No Texas statute requires a survey before building a fence, but a fence built on the wrong side of a line is the most common source of disputes, which is why we recommend one. Cost-sharing for a fence between neighbors is not required by state law outside of agreements. Texas has special rules for livestock fences and "open range" versus "closed range" counties.',
+    source: 'Texas Agriculture Code Chapter 143 for livestock fences and stock laws; city fence rules are local ordinances.',
+  },
+  {
+    topic: 'Easements',
+    what: 'An easement is a right to use part of someone else’s land for a purpose, usually utilities, drainage, or access. Most are written and recorded with the deed; some arise by long use or by necessity. An easement limits what the owner can build on that strip. A survey shows recorded easements and, if asked, locates the visible use of unrecorded ones.',
+    source: 'Recorded easements are in the county clerk’s deed records; the law is the Texas Property Code and case law.',
+  },
+  {
+    topic: 'Setbacks and building lines',
+    what: 'Setbacks come from city zoning and subdivision plats, not state law. Inside a city or its extraterritorial jurisdiction, the city sets them; in the unincorporated county there are often none beyond what the recorded plat or deed restrictions say. A survey shows platted building lines; the city or county tells you the rest.',
+    source: 'The city’s zoning ordinance, the recorded plat, and deed restrictions.',
+  },
+  {
+    topic: 'Dividing land (plats)',
+    what: 'Splitting a tract into lots for sale or development generally requires a subdivision plat approved by the city (inside city limits or its ETJ) or the county (outside), and recorded. Selling by an unrecorded division can be prohibited. Small family partitions and some large rural splits have exemptions that vary by county.',
+    source: 'Texas Local Government Code Chapter 212 (cities) and Chapter 232 (counties).',
+  },
+  {
+    topic: 'Surveys at closing',
+    what: 'Texas lenders and title companies commonly require a current survey for a purchase or refinance. Texas also allows a seller to reuse an existing survey with a T-47 affidavit stating nothing has changed, if the title company and lender accept it. Whether a new survey is needed is the title company’s and lender’s call.',
+    source: 'Title-company practice under Texas Department of Insurance title rules (the T-47 Residential Real Property Affidavit).',
+  },
+  {
+    topic: 'Corner markers (monuments)',
+    what: 'Corner pins, caps, and stakes set by a surveyor are the physical evidence of the boundary. Moving, pulling, or covering them does not change the line, exposes the person who does it to liability, and makes the next survey cost more. Leave them alone and call a surveyor if one is disturbed.',
+    source: 'Board rules on monumentation in Title 22 of the Texas Administrative Code; damage to markers is handled under general property and criminal-mischief law.',
+  },
+  {
+    topic: 'Water boundaries',
+    what: 'Property lines along rivers, creeks, and lakes follow special Texas rules (the gradient boundary along navigable streams, and different rules for non-navigable ones). These lines can move as the bank moves. They require a surveyor experienced in water boundaries and often a lawyer.',
+    source: 'Texas case law (the gradient boundary doctrine) and the Texas General Land Office for state-owned streambeds.',
+  },
+  {
+    topic: 'Flood zones',
+    what: 'Flood zones are set by FEMA maps, not by the county. Flood insurance rating and removing a property from a zone (a LOMA) are based on an elevation certificate prepared by a surveyor.',
+    source: 'FEMA’s National Flood Insurance Program; look up any address at the FEMA Flood Map Service Center, msc.fema.gov.',
+  },
+  {
+    topic: 'Finding records',
+    what: 'Deeds, plats, and easements are recorded with the county clerk (many counties are searchable online). Old rural surveys and land grants are at the Texas General Land Office. The county appraisal district has rough parcel maps, which are not surveys. A previous surveyor may still have the file.',
+    source: 'County clerk’s office; the Texas General Land Office (glo.texas.gov); the county appraisal district.',
+  },
+];
+
+/** Online resources the receptionist can name, spoken-friendly. */
+export const LAW_RESOURCES: Array<{ name: string; spoken: string; for: string }> = [
+  { name: 'TBPELS', spoken: 'pels dot texas dot gov', for: 'verify a surveyor’s license, the Board’s rules, complaints' },
+  { name: 'Texas statutes', spoken: 'statutes dot capitol dot texas dot gov', for: 'the actual text of any Texas law' },
+  { name: 'TexasLawHelp', spoken: 'texas law help dot org', for: 'free plain-language legal guides and how to find a lawyer' },
+  { name: 'Texas General Land Office', spoken: 'g l o dot texas dot gov', for: 'historical surveys, land grants, state-owned land and water' },
+  { name: 'FEMA Flood Map Service Center', spoken: 'm s c dot fema dot gov', for: 'flood zones by address' },
+  { name: 'County clerk and appraisal district', spoken: 'your county clerk’s website and your county appraisal district’s website', for: 'deeds, plats, easements, parcel maps' },
+  { name: 'Texas Society of Professional Surveyors', spoken: 't s p s dot org', for: 'surveying standards and finding surveyors' },
+  { name: 'Our resources page', spoken: 'starr surveying dot com, resources', for: 'survey types, how to find an old survey, common questions' },
+];
+
 /** What's on the website, so the receptionist can send people to the right page. */
 export const WEBSITE = {
   home: 'starr surveying dot com',
@@ -192,6 +283,10 @@ export function knowledgeText(): string {
     `HOW A JOB GOES, IN ORDER:\n` + PROCESS.map((p, i) => `${i + 1}. ${p}`).join('\n'),
     `PRICE CHANGES AND FEES: ${PRICE_CHANGES.join(' ')}`,
     `WEBSITE (${WEBSITE.home}): ${WEBSITE.requestForm}; ${WEBSITE.calculator}; ${WEBSITE.resources}; ${WEBSITE.payInvoice}.`,
+    `TEXAS LAND LAW BASICS (general statements of the law as of September 2026; each names its source):\n` +
+      LAND_LAW.map((l) => `- ${l.topic}: ${l.what} Source: ${l.source}`).join('\n'),
+    `ONLINE RESOURCES YOU MAY NAME (say them as written in quotes):\n` +
+      LAW_RESOURCES.map((r) => `- ${r.name}, "${r.spoken}": ${r.for}`).join('\n'),
     `HOURS (the same hours shown on Google): ${hoursSentence()}. Field crews work outside those hours; ${OWNER_NAME} returns calls as soon as he can, usually the same or next business day.`,
     `SERVICE AREA: primarily within ${SERVICE_AREA.radiusMiles} miles of Belton, including ${SERVICE_AREA.counties.join(', ')} counties. ${SERVICE_AREA.beyond}`,
     `TIMING: ${TIMING.residential} ${TIMING.larger} ${TIMING.rush} ${TIMING.quoteTurnaround}`,
