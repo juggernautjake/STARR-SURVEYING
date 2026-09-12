@@ -40,9 +40,10 @@ export function ownerPhone(env: Record<string, string | undefined> = process.env
  *  configurable on purpose. */
 export const RECORDING_NOTICE = 'This call may be recorded for quality and record-keeping.';
 
-// Owner, 2026-09-11: "I think we should make it just 20 seconds." Measured on his carrier: voicemail
-// picks up at about 22 seconds, so 20 also means the whisper rarely has to talk to a voicemail box.
-export const RING_SECONDS = 20;
+// Owner, 2026-09-11: first 20 s, then "can we make it 15 seconds instead of 20 to make sure that it
+// doesn't go to voicemail?" His carrier's voicemail answers at about 22 s; 15 leaves a clear margin
+// so the whisper never plays into his voicemail box.
+export const RING_SECONDS = 15;
 
 /** What the caller hears before the owner's phone rings: the notice, and a reason to stay on. */
 export function holdNotice(): string {

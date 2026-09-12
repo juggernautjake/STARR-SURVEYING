@@ -12,7 +12,7 @@
 //
 // The notice is spoken BEFORE the dial because that is the only moment the caller's leg is ours:
 // once <Dial> bridges, both people are talking and nothing can be played to one without the other.
-// It doubles as the "please hold" that stops a caller hanging up during 20 seconds of ringing.
+// It doubles as the "please hold" that stops a caller hanging up during 15 seconds of ringing.
 //
 // PUBLIC BY DESIGN: the Twilio signature is the credential. A request without a valid
 // X-Twilio-Signature for this exact URL is refused before any TwiML is produced.

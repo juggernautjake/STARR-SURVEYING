@@ -142,7 +142,7 @@ describe('entry route', () => {
     const res = await entry(r);
     expect(res.status).toBe(403);
   });
-  it('tells the caller the line is recorded, then rings the owner for 20 s with the whisper on his leg', async () => {
+  it('tells the caller the line is recorded, then rings the owner for 15 s with the whisper on his leg', async () => {
     process.env.TWILIO_AUTH_TOKEN = TOKEN;
     process.env.RECEPTIONIST_OWNER_PHONE = '+19365550001';
     const res = await entry(signed('https://www.starr-surveying.com/api/twilio/receptionist', { From: '+12545550100', To: '+18335550000', CallSid: 'CA1' }));
@@ -152,7 +152,7 @@ describe('entry route', () => {
     expect(holdNotice()).toContain(RECORDING_NOTICE);
     expect(xml.indexOf(esc(holdNotice()))).toBeGreaterThan(0);
     expect(xml.indexOf(esc(holdNotice()))).toBeLessThan(xml.indexOf('<Dial'));
-    expect(xml).toMatch(/<Dial timeout="20" action="\/api\/twilio\/receptionist\/after-dial" method="POST" callerId="\+18335550000" record="record-from-answer-dual" recordingStatusCallback="\/api\/twilio\/recording"[^>]*>/);
+    expect(xml).toMatch(/<Dial timeout="15" action="\/api\/twilio\/receptionist\/after-dial" method="POST" callerId="\+18335550000" record="record-from-answer-dual" recordingStatusCallback="\/api\/twilio\/recording"[^>]*>/);
     expect(xml).toContain('<Number url="/api/twilio/receptionist/screen?parent=CA1" method="POST">+19365550001</Number>');
     expect(xml).not.toContain('<Gather input="speech"');
   });
