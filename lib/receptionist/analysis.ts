@@ -30,7 +30,8 @@ export function transcriptText(turns: CallTurn[] | null | undefined, voicemail?:
 }
 
 export function parseAnalysis(text: string): CallAnalysis | null {
-  const m = text.match(/\{[\s\S]*\}/);
+  // The model sometimes wraps the object in a ```json fence; take the outermost braces.
+  const m = text.replace(/`{3}(?:json)?/gi, '').match(/\{[\s\S]*\}/);
   if (!m) return null;
   try {
     const j = JSON.parse(m[0]) as Partial<CallAnalysis>;
@@ -109,8 +110,10 @@ export async function analyzeCall(call: Pick<PhoneCall, 'from_number' | 'answere
     `Transcript:\n${text}`,
   ].join('\n\n');
   try {
-    const r = await callAi({ role: 'reasoning', surface: 'phone-call-analysis', system: SYSTEM, messages: [{ role: 'user', content: user }], maxTokens: 1200 });
-    return parseAnalysis(r.text);
+    const r = await callAi({ role: 'reasoning', surface: 'phone-call-analysis', system: SYSTEM, messages: [{ role: 'user', content: user }], maxTokens: 3000 });
+    const parsed = parseAnalysis(r.text);
+    if (!parsed) console.error('[receptionist] analysis returned no parseable JSON:', r.text.slice(0, 200).replace(/\s+/g, ' '), '…', r.text.slice(-120).replace(/\s+/g, ' '));
+    return parsed;
   } catch (err) {
     console.error('[receptionist] analysis failed:', err);
     return null;

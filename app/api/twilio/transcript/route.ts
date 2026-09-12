@@ -28,8 +28,14 @@ export async function POST(request: Request): Promise<Response> {
   let params: Record<string, string> = {};
   let ok = false;
   if (isJson) {
-    const withHash = `${url}${url.includes('?') ? '&' : '?'}bodySHA256=${createHash('sha256').update(raw).digest('hex')}`;
-    ok = validTwilioSignature(withHash, {}, sig);
+    // Twilio signs JSON webhooks by appending bodySHA256=<hash of the body> to the URL it calls and
+    // signing that full URL. So the hash usually arrives in our query string already (verify it
+    // matches the body we got); a client that signed the bare URL plus the hash is accepted too.
+    const hash = createHash('sha256').update(raw).digest('hex');
+    const given = new URL(url).searchParams.get('bodySHA256');
+    ok = given
+      ? given.toLowerCase() === hash && validTwilioSignature(url, {}, sig)
+      : validTwilioSignature(`${url}${url.includes('?') ? '&' : '?'}bodySHA256=${hash}`, {}, sig);
     try { params = Object.fromEntries(Object.entries(JSON.parse(raw) as Record<string, unknown>).map(([k, v]) => [k, String(v)])); } catch { params = {}; }
   } else {
     params = Object.fromEntries(new URLSearchParams(raw));

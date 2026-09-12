@@ -193,6 +193,26 @@ describe('recording byte ranges', () => {
   });
 });
 
+describe('transcript webhook signature', () => {
+  it('accepts a JSON body signed the way Twilio does it (bodySHA256 in the URL), rejects a bad hash', async () => {
+    process.env.TWILIO_AUTH_TOKEN = TOKEN;
+    const { POST: transcript } = await import('@/app/api/twilio/transcript/route');
+    const { createHash } = await import('node:crypto');
+    const body = JSON.stringify({ transcript_sid: 'GT' + '0'.repeat(32), status: 'completed', event_type: 'voice_intelligence_transcript_available' });
+    const hash = createHash('sha256').update(body).digest('hex');
+    const url = `https://www.starr-surveying.com/api/twilio/transcript?bodySHA256=${hash}`;
+    const u = new URL(url);
+    const headers = (sig: string) => ({ 'content-type': 'application/json', 'x-twilio-signature': sig, 'x-forwarded-proto': 'https', 'x-forwarded-host': u.host });
+    const good = await transcript(new Request(url, { method: 'POST', headers: headers(twilioSignature(url, {}, TOKEN)), body }));
+    expect(good.status).toBe(204);
+    const wrongHash = url.replace(hash, 'f'.repeat(64));
+    const bad = await transcript(new Request(wrongHash, { method: 'POST', headers: headers(twilioSignature(wrongHash, {}, TOKEN)), body }));
+    expect(bad.status).toBe(403);
+    const unsigned = await transcript(new Request(url, { method: 'POST', headers: headers('nope'), body }));
+    expect(unsigned.status).toBe(403);
+  });
+});
+
 describe('entry route', () => {
   it('refuses an unsigned request', async () => {
     const r = new Request('https://www.starr-surveying.com/api/twilio/receptionist', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'From=%2B1' });
