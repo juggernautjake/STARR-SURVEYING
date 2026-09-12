@@ -107,16 +107,10 @@ export default function ContactPage(): React.ReactElement {
   const contactCards: ContactInfo[] = [
     {
       icon: '📞',
-      label: 'Office (rings Hank)',
+      label: 'Phone',
       value: '(833) 842-6971',
-      link: 'tel:8338426971',
-      linkType: 'tel',
-    },
-    {
-      icon: '📞',
-      label: 'Jacob Maddux',
-      value: '(254) 315-1123',
-      link: 'tel:2543151123',
+      subValue: 'Toll-free. If no one can pick up, our receptionist takes a message.',
+      link: 'tel:+18338426971',
       linkType: 'tel',
     },
     {

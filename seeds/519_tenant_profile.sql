@@ -44,7 +44,7 @@ BEGIN
     name = COALESCE(NULLIF(name, ''), 'Starr Surveying'),
     -- Surveying is licensed per state, so this is not cosmetic — it decides which board's rules apply.
     state = COALESCE(NULLIF(state, ''), 'TX'),
-    phone = COALESCE(NULLIF(phone, ''), '(936) 662-0077'),
+    phone = COALESCE(NULLIF(phone, ''), '(833) 842-6971'),
     -- ── THE DOMAIN IS A CONVENIENCE, NOT THE MEMBERSHIP TEST ──────────────────────────────────────
     -- `lib/auth.ts` used to answer "is this person staff?" with `email ends with @starr-surveying.com`.
     -- Measured against the live database, that test is WRONG for two of the six accounts: both

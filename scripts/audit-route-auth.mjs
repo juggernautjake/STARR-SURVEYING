@@ -67,6 +67,8 @@ const GATES = [
  * `…/invoice/[number]/*` payment routes had no throttle at all until this sweep found them.
  */
 const INTENTIONALLY_PUBLIC = new Map([
+  // ── crawler-facing text, no data, no input ──────────────────────────────────────────────────
+  ['app/llms.txt/route.ts', 'static business summary for AI assistants (llmstxt.org); built from lib/seo/business.ts'],
   // ── the public forms and portal ────────────────────────────────────────────────────────────────
   ['app/api/contact/route.ts', 'the public quote form — throttled (A1-2), honeypotted (A1-3), storage-capped (A1-5)'],
   // ── Twilio webhooks: the X-Twilio-Signature (HMAC of the exact URL + params with the auth token) is
