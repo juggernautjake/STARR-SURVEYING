@@ -26,7 +26,7 @@ type Call = { disconnect(): void; on(ev: string, fn: (...a: unknown[]) => void):
 
 const LABEL: Record<string, string> = { idle: 'Ready', 'getting token': 'Getting a token…', connecting: 'Connecting…', ended: 'Call ended', error: 'Could not connect' };
 function fmtPhone(s: string): string {
-  const d = (s ?? '').replace(/D/g, '');
+  const d = (s ?? '').replace(/\D/g, '');
   return d.length === 11 && d.startsWith('1') ? `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : s;
 }
 function fmtWhen(iso: string): string {
@@ -164,7 +164,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       </div>
 
       <div className="rtest__grid">
-        <section className="rtest__card" aria-labelledby="rt-browser">
+        <section className={`rtest__card ${browserStatus === 'in call' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-browser">
           <h2 id="rt-browser">Call from this browser</h2>
           <p>Uses your microphone and speakers. Same voice, same relay, same timing as the business line.</p>
           <div className="rtest__row">
@@ -173,7 +173,9 @@ export default function ReceptionistTestPage(): React.ReactElement {
             ) : (
               <button type="button" className="rtest__btn" onClick={startBrowserCall} disabled={browserStatus === 'getting token'}>Start call</button>
             )}
-            <span className={`rtest__status ${browserStatus === 'in call' ? 'rtest__status--live' : ''}`}>
+            <span className={`rtest__status ${browserStatus === 'in call' ? 'rtest__status--live' : ''}`} aria-live="polite">
+              {browserStatus === 'in call' ? <span className="rtest__dot" aria-hidden="true" /> : null}
+              {browserStatus === 'connecting' || browserStatus === 'getting token' ? <span className="rtest__dot rtest__dot--ring" aria-hidden="true" /> : null}
               {browserStatus === 'in call' ? `In call · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : LABEL[browserStatus] ?? browserStatus}
             </span>
           </div>
@@ -187,7 +189,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
             <input id="rtest-phone" className="rtest__input" type="tel" inputMode="tel" placeholder="(254) 555-0100" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone number to call" />
             <button type="button" className="rtest__btn" onClick={callMyPhone} disabled={phone.replace(/\D/g, '').length < 10}>Call me</button>
           </div>
-          {phoneStatus && <div className="rtest__status">{phoneStatus}</div>}
+          {phoneStatus && <div className="rtest__status" aria-live="polite">{phoneStatus.startsWith('Ringing') ? <span className="rtest__phone-icon" aria-hidden="true">📞</span> : null}{phoneStatus}</div>}
         </section>
 
         <section className="rtest__card" aria-labelledby="rt-chat" style={{ gridColumn: '1 / -1' }}>
@@ -197,7 +199,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
             {msgs.length === 0 && <div className="rtest__msg rtest__msg--assistant">Ellie: Hi, thanks for calling Starr Surveying. You can leave a message, or ask me anything. Type below to start.</div>}
             {msgs.map((m, i) => (
               <div key={i} className={`rtest__msg rtest__msg--${m.role}`}>
-                {m.text || '…'}
+                {m.text || (m.role === 'assistant' ? <span className="rtest__typing" aria-label="Ellie is replying"><i /><i /><i /></span> : '')}
                 {m.role === 'assistant' && m.totalMs != null && <small>first word {m.firstWordMs ?? '?'} ms · full reply {m.totalMs} ms</small>}
               </div>
             ))}

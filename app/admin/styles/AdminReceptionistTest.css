@@ -31,3 +31,54 @@
 .rtest__kv dt { opacity: .7; }
 .rtest__kv dd { margin: 0; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .rtest__msg { max-width: 100%; } }
+
+/* ── Motion ─────────────────────────────────────────────────────────────────────────────────────
+   Small, purposeful, and off under prefers-reduced-motion. The cards rise in on load, replies slide
+   in as they stream, a live call breathes, and buttons acknowledge the press. */
+@keyframes rtest-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rtest-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes rtest-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(31,157,99,.55); } 60% { box-shadow: 0 0 0 8px rgba(31,157,99,0); } }
+@keyframes rtest-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-12deg); } 30% { transform: rotate(10deg); } 45% { transform: rotate(-8deg); } 60% { transform: rotate(6deg); } 75% { transform: rotate(0); } }
+@keyframes rtest-dots { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-4px); opacity: 1; } }
+
+.rtest__head { animation: rtest-rise .45s ease-out both; }
+.rtest__card { animation: rtest-rise .5s ease-out both; transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+.rtest__grid > .rtest__card:nth-child(1) { animation-delay: .06s; }
+.rtest__grid > .rtest__card:nth-child(2) { animation-delay: .12s; }
+.rtest__grid > .rtest__card:nth-child(3) { animation-delay: .18s; }
+.rtest > .rtest__card { animation-delay: .24s; }
+.rtest__note { animation: rtest-rise .5s ease-out .3s both; }
+.rtest__card:focus-within { border-color: rgba(29,48,149,.45); box-shadow: 0 6px 24px -14px rgba(29,48,149,.5); }
+.rtest__card--live { border-color: rgba(31,157,99,.6); box-shadow: 0 8px 28px -16px rgba(31,157,99,.7); }
+
+.rtest__btn { transition: background-color .2s ease, transform .12s ease, box-shadow .2s ease, opacity .2s ease; }
+.rtest__btn:not([disabled]):hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgba(29,48,149,.7); }
+.rtest__btn:not([disabled]):active { transform: translateY(0) scale(.98); box-shadow: none; }
+.rtest__btn--danger:not([disabled]):hover { box-shadow: 0 6px 16px -10px rgba(189,18,24,.7); }
+.rtest__btn:focus-visible, .rtest__input:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
+.rtest__input { transition: border-color .2s ease, box-shadow .2s ease; }
+.rtest__input:focus { border-color: rgba(29,48,149,.6); box-shadow: 0 0 0 3px rgba(29,48,149,.12); }
+
+.rtest__dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #1f9d63; margin-right: .45rem; vertical-align: middle; animation: rtest-pulse 1.6s ease-out infinite; }
+.rtest__dot--ring { background: #b7791f; animation: rtest-pulse 1.1s ease-out infinite; }
+.rtest__phone-icon { display: inline-block; transform-origin: 50% 80%; animation: rtest-ring 1.4s ease-in-out infinite; margin-right: .35rem; }
+.rtest__status { transition: color .2s ease, opacity .2s ease; }
+
+.rtest__chat { scroll-behavior: smooth; }
+.rtest__msg { animation: rtest-pop .28s ease-out both; }
+.rtest__msg--assistant { transition: background-color .3s ease; }
+.rtest__msg small { animation: rtest-rise .3s ease-out both; }
+.rtest__typing { display: inline-flex; gap: 4px; align-items: center; height: 1.2em; }
+.rtest__typing i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; animation: rtest-dots 1.1s ease-in-out infinite; }
+.rtest__typing i:nth-child(2) { animation-delay: .15s; }
+.rtest__typing i:nth-child(3) { animation-delay: .3s; }
+.rtest__facts { animation: rtest-rise .35s ease-out both; }
+.rtest__item { animation: rtest-rise .35s ease-out both; transition: background-color .2s ease, transform .2s ease, border-color .2s ease; }
+.rtest__item:hover { transform: translateX(3px); border-color: rgba(29,48,149,.45); }
+.pill { transition: transform .15s ease; }
+.rtest__item:hover .pill { transform: scale(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rtest *, .rtest *::before, .rtest *::after { animation: none !important; transition: none !important; }
+  .rtest__chat { scroll-behavior: auto; }
+}
