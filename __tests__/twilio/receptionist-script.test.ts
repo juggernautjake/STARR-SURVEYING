@@ -7,8 +7,10 @@
 // website … and it should firmly tell the customer and reiterate that any quote that it gives is
 // subject to change once a live representative has reviewed the query information."
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { systemPrompt, parseEnvelope } from '@/lib/receptionist/brain';
-import { knowledgeText, SERVICES, FAQ } from '@/lib/receptionist/knowledge';
+import { knowledgeText, hoursSentence, SERVICES, FAQ } from '@/lib/receptionist/knowledge';
+import { OPENING_HOURS } from '@/lib/seo/business';
 import { quoteFor, sizeBucket, cornersBucket, QUOTE_DISCLAIMER } from '@/lib/receptionist/quote';
 import { parseAnalysis, transcriptText } from '@/lib/receptionist/analysis';
 import { SURVEY_TYPES } from '@/app/components/surveyConfigs';
@@ -39,6 +41,64 @@ describe('the script does not lock the firm in', () => {
     for (const s of SERVICES) expect(p).toContain(s.name);
     expect(FAQ.length).toBeGreaterThanOrEqual(8);
     expect(knowledgeText()).toMatch(/happy to discuss areas outside our primary coverage/);
+  });
+});
+
+describe('the receptionist can explain the work and the process', () => {
+  const p = systemPrompt();
+  it('every service says what it is, when it is needed, what is delivered, and how long the field work runs', () => {
+    for (const s of SERVICES) {
+      expect(s.what.length).toBeGreaterThan(40);
+      expect(s.when.length).toBeGreaterThan(20);
+      expect(s.deliverable.length).toBeGreaterThan(20);
+      expect(s.field.length).toBeGreaterThan(20);
+    }
+    expect(SERVICES.map((s) => s.id)).toContain('boundary_improvements');
+  });
+  it('knows the job process in the owner’s order and the price-change conditions', () => {
+    const k = knowledgeText();
+    for (const step of ['Consultation', 'Quote', 'Acceptance', 'Research and planning', 'Field work', 'Processing', 'Deliverables']) expect(k).toContain(step);
+    expect(k).toMatch(/one or more days/);
+    expect(k).toMatch(/more adverse than understood/);
+    expect(k).toMatch(/Rush jobs usually carry an extra fee/);
+    expect(k).toMatch(/long-distance jobs usually carry a travel fee/);
+    expect(p).toMatch(/EXPLAINING THE WORK/);
+    expect(p).toMatch(/boundary and improvements survey rather than a bare boundary/);
+  });
+});
+
+describe('Boundary & Improvements is a real survey type everywhere a customer can pick one', () => {
+  it('is in the calculator, priced above a plain boundary survey for the same lot', () => {
+    const bi = SURVEY_TYPES.find((t) => t.id === 'boundary_improvements');
+    expect(bi?.name).toBe('Boundary & Improvements Survey');
+    const b = quoteFor({ service: 'boundary', acres: 0.5, propertyType: 'residential_urban', corners: 4, hasResidence: true, purpose: 'sale', milesFromBelton: 10 })!;
+    const q = quoteFor({ service: 'boundary_improvements', acres: 0.5, propertyType: 'residential_urban', corners: 4, hasResidence: true, purpose: 'sale', milesFromBelton: 10 })!;
+    expect(q.low).toBeGreaterThan(b.low);
+    expect(q.spoken).toContain(QUOTE_DISCLAIMER);
+  });
+  it('is offered on the contact form, the home page form, the pricing page, the resources page, and the schema.org services', () => {
+    for (const f of ['app/contact/page.tsx', 'app/page.tsx', 'app/pricing/page.tsx', 'app/resources/page.tsx', 'lib/seo/business.ts']) {
+      expect(readFileSync(f, 'utf8'), f).toContain('Boundary & Improvements Survey');
+    }
+  });
+});
+
+describe('website pointers, the callback promise, and the hours', () => {
+  const p = systemPrompt();
+  it('sends callers to the request form, the calculator, resources, and invoice payment', () => {
+    for (const s of ['request form', 'calculator', 'resources page', 'invoice']) expect(p).toContain(s);
+    expect(p).toMatch(/starr surveying dot com/);
+  });
+  it('promises Hank will get back as soon as possible, never a specific time', () => {
+    expect(p).toMatch(/try to get back to them as soon as possible/);
+    expect(p).toMatch(/Do not promise a time/);
+  });
+  it('reads the hours from the same constants the Google listing is built from', () => {
+    const h = OPENING_HOURS[0]!;
+    const sentence = hoursSentence();
+    expect(sentence).toContain(h.days[0]!);
+    expect(p).toContain(sentence);
+    expect(p).toMatch(/exactly the ones on the Google listing/);
   });
 });
 

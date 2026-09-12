@@ -83,6 +83,7 @@ export default function ContactPage(): React.ReactElement {
 
   const serviceTypes = [
     'Boundary Survey',
+    'Boundary & Improvements Survey',
     'Construction Staking',
     'ALTA/NSPS Survey',
     'Subdivision Plat',

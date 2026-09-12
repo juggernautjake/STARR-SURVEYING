@@ -8,6 +8,7 @@
 //      the website form uses. Personal calls go only to RECEPTIONIST_PERSONAL_RECIPIENT.
 //   3. An email to the office inbox through Resend, because a text can be missed and an email is
 //      searchable a year later.
+import { BUSINESS_NAME, EMAIL, SITE_URL } from '@/lib/seo/business';
 import { sendSMSViaTwilio } from '@/lib/saas/notifications/sms';
 import { leadSmsRecipients, findIntakeRecipients } from '@/lib/leads/intake';
 import { notifyMany } from '@/lib/notifications';
@@ -40,7 +41,7 @@ export function recipientsFor(facts: CallFacts, env: Record<string, string | und
   return leadSmsRecipients(env);
 }
 
-export const SITE = 'https://www.starr-surveying.com';
+export const SITE = SITE_URL;
 
 export function outcomeText(o: CallOutcome): string {
   const who = o.facts.name ? `${o.facts.name} (${o.from})` : o.from;
@@ -109,7 +110,7 @@ async function emailOffice(subject: string, text: string): Promise<boolean> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: 'Starr Surveying <noreply@starr-surveying.com>', to: ['info@starr-surveying.com'], subject, text }),
+    body: JSON.stringify({ from: `${BUSINESS_NAME} <noreply@${EMAIL.split('@')[1]}>`, to: [EMAIL], subject, text }),
   });
   return res.ok;
 }

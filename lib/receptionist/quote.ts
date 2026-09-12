@@ -14,7 +14,7 @@ import { SURVEY_TYPES } from '@/app/components/surveyConfigs';
 import { ESTIMATE_LOW_MULTIPLIER, ESTIMATE_HIGH_MULTIPLIER, type FormField } from '@/app/components/surveyCalculatorTypes';
 
 export interface QuoteRequest {
-  /** One of the calculator's survey ids: boundary, alta, topographic, elevation, construction, subdivision, asbuilt, mortgage, easement, legal_description. */
+  /** One of the calculator's survey ids: boundary, boundary_improvements, alta, topographic, elevation, construction, subdivision, asbuilt, mortgage, easement, legal_description. */
   service: string;
   /** Acres, as the caller said it. Mapped onto the calculator's size buckets. */
   acres?: number;

@@ -4,10 +4,11 @@
 // Claude request at the `reasoning` tier — this is the read a surveyor acts on — returning a JSON
 // object the /admin/calls page renders and the notification quotes. Never throws: a failed analysis
 // leaves `analysis` null and the transcript still readable.
+import { BUSINESS_NAME } from '@/lib/seo/business';
 import { callAi, aiConfigured } from '@/lib/ai/client';
 import type { CallAnalysis, CallTurn, PhoneCall } from './calls';
 
-const SYSTEM = `You analyze phone calls to Starr Surveying, a licensed land surveying firm in Belton, Texas, for the two owners (Hank, the surveyor, and Jacob). You are given the call transcript and what the receptionist or system recorded. Produce a JSON object only, no prose:
+const SYSTEM = `You analyze phone calls to ${BUSINESS_NAME}, a licensed land surveying firm in Belton, Texas, for the two owners (Hank, the surveyor, and Jacob). You are given the call transcript and what the receptionist or system recorded. Produce a JSON object only, no prose:
 {
   "summary": "2-3 sentences a busy owner reads on a phone. Who called, why, what happened, what they were told.",
   "caller_type": "customer" | "existing_client" | "vendor" | "personal" | "spam" | "unknown",

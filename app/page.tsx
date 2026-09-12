@@ -140,6 +140,7 @@ export default function HomePage(): React.ReactElement {
 
   const serviceTypes = [
     'Boundary Survey',
+    'Boundary & Improvements Survey',
     'Construction Staking',
     'ALTA/NSPS Survey',
     'Subdivision Plat',

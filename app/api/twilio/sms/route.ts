@@ -6,6 +6,7 @@
 // route ever sees them (Advanced Opt-Out), so they are not special-cased here.
 //
 // PUBLIC BY DESIGN: Twilio-signed, like the receptionist routes.
+import { BUSINESS_NAME } from '@/lib/seo/business';
 import { NextResponse } from 'next/server';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
 import { message, twiml, twimlResponse } from '@/lib/twilio/twiml';
@@ -25,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
   if (body && !owners.includes(from)) {
     const forward = `Text from ${from}: ${body.slice(0, 1200)}`;
     await Promise.all(owners.map((to) => sendSMSViaTwilio({ to, body: forward }).catch((err) => console.error('[twilio/sms] forward failed:', err))));
-    return twimlResponse(twiml(message('Thanks for texting Starr Surveying. We got your message and will reply during business hours. Reply STOP to opt out.')));
+    return twimlResponse(twiml(message(`Thanks for texting ${BUSINESS_NAME}. We got your message and will reply during business hours. Reply STOP to opt out.`)));
   }
   return twimlResponse(twiml());
 }

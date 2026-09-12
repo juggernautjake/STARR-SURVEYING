@@ -7,6 +7,7 @@
 // is exactly what sends the caller to the AI instead of into a personal voicemail box.
 //
 // PUBLIC BY DESIGN: Twilio-signed, like the entry route.
+import { BUSINESS_NAME } from '@/lib/seo/business';
 import { NextResponse } from 'next/server';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
 import { hangup, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
@@ -26,7 +27,7 @@ export async function POST(request: Request): Promise<Response> {
   if (params.Digits) return twimlResponse(twiml());
   const caller = params.From ?? '';
   const xml = twiml(
-    `<Gather numDigits="1" timeout="6" actionOnEmptyResult="false">${say(`Starr Surveying call from ${spokenNumber(caller)}. Press any key to accept.`)}</Gather>`,
+    `<Gather numDigits="1" timeout="6" actionOnEmptyResult="false">${say(`${BUSINESS_NAME} call from ${spokenNumber(caller)}. Press any key to accept.`)}</Gather>`,
     hangup(),
   );
   return twimlResponse(xml);
