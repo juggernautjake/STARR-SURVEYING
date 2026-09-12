@@ -6,6 +6,10 @@
 // has a customer's name and number it saves a lead through `insertLeadFromForm` — the same path as
 // the website form, so the lead shows up in /admin/leads and rings the bell like a form would.
 //
+// TIMING. Twilio drops a webhook after 15 s. The reply itself (one Claude call) is the only thing
+// the caller waits for; the lead notifications, the analysis and the owner alerts are handed to
+// `defer` and finish after the TwiML has gone out (measured 16.7 s before this, 2026-09-11).
+//
 // PUBLIC BY DESIGN: Twilio-signed, like the entry route.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -18,6 +22,7 @@ import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { appendTurns, factsToColumns, updateCall } from '@/lib/receptionist/calls';
 import { analyzeCall } from '@/lib/receptionist/analysis';
+import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
       if (lead) {
         state.facts.leadId = lead.id;
         await updateCall(supabaseAdmin, callSid, { lead_id: lead.id });
-        await notifyIntakeRecipients(supabaseAdmin, { leadId: lead.id, input: leadFrom(state, from) });
+        defer(notifyIntakeRecipients(supabaseAdmin, { leadId: lead.id, input: leadFrom(state, from) }), 'lead notifications');
       }
     } catch (err) {
       console.error('[receptionist] lead save failed:', err);
@@ -108,7 +113,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (reply.next === 'done' || tooLong) {
     const summary = reply.summary || state.turns.filter((t) => t.role === 'caller').map((t) => t.text).join(' ').slice(0, 300);
-    await finish(callSid, from, state, summary);
+    defer(finish(callSid, from, state, summary), 'call wrap-up');
     return twimlResponse(twiml(say(tooLong ? `Thanks, I have what I need. ${OWNER} will call you back. Goodbye.` : reply.say), hangup()), { 'set-cookie': clearStateCookieHeader() });
   }
   return twimlResponse(twiml(say(reply.say), gather('/api/twilio/receptionist/turn')), { 'set-cookie': stateCookieHeader(state) });
