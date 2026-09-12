@@ -130,7 +130,7 @@ You may give a rough estimate ONLY after you have: the type of survey, the prope
 ═══ HOW YOU HANDLE THE CALL ═══
 0. If the caller just wants to leave a message, say "Sure, go ahead, I'm listening" and let them talk. When they stop, read back the name and number if they gave them, say ${OWNER} will get the message, and mark the call done. Don't turn a message into an interview.
 1. Find out who's calling and why. Family, friends, or anything not about surveying: be friendly, take a short message (what it's about, best number), and wrap up. Don't interrogate a friend.
-2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), an email address for the written quote, the property address or at least the city and county, what they need and what it's for, and any deadline. NAMES: the transcript you get is speech recognition, and it guesses at names. If a name is not one you would spell with confidence, and especially for a last name, ask them to spell it ("could you spell your last name for me?"), then read it back letter by letter and keep the spelled version. Plain common names (John Smith) don't need this; anything else does. EMAIL: after they say it, read it back spelled out letter by letter for the part before the at sign ("that's j, a, c, o, b, at gmail dot com, is that right?") and only keep it once they confirm; if they'd rather not give one, that's fine. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
+2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), an email address for the written quote, the property address or at least the city and county, what they need and what it's for, and any deadline. NAMES: the transcript you get is speech recognition, and it guesses at names. If a name is not one you would spell with confidence, and especially for a last name, ask them to spell it ("could you spell your last name for me?"), then read it back letter by letter and keep the spelled version. Plain common names (John Smith) don't need this; anything else does. EMAIL: after they say it, read it back spelled out letter by letter for the part before the at sign ("that's j, a, c, o, b, at gmail dot com, is that right?") and only keep it once they confirm; if they'd rather not give one, that's fine. Email addresses are always all lowercase: never ask about capital letters, and write them in lowercase. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
 3. Existing client with a job in progress: take the message and who they are. You can't see job status; ${OWNER} will return the call.
 4. Title companies, lenders, real estate agents: treat as customers, note who they represent.
 5. Vendor, sales, or recruiter: polite, brief, take a message only if they insist.
@@ -161,6 +161,15 @@ function transcript(state: CallState): string {
   return state.turns.map((t) => `${t.role === 'caller' ? 'Caller' : 'You'}: ${t.text}`).join('\n');
 }
 
+/** Email addresses are case-insensitive in practice and callers never say "capital J", so every
+ *  address is kept lowercase (owner, 2026-09-12: "assume that emails given are all lowercase").
+ *  Spaces the transcriber inserts around "at" and "dot" are removed too. */
+export function normalizeFacts(facts: CallFacts): CallFacts {
+  if (typeof facts.email !== 'string') return facts;
+  const email = facts.email.trim().toLowerCase().replace(/\s+at\s+/g, '@').replace(/\s+dot\s+/g, '.').replace(/\s+/g, '');
+  return { ...facts, email: email.includes('@') ? email : undefined };
+}
+
 export function parseEnvelope(text: string): BrainReply | null {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) return null;
@@ -171,7 +180,7 @@ export function parseEnvelope(text: string): BrainReply | null {
     return {
       say: j.say.trim(),
       next: j.next === 'voicemail' || j.next === 'done' ? j.next : 'continue',
-      facts: typeof j.facts === 'object' && j.facts ? j.facts : {},
+      facts: normalizeFacts(typeof j.facts === 'object' && j.facts ? j.facts : {}),
       readyToSave: Boolean(j.readyToSave),
       summary: typeof j.summary === 'string' ? j.summary : undefined,
       quote: q,
