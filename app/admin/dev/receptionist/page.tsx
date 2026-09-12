@@ -24,6 +24,11 @@ type Msg = { role: 'caller' | 'assistant'; text: string; firstWordMs?: number | 
 type Device = { connect(opts: { params: Record<string, string> }): Promise<Call>; destroy(): void; on(ev: string, fn: (...a: unknown[]) => void): void };
 type Call = { disconnect(): void; on(ev: string, fn: (...a: unknown[]) => void): void; parameters?: { CallSid?: string } };
 
+const LABEL: Record<string, string> = { idle: 'Ready', 'getting token': 'Getting a token…', connecting: 'Connecting…', ended: 'Call ended', error: 'Could not connect' };
+function fmtPhone(s: string): string {
+  const d = (s ?? '').replace(/D/g, '');
+  return d.length === 11 && d.startsWith('1') ? `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : s;
+}
 function fmtWhen(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -169,7 +174,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
               <button type="button" className="rtest__btn" onClick={startBrowserCall} disabled={browserStatus === 'getting token'}>Start call</button>
             )}
             <span className={`rtest__status ${browserStatus === 'in call' ? 'rtest__status--live' : ''}`}>
-              {browserStatus === 'in call' ? `In call · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : browserStatus}
+              {browserStatus === 'in call' ? `In call · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : LABEL[browserStatus] ?? browserStatus}
             </span>
           </div>
           {browserErr && <div className="rtest__status rtest__status--err">{browserErr}</div>}
@@ -219,7 +224,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
           {tests.slice(0, 25).map((c) => (
             <Link key={c.id} href={`/admin/calls/${c.id}`} className="rtest__item">
               <span>
-                {c.call_sid.startsWith('TEST-') ? 'Text chat' : c.from_number.startsWith('client:') ? 'Browser call' : `Phone call to ${c.from_number}`}
+                {c.call_sid.startsWith('TEST-') ? 'Text chat' : c.from_number.startsWith('client:') ? 'Browser call' : `Phone call to ${fmtPhone(c.from_number)}`}
                 {c.summary ? <> · {c.summary.slice(0, 90)}{c.summary.length > 90 ? '…' : ''}</> : null}
                 <small> · {fmtWhen(c.started_at)}{c.duration_seconds ? ` · ${c.duration_seconds}s` : ''}</small>
               </span>
