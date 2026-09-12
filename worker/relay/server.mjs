@@ -27,6 +27,8 @@ const RS = '';
 // after the assistant finishes speaking, IDLE_NUDGE_MS of silence earns one gentle prompt, and a
 // second stretch ends the session toward voicemail.
 const IDLE_NUDGE_MS = 20_000;
+// Roughly how long the TwiML welcome greeting takes to say (about 230 characters).
+const GREETING_MS = 16_000;
 const NUDGE_TEXT = 'Are you still there? You can leave a message for Hank, or ask me a question.';
 // How long to let the voice finish before ending the session: roughly 15 characters a second of
 // speech, plus a little.
@@ -129,10 +131,10 @@ class Session {
   send(msg) { if (this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(msg)); }
   say(token, last = false) { this.speaking += token; this.send({ type: 'text', token, last }); }
   clearIdle() { if (this.idle) { clearTimeout(this.idle); this.idle = null; } }
-  armIdle() {
+  armIdle(extraMs = 0) {
     this.clearIdle();
     if (this.ended) return;
-    this.idle = setTimeout(() => this.onIdle(), IDLE_NUDGE_MS);
+    this.idle = setTimeout(() => this.onIdle(), IDLE_NUDGE_MS + extraMs);
   }
   onIdle() {
     if (this.ended || this.inflight) return;
@@ -261,8 +263,9 @@ export function startServer(port = PORT) {
           if (msg.callSid && msg.callSid !== callSid) { log('setup callSid mismatch', msg.callSid, callSid); ws.close(1008, 'call mismatch'); return; }
           s.from = (msg.customParameters && msg.customParameters.from) || msg.from || '';
           s.test = !!(msg.customParameters && msg.customParameters.test === '1');
-          // The welcome greeting is spoken by Twilio from the TwiML; it is part of the transcript.
-          s.armIdle();
+          // Twilio speaks the welcome greeting from the TwiML; the silence clock must not start until
+          // it has finished (first live test: the nudge cut in while the caller was still listening).
+          s.armIdle(GREETING_MS);
           break;
         case 'prompt':
           if (msg.last === false) return;

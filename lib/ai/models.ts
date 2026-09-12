@@ -121,6 +121,14 @@ export function modelFor(role: AiRole): ModelConfig {
  *
  *  `thinking: {type: 'adaptive'}` rather than a token budget: the fixed-budget form is removed on the
  *  current family and returns a 400, and adaptive lets the model spend what the question needs. */
+/** The fast tier does not take `output_config.effort` (the API answers 400 "This model does not
+ *  support the effort parameter" — found on the first live ConversationRelay call, 2026-09-11,
+ *  where every receptionist turn fell back to voicemail because of it). Effort is a Claude 4.6+
+ *  Opus/Sonnet control; on Haiku 4.5 the parameter is simply omitted. */
+export function supportsEffort(model: string): boolean {
+  return !/haiku-4-5/.test(model);
+}
+
 export function requestParamsFor(role: AiRole): {
   model: string;
   max_tokens: number;
@@ -132,7 +140,7 @@ export function requestParamsFor(role: AiRole): {
     model: cfg.model,
     max_tokens: cfg.maxTokens,
     ...(cfg.thinking ? { thinking: { type: 'adaptive' as const } } : {}),
-    output_config: { effort: cfg.effort },
+    ...(supportsEffort(cfg.model) ? { output_config: { effort: cfg.effort } } : {}),
   };
 }
 

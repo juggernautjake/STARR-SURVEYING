@@ -54,6 +54,13 @@ describe('one model config', () => {
     expect(JSON.stringify(params)).not.toContain('budget_tokens');
   });
 
+  it('never sends the effort parameter to the fast tier, which rejects it', () => {
+    // First live ConversationRelay call, 2026-09-11: Haiku 4.5 answered 400 to output_config.effort and
+    // every receptionist turn fell back to voicemail.
+    expect(requestParamsFor('voice').output_config).toBeUndefined();
+    expect(requestParamsFor('guard').output_config).toBeUndefined();
+    expect(requestParamsFor('reasoning').output_config).toEqual({ effort: 'high' });
+  });
   it('omits thinking entirely when a role has it off', () => {
     expect(requestParamsFor('guard').thinking).toBeUndefined();
   });
