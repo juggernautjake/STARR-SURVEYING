@@ -13,7 +13,7 @@ import { pageMetadata } from '@/lib/seo/page-metadata';
 export const metadata: Metadata = pageMetadata({
   title: 'Contact a Central Texas Land Surveyor',
   description:
-    'Request a free land survey quote from Starr Surveying in Belton, TX. Call (936) 662-0077 or send us your property details — we respond within 24 business hours.',
+    'Request a free land survey quote from Starr Surveying in Belton, TX. Call (833) 842-6971 or send us your property details — we respond within 24 business hours.',
   path: '/contact',
 });
 

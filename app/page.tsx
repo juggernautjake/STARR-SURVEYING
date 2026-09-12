@@ -140,6 +140,7 @@ export default function HomePage(): React.ReactElement {
 
   const serviceTypes = [
     'Boundary Survey',
+    'Boundary & Improvements Survey',
     'Construction Staking',
     'ALTA/NSPS Survey',
     'Subdivision Plat',
@@ -449,8 +450,8 @@ export default function HomePage(): React.ReactElement {
               <Link href="/service-area" className="home-area__cta-btn home-area__cta-btn--primary">
                 View Full Coverage
               </Link>
-              <a href="tel:9366620077" className="home-area__cta-btn home-area__cta-btn--secondary">
-                Call (936) 662-0077
+              <a href="tel:8338426971" className="home-area__cta-btn home-area__cta-btn--secondary">
+                Call (833) 842-6971
               </a>
             </div>
           </div>
@@ -793,8 +794,8 @@ export default function HomePage(): React.ReactElement {
             <Link href="/pricing" className="home-cta__btn home-cta__btn--primary">
               Get Free Estimate
             </Link>
-            <a href="tel:9366620077" className="home-cta__btn home-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="home-cta__btn home-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
           {/* payment-portal-discoverability-2026-06-22 — quiet

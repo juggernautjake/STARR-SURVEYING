@@ -38,7 +38,7 @@ import path from 'node:path';
 const PATTERNS = [
   { id: 'email-domain', re: /starr-surveying\.com/g, what: 'the firm’s email domain' },
   { id: 'firm-name', re: /Starr Surveying/g, what: 'the firm’s display name' },
-  { id: 'phone', re: /\(936\)\s*662-0077|\+?19366620077/g, what: 'the firm’s phone number' },
+  { id: 'phone', re: /\(936\)\s*662-0077|\+?18338426971/g, what: 'the firm’s phone number' },
   { id: 'county', re: /\bBell County\b|countyName !== 'bell'|=== 'bell'/g, what: 'a single county assumed' },
 ];
 

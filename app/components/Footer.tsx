@@ -85,8 +85,8 @@ const Footer = (): React.ReactElement => {
     {
       icon: '📞',
       label: 'Phone',
-      value: '(936) 662-0077',
-      href: 'tel:9366620077',
+      value: '(833) 842-6971',
+      href: 'tel:8338426971',
     },
     {
       icon: '✉️',

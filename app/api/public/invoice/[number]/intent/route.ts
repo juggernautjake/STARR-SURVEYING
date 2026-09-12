@@ -44,7 +44,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (!paymentsAreLive()) {
     return NextResponse.json(
-      { error: 'Online card payments are not yet enabled. Please call (936) 662-0077.' },
+      { error: 'Online card payments are not yet enabled. Please call (833) 842-6971.' },
       { status: 503 },
     );
   }

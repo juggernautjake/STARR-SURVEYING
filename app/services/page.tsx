@@ -220,8 +220,8 @@ export default function ServicesPage(): React.ReactElement {
             <Link href="/contact" className="services-cta__btn services-cta__btn--primary">
               Get Your Quote
             </Link>
-            <a href="tel:9366620077" className="services-cta__btn services-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="services-cta__btn services-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
           {/* payment-portal-discoverability-2026-06-22 — existing

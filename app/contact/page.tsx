@@ -37,6 +37,7 @@ interface ContactFormData {
   projectDetails: string;
   preferredContact: string;
   howHeard: string;
+  smsConsent: boolean;
 }
 
 interface ContactInfo {
@@ -69,6 +70,7 @@ export default function ContactPage(): React.ReactElement {
     projectDetails: '',
     preferredContact: 'email',
     howHeard: '',
+    smsConsent: false,
   });
 
   const [formState, setFormState] = useState({
@@ -81,6 +83,7 @@ export default function ContactPage(): React.ReactElement {
 
   const serviceTypes = [
     'Boundary Survey',
+    'Boundary & Improvements Survey',
     'Construction Staking',
     'ALTA/NSPS Survey',
     'Subdivision Plat',
@@ -104,9 +107,9 @@ export default function ContactPage(): React.ReactElement {
   const contactCards: ContactInfo[] = [
     {
       icon: '📞',
-      label: 'Hank Maddux',
-      value: '(936) 662-0077',
-      link: 'tel:9366620077',
+      label: 'Office (rings Hank)',
+      value: '(833) 842-6971',
+      link: 'tel:8338426971',
       linkType: 'tel',
     },
     {
@@ -136,9 +139,10 @@ export default function ContactPage(): React.ReactElement {
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ): void => {
     const { name, value } = e.target;
+    const checked = e.target instanceof HTMLInputElement && e.target.type === 'checkbox' ? e.target.checked : null;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: checked === null ? value : checked,
     }));
   };
 
@@ -228,6 +232,7 @@ export default function ContactPage(): React.ReactElement {
           projectDetails: '',
           preferredContact: 'email',
           howHeard: '',
+          smsConsent: false,
         });
         setAttachments([]);
       } else {
@@ -260,6 +265,7 @@ export default function ContactPage(): React.ReactElement {
       projectDetails: '',
       preferredContact: 'email',
       howHeard: '',
+    smsConsent: false,
     });
     setAttachments([]);
     setFormState({ loading: false, submitted: false, error: '' });
@@ -416,6 +422,25 @@ export default function ContactPage(): React.ReactElement {
                     placeholder="(123) 456-7890"
                     required
                   />
+                </div>
+
+                {/* SMS consent — the wording toll-free carriers verify against. Keep it in sync with the
+                    text on file with Twilio (docs/twilio-setup-guide) if it ever changes. */}
+                <div className="contact-form__group contact-form__group--full">
+                  <label htmlFor="smsConsent" className="contact-form__label" style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      id="smsConsent"
+                      name="smsConsent"
+                      checked={formData.smsConsent}
+                      onChange={handleInputChange}
+                      style={{ marginTop: '0.25rem' }}
+                    />
+                    <span>
+                      Text me updates about this request at the number above. Message and data rates may apply.
+                      Message frequency varies. Reply STOP to opt out, HELP for help.
+                    </span>
+                  </label>
                 </div>
 
                 {/* Company - Optional */}
@@ -677,8 +702,8 @@ export default function ContactPage(): React.ReactElement {
             Call us directly for quick answers and to schedule your survey.
           </p>
           <div className="contact-cta__buttons">
-            <a href="tel:9366620077" className="contact-cta__btn contact-cta__btn--primary">
-              📞 Call (936) 662-0077
+            <a href="tel:8338426971" className="contact-cta__btn contact-cta__btn--primary">
+              📞 Call (833) 842-6971
             </a>
             <a href="mailto:info@starr-surveying.com" className="contact-cta__btn contact-cta__btn--secondary">
               ✉️ Send Email

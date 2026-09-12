@@ -43,7 +43,7 @@ export interface IntentSetupOutcome {
   callOffice: boolean;
 }
 
-const OFFICE_PHONE = '(936) 662-0077';
+const OFFICE_PHONE = '(833) 842-6971';
 
 /** Pure — turn the `…/intent` route's HTTP status + JSON body into a
  *  client_secret or a friendly message. 503 = not live yet (call office);

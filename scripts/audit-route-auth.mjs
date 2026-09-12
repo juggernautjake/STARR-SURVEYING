@@ -69,6 +69,17 @@ const GATES = [
 const INTENTIONALLY_PUBLIC = new Map([
   // ── the public forms and portal ────────────────────────────────────────────────────────────────
   ['app/api/contact/route.ts', 'the public quote form — throttled (A1-2), honeypotted (A1-3), storage-capped (A1-5)'],
+  // ── Twilio webhooks: the X-Twilio-Signature (HMAC of the exact URL + params with the auth token) is
+  // the credential, checked before a byte of TwiML is produced. See lib/twilio/signature.ts.
+  ['app/api/twilio/receptionist/route.ts', 'Twilio voice webhook — signature-verified; rings the owner, then hands off'],
+  ['app/api/twilio/receptionist/screen/route.ts', 'Twilio whisper on the owner leg — signature-verified'],
+  ['app/api/twilio/receptionist/after-dial/route.ts', 'Twilio <Dial> action — signature-verified; AI answers when the owner did not'],
+  ['app/api/twilio/receptionist/turn/route.ts', 'Twilio voice webhook — signature-verified; one caller utterance per request'],
+  ['app/api/twilio/receptionist/voicemail/route.ts', 'Twilio recording/transcription callback — signature-verified'],
+  ['app/api/twilio/sms/route.ts', 'Twilio inbound SMS webhook — signature-verified; forwards to owners'],
+  ['app/api/twilio/recording/route.ts', 'Twilio recording-status callback — signature-verified'],
+  ['app/api/twilio/status/route.ts', 'Twilio call-status callback — signature-verified'],
+  ['app/api/twilio/transcript/route.ts', 'Twilio Voice Intelligence transcript webhook — signature-verified'],
   ['app/api/public/invoice/[number]/route.ts', 'the customer invoice portal — throttled and constant-time (A1-4, A1-4b)'],
   ['app/api/public/invoice/[number]/intent/route.ts', 'a customer paying is not signed in — throttled (B1-1) and gated on PAYMENTS_LIVE'],
   ['app/api/public/invoice/[number]/attempt/route.ts', 'a customer marking a deep-link payment sent — throttled (B1-1)'],

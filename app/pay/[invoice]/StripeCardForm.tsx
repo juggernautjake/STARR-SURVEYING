@@ -88,7 +88,7 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
         setClientSecret(outcome.clientSecret);
         setMessage(outcome.message);
       } catch {
-        if (!cancelled) setMessage("We couldn't reach the payment server. Please call (936) 662-0077.");
+        if (!cancelled) setMessage("We couldn't reach the payment server. Please call (833) 842-6971.");
       } finally {
         if (!cancelled) setLoading(false);
       }

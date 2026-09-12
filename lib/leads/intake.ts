@@ -23,6 +23,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMany } from '@/lib/notifications';
+import { sendSMSViaTwilio } from '@/lib/saas/notifications/sms';
 import { hasAttribution, type Attribution } from './attribution';
 import { upsertCustomer } from '@/lib/customers/identity';
 import { recordMilestone } from '@/lib/pipeline/events';
@@ -258,6 +259,50 @@ export async function findIntakeRecipients(
   }
 }
 
+/** Phones that get a text for every new customer request: `LEAD_SMS_RECIPIENTS`, comma-separated
+ *  E.164 (e.g. `+12545550123,+12545550124`). Empty or unset means no texts, and that is not an
+ *  error — the bell and the email still fire. Invalid entries are dropped, not sent. */
+export function leadSmsRecipients(env: Record<string, string | undefined> = process.env): string[] {
+  return (env.LEAD_SMS_RECIPIENTS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^\+1\d{10}$/.test(s));
+}
+
+const LEAD_SMS_BASE_URL = 'https://www.starr-surveying.com';
+
+/** One line per lead, short enough to read on a lock screen. */
+export function leadSmsBody(input: LeadIntakeInput, leadId: string): string {
+  const parts = [`New request: ${input.name}`];
+  if (input.serviceType) parts.push(input.serviceType);
+  if (input.propertyAddress) parts.push(input.propertyAddress);
+  parts.push(`Ref ${input.referenceNumber}`);
+  if (input.isRush) parts.push('RUSH');
+  return `${parts.join(' · ')}\n${LEAD_SMS_BASE_URL}/admin/leads/${leadId}`;
+}
+
+/** Text every configured owner phone about a new lead. Never throws; a failed text is logged
+ *  and the intake continues. Returns how many sends were attempted. */
+export async function notifyLeadBySms(
+  input: LeadIntakeInput,
+  leadId: string,
+  deps: { send?: typeof sendSMSViaTwilio; env?: Record<string, string | undefined> } = {},
+): Promise<{ attempted: number; delivered: number }> {
+  const send = deps.send ?? sendSMSViaTwilio;
+  const to = leadSmsRecipients(deps.env);
+  if (to.length === 0) return { attempted: 0, delivered: 0 };
+  const body = leadSmsBody(input, leadId);
+  let delivered = 0;
+  for (const number of to) {
+    try {
+      if (await send({ to: number, body })) delivered += 1;
+    } catch (err) {
+      console.error('[leads.intake] lead SMS threw:', err);
+    }
+  }
+  return { attempted: to.length, delivered };
+}
+
 /** Fire the "new lead" in-app notification to every intake-role
  *  employee. Same safe-insert contract as `insertLeadFromForm` —
  *  errors are swallowed so a notification glitch can't 500 the
@@ -269,6 +314,9 @@ export async function notifyIntakeRecipients(
     input: LeadIntakeInput;
   },
 ): Promise<{ recipientCount: number }> {
+  // Text the owners first. This leg does not depend on the in-app recipient lookup, so a
+  // Supabase hiccup there cannot silence the phone.
+  await notifyLeadBySms(args.input, args.leadId);
   const recipients = await findIntakeRecipients(client);
   if (recipients.length === 0) return { recipientCount: 0 };
 

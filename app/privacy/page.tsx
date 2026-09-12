@@ -420,8 +420,8 @@ export default function PrivacyPolicyPage(): React.ReactElement {
                 info@starr-surveying.com
               </a>{' '}
               or call{' '}
-              <a href="tel:9366620077" className="privacy-link">
-                (936) 662-0077
+              <a href="tel:8338426971" className="privacy-link">
+                (833) 842-6971
               </a>
               . We will respond within 45 days. We may need to verify who you are before releasing
               information, which usually means confirming details of a project we did for you.
@@ -483,7 +483,7 @@ export default function PrivacyPolicyPage(): React.ReactElement {
               <span>Starr Technical Services Inc.</span>
               <span>3779 W FM 436, Belton, TX 76513</span>
               <span>
-                <a href="tel:9366620077" className="privacy-link">(936) 662-0077</a>
+                <a href="tel:8338426971" className="privacy-link">(833) 842-6971</a>
               </span>
               <span>
                 <a href="mailto:info@starr-surveying.com" className="privacy-link">

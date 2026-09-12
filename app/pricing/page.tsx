@@ -29,6 +29,7 @@ const SurveyCalculator = dynamic(() => import('../components/SurveyCalculator'),
 export default function PricingPage() {
   const services = [
     { title: 'Boundary Survey', price: '$400 - $2,500+', turnaround: '3-7 business days', description: 'Establishes property lines and corners. Price varies by acreage and complexity.' },
+    { title: 'Boundary & Improvements Survey', price: '$600 - $3,500+', turnaround: '3-10 business days', description: 'Property lines and corners plus the house, buildings, driveways, fences and other improvements located in relation to them. What most sales, lenders and building permits call for.' },
     { title: 'ALTA/NSPS Land Title Survey', price: '$2,000 - $10,000+', turnaround: '5-14 business days', description: 'Comprehensive commercial survey meeting national standards. Required by most lenders.' },
     { title: 'Topographic Survey', price: '$600 - $5,000+', turnaround: '5-10 business days', description: 'Maps terrain contours, elevations, and features for site planning and construction.' },
     { title: 'Elevation Certificate (FEMA)', price: '$350 - $600', turnaround: '3-5 business days', description: 'Official documentation for flood insurance rating or LOMA applications.' },
@@ -210,8 +211,8 @@ export default function PricingPage() {
             <Link href="/contact" className="pricing-cta__btn pricing-cta__btn--primary">
               Request Quote
             </Link>
-            <a href="tel:9366620077" className="pricing-cta__btn pricing-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="pricing-cta__btn pricing-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>

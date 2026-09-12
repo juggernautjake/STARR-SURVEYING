@@ -219,8 +219,8 @@ export default function AboutPage(): React.ReactElement {
             <Link href="/contact" className="about-cta__btn about-cta__btn--primary">
               Get in Touch
             </Link>
-            <a href="tel:9366620077" className="about-cta__btn about-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="about-cta__btn about-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>

@@ -122,6 +122,13 @@ export default function ResourcesPage(): React.ReactElement {
       typical: 'Residential & Commercial',
     },
     {
+      id: 'boundary_improvements',
+      name: 'Boundary & Improvements Survey',
+      description: 'A boundary survey that also locates everything built on the property — the house, outbuildings, driveways, fences, pools and visible utilities — and shows how each sits in relation to the property lines, easements and setbacks. Identifies encroachments either direction.',
+      useCases: ['Real estate closings', 'Lender requirements', 'Building permits and additions', 'Encroachment questions', 'Refinancing'],
+      typical: 'Residential & Commercial',
+    },
+    {
       id: 'alta',
       name: 'ALTA/NSPS Survey',
       description: 'The gold standard for commercial real estate. Follows strict national standards set by the American Land Title Association and National Society of Professional Surveyors. Includes comprehensive property analysis.',
@@ -471,8 +478,8 @@ export default function ResourcesPage(): React.ReactElement {
             <Link href="/contact" className="resources-cta__btn resources-cta__btn--primary">
               Contact Us
             </Link>
-            <a href="tel:9366620077" className="resources-cta__btn resources-cta__btn--secondary">
-              Call (936) 662-0077
+            <a href="tel:8338426971" className="resources-cta__btn resources-cta__btn--secondary">
+              Call (833) 842-6971
             </a>
           </div>
         </div>

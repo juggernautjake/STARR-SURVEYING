@@ -782,10 +782,40 @@ const legalDescription: SurveyTypeConfig = {
 };
 
 // =============================================================================
+// =============================================================================
+// BOUNDARY & IMPROVEMENTS SURVEY — a boundary survey that also locates everything built on the lot
+// =============================================================================
+//
+// Owner, 2026-09-11: "for the survey types on the frontend that the customer can choose from, they
+// can choose boundary and improvements survey as a type."
+//
+// Same model as the boundary survey, plus the improvements are always in scope (the residence and
+// other-improvement fields show for every property type, not only residential/agricultural), plus
+// the extra field time to tie every structure, driveway, fence line and visible utility to the
+// boundary and the office time to draw them. Priced as boundary + 1.5 field hours + 1 prep hour.
+const IMPROVEMENTS_FIELD_HOURS = 1.5;
+const IMPROVEMENTS_PREP_HOURS = 1.0;
+const boundaryImprovementsSurvey: SurveyTypeConfig = {
+  id: 'boundary_improvements',
+  name: 'Boundary & Improvements Survey',
+  description: 'Marks the property lines and corners AND locates the house, buildings, driveways, fences and other improvements in relation to them. For sales, lenders, building permits, and additions.',
+  basePrice: boundarySurvey.basePrice,
+  minPrice: 600,
+  fields: boundarySurvey.fields.map((f) =>
+    f.id === 'hasResidence' || f.id === 'numImprovements' ? { ...f, showWhen: undefined, required: true } : f,
+  ),
+  calculatePrice: (v) => {
+    const base = boundarySurvey.calculatePrice(v);
+    return Math.max(base + IMPROVEMENTS_FIELD_HOURS * FIELD_HOURLY_RATE + IMPROVEMENTS_PREP_HOURS * PREP_HOURLY_RATE, 600);
+  },
+  calculateHours: (v) => (boundarySurvey.calculateHours ? boundarySurvey.calculateHours(v) : 0) + IMPROVEMENTS_FIELD_HOURS + IMPROVEMENTS_PREP_HOURS,
+};
+
 // EXPORT ALL SURVEY TYPES
 // =============================================================================
 export const SURVEY_TYPES: SurveyTypeConfig[] = [
   boundarySurvey,
+  boundaryImprovementsSurvey,
   altaSurvey,
   topoSurvey,
   elevationCert,

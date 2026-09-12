@@ -143,6 +143,7 @@ export const LABEL_NAMES: Record<keyof LabelToggles, string> = {
 /** Survey type display names */
 export const SURVEY_TYPE_LABELS: Record<string, string> = {
   boundary: 'Boundary Survey',
+  boundary_improvements: 'Boundary & Improvements Survey',
   topographic: 'Topographic Survey',
   alta: 'ALTA/NSPS Survey',
   construction: 'Construction Staking',

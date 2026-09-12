@@ -106,7 +106,7 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
   'contact-form': {
     limit: 5,
     windowSec: 600,
-    message: 'You’ve sent several messages just now. Give it a few minutes, or call us on (936) 662-0077 — we’ll pick up.',
+    message: 'You’ve sent several messages just now. Give it a few minutes, or call us on (833) 842-6971 — we’ll pick up.',
   },
   // The daily ceiling exists for the SLOW grind that never trips the burst limit. 5 per 10 minutes is 720
   // a day if paced, which is 2,160 emails and a full storage bucket. 20 is far past any real household or
@@ -114,7 +114,7 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
   'contact-form-daily': {
     limit: 20,
     windowSec: 86400,
-    message: 'You’ve sent a lot of enquiries today. Please call us on (936) 662-0077 and we’ll help directly.',
+    message: 'You’ve sent a lot of enquiries today. Please call us on (833) 842-6971 and we’ll help directly.',
   },
   // Invoice lookup. The number format (`SS-260618-A1B2`) is guessable, and a hit returns a customer name
   // and a balance, so this is an enumeration surface as much as a cost one. 30 in 5 minutes lets a
@@ -122,7 +122,7 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
   'public-lookup': {
     limit: 30,
     windowSec: 300,
-    message: 'Too many lookups just now. Wait a moment and try again, or call (936) 662-0077.',
+    message: 'Too many lookups just now. Wait a moment and try again, or call (833) 842-6971.',
   },
 
   // ── B1-1 · the public payment surface ────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
   'public-payment': {
     limit: 10,
     windowSec: 900,
-    message: 'Too many payment requests just now. Wait a few minutes and try again, or call (936) 662-0077.',
+    message: 'Too many payment requests just now. Wait a few minutes and try again, or call (833) 842-6971.',
   },
 
   // ── A1-5 · the storage a single address can consume ──────────────────────────────────────────────

@@ -38,7 +38,7 @@ const baseInput = {
   ],
   office_address_line1: '3779 W FM 436',
   office_address_line2: 'Belton, TX 76513',
-  office_phone: '(936) 662-0077',
+  office_phone: '(833) 842-6971',
   pay_link: 'https://starr-surveying.com/pay/ABCD1234XYZ56789',
 };
 
@@ -67,7 +67,7 @@ describe('buildReceiptModel (pure)', () => {
       'Starr Surveying',
       '3779 W FM 436',
       'Belton, TX 76513',
-      '(936) 662-0077',
+      '(833) 842-6971',
     ]);
     expect(m.return_to_portal_text).toBe('View your invoice anytime: https://starr-surveying.com/pay/ABCD1234XYZ56789');
   });
