@@ -23,13 +23,16 @@ const SECRET = process.env.RECEPTIONIST_RELAY_SECRET || '';
 const BUILD_SHA = process.env.BUILD_SHA || 'unknown';
 const RS = '';
 
-// Silence handling. Twilio sends nothing while the caller says nothing, so the relay keeps time:
-// after the assistant finishes speaking, IDLE_NUDGE_MS of silence earns one gentle prompt, and a
-// second stretch ends the session toward voicemail.
-const IDLE_NUDGE_MS = 20_000;
+// Silence handling. Twilio sends nothing while the caller says nothing, so the relay keeps time.
+// Owner, 2026-09-11: "if it asks the customer a question, it should give the customer a bit of time
+// to respond before checking in … it seemed to jump to the voicemail all of the sudden." So: after
+// the assistant finishes, IDLE_NUDGE_MS of silence earns one soft check-in; a second stretch ends
+// the call with a goodbye that promises the callback — not a voicemail beep out of nowhere.
+const IDLE_NUDGE_MS = 35_000;
 // Roughly how long the TwiML welcome greeting takes to say (about 230 characters).
 const GREETING_MS = 16_000;
-const NUDGE_TEXT = 'Are you still there? You can leave a message for Hank, or ask me a question.';
+const NUDGE_TEXT = "Take your time. I'm still here whenever you're ready.";
+const QUIET_GOODBYE = "It sounds like we may have lost you. Hank will see this call and get back to you as soon as he can. Goodbye.";
 // How long to let the voice finish before ending the session: roughly 15 characters a second of
 // speech, plus a little.
 const speechMs = (text) => Math.min(20_000, Math.round((text.length / 15) * 1000) + 800);
@@ -147,8 +150,11 @@ class Session {
       this.armIdle();
       return;
     }
-    log(this.callSid, 'silence twice: handing off to voicemail');
-    this.end({ next: 'voicemail', summary: 'went quiet; sent to voicemail' });
+    log(this.callSid, 'silence twice: saying goodbye');
+    this.speaking = '';
+    this.say(QUIET_GOODBYE, true);
+    this.state.turns.push({ role: 'assistant', text: QUIET_GOODBYE });
+    this.end({ next: 'done', summary: 'caller went quiet; the receptionist said goodbye' }, speechMs(QUIET_GOODBYE));
   }
   handoffState() {
     return { facts: this.state.facts, turns: this.state.turns.slice(-8) };

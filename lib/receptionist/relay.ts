@@ -42,11 +42,13 @@ export interface RelayConfig {
   voice: string;
 }
 
-// Sarah (ElevenLabs premade): warm, unhurried, clearly adult. Format is voiceId-model-speed_stability_similarity.
-// flash_v2_5 is the low-latency model; stability 0.55 keeps some expressiveness without wobble.
+// Rachel (ElevenLabs premade): calm, even, a narrator's pace. Format is voiceId-model-speed_stability_similarity.
+// Owner, 2026-09-11, after hearing Sarah at 1.0: "is there a different woman's voice that we can use that
+// talks a bit more slowly?" Speed 0.9 (range 0.7–1.2); stability 0.6 keeps her steady on numbers and
+// addresses. flash_v2_5 is the low-latency model.
 // Override with RECEPTIONIST_RELAY_VOICE; for a Google voice set RECEPTIONIST_RELAY_TTS=Google and
 // e.g. RECEPTIONIST_RELAY_VOICE=en-US-Chirp3-HD-Aoede.
-export const DEFAULT_RELAY_VOICE = 'EXAVITQu4vr4xnSDxMaL-flash_v2_5-1.0_0.55_0.8';
+export const DEFAULT_RELAY_VOICE = '21m00Tcm4TlvDq8ikWAM-flash_v2_5-0.9_0.6_0.8';
 
 export function relayConfig(env: Record<string, string | undefined> = process.env): RelayConfig | null {
   const url = (env.RECEPTIONIST_RELAY_URL ?? '').trim();

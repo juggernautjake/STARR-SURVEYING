@@ -105,7 +105,9 @@ export function quoteFor(req: QuoteRequest): QuoteResult | null {
   // A phone estimate carries more unknowns than the web form, so widen the band the site uses.
   const low = roundTo(price * ESTIMATE_LOW_MULTIPLIER * 0.95, 50);
   const high = roundTo(price * ESTIMATE_HIGH_MULTIPLIER * 1.1, 50);
-  const spoken = `Based on what you've told me, a ${cfg.name.toLowerCase()} like that usually runs somewhere between ${dollars(low)} and ${dollars(high)}. That's a rough estimate from our online calculator, not a quote. Hank will review everything and send a written proposal, and the final price can change from that.`;
+  // Owner, 2026-09-11: "more brief when giving the estimate and telling the customer that Hank would
+  // have to review the job and give them a real quote." Three short sentences; the disclaimer stays.
+  const spoken = `Our calculator puts a ${cfg.name.toLowerCase()} like that at roughly ${dollars(low)} to ${dollars(high)}. That's a rough estimate from our online calculator, not a quote. Hank will review the job and send you a real quote, and the final price can change from that.`;
   return { service: cfg.id, serviceName: cfg.name, low, high, assumed, spoken };
 }
 
