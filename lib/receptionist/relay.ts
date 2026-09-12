@@ -92,11 +92,11 @@ export const RELAY_HINTS = [
 ].join(', ');
 
 /** The TwiML that hands the live call to the relay. Returned by after-dial when the owner did not pick up. */
-export function relayTwiml(cfg: RelayConfig, callSid: string, from: string, opts: { test?: boolean; actionPath?: string } = {}): string {
+export function relayTwiml(cfg: RelayConfig, callSid: string, from: string, opts: { test?: boolean; actionPath?: string; knownName?: string | null } = {}): string {
   const actionPath = opts.actionPath ?? '/api/twilio/receptionist/relay-ended';
   const attrs = [
     `url="${esc(relaySocketUrl(cfg, callSid))}"`,
-    `welcomeGreeting="${esc(greeting())}"`,
+    `welcomeGreeting="${esc(greeting(opts.knownName))}"`,
     // A caller who starts talking over the greeting is answered, not talked over.
     'welcomeGreetingInterruptible="speech"',
     'interruptible="speech"',

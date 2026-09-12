@@ -33,9 +33,20 @@ const IDLE_NUDGE_MS = 35_000;
 const GREETING_MS = 16_000;
 const NUDGE_TEXT = "Take your time. I'm still here whenever you're ready.";
 const QUIET_GOODBYE = "It sounds like we may have lost you. Hank will see this call and get back to you as soon as he can. Goodbye.";
-// How long to let the voice finish before ending the session: roughly 15 characters a second of
-// speech, plus a little.
-const speechMs = (text) => Math.min(20_000, Math.round((text.length / 15) * 1000) + 800);
+// How long to let the voice finish before ending the session: about 13 characters a second at
+// Rachel's 0.9 speed, plus a little. Capped high on purpose — the first cap (20 s) cut a long closing
+// turn off mid-sentence (third live test, 2026-09-11).
+const speechMs = (text) => Math.min(75_000, Math.round((text.length / 13) * 1000) + 1000);
+
+// Owner, 2026-09-11: "if we get roughly six minutes into the call, then the agent should inform the
+// user that due to call time limitations, the call would need to end … prompt the caller to leave a
+// final message for hank and/or call back another time." WRAP_UP_MS marks the state so the next
+// turn is the wrap-up; if the caller is silent at that moment the relay says it itself. HARD_STOP_MS
+// is the backstop: a goodbye and `end`, whatever is happening.
+const WRAP_UP_MS = 6 * 60_000;
+const HARD_STOP_MS = 8 * 60_000;
+const WRAP_UP_TEXT = "I'm sorry to cut in. Because of call time limits I need to wrap up soon. Is there a final message you'd like me to pass to Hank, or would you rather call back another time?";
+const HARD_STOP_TEXT = "We've reached the call time limit, so I have to let you go. Hank will get everything from this call and follow up with you. Goodbye.";
 
 const log = (...a) => console.log(new Date().toISOString(), '[relay]', ...a);
 
@@ -130,6 +141,30 @@ class Session {
     this.ended = false;
     this.idle = null;
     this.nudges = 0;
+    this.wrapTimer = setTimeout(() => this.onWrapUp(), WRAP_UP_MS);
+    this.stopTimer = setTimeout(() => this.onHardStop(), HARD_STOP_MS);
+  }
+  onWrapUp() {
+    if (this.ended) return;
+    this.state.wrapUp = true;
+    log(this.callSid, 'six minutes: wrap-up armed');
+    // Quiet line right now? Say it ourselves; otherwise the next reply carries it (rule 9).
+    if (!this.inflight) {
+      this.clearIdle();
+      this.speaking = '';
+      this.say(WRAP_UP_TEXT, true);
+      this.state.turns.push({ role: 'assistant', text: WRAP_UP_TEXT });
+      this.armIdle();
+    }
+  }
+  onHardStop() {
+    if (this.ended) return;
+    if (this.inflight) this.inflight.abort();
+    log(this.callSid, 'eight minutes: hard stop');
+    this.speaking = '';
+    this.say(HARD_STOP_TEXT, true);
+    this.state.turns.push({ role: 'assistant', text: HARD_STOP_TEXT });
+    this.end({ next: 'done', summary: 'reached the call time limit' }, speechMs(HARD_STOP_TEXT));
   }
   send(msg) { if (this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(msg)); }
   say(token, last = false) { this.speaking += token; this.send({ type: 'text', token, last }); }
@@ -163,6 +198,8 @@ class Session {
     if (this.ended) return;
     this.ended = true;
     this.clearIdle();
+    clearTimeout(this.wrapTimer);
+    clearTimeout(this.stopTimer);
     const data = JSON.stringify({ next: handoff.next, summary: handoff.summary ?? null, test: this.test, state: this.handoffState() });
     setTimeout(() => { this.send({ type: 'end', handoffData: data }); log(this.callSid, 'ended', handoff.next); }, afterMs);
   }
@@ -219,6 +256,8 @@ class Session {
   }
   onClose() {
     this.clearIdle();
+    clearTimeout(this.wrapTimer);
+    clearTimeout(this.stopTimer);
     if (this.inflight) this.inflight.abort();
     if (this.ended) return;
     this.ended = true;

@@ -22,6 +22,7 @@ import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
 import { appendTurns, factsToColumns, updateCall } from '@/lib/receptionist/calls';
 import { finishCall } from '@/lib/receptionist/finish';
 import { defer } from '@/lib/server/defer';
+import { knownCallerLine, lookupKnownCaller } from '@/lib/receptionist/known-caller';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ function leadFrom(state: CallState, from: string): LeadIntakeInput {
   const ref = `PH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${from.slice(-4)}`;
   return {
     name: f.name || `Caller ${from}`,
-    email: '',
+    email: f.email ?? '',
     phone: f.phone || from,
     propertyAddress: f.address,
     serviceType: f.service,
@@ -65,6 +66,10 @@ export async function POST(request: Request): Promise<Response> {
     return twimlResponse(twiml(gather('/api/twilio/receptionist/turn', 'Sorry, I missed that. Go ahead.')), { 'set-cookie': stateCookieHeader(state) });
   }
   state.silence = 0;
+  if (state.turns.length === 0 && !state.facts.knownCaller) {
+    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from));
+    if (line) state.facts = { ...state.facts, knownCaller: line };
+  }
   state.turns.push({ role: 'caller', text: heard });
 
   const reply = await nextReply(state, heard, from);

@@ -20,6 +20,7 @@ import { finishCall, summaryFromTurns } from '@/lib/receptionist/finish';
 import { RELAY_RS, relayConfig, validRelaySecret, type RelayRequest } from '@/lib/receptionist/relay';
 import type { CallState } from '@/lib/receptionist/state';
 import { defer } from '@/lib/server/defer';
+import { knownCallerLine, lookupKnownCaller } from '@/lib/receptionist/known-caller';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ function leadFrom(state: CallState, from: string): LeadIntakeInput {
   const ref = `PH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${from.slice(-4)}`;
   return {
     name: f.name || `Caller ${from}`,
-    email: '',
+    email: f.email ?? '',
     phone: f.phone || from,
     propertyAddress: f.address,
     serviceType: f.service,
@@ -81,6 +82,11 @@ export async function POST(request: Request): Promise<Response> {
   const isTest = body.test === true || state.test === true;
   const heard = (body.heard ?? '').trim();
   const from = body.from ?? '';
+  // First turn: does this number belong to someone we know? One lookup, carried in the facts after.
+  if (state.turns.length === 0 && !state.facts.knownCaller) {
+    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from));
+    if (line) state.facts = { ...state.facts, knownCaller: line };
+  }
   const callSid = body.callSid;
   const encoder = new TextEncoder();
 

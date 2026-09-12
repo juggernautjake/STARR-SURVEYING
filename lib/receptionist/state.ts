@@ -17,6 +17,12 @@ export interface CallFacts {
   address?: string;
   service?: string;
   details?: string;
+  /** Read back letter by letter before it is kept (owner: "double check the spelling"). */
+  email?: string;
+  /** What the number was already on file as, in one line, set on the first turn. */
+  knownCaller?: string;
+  /** The calculator has spoken once on this call. It does not speak twice. */
+  quoted?: boolean;
   leadId?: string;
   leadRef?: string;
 }
@@ -28,6 +34,8 @@ export interface CallState {
   started: number;   // epoch ms
   /** A test call from /admin/dev/receptionist: no lead, no owner alerts. */
   test?: boolean;
+  /** The relay's six-minute limit is reached: take a final message and end. */
+  wrapUp?: boolean;
 }
 
 export const COOKIE_NAME = 'starr_rcpt';
@@ -57,6 +65,7 @@ export function decodeState(value: string | undefined | null): CallState {
       silence: parsed.silence ?? 0,
       started: parsed.started ?? Date.now(),
       ...(parsed.test ? { test: true } : {}),
+      ...(parsed.wrapUp ? { wrapUp: true } : {}),
     };
   } catch {
     return emptyState();

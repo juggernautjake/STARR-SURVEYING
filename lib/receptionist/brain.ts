@@ -59,8 +59,10 @@ export function whisperText(): string {
 // Owner, 2026-09-11: "The immediate response when the agent answers should be that the customer can
 // leave a message, or they can ask questions and give information about their request … make it
 // very clear that they can simply leave a message too."
-export function greeting(): string {
-  return `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}. ${OWNER} can't get to the phone right now. You're welcome to just leave him a message, or I can help you right now with questions or a survey request. Which would you like?`;
+export function greeting(knownName?: string | null): string {
+  const first = (knownName ?? '').trim().split(/\s+/)[0];
+  const hello = first ? `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}. Is this ${first}?` : `Hi, thanks for calling ${BUSINESS_NAME}. This is ${ASSISTANT_NAME}.`;
+  return `${hello} ${OWNER} can't get to the phone right now. You're welcome to just leave him a message, or I can help you right now with questions or a survey request. Which would you like?`;
 }
 
 // ── The script ────────────────────────────────────────────────────────────────────────────────
@@ -123,23 +125,24 @@ ${lawLibraryText()}
 - Office hours, when asked, are exactly the ones on the Google listing: ${hoursSentence()}. Outside those hours say the office is closed and ${OWNER} will get back to them as soon as possible when it opens; emergencies (a closing tomorrow, a crew on site now) still go in the message, marked urgent.
 
 ═══ PRICES ═══
-You may give a rough estimate ONLY after you have: the type of survey, the property size in acres, the property type (house in town, rural home, commercial, agricultural, vacant), roughly how many corners, whether there's a house on it, what it's for, and roughly how far from Belton. Ask for these one at a time. When you have them, put a "quote" object in your JSON (see below) instead of guessing a number; the system runs the website's calculator and appends the estimate and the required disclaimer to what you say. When you include "quote", your spoken words must contain NO dollar amounts, NO percentages and NO price ranges of your own — not even "typically runs" figures — because the calculator's number is read right after yours and two numbers on one call is a broken promise. Say exactly one short lead-in, "Hold on one second while I run that through our calculator," and stop; the estimate is read right after it, then ask whether they'd like Hank to review the job for a real quote. Before giving the number, say it's an estimate; after, repeat that any figure is subject to change once a live representative reviews the request. If they want a firm price, that's the written proposal ${OWNER} sends after reviewing. For subdivisions over twelve lots, ALTA surveys on large commercial tracts, or anything unusual, don't estimate; say it needs ${OWNER}'s review.
+You may give a rough estimate ONLY after you have: the type of survey, the property size in acres, the property type (house in town, rural home, commercial, agricultural, vacant), roughly how many corners, whether there's a house on it, what it's for, and roughly how far from Belton. Ask for these one at a time. When you have them, put a "quote" object in your JSON (see below) instead of guessing a number; the system runs the website's calculator and appends the estimate and the required disclaimer to what you say. When you include "quote", your spoken words must contain NO dollar amounts, NO percentages and NO price ranges of your own — not even "typically runs" figures — because the calculator's number is read right after yours and two numbers on one call is a broken promise. Say exactly one short lead-in, "Hold on one second while I run that through our calculator," and stop; the estimate is read right after it, then ask whether they'd like Hank to review the job for a real quote. ONE ESTIMATE PER CALL: include "quote" in exactly one turn, the turn they ask for a price and you have the answers. Never include it again on the same call, even if the details change; say the written quote from ${OWNER} will reflect any changes. Before giving the number, say it's an estimate; after, repeat that any figure is subject to change once a live representative reviews the request. If they want a firm price, that's the written proposal ${OWNER} sends after reviewing. For subdivisions over twelve lots, ALTA surveys on large commercial tracts, or anything unusual, don't estimate; say it needs ${OWNER}'s review.
 
 ═══ HOW YOU HANDLE THE CALL ═══
 0. If the caller just wants to leave a message, say "Sure, go ahead, I'm listening" and let them talk. When they stop, read back the name and number if they gave them, say ${OWNER} will get the message, and mark the call done. Don't turn a message into an interview.
 1. Find out who's calling and why. Family, friends, or anything not about surveying: be friendly, take a short message (what it's about, best number), and wrap up. Don't interrogate a friend.
-2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), the property address or at least the city and county, what they need and what it's for, and any deadline. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
+2. Potential customer: in a natural order, get their name, the best callback number (read it back to confirm), an email address for the written quote, the property address or at least the city and county, what they need and what it's for, and any deadline. EMAIL: after they say it, read it back spelled out letter by letter for the part before the at sign ("that's j, a, c, o, b, at gmail dot com, is that right?") and only keep it once they confirm; if they'd rather not give one, that's fine. Answer questions from WHAT YOU KNOW. If a closing, construction start, or court date is near, ask the date and mark it in details as urgent. When you have name and number, say ${OWNER} will call them back, usually the same or next business day.
 3. Existing client with a job in progress: take the message and who they are. You can't see job status; ${OWNER} will return the call.
 4. Title companies, lenders, real estate agents: treat as customers, note who they represent.
 5. Vendor, sales, or recruiter: polite, brief, take a message only if they insist.
 6. Wrong number or spam: say so kindly and end the call.
 7. If the caller asks for voicemail, or the conversation isn't working after two tries, go to voicemail.
 8. When you have what you need or the caller is done, say a short warm goodbye and mark the call done.
+9. If the turn says TIME LIMIT REACHED: say, in your own words, that because of call time limits you need to wrap up, invite one final message for ${OWNER} or a call back another time, take whatever they say in that one turn, confirm ${OWNER} will get it, and mark the call done.
 
 ${format === 'json' ? JSON_FORMAT : SPOKEN_FORMAT}`;
 }
 
-const ENVELOPE_FIELDS = `"next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "address": "...", "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false}`;
+const ENVELOPE_FIELDS = `"next": "continue" | "voicemail" | "done", "facts": {"kind": "customer"|"personal"|"vendor"|"unknown", "name": "...", "phone": "...", "email": "...", "address": "...", "service": "...", "details": "..."}, "readyToSave": true|false, "summary": "one line for the owner's text message, written once next is done", "quote": {"service": "boundary"|"boundary_improvements"|"alta"|"topographic"|"elevation"|"construction"|"subdivision"|"asbuilt"|"mortgage"|"easement"|"legal_description", "acres": number, "propertyType": "residential_urban"|"residential_rural"|"commercial_subdivision"|"commercial_rural"|"agricultural"|"vacant", "corners": number, "hasResidence": true|false, "purpose": "fence"|"sale"|"dispute"|"personal", "milesFromBelton": number, "rush": true|false}`;
 const ENVELOPE_RULES = `Include "quote" only when the caller wants a price and you have those answers. Include only facts you actually learned; keep earlier facts unless the caller corrects them. Put questions you couldn't answer into details. Set readyToSave to true only when kind is customer and you have at least a name and a phone number.`;
 
 const JSON_FORMAT = `Respond ONLY with a JSON object, no prose around it:
@@ -186,11 +189,21 @@ const FALLBACK: BrainReply = {
 };
 
 /** Split a streamed spoken-format reply into the words (as they arrive) and the envelope (at the end).
- *  Holds back the last few characters so a marker split across two deltas is still caught. */
+ *  Holds back the last few characters so a marker split across two deltas is still caught, and the
+ *  first two dozen so a leaked label ("What I will say:", which the fast model sometimes prefixes
+ *  despite the format rule) is dropped before anyone hears it. */
+const LEAKED_LABEL = /^\s*(?:what i(?:'ll| will) say|i(?:'ll| will) say|say|response|reply|assistant|ellie)\s*:\s*/i;
+const HOLD_FOR_LABEL = 24;
+
 export function spokenSplitter(onWords: (text: string) => void): { push(delta: string): void; finish(): BrainReply | null } {
   let buf = '';
   let control = '';
   let inControl = false;
+  let emitted = false;
+  const emit = (text: string) => {
+    if (!emitted) { text = text.replace(LEAKED_LABEL, ''); emitted = true; }
+    if (text) onWords(text);
+  };
   return {
     push(delta) {
       if (inControl) { control += delta; return; }
@@ -198,23 +211,23 @@ export function spokenSplitter(onWords: (text: string) => void): { push(delta: s
       const at = buf.indexOf(CONTROL_OPEN);
       if (at >= 0) {
         const words = buf.slice(0, at);
-        if (words) onWords(words);
+        if (words) emit(words);
         control = buf.slice(at + CONTROL_OPEN.length);
         buf = '';
         inControl = true;
         return;
       }
-      // Flush everything but a tail long enough to hide a partial marker.
       const keep = CONTROL_OPEN.length - 1;
-      if (buf.length > keep) {
+      const hold = emitted ? keep : Math.max(keep, HOLD_FOR_LABEL);
+      if (buf.length > hold) {
         const out = buf.slice(0, buf.length - keep);
         buf = buf.slice(buf.length - keep);
-        if (out) onWords(out);
+        emit(out);
       }
     },
     finish() {
       if (!inControl) {
-        if (buf) onWords(buf);
+        if (buf) emit(buf);
         buf = '';
         return null;
       }
@@ -240,9 +253,10 @@ export async function streamReply(state: CallState, callerText: string, from: st
     );
     const env = splitterCollect.finish();
     const reply: BrainReply = env ? { ...env, say: spoken.trim() } : { say: spoken.trim(), next: 'continue', facts: {}, readyToSave: false };
-    if (reply.quote) {
+    if (reply.quote && !state.facts.quoted) {
       const q = quoteFor(reply.quote);
       if (q) {
+        reply.facts = { ...reply.facts, quoted: true };
         collect(' ' + q.spoken);
         reply.say = spoken.trim();
         reply.facts = { ...reply.facts, details: [reply.facts.details, `Phone estimate given: ${q.serviceName} ${q.low}–${q.high} (assumed: ${q.assumed.join(', ') || 'nothing'})`].filter(Boolean).join(' | ') };
@@ -258,13 +272,16 @@ export async function streamReply(state: CallState, callerText: string, from: st
 }
 
 function userTurn(state: CallState, callerText: string, from: string): string {
-  const known = Object.entries(state.facts).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('; ');
+  const known = Object.entries(state.facts).filter(([k, v]) => v && k !== 'knownCaller' && k !== 'quoted').map(([k, v]) => `${k}: ${v}`).join('; ');
   return [
     `Caller ID: ${from || 'unknown'}.`,
+    state.facts.knownCaller ? `ON FILE: ${state.facts.knownCaller}` : null,
+    state.facts.quoted ? 'An estimate has already been read on this call; do not include "quote" again.' : null,
+    state.wrapUp ? 'TIME LIMIT REACHED: wrap up this turn (rule 9) and set next to done.' : null,
     known ? `Facts already collected: ${known}.` : 'No facts collected yet.',
     state.turns.length ? `Conversation so far:\n${transcript(state)}` : 'This is the first thing the caller said.',
     `Caller just said: "${callerText}"`,
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 export async function nextReply(state: CallState, callerText: string, from: string): Promise<BrainReply> {
@@ -275,9 +292,10 @@ export async function nextReply(state: CallState, callerText: string, from: stri
     const reply = parseEnvelope(r.text) ?? FALLBACK;
     // The estimate is computed here, never by the model, so the number is the website's and the
     // disclaimer is always attached, word for word.
-    if (reply.quote) {
+    if (reply.quote && !state.facts.quoted) {
       const q = quoteFor(reply.quote);
       if (q) {
+        reply.facts = { ...reply.facts, quoted: true };
         reply.say = `${reply.say} ${q.spoken}`.trim();
         reply.facts = { ...reply.facts, details: [reply.facts.details, `Phone estimate given: ${q.serviceName} ${q.low}–${q.high} (assumed: ${q.assumed.join(', ') || 'nothing'})`].filter(Boolean).join(' | ') };
       }

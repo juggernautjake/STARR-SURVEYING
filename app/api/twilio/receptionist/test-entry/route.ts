@@ -22,6 +22,7 @@ import { greeting, RECORDING_NOTICE } from '@/lib/receptionist/brain';
 import { startCall, updateCall } from '@/lib/receptionist/calls';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
+import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,8 +50,9 @@ export async function POST(request: Request): Promise<Response> {
 
   // Real callers hear the notice before the owner's phone rings; a test call never rings him, so
   // the notice is spoken here, then the receptionist exactly as in production.
+  const known = await lookupKnownCaller(supabaseAdmin, tester);
   const relay = relayConfig();
-  if (relay) return twimlResponse(twiml(say(RECORDING_NOTICE), relayTwiml(relay, callSid, tester, { test: true })));
+  if (relay) return twimlResponse(twiml(say(RECORDING_NOTICE), relayTwiml(relay, callSid, tester, { test: true, knownName: known?.name })));
   const state = { ...emptyState(), test: true };
-  return twimlResponse(twiml(say(RECORDING_NOTICE), gather('/api/twilio/receptionist/turn', greeting())), { 'set-cookie': stateCookieHeader(state) });
+  return twimlResponse(twiml(say(RECORDING_NOTICE), gather('/api/twilio/receptionist/turn', greeting(known?.name))), { 'set-cookie': stateCookieHeader(state) });
 }

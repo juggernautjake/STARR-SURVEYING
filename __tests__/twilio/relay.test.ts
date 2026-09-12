@@ -240,3 +240,44 @@ describe('Voice SDK access token', () => {
     expect(voiceIdentityFor('Jacob Maddux <jacob@example.test>')).toBe('jacob_maddux__jacob@example.test_');
   });
 });
+
+describe('round three: what the third live call taught', () => {
+  it('drops a leaked "What I will say:" label before the words reach the voice', () => {
+    const words: string[] = [];
+    const s = spokenSplitter((t) => words.push(t));
+    for (const d of ['What I will', ' say: Thanks, Frankie. ', 'For a sale, most lenders want a boundary and improvements survey.', '\n', CONTROL_OPEN, '{"next":"continue","facts":{}}', CONTROL_CLOSE]) s.push(d);
+    s.finish();
+    expect(words.join('')).toBe('Thanks, Frankie. For a sale, most lenders want a boundary and improvements survey.\n');
+  });
+  it('a short reply with no label still comes through whole', () => {
+    const words: string[] = [];
+    const s = spokenSplitter((t) => words.push(t));
+    s.push('Okay.');
+    s.finish();
+    expect(words.join('')).toBe('Okay.');
+  });
+  it('greets a known caller by first name and asks if it is them', () => {
+    expect(greeting('Jacob Maddux')).toMatch(/^Hi, thanks for calling Starr Surveying\. This is Ellie\. Is this Jacob\?/);
+    expect(greeting(null)).not.toContain('Is this');
+  });
+  it('recognises a number however it is written, and says what is on file', async () => {
+    const { digitsOf, knownCallerLine } = await import('@/lib/receptionist/known-caller');
+    expect(digitsOf('+12543151123')).toBe('2543151123');
+    expect(digitsOf('(254) 315-1123')).toBe('2543151123');
+    expect(digitsOf('254.315.1123')).toBe('2543151123');
+    const line = knownCallerLine({ name: 'Jane Doe', email: 'jane@example.test', source: 'lead', lastSeen: '2026-08-02T15:00:00Z', lastAbout: 'boundary survey at 1 Main St', timesCalled: 2 });
+    expect(line).toContain('on file as Jane Doe');
+    expect(line).toContain('jane@example.test');
+    expect(line).toContain('2 prior calls');
+    expect(line).toMatch(/confirm it is them/);
+    expect(knownCallerLine(null)).toBeNull();
+  });
+  it('the script asks for an email and spells it back, allows one estimate, and knows the time-limit rule', async () => {
+    const { systemPrompt } = await import('@/lib/receptionist/brain');
+    const p = systemPrompt('spoken');
+    expect(p).toMatch(/letter by letter/);
+    expect(p).toMatch(/ONE ESTIMATE PER CALL/);
+    expect(p).toMatch(/TIME LIMIT REACHED/);
+    expect(p).toContain('"email": "..."');
+  });
+});
