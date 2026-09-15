@@ -31,6 +31,13 @@ vi.mock('@/lib/receptionist/calls', async (orig) => ({
   getCallBySid: async () => calls.row,
   appendTurns: async () => undefined,
 }));
+// 2026-09-15: live calls get the answering machine unless the full agent is switched on. These tests
+// describe the full agent's path, so they switch it on; the answering machine is
+// __tests__/twilio/answering-machine.test.ts.
+vi.mock('@/lib/receptionist/version-server', () => ({
+  readLiveVersion: async () => ({ version: 'agent', updatedBy: null, updatedAt: null }),
+  writeLiveVersion: async () => { throw new Error('not in tests'); },
+}));
 import { POST as entry } from '@/app/api/twilio/receptionist/route';
 import { POST as afterDial } from '@/app/api/twilio/receptionist/after-dial/route';
 import { POST as screen } from '@/app/api/twilio/receptionist/screen/route';

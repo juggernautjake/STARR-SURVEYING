@@ -10,6 +10,11 @@
 //   2. Call my phone           — Twilio rings the number you type; you answer and talk to Ellie.
 //   3. Text chat               — the same brain and streaming reply, typed. Shows time to first word.
 // Every session is a row on /admin/calls with its recording (phone/browser), transcript and analysis.
+//
+// TWO VERSIONS (owner, 2026-09-15): "make it so that the version of the agent that is responding to
+// live calls is the simple recording agent, and then make it so that I can do private test calls with
+// the more complex version so that I can hone it in." The top card says which version answers LIVE
+// calls and switches it; each test call picks the version it runs (the full agent by default).
 import '../../styles/AdminCalls.css';
 import '../../styles/AdminReceptionistTest.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,6 +22,7 @@ import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 import type { CallState } from '@/lib/receptionist/state';
+import { VERSION_LABELS, type ReceptionistVersion } from '@/lib/receptionist/version';
 
 const RS = '';
 
@@ -44,6 +50,29 @@ export default function ReceptionistTestPage(): React.ReactElement {
   }, [reportPageError]);
   useEffect(() => { refresh(); const t = setInterval(refresh, 10_000); return () => clearInterval(t); }, [refresh]);
 
+  // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
+  const [live, setLive] = useState<{ version: ReceptionistVersion; updatedBy: string | null; updatedAt: string | null } | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [confirmAgent, setConfirmAgent] = useState(false);
+  const [testVersion, setTestVersion] = useState<ReceptionistVersion>('agent');
+  useEffect(() => {
+    fetch('/api/admin/receptionist-test/version').then((r) => r.json()).then((j) => { if (j?.version) setLive(j); }).catch((e: Error) => reportPageError(e));
+  }, [reportPageError]);
+  const setLiveVersion = async (version: ReceptionistVersion) => {
+    setLiveBusy(true);
+    try {
+      const r = await fetch('/api/admin/receptionist-test/version', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ version }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setLive(j);
+      setConfirmAgent(false);
+    } catch (e) {
+      reportPageError(e as Error);
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
   // ── 1. browser call ───────────────────────────────────────────────────────────────────────────
   const [browserStatus, setBrowserStatus] = useState<string>('idle');
   const [browserErr, setBrowserErr] = useState<string | null>(null);
@@ -66,7 +95,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       const device = new Device(j.token, { logLevel: 1 }) as unknown as Device;
       deviceRef.current = device;
       setBrowserStatus('connecting');
-      const call = await device.connect({ params: {} });
+      const call = await device.connect({ params: { version: testVersion } });
       callRef.current = call;
       setSeconds(0);
       call.on('accept', () => setBrowserStatus('in call'));
@@ -86,10 +115,10 @@ export default function ReceptionistTestPage(): React.ReactElement {
   const callMyPhone = async () => {
     setPhoneStatus('placing call…');
     try { localStorage.setItem('rtest-phone', phone); } catch { /* ignore */ }
-    const r = await fetch('/api/admin/receptionist-test/call', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: phone }) });
+    const r = await fetch('/api/admin/receptionist-test/call', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: phone, version: testVersion }) });
     const j = (await r.json()) as { callSid?: string; error?: string; to?: string };
     if (!r.ok || !j.callSid) { setPhoneStatus(`Failed: ${j.error ?? r.status}`); return; }
-    setPhoneStatus(`Ringing ${j.to}. Answer it and talk to Ellie. The call appears below when it ends.`);
+    setPhoneStatus(`Ringing ${j.to}. Answer it to test the ${VERSION_LABELS[testVersion].name.toLowerCase()}. The call appears below when it ends.`);
     setTimeout(refresh, 8000);
   };
 
@@ -160,13 +189,67 @@ export default function ReceptionistTestPage(): React.ReactElement {
     <div className="rtest">
       <div className="rtest__head">
         <h1>Receptionist test bench</h1>
-        <p>Talk to Ellie exactly as a customer would, without ringing Hank. Test calls are marked <span className="pill pill--test">Test</span> on the Calls page: they get the recording, transcript and AI analysis, but they never text or notify anyone and never create a lead.</p>
+        <p>Talk to the receptionist exactly as a customer would, without ringing Hank. Test calls are private: they are marked <span className="pill pill--test">Test</span> on the Calls page, get the recording, transcript and AI analysis, and never text or notify anyone or create a lead.</p>
       </div>
+
+      {/* ── LIVE CALLS ── */}
+      <section className={`rtest__card rtest__live rtest__live--${live?.version ?? 'loading'}`} aria-labelledby="rt-live" data-testid="rtest-live">
+        <h2 id="rt-live">Live calls to the business line</h2>
+        {!live ? <p>Checking which version is answering…</p> : (
+          <>
+            <p className="rtest__live-now">
+              When Hank doesn&apos;t pick up, callers get: <b data-testid="rtest-live-version">{VERSION_LABELS[live.version].name}</b>
+            </p>
+            <p>{VERSION_LABELS[live.version].blurb}</p>
+            {live.updatedBy && <small className="rtest__status">Set by {live.updatedBy}{live.updatedAt ? ` · ${fmtWhen(live.updatedAt)}` : ''}</small>}
+            <div className="rtest__row">
+              {live.version === 'agent' ? (
+                <button type="button" className="rtest__btn" onClick={() => void setLiveVersion('answering-machine')} disabled={liveBusy} data-testid="rtest-live-machine">
+                  Switch live calls back to the answering machine
+                </button>
+              ) : confirmAgent ? (
+                <>
+                  <span className="rtest__status">Real customers will talk to the full AI agent. Only do this once it sounds right on test calls.</span>
+                  <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void setLiveVersion('agent')} disabled={liveBusy} data-testid="rtest-live-agent-confirm">Yes, use the full agent on live calls</button>
+                  <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(false)} disabled={liveBusy}>Cancel</button>
+                </>
+              ) : (
+                <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(true)} disabled={liveBusy} data-testid="rtest-live-agent">
+                  Put the full AI agent on live calls…
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ── WHICH VERSION A TEST CALL RUNS ── */}
+      <section className="rtest__card" aria-labelledby="rt-version">
+        <h2 id="rt-version">Version to test</h2>
+        <div className="rtest__versions" role="radiogroup" aria-labelledby="rt-version">
+          {(['agent', 'answering-machine'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={testVersion === v}
+              className={`rtest__version${testVersion === v ? ' rtest__version--on' : ''}`}
+              onClick={() => setTestVersion(v)}
+              data-testid={`rtest-version-${v}`}
+            >
+              <b>{VERSION_LABELS[v].name}</b>
+              <span>{VERSION_LABELS[v].blurb}</span>
+              {live?.version === v && <em className="pill">Live now</em>}
+            </button>
+          ))}
+        </div>
+        <p>Browser and phone test calls below run this version. The text chat always talks to the full agent.</p>
+      </section>
 
       <div className="rtest__grid">
         <section className={`rtest__card ${browserStatus === 'in call' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-browser">
           <h2 id="rt-browser">Call from this browser</h2>
-          <p>Uses your microphone and speakers. Same voice, same relay, same timing as the business line.</p>
+          <p>Uses your microphone and speakers. Same voice and timing as the business line. Testing: <b>{VERSION_LABELS[testVersion].name}</b>.</p>
           <div className="rtest__row">
             {browserStatus === 'in call' || browserStatus === 'connecting' ? (
               <button type="button" className="rtest__btn rtest__btn--danger" onClick={hangUp}>Hang up</button>
@@ -184,7 +267,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
         <section className="rtest__card" aria-labelledby="rt-phone">
           <h2 id="rt-phone">Call my phone</h2>
-          <p>Twilio rings the number below from the business line and Ellie answers when you pick up.</p>
+          <p>Twilio rings the number below from the business line and the <b>{VERSION_LABELS[testVersion].name.toLowerCase()}</b> answers when you pick up.</p>
           <div className="rtest__row">
             <input id="rtest-phone" className="rtest__input" type="tel" inputMode="tel" placeholder="(254) 555-0100" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone number to call" />
             <button type="button" className="rtest__btn" onClick={callMyPhone} disabled={phone.replace(/\D/g, '').length < 10}>Call me</button>
@@ -193,7 +276,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
         </section>
 
         <section className="rtest__card" aria-labelledby="rt-chat" style={{ gridColumn: '1 / -1' }}>
-          <h2 id="rt-chat">Text chat</h2>
+          <h2 id="rt-chat">Text chat (full AI agent)</h2>
           <p>The same brain by keyboard: try a quote, a land-law question, or a full intake. Each reply shows how long the first word took, which is what a caller feels.</p>
           <div className="rtest__chat" ref={chatBox} aria-live="polite">
             {msgs.length === 0 && <div className="rtest__msg rtest__msg--assistant">Ellie: Hi, thanks for calling Starr Surveying. You can leave a message, or ask me anything. Type below to start.</div>}

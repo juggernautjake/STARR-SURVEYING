@@ -23,6 +23,8 @@ import { startCall, updateCall } from '@/lib/receptionist/calls';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
+import { parseVersion } from '@/lib/receptionist/version';
+import { machineOpening } from '@/lib/receptionist/answering-machine';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,15 @@ export async function POST(request: Request): Promise<Response> {
       const base = url.replace(/\/api\/twilio\/.*$/, '');
       startCallRecording(callSid, `${base}/api/twilio/recording`).catch((err) => console.error('[test-entry] could not start recording:', err));
     }
+  }
+
+  // ── Which version to test (owner, 2026-09-15) ──
+  // The test bench picks per call: the full agent (the default — it is the one being honed) or the
+  // answering machine live callers get. From "Call my phone" it rides in the URL (?version=); from the
+  // browser it is a Voice SDK connect parameter. Either way Twilio signed it.
+  const version = parseVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'agent';
+  if (version === 'answering-machine') {
+    return twimlResponse(twiml(say(RECORDING_NOTICE), machineOpening()));
   }
 
   // Real callers hear the notice before the owner's phone rings; a test call never rings him, so

@@ -28,13 +28,20 @@ export async function POST(request: Request): Promise<Response> {
   const from = params.From ?? params.Caller ?? '';
   const callSid = params.CallSid ?? '';
   const state = readStateCookie(request);
+  // The answering machine (2026-09-15) can take more than one message on a call; each recording's
+  // transcript arrives here with its number. Message 2+ is ADDED to the voicemail text, never replaces it.
+  const part = Math.max(1, Number.parseInt(new URL(publicUrlOf(request)).searchParams.get('part') ?? '', 10) || 1);
 
   if ('TranscriptionStatus' in params || 'TranscriptionText' in params) {
     const transcript = params.TranscriptionStatus === 'completed' ? (params.TranscriptionText ?? '').trim() : '';
     // Analysis (a slower model) and the owner alerts run after the 204 goes back; Twilio only needs
     // to know the callback was received. See lib/server/defer.ts.
     defer((async () => {
-      let call = await updateCall(supabaseAdmin, callSid, { voicemail_text: transcript || null, status: 'completed', ended_at: new Date().toISOString() });
+      const before = part > 1 ? await getCallBySid(supabaseAdmin, callSid) : null;
+      const text = part > 1
+        ? [before?.voicemail_text, transcript ? `Message ${part}: ${transcript}` : null].filter(Boolean).join('\n\n') || null
+        : transcript || null;
+      let call = await updateCall(supabaseAdmin, callSid, { voicemail_text: text, status: 'completed', ended_at: new Date().toISOString() });
       if (call) {
         const analysis = await analyzeCall(call);
         if (analysis) call = (await updateCall(supabaseAdmin, callSid, { ...contactColumns(call, analysis), analysis, summary: analysis.summary })) ?? call;
@@ -43,7 +50,9 @@ export async function POST(request: Request): Promise<Response> {
       await notifyOwners({
         from,
         facts: { ...state.facts, kind: state.facts.kind ?? (call?.kind as never) ?? 'unknown' },
-        summary: call?.analysis?.summary || (transcript ? `voicemail: ${transcript.slice(0, 160)}` : 'left a voicemail (no transcript)'),
+        summary: part > 1
+          ? (transcript ? `Another message from the same call: ${transcript.slice(0, 160)}` : 'Left another message (no transcript).')
+          : call?.analysis?.summary || (transcript ? `voicemail: ${transcript.slice(0, 160)}` : 'left a voicemail (no transcript)'),
         recordingUrl: params.RecordingUrl ? `${params.RecordingUrl}.mp3` : undefined,
         transcript: transcript || undefined,
         callId: call?.id,

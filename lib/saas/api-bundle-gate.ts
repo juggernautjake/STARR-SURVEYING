@@ -92,6 +92,11 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'roles': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },
   'audit': { bundle: null, reason: 'An audit trail a firm cannot read is not an audit trail.' },
   'settings': { bundle: null, reason: 'Account-level configuration.' },
+  // The phone receptionist's test bench (/admin/dev/receptionist): place private test calls, chat with
+  // the agent, and choose which receptionist answers the firm's live line (2026-09-15). Every route is
+  // admin-only and operates the firm's OWN phone line; the page is `internalOnly` with no bundle, so the
+  // routes carry the same answer rather than being left unclassified.
+  'receptionist-test': { bundle: null, reason: 'Operator-only test bench and live-line switch for the firm\'s own phone receptionist.' },
   // ── C3 MADE THIS EXPLICIT, AND THE RATCHET IS WHY ───────────────────────────────────────────
   //
   // These were classified by MIRRORING `/admin/vehicles` in the page registry. C3 turned that page
