@@ -82,3 +82,16 @@
   .rtest *, .rtest *::before, .rtest *::after { animation: none !important; transition: none !important; }
   .rtest__chat { scroll-behavior: auto; }
 }
+
+/* ── Two versions (2026-09-15): which one answers live calls, and which one a test call runs ── */
+.rtest__live { border-width: 2px; }
+.rtest__live--answering-machine { border-color: rgba(31,157,99,.55); }
+.rtest__live--agent { border-color: rgba(189,18,24,.55); }
+.rtest__live-now { font-size: 1rem !important; opacity: 1 !important; }
+.rtest__versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .6rem; }
+.rtest__version { display: grid; gap: .25rem; text-align: left; padding: .7rem .85rem; border: 1px solid rgba(127,127,127,.4); border-radius: 10px; background: transparent; color: inherit; font: inherit; cursor: pointer; transition: border-color .2s ease, background-color .2s ease; }
+.rtest__version span { font-size: .85rem; opacity: .8; }
+.rtest__version em { justify-self: start; font-style: normal; }
+.rtest__version:hover { border-color: rgba(29,48,149,.55); }
+.rtest__version--on { border: 2px solid #1d3095; background: rgba(29,48,149,.08); }
+.rtest__version:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }

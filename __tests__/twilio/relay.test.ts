@@ -39,6 +39,12 @@ vi.mock('@/lib/receptionist/finish', async (orig) => ({
   ...(await orig<typeof import('@/lib/receptionist/finish')>()),
   finishCall: async (...a: unknown[]) => { finish.calls.push(a); },
 }));
+// 2026-09-15: live calls get the answering machine unless the full agent is switched on; the relay is
+// the full agent's transport, so these tests switch it on.
+vi.mock('@/lib/receptionist/version-server', () => ({
+  readLiveVersion: async () => ({ version: 'agent', updatedBy: null, updatedAt: null }),
+  writeLiveVersion: async () => undefined,
+}));
 import { POST as afterDial } from '@/app/api/twilio/receptionist/after-dial/route';
 import { POST as relayEnded } from '@/app/api/twilio/receptionist/relay-ended/route';
 import { POST as relayTurn } from '@/app/api/twilio/receptionist/relay-turn/route';

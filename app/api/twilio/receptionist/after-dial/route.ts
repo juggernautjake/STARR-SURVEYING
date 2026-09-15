@@ -23,6 +23,8 @@ import { notifyOwners } from '@/lib/receptionist/notify';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
+import { readLiveVersion } from '@/lib/receptionist/version-server';
+import { machineStart } from '@/lib/receptionist/answering-machine';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,12 +47,26 @@ export async function POST(request: Request): Promise<Response> {
     return twimlResponse(twiml(hangup()));
   }
 
-  // The AI is answering. Record the live call (dual channel) so the page has audio for this leg too.
-  await updateCall(supabaseAdmin, callSid, { status: 'in-progress', answered_by: 'ai' });
+  // Hank did not take it. Record the live call (dual channel) so the page has audio for this leg too.
   if (twilioConfigured() && callSid && !existing?.recording_sid) {
     const base = url.replace(/\/api\/twilio\/.*$/, '');
     startCallRecording(callSid, `${base}/api/twilio/recording`).catch((err) => console.error('[receptionist] could not start recording:', err));
   }
+
+  // ── WHICH RECEPTIONIST (owner, 2026-09-15) ──────────────────────────────────────────────────
+  // "For now the system uses the simple answering machine style AI that just records the caller's
+  // message and bids them a good day." The full agent answers live calls only once it is switched
+  // on at /admin/dev/receptionist; anything else — no setting, a bad setting, a failed read — is the
+  // answering machine (lib/receptionist/version.ts). The machine leaves answered_by unset until the
+  // caller actually leaves something, so a hang-up during the greeting still reaches the owners as missed.
+  const live = await readLiveVersion(supabaseAdmin);
+  if (live.version === 'answering-machine') {
+    await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
+    return twimlResponse(machineStart());
+  }
+
+  // The full agent is answering.
+  await updateCall(supabaseAdmin, callSid, { status: 'in-progress', answered_by: 'ai' });
   // The caller already heard the recording notice before the phone rang (entry route), so the
   // receptionist goes straight to the greeting.
   //
