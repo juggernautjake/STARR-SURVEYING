@@ -213,10 +213,89 @@ describe('wired where it matters', () => {
     const page = read('app/admin/dev/receptionist/page.tsx');
     expect(page).toContain("fetch('/api/admin/receptionist-test/version'");
     expect(page).toContain('data-testid="rtest-live-agent-confirm"');
-    expect(page).toContain('device.connect({ params: { version: testVersion } })');
-    expect(page).toContain('JSON.stringify({ to: phone, version: testVersion })');
+    expect(page).toContain('device.connect({ params: { version: testVersion, voice: testVoice } })');
+    expect(page).toContain('JSON.stringify({ to: phone, version: testVersion, voice: testVoice })');
     const api = read('app/api/admin/receptionist-test/version/route.ts');
     expect(api).toContain('isAdmin(session.user.roles)');
     expect(read('app/api/admin/receptionist-test/call/route.ts')).toContain('test-entry?version=${version}');
+  });
+});
+
+// ── a test call reaches nobody (owner, 2026-09-15) ──────────────────────────────────────────────
+// "For test calls, it should all be closed so I can test the voice and the responses… they should
+//  still record and transcribe the conversation, but they should not act like normal calls."
+describe('a test call tells nobody', () => {
+  it('notifyOwners refuses a test row outright — no text, no email, no bell', async () => {
+    const { notifyOwners } = await import('@/lib/receptionist/notify');
+    const sent: string[] = [];
+    const out = await notifyOwners(
+      { from: '+12545550100', facts: { kind: 'customer', name: 'Test' }, summary: 'a test', call: { is_test: true }, answeredBy: 'ai' },
+      { send: async ({ to }) => { sent.push(to); return true; }, email: async () => { sent.push('email'); return true; }, inApp: async () => { sent.push('bell'); return 1; } },
+    );
+    expect(out).toEqual({ texted: 0, emailed: false, belled: 0 });
+    expect(sent).toEqual([]);
+    // …and the same when only the caller knows it is a test
+    expect(await notifyOwners({ from: '+1', facts: {}, summary: 's', test: true }, { send: async () => { sent.push('x'); return true; }, email: async () => true, inApp: async () => 1 })).toEqual({ texted: 0, emailed: false, belled: 0 });
+    expect(sent).toEqual([]);
+  });
+
+  it('a real call still notifies, so the gate is the test flag and not a silenced notifier', async () => {
+    const { notifyOwners } = await import('@/lib/receptionist/notify');
+    const sent: string[] = [];
+    const out = await notifyOwners(
+      { from: '+12545550100', facts: { kind: 'customer', name: 'Real' }, summary: 'a real call', call: { is_test: false }, answeredBy: 'ai' },
+      { send: async ({ to }) => { sent.push(to); return true; }, email: async () => true, inApp: async () => 1, env: { LEAD_SMS_RECIPIENTS: '+12545550111' } },
+    );
+    expect(out.belled).toBe(1);
+    expect(sent).toContain('+12545550111');
+  });
+
+  it('every notifying path is guarded: the transcript webhook, and leads on both agent transports', () => {
+    const src = (f: string) => read(f);
+    expect(src('app/api/twilio/transcript/route.ts')).toContain('if (!call.is_test)');
+    expect(src('app/api/twilio/receptionist/turn/route.ts')).toContain('!(await isTestCall(supabaseAdmin, callSid))');
+    expect(src('app/api/twilio/receptionist/relay-turn/route.ts')).toContain('await isTestCall(supabaseAdmin, callSid)');
+    // the row is the authority — a cookie or relay payload can lose the flag
+    expect(src('lib/receptionist/calls.ts')).toContain('export async function isTestCall(');
+  });
+
+  it('but a test call is still recorded, transcribed and analysed', () => {
+    expect(read('app/api/twilio/receptionist/test-entry/route.ts')).toContain('startCallRecording(callSid');
+    // the voicemail route marks a test call notified rather than skipping the transcript work
+    expect(read('app/api/twilio/receptionist/voicemail/route.ts')).toContain('const analysis = await analyzeCall(call)');
+    expect(read('app/api/twilio/transcript/route.ts')).toContain('const analysis = await analyzeCall(updated)');
+  });
+});
+
+// ── voices ──────────────────────────────────────────────────────────────────────────────────────
+describe('choosing the voice', () => {
+  it('every voice can speak on both paths: the relay and <Say>', async () => {
+    const { RECEPTIONIST_VOICES, resolveVoice, sayVoiceFor } = await import('@/lib/receptionist/voices');
+    expect(RECEPTIONIST_VOICES.length).toBeGreaterThanOrEqual(8);
+    for (const v of RECEPTIONIST_VOICES) {
+      expect(v.relayVoice, v.id).toBeTruthy();
+      expect(v.sayVoice, v.id).toMatch(/^(Google|Polly)\./);
+      if (v.provider === 'ElevenLabs') expect(v.relayVoice).toMatch(/-flash_v2_5-/);
+    }
+    expect(resolveVoice('nonsense').id).toBe('rachel');
+    expect(sayVoiceFor('leda', {})).toBe('Google.en-US-Chirp3-HD-Leda');
+  });
+
+  it('a test call speaks in the chosen voice, and the machine keeps it across its steps', async () => {
+    const xml = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry?version=answering-machine&voice=leda`, { CallSid: 'CAV', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
+    expect(xml).toContain('voice="Google.en-US-Chirp3-HD-Leda"');
+    expect(xml).toContain('&amp;v=leda');
+    const step = await (await machine(signed(`${BASE}/api/twilio/receptionist/machine?step=recorded&n=0&ask=0&v=leda`, { CallSid: 'CAV', From: '+12545550100', RecordingUrl: 'https://x/RE1', RecordingSid: 'RE1', RecordingDuration: '9' }))).text();
+    expect(step).toContain('voice="Google.en-US-Chirp3-HD-Leda"');
+    expect(step).toContain('&amp;v=leda');
+  });
+
+  it('the live voice comes from the settings, and the test bench can set it', () => {
+    expect(read('lib/receptionist/version.ts')).toContain('export function liveVoiceFrom(');
+    expect(read('app/api/twilio/receptionist/after-dial/route.ts')).toContain('machineStart(live.voice)');
+    const page = read('app/admin/dev/receptionist/page.tsx');
+    expect(page).toContain('data-testid="rtest-voice"');
+    expect(page).toContain("saveLive({ voice: testVoice })");
+    expect(page).toContain('device.connect({ params: { version: testVersion, voice: testVoice } })');
   });
 });

@@ -108,6 +108,14 @@ export async function getCallBySid(client: Client, callSid: string): Promise<Pho
   return (data as unknown as PhoneCall) ?? null;
 }
 
+/** Is this call a test? Read from the row, which is the only place that cannot be spoofed by a cookie
+ *  or a relay payload. Used before anything that would create a lead or reach a person. */
+export async function isTestCall(client: Client, callSid: string): Promise<boolean> {
+  if (!callSid) return false;
+  const { data } = await client.from('phone_calls').select('is_test').eq('call_sid', callSid).maybeSingle();
+  return Boolean((data as { is_test?: boolean } | null)?.is_test);
+}
+
 export async function getCallByRecordingSid(client: Client, recordingSid: string): Promise<PhoneCall | null> {
   const { data, error } = await client.from('phone_calls').select(CALL_COLUMNS).eq('recording_sid', recordingSid).maybeSingle();
   if (error) { console.error('[calls] getCallByRecordingSid failed:', error); return null; }

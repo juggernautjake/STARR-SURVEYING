@@ -20,6 +20,7 @@
 // voicemail always was.
 import { BUSINESS_NAME } from '@/lib/seo/business';
 import { gather, hangup, record, say, twiml } from '@/lib/twilio/twiml';
+import { sayVoiceFor } from './voices';
 
 /** At most this many recorded messages on one call; the next "yes" is thanked and ended. */
 export const MACHINE_MAX_MESSAGES = 3;
@@ -78,30 +79,32 @@ export function classifyAnythingElse(heard: string | null | undefined): Anything
 }
 
 // ── The TwiML for each step ─────────────────────────────────────────────────────────────────────
-function stepUrl(step: 'recorded' | 'else', n: number, ask: number): string {
-  return `${MACHINE_PATH}?step=${step}&n=${n}&ask=${ask}`;
+function stepUrl(step: 'recorded' | 'else', n: number, ask: number, voiceId?: string | null): string {
+  // The voice rides in the step URLs, so a test call keeps the voice it was started with without a
+  // settings read on every step (and Twilio signs the query, so it cannot be tampered with).
+  return `${MACHINE_PATH}?step=${step}&n=${n}&ask=${ask}${voiceId ? `&v=${encodeURIComponent(voiceId)}` : ''}`;
 }
 
 /** Record message number `n + 1`. Its transcript lands on the voicemail route as `part=n+1`. */
-export function recordMessage(n: number, ask: number): string {
-  return record(stepUrl('recorded', n, ask), `/api/twilio/receptionist/voicemail?part=${n + 1}`, MACHINE_MESSAGE_SECONDS);
+export function recordMessage(n: number, ask: number, voiceId?: string | null): string {
+  return record(stepUrl('recorded', n, ask, voiceId), `/api/twilio/receptionist/voicemail?part=${n + 1}`, MACHINE_MESSAGE_SECONDS);
 }
 
 /** The greeting and the first recording, as TwiML verbs (a test call puts the recording notice first). */
-export function machineOpening(): string {
-  return say(MACHINE_LINES.greeting) + recordMessage(0, 0);
+export function machineOpening(voiceId?: string | null): string {
+  return say(MACHINE_LINES.greeting, sayVoiceFor(voiceId)) + recordMessage(0, 0, voiceId);
 }
 
 /** What a caller hears when the answering machine picks up. */
-export function machineStart(): string {
-  return twiml(machineOpening());
+export function machineStart(voiceId?: string | null): string {
+  return twiml(machineOpening(voiceId));
 }
 
 /** After a recording ends: ask "anything else?" (or say nothing was heard and offer again). */
-export function afterRecording(savedCount: number, heardSomething: boolean, ask: number): string {
+export function afterRecording(savedCount: number, heardSomething: boolean, ask: number, voiceId?: string | null): string {
   const prompt = heardSomething ? MACHINE_LINES.anythingElse : MACHINE_LINES.noMessageHeard;
   // A caller who says nothing to "anything else?" is done: Gather posts an empty result, which ends the call.
-  return twiml(gather(stepUrl('else', savedCount, ask + 1), prompt, { timeout: 5 }));
+  return twiml(gather(stepUrl('else', savedCount, ask + 1, voiceId), prompt, { timeout: 5, voice: sayVoiceFor(voiceId) }));
 }
 
 export type ElseOutcome =
@@ -110,17 +113,18 @@ export type ElseOutcome =
   | { kind: 'noted'; line: string; twiml: string };
 
 /** The answer to "anything else?" → what happens next. Pure, so every branch is tested. */
-export function afterAnythingElse(heard: string | null | undefined, n: number, ask: number): ElseOutcome {
+export function afterAnythingElse(heard: string | null | undefined, n: number, ask: number, voiceId?: string | null): ElseOutcome {
   const answer = classifyAnythingElse(heard);
+  const voice = sayVoiceFor(voiceId);
   if (answer === 'no' || ask >= MACHINE_MAX_ASKS) {
     const line = answer !== 'no' && n > 0 ? MACHINE_LINES.enough : MACHINE_LINES.goodbye;
-    return { kind: 'goodbye', line, twiml: twiml(say(line), hangup()) };
+    return { kind: 'goodbye', line, twiml: twiml(say(line, voice), hangup()) };
   }
   if (answer === 'yes') {
-    if (n >= MACHINE_MAX_MESSAGES) return { kind: 'goodbye', line: MACHINE_LINES.enough, twiml: twiml(say(MACHINE_LINES.enough), hangup()) };
-    return { kind: 'record', line: MACHINE_LINES.goAhead, twiml: twiml(say(MACHINE_LINES.goAhead), recordMessage(n, ask)) };
+    if (n >= MACHINE_MAX_MESSAGES) return { kind: 'goodbye', line: MACHINE_LINES.enough, twiml: twiml(say(MACHINE_LINES.enough, voice), hangup()) };
+    return { kind: 'record', line: MACHINE_LINES.goAhead, twiml: twiml(say(MACHINE_LINES.goAhead, voice), recordMessage(n, ask, voiceId)) };
   }
   // They said the extra thing out loud instead of saying yes: keep it (the route writes it to the
   // call's transcript) and ask again.
-  return { kind: 'noted', line: MACHINE_LINES.noted, twiml: twiml(gather(stepUrl('else', n, ask + 1), MACHINE_LINES.noted, { timeout: 5 })) };
+  return { kind: 'noted', line: MACHINE_LINES.noted, twiml: twiml(gather(stepUrl('else', n, ask + 1, voiceId), MACHINE_LINES.noted, { timeout: 5, voice })) };
 }

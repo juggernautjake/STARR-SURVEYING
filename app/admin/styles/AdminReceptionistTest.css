@@ -95,3 +95,5 @@
 .rtest__version:hover { border-color: rgba(29,48,149,.55); }
 .rtest__version--on { border: 2px solid #1d3095; background: rgba(29,48,149,.08); }
 .rtest__version:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
+.rtest__subhead { margin: .4rem 0 0; font-size: .95rem; font-weight: 600; }
+.rtest__card select.rtest__input { flex: 1 1 18rem; }

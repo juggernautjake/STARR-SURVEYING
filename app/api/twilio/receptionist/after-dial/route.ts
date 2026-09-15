@@ -25,6 +25,7 @@ import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 import { readLiveVersion } from '@/lib/receptionist/version-server';
 import { machineStart } from '@/lib/receptionist/answering-machine';
+import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   const live = await readLiveVersion(supabaseAdmin);
   if (live.version === 'answering-machine') {
     await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
-    return twimlResponse(machineStart());
+    return twimlResponse(machineStart(live.voice));
   }
 
   // The full agent is answering.
@@ -76,7 +77,8 @@ export async function POST(request: Request): Promise<Response> {
   // <Gather> loop below runs.
   const known = await lookupKnownCaller(supabaseAdmin, from);
   const relay = relayConfig();
-  if (relay) return twimlResponse(twiml(relayTwiml(relay, callSid, from, { knownName: known?.name })));
-  const xml = twiml(gather('/api/twilio/receptionist/turn', greeting(known?.name)));
+  const chosen = live.voice ? resolveVoice(live.voice) : null;
+  if (relay) return twimlResponse(twiml(relayTwiml(relay, callSid, from, { knownName: known?.name, voice: chosen ? { provider: chosen.provider, voice: chosen.relayVoice } : null })));
+  const xml = twiml(gather('/api/twilio/receptionist/turn', greeting(known?.name), { voice: sayVoiceFor(live.voice) }));
   return twimlResponse(xml, { 'set-cookie': stateCookieHeader(emptyState()) });
 }
