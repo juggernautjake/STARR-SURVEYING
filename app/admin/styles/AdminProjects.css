@@ -70,6 +70,8 @@
 }
 .proj-page__btn--primary { background: var(--color-brand-navy, #1D3095); color: var(--theme-fg-inverse, #fff); }
 .proj-page__btn--primary:hover { background: var(--theme-brand-hover, #162470); }
+/* Upload files — the first action on a project (owner, 2026-09-15): taller than the buttons beside it. */
+.proj-page__btn--upload { min-height: 44px; padding: 0 1.1rem; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px color-mix(in srgb, var(--color-brand-navy, #1D3095) 30%, transparent); }
 .proj-page__btn--secondary {
   background: var(--color-bg-subtle, #F3F4F6);
   color: var(--theme-fg-secondary, #374151);

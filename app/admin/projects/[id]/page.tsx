@@ -17,12 +17,13 @@ import '@/app/admin/components/listing/Listing.css';
 import { useParams, useRouter } from 'next/navigation';
 import {
   FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, Trash2, Briefcase, Check, Pencil,
-  CalendarDays, Ruler, DollarSign, ChevronRight, Star,
+  CalendarDays, Ruler, DollarSign, ChevronRight, Star, Upload,
 } from 'lucide-react';
 import { formatDate, dueBubble } from '@/lib/admin/listing';
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import FolderExplorer from '../../components/files/FolderExplorer';
+import UploadFilesDialog from '../../components/files/UploadFilesDialog';
 import ProjectMoneyPanel from '../../components/projects/ProjectMoneyPanel';
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, projectLabel, type ProjectStatus,
@@ -69,6 +70,9 @@ export default function ProjectDetailPage() {
   const [rollup, setRollup] = useState<Rollup | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
+  // The Upload files pop-up (owner, 2026-09-15): any of this project's folders, or its jobs' folders.
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [filesRefresh, setFilesRefresh] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +150,18 @@ export default function ProjectDetailPage() {
           <h1 className="proj-page__title"><FolderKanban size={20} aria-hidden /> {projectLabel(project)}</h1>
         </div>
         <div className="proj-page__header-actions">
+          {/* Upload, first and brightest (owner, 2026-09-15): "a button … that says upload files …
+              that when clicked brings up the pop up modal with the drop box area and the input for
+              where the file(s) should go … work for projects and jobs." */}
+          <button
+            type="button"
+            className="proj-page__btn proj-page__btn--primary proj-page__btn--upload"
+            onClick={() => setUploadOpen(true)}
+            title="Upload files to this project or any of its jobs — you choose the folder for each file"
+            data-testid="project-upload-files"
+          >
+            <Upload size={16} aria-hidden /> Upload files
+          </button>
           <Link href="/admin/projects" className="proj-page__btn proj-page__btn--secondary">
             <ArrowLeft size={15} aria-hidden /> All Projects
           </Link>
@@ -331,6 +347,14 @@ export default function ProjectDetailPage() {
           <FolderExplorer
             rootId={`mnt:projects:${project.id}`}
             title={projectLabel(project)}
+            refreshKey={filesRefresh}
+          />
+          <UploadFilesDialog
+            open={uploadOpen}
+            onClose={() => setUploadOpen(false)}
+            rootId={`mnt:projects:${project.id}`}
+            title={projectLabel(project)}
+            onUploaded={() => setFilesRefresh((n) => n + 1)}
           />
         </section>
       </div>

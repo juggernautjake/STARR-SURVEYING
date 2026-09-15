@@ -526,3 +526,17 @@ describe('the pop-up on the Files page', () => {
     expect(pageCode, 'the old inline upload is back').not.toMatch(/function startUpload|const startUpload|data-testid="fx-upload-input"/);
   });
 });
+
+describe('the project page: Upload files first in the header', () => {
+  it('opens the pop-up on the project (its documents and every job\'s folders) and refreshes the files after', () => {
+    const src = read('app/admin/projects/[id]/page.tsx');
+    const code = stripJs(src);
+    expect(src).toContain("import UploadFilesDialog from '../../components/files/UploadFilesDialog'");
+    expect(code).toMatch(/<UploadFilesDialog[\s\S]{0,200}rootId=\{`mnt:projects:\$\{project\.id\}`\}/);
+    const header = code.indexOf('data-testid="project-upload-files"');
+    expect(header).toBeGreaterThan(-1);
+    expect(header, 'Upload files comes before New job').toBeLessThan(code.indexOf('data-testid="project-new-job"'));
+    expect(code).toContain('refreshKey={filesRefresh}');
+    expect(read('app/admin/styles/AdminProjects.css')).toContain('.proj-page__btn--upload {');
+  });
+});
