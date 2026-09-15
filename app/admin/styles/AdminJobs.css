@@ -2321,3 +2321,27 @@
   outline-offset: 2px;
 }
 
+
+/* Upload files — the first action in the job header (owner, 2026-09-15): "make sure we can clearly
+ * see the buttons for uploading files." Taller and brighter than the buttons beside it, on purpose. */
+.job-detail__uploadbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0 1.15rem;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--theme-accent-fg, #fff);
+  background: var(--theme-accent, #1D3095);
+  border: 1px solid var(--theme-accent, #1D3095);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--theme-accent, #1D3095) 30%, transparent);
+  cursor: pointer;
+  transition: background var(--motion-fast, 150ms), transform var(--motion-fast, 150ms);
+}
+.job-detail__uploadbtn:hover { background: var(--theme-brand-hover, #162470); }
+.job-detail__uploadbtn:active { transform: scale(var(--motion-press, 0.97)); }
+.job-detail__uploadbtn:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 2px; }

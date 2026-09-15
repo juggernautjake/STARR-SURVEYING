@@ -8,11 +8,12 @@ import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
   Camera, Video, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
-  Circle, type LucideIcon,
+  Circle, Upload, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
+import UploadFilesDialog from '../../components/files/UploadFilesDialog';
 import { markJobSeen } from '@/lib/admin/use-new-jobs';
 import { usePageTitle } from '@/lib/admin/page-title';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
@@ -119,6 +120,10 @@ export default function JobDetailPage() {
   const [filesTotal, setFilesTotal] = useState<number | null>(null);
   /** The standard folder the Files tab should open on (the stage timeline asks for Research / CAD). */
   const [filesFolder, setFilesFolder] = useState<string | null>(null);
+  // The Upload files pop-up (owner, 2026-09-15), and the folder it opens with when a quick action
+  // already said which ("Add photos" → Photos). `filesRefresh` re-lists the Files tab afterwards.
+  const [upload, setUpload] = useState<{ open: boolean; folder: string | null }>({ open: false, folder: null });
+  const [filesRefresh, setFilesRefresh] = useState(0);
   /** Every tab's count, fetched once on load so the strip is informative before anything is opened. */
   const [tabCountsLoaded, setTabCountsLoaded] = useState<Record<string, number>>({});
   // contacts plan Slice 6 — linked-contacts state for the overview tab.
@@ -462,6 +467,19 @@ export default function JobDetailPage() {
               controls at five different heights in one header (35/37/37/40/29px, measured
               2026-08-22). They share `.job-detail__action` now. */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* ── UPLOAD, THE FIRST THING IN THE HEADER (owner, 2026-09-15) ─────────────────────
+                "My dad is having a hard time finding a way to easily upload files … make sure we
+                can clearly see the buttons for uploading files." One press opens the Upload files
+                pop-up from any tab: drop files or pick them, choose each one's folder, upload. */}
+            <button
+              type="button"
+              onClick={() => setUpload({ open: true, folder: null })}
+              className="job-detail__uploadbtn"
+              title="Upload files to this job — you choose the folder for each file"
+              data-testid="job-upload-files"
+            >
+              <Upload size={16} strokeWidth={2.25} aria-hidden /> Upload files
+            </button>
             {/* ── FILES, WHERE SOMEBODY LOOKING FOR THEM WILL ACTUALLY LOOK (2026-08-19) ────────
                 Owner: "Please make it plain in the project/job workflow where I can quickly open up
                 the files/images related to the current job."
@@ -594,6 +612,20 @@ export default function JobDetailPage() {
         )}
       </div>
 
+      <UploadFilesDialog
+        open={upload.open}
+        onClose={() => setUpload({ open: false, folder: null })}
+        rootId={`mnt:jobs:${jobId}`}
+        title={job.job_number ? `${job.job_number} — ${job.name}` : job.name}
+        initialDestinationId={upload.folder}
+        onUploaded={({ destinationIds }) => {
+          // Show them where the files went: the Files tab, opened on the folder when there was one.
+          if (destinationIds.length === 1) setFilesFolder(destinationIds[0]);
+          setActiveTab('files');
+          setFilesRefresh((n) => n + 1);
+        }}
+      />
+
       {/* Stage Timeline */}
       <JobStageTimeline
         currentStage={job.stage}
@@ -650,8 +682,8 @@ export default function JobDetailPage() {
             <div className="job-detail__quick-actions">
               <button className="job-detail__quick-action" onClick={() => openTab('research')}><Search size={14} strokeWidth={2} /> Add research</button>
               <button className="job-detail__quick-action" onClick={() => openTab('cad')}><DraftingCompass size={14} strokeWidth={2} /> Start a drawing</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}><Folder size={14} strokeWidth={2} /> Add files</button>
-              <button className="job-detail__quick-action" onClick={() => openTab('photos')}><Camera size={14} strokeWidth={2} /> Add photos</button>
+              <button className="job-detail__quick-action" onClick={() => setUpload({ open: true, folder: null })} data-testid="job-quick-add-files"><Upload size={14} strokeWidth={2} /> Add files</button>
+              <button className="job-detail__quick-action" onClick={() => setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })} data-testid="job-quick-add-photos"><Camera size={14} strokeWidth={2} /> Add photos</button>
               <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}><HardHat size={14} strokeWidth={2} /> Field work</button>
             </div>
             <div className="job-detail__overview-grid">
@@ -911,6 +943,7 @@ export default function JobDetailPage() {
             title={job.job_number ? `${job.job_number} — ${job.name}` : job.name}
             initialFolder={filesFolder}
             onTotalChange={setFilesTotal}
+            refreshKey={filesRefresh}
             folderExtras={{
               research: (
                 <>

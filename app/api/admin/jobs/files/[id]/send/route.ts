@@ -17,8 +17,9 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { bucketOf, downloadHref, shapeOf, jobFileStoragePath, type JobFileRow } from '@/lib/jobs/file-storage';
+import { checkJobFolderId } from '@/lib/files/job-folders-server';
 
-interface SendBody { mode?: 'move' | 'copy'; job_id?: string | null; project_id?: string | null; section?: string | null; file_type?: string | null }
+interface SendBody { mode?: 'move' | 'copy'; job_id?: string | null; project_id?: string | null; section?: string | null; file_type?: string | null; folder_id?: string | null }
 
 export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { id: string } }) => {
   const session = await auth();
@@ -46,6 +47,11 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
     if (!project || project.deleted_at) return NextResponse.json({ error: 'That project is not here.' }, { status: 404 });
   }
 
+  // 2026-09-15 — a named folder at the destination must belong to the destination job. A file sent
+  // without one lands straight in its standard folder: its old folder belongs to the old job.
+  const folder = await checkJobFolderId(body.folder_id, jobId);
+  if (!folder.ok) return NextResponse.json({ error: folder.error }, { status: folder.status });
+
   const { data } = await supabaseAdmin.from('job_files').select('*').eq('id', ctx.params.id).maybeSingle();
   const row = data as (JobFileRow & Record<string, unknown> & { is_deleted?: boolean | null; is_backup?: boolean | null }) | null;
   if (!row || row.is_deleted) return NextResponse.json({ error: 'That file is not here.' }, { status: 404 });
@@ -60,7 +66,7 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
   if (mode === 'move') {
     const { data: moved, error } = await supabaseAdmin
       .from('job_files')
-      .update({ job_id: jobId, project_id: projectId, ...(section ? { section } : {}), ...(fileType ? { file_type: fileType } : {}) })
+      .update({ job_id: jobId, project_id: projectId, folder_id: folder.folderId, ...(section ? { section } : {}), ...(fileType ? { file_type: fileType } : {}) })
       .eq('id', row.id)
       .select()
       .single();
@@ -106,6 +112,7 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
       mime_type: row.mime_type ?? null,
       content_type: row.content_type ?? null,
       section: section ?? row.section ?? 'general',
+      ...(folder.folderId ? { folder_id: folder.folderId } : {}),
       description: row.description ?? null,
       label: row.label ?? null,
       tags: row.tags ?? [],

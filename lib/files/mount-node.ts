@@ -61,6 +61,9 @@ export interface MountTreeFolder {
   files: MountNode[];
   /** Set when this folder's listing failed; its files are then empty rather than the whole tree lost. */
   error?: string;
+  /** A File Explorer folder's effective access for the caller (2026-09-15) — the Upload files pop-up
+   *  offers only folders it can write to. Absent on `mnt:` folders, whose writes are decided per kind. */
+  access?: AccessLevel;
 }
 
 export interface MountTree {

@@ -217,19 +217,23 @@ describe('the FolderExplorer', () => {
     expect(code).toContain('const viewerCapabilities = useMemo(() => mountCapabilities({');
   });
 
-  it('uploads INTO a standard folder, through the folder\'s own section and type', () => {
+  // 2026-09-15: uploads moved into the Upload files pop-up, which opens with the folder being looked
+  // at pre-chosen; the section/type rule and the over-cap cut went with it. Pinned in
+  // __tests__/files/upload-files-dialog.test.ts.
+  it('opens the Upload files pop-up on the folder being looked at, from the bar or a drop', () => {
     expect(code).toContain('function uploadTargetFor(');
     expect(code).toContain('section: spec.uploadSection, fileType: spec.uploadFileType');
-    expect(code).toContain("file_type: target.fileType ?? detectJobFileType(file.name)");
     expect(src).toContain('data-testid="fe-upload"');
-    expect(code).toContain('onDrop={target ?');
+    expect(code).toContain('initialDestinationId={target ? current?.id ?? null : null}');
+    expect(code).toContain('onDrop={uploadRoot ?');
   });
 
-  it('keeps what the retired panels could do: attach from Files, cut an over-cap video, background uploads', () => {
+  it('keeps what the retired panels could do: attach from Files here; the cut and background hand-off in the pop-up', () => {
     expect(code).toContain('async function attachFromExplorer(');
-    expect(code).toContain('async function runSplit()');
-    expect(code).toContain("backgroundUploadSupport().mode === 'background'");
-    expect(code).toContain('startBackgroundUpload({');
+    const dialog = stripJs(read('app/admin/components/files/UploadFilesDialog.tsx'));
+    expect(dialog).toContain('async function runSplit(item: Item)');
+    expect(dialog).toContain("support.mode === 'background'");
+    expect(dialog).toContain('startBackgroundUpload({');
   });
 
   it('saves through the OS dialog and zips the folder — or the subtree with its paths', () => {
@@ -282,7 +286,8 @@ describe('the job page: one Files tab instead of five bubbles', () => {
     expect(code).toContain('onOpen={openTab}');
     expect(code).toContain("onClick={() => openTab('research')}");
     expect(code).toContain("onClick={() => openTab('cad')}");
-    expect(code).toContain("onClick={() => openTab('photos')}");
+    // "Add photos" opens the Upload files pop-up on Photos (2026-09-15) rather than the tab.
+    expect(code).toContain("setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })");
     expect(code, 'a quick action still targets a tab that no longer exists').not.toMatch(/setActiveTab\('(research|cad|photos|videos)'\)/);
   });
 

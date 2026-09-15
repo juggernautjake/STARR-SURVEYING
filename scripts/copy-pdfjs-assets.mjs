@@ -11,8 +11,11 @@
 // public/pdfjs/ is gitignored: it is a build product, not source.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
+// fileURLToPath, not `new URL().pathname`: the pathname keeps `%20`, so a checkout under a folder
+// with a space in its name (C:/Users/Jacob Maddux/…) looked for node_modules where none exists.
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const src = path.join(root, 'node_modules', 'pdfjs-dist');
 const dest = path.join(root, 'public', 'pdfjs');
 

@@ -9,7 +9,7 @@
 
 import type { ViewerFile, ViewerCapabilities, Destination } from '../viewer-model';
 import type { MountNode } from '../mount-node';
-import { jobFolder, parseJobFolderId, parseProjectDocsId } from '../job-folders';
+import { jobFolder, parseJobFolderId, parseNamedFolderId, parseProjectDocsId, uploadSpecForRoot } from '../job-folders';
 
 export async function mountViewUrl(id: string): Promise<string | null> {
   const res = await fetch(`/api/admin/files/${id}/download?inline=1`);
@@ -57,24 +57,30 @@ export interface MountCapabilityHooks {
   url: (id: string) => string | null;
 }
 
-/** Where a job file can go: one of a job's standard folders, or a project's documents — as the
- *  explorer pop-up names them (mnt:jobs:<job>:<folder>, mnt:projects:<p>:<job>:<folder>, mnt:projects:<p>:docs). */
-function jobFileTarget(destination: Destination): { job_id?: string; project_id?: string; section: string; file_type: string | null } {
+/** Where a job file can go: one of a job's standard folders, a folder somebody named inside a job
+ *  (2026-09-15), or a project's documents — as the explorer pop-up names them
+ *  (mnt:jobs:<job>:<folder>, mnt:jobs:<job>:<root>.<uuid>, mnt:projects:<p>:<job>:<folder>, mnt:projects:<p>:docs). */
+function jobFileTarget(destination: Destination): { job_id?: string; project_id?: string; section: string; file_type: string | null; folder_id: string | null } {
   const jf = parseJobFolderId(destination.id);
   if (jf) {
     const spec = jobFolder(jf.folder);
     if (!spec?.uploadSection) throw new Error(`${spec?.label ?? 'That folder'} does not take files.`);
-    return { job_id: jf.jobId, section: spec.uploadSection, file_type: spec.uploadFileType };
+    return { job_id: jf.jobId, section: spec.uploadSection, file_type: spec.uploadFileType, folder_id: null };
+  }
+  const nf = parseNamedFolderId(destination.id);
+  if (nf) {
+    const spec = uploadSpecForRoot(nf.root);
+    return { job_id: nf.jobId, section: spec.section, file_type: spec.fileType, folder_id: nf.folderId };
   }
   const pd = parseProjectDocsId(destination.id);
-  if (pd) return { project_id: pd.projectId, section: 'project', file_type: null };
+  if (pd) return { project_id: pd.projectId, section: 'project', file_type: null, folder_id: null };
   throw new Error("A job file goes to a job's Research, CAD, Photos, Videos or Documents folder, or to a project's documents.");
 }
 
 const canReceiveJobFile = (folder: { id: string }): boolean => {
   const jf = parseJobFolderId(folder.id);
   if (jf) return Boolean(jobFolder(jf.folder)?.uploadSection);
-  return Boolean(parseProjectDocsId(folder.id));
+  return Boolean(parseNamedFolderId(folder.id) || parseProjectDocsId(folder.id));
 };
 
 async function sendJobFile(id: string, mode: 'move' | 'copy', target: ReturnType<typeof jobFileTarget>): Promise<void> {
@@ -119,14 +125,14 @@ export function mountCapabilities(hooks: MountCapabilityHooks): ViewerCapabiliti
       return refreshed(file.id);
     },
     canSendTo: canReceiveJobFile,
-    sendHint: "a job's Research / CAD / Photos / Videos / Documents folder, or a project's documents",
+    sendHint: "a job's Research / CAD / Photos / Videos / Documents folder (or a folder inside one), or a project's documents",
     move: async (file, destination) => {
       const s = src(file.id);
       if (s?.table !== 'job_files') throw new Error('Only job files can be moved from here.');
       const t = jobFileTarget(destination);
       if (t.job_id && t.job_id === s.job_id) {
-        // Same job, another standard folder: a section edit, nothing moves in storage.
-        await patchJson(`/api/admin/jobs/files/${s.id}`, { section: t.section, ...(t.file_type ? { file_type: t.file_type } : {}) });
+        // Same job, another folder: a section (and named-folder) edit, nothing moves in storage.
+        await patchJson(`/api/admin/jobs/files/${s.id}`, { section: t.section, folder_id: t.folder_id, ...(t.file_type ? { file_type: t.file_type } : {}) });
       } else {
         await sendJobFile(s.id, 'move', t);
       }

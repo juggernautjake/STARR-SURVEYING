@@ -133,7 +133,12 @@ export async function startBackgroundUpload(input: {
   if (support.mode !== 'background') return false;
 
   try {
-    const reg = await navigator.serviceWorker.ready;
+    // NOT `navigator.serviceWorker.ready` (2026-09-15): that promise never settles while no worker
+    // is registered — every browser while the admin PWA is switched off (NEXT_PUBLIC_ADMIN_PWA) — so
+    // on desktop Chrome and Edge, which do have Background Fetch, choosing a file waited forever and
+    // nothing happened at all. A registration that is not active yet cannot take the hand-off either.
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg?.active) return false;
     const bg = (reg as unknown as { backgroundFetch?: { fetch: (id: string, reqs: Request[], opts?: unknown) => Promise<unknown> } }).backgroundFetch;
     if (!bg) return false;
 
