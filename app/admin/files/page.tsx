@@ -18,16 +18,17 @@ import { FILE_KINDS, kindOf } from '@/lib/files/kinds';
 // The cap, the video test and the refusal text — one set of them for every upload surface in the
 // app, so the Files area can never drift from what the job page believes. `upload.ts` is pure; it
 // does not reach the service-role client the way `files/server.ts` does.
-import { MAX_UPLOAD_BYTES, contentTypeForUpload } from '@/lib/files/upload';
-import { explainPutFailure, isVideoUpload, megabytes } from '@/lib/storage/uploads';
-import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
-import { readVideoDuration } from '@/lib/jobs/video-split-run';
+import { isVideoUpload } from '@/lib/storage/uploads';
 import SharedFileViewer from '@/app/admin/components/files/FileViewer';
 import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import { downloadFile, downloadZip } from '@/lib/files/download';
 import { zipName } from '@/lib/files/viewer-model';
 import { explorerNodeToViewerFile, explorerCapabilities, explorerViewUrl, isMountId } from '@/lib/files/adapters/explorer';
 import FileExplorerDialog from '@/app/admin/components/files/FileExplorerDialog';
+// 2026-09-15 — uploads go through THE Upload files pop-up, the same one on every job and project:
+// drop or pick files, choose "Save into" and a folder for each one, watch each file go up.
+import UploadFilesDialog from '@/app/admin/components/files/UploadFilesDialog';
+import { uploadScopeFor } from '@/lib/files/upload-destinations';
 import {
   Folder,
   FileText,
@@ -171,32 +172,6 @@ function formatSize(bytes: number | null): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
-function putWithProgress(url: string, file: File, onPct: (pct: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    // An explicit type, because `xhr.send(file)` derives it from `File.type` — which some Android
-    // camera apps leave EMPTY for their own recordings. The row would then say
-    // `application/octet-stream` and the viewer would have no idea it was holding a video.
-    xhr.setRequestHeader('Content-Type', contentTypeForUpload(file.name, file.type));
-    xhr.upload.onprogress = (ev) => {
-      // `lengthComputable` is false behind some proxies. Falling back to the File's own size keeps
-      // the number moving instead of freezing at 0% for a five-minute transfer.
-      const total = ev.lengthComputable ? ev.total : file.size;
-      if (total > 0) onPct(Math.round((Math.min(ev.loaded, total) / total) * 100));
-    };
-    xhr.onload = () =>
-      (xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        // `Upload failed (400)` is what sent the last investigation to the route, which was fine,
-        // instead of to the limits, which were not. `explainPutFailure` names the one failure that
-        // can still spend a whole transfer — see `lib/storage/uploads.ts`.
-        : reject(new Error(explainPutFailure(xhr.status, xhr.responseText, file))));
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.send(file);
-  });
-}
-
 async function errOf(res: Response, fallback: string): Promise<string> {
   return (await res.json().catch(() => ({}))).error ?? fallback;
 }
@@ -219,7 +194,9 @@ export default function FilesPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [uploadLabel, setUploadLabel] = useState<string | null>(null);
+  // The Upload files pop-up, and files dropped on the page before it opened.
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadDrop, setUploadDrop] = useState<File[] | null>(null);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [clip, setClip] = useState<{ mode: 'cut' | 'copy'; ids: string[] } | null>(null);
@@ -229,18 +206,6 @@ export default function FilesPage(): React.ReactElement {
 
   const [viewer, setViewer] = useState<{ node: FileNode; url: string } | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
-
-  /** The oversized-video conversation: measure → confirm → cut → upload. State rather than a
-   *  `window.confirm`, because the cut takes a while and has to report progress. `dest` is carried
-   *  along so the parts land in the folder the drop happened on, even if the person has since
-   *  navigated somewhere else. */
-  const [splitState, setSplitState] = useState<{
-    file: File;
-    dest: string | null;
-    plan?: SplitPlan;
-    phase: 'measuring' | 'confirm' | 'splitting';
-    message: string;
-  } | null>(null);
 
   // Permissions dialog (F7)
   const [permNode, setPermNode] = useState<FileNode | null>(null);
@@ -374,147 +339,21 @@ export default function FilesPage(): React.ReactElement {
 
   const canWriteHere = canEdit(parentAccess);
 
-  // ---- uploads -----------------------------------------------------------
-  /**
-   * Put one batch of bytes in storage. Every file here has already been checked against the cap by
-   * `startUpload`, so nothing in this loop needs to think about size.
-   */
-  const uploadFiles = useCallback(
-    async (list: File[], destId: string | null) => {
-      if (list.length === 0) return;
-      setBusy(true);
-      setError(null);
-      for (let i = 0; i < list.length; i += 1) {
-        const file = list[i];
-        try {
-          setUploadLabel(`Uploading ${file.name} (${i + 1}/${list.length})… 0%`);
-          const init = await fetch('/api/admin/files/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ parent_id: destId, name: file.name, size_bytes: file.size }),
-          });
-          if (!init.ok) {
-            setError(await errOf(init, `Couldn't start uploading ${file.name}.`));
-            continue;
-          }
-          const { signed_url, path } = await init.json();
-          await putWithProgress(signed_url, file, (pct) =>
-            setUploadLabel(`Uploading ${file.name} (${i + 1}/${list.length})… ${pct}%`),
-          );
-          await fetch('/api/admin/files/upload/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // The DERIVED type, matching the header the bytes were sent with. Storing `file.type`
-            // here would record an empty string for an Android recording and leave the viewer
-            // unable to tell a video from a blob.
-            body: JSON.stringify({
-              parent_id: destId,
-              name: file.name,
-              path,
-              mime_type: contentTypeForUpload(file.name, file.type),
-              size_bytes: file.size,
-            }),
-          });
-        } catch (err) {
-          setError(err instanceof Error ? err.message : `Failed to upload ${file.name}.`);
-        }
-      }
-      setBusy(false);
-      setUploadLabel(null);
-      load(parentId);
-    },
-    [load, parentId],
-  );
+  // ---- uploads: the Upload files pop-up (owner, 2026-09-15) -----------------
+  //
+  // The inline upload that used to live here (a hidden input, a status line, the oversize-video
+  // conversation) is the pop-up's job now, on this page as on every job and project. It opens on the
+  // scope being browsed — this job, this project, or the File Explorer place — with this folder
+  // pre-chosen where files can go, and "Save into" lets the person pick anywhere else.
+  const uploadScope = useMemo(() => uploadScopeFor(parentId), [parentId]);
+  const uploadTitle = useMemo(() => {
+    const crumb = breadcrumb.find((c) => c.id === uploadScope.rootId);
+    return crumb?.name ?? (breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : undefined);
+  }, [breadcrumb, uploadScope.rootId]);
 
-  /**
-   * ── THE OVERSIZE CONVERSATION, THE SAME ONE THE JOB PAGE HAS (2026-08-22) ─────────────────────
-   *
-   * Owner: *"I need to know that video uploading for files and for projects/jobs allows us to
-   * upload longer videos successfully."*
-   *
-   * Files that fit go straight up. A file that does not is answered BEFORE a byte moves, and how
-   * depends on what it is:
-   *
-   *   a video      → measure it, plan the cut, ask, then remux into parts that fit
-   *   anything else → say the number, because there is nothing sensible to cut
-   *
-   * The planner and the remuxer are `lib/jobs/video-split*`, already used by the job page and
-   * already tested. They are named for jobs and are not about jobs — nothing in either module knows
-   * what a job is, and a walkthrough filed in the Files area needs the same cut as one filed on the
-   * job it came from. Duplicating them for a second caller is how the caps came to disagree.
-   */
-  const startUpload = useCallback(
-    async (list: File[], destId: string | null) => {
-      if (list.length === 0) return;
-      const fits = list.filter((f) => f.size <= MAX_UPLOAD_BYTES);
-      const tooBig = list.filter((f) => f.size > MAX_UPLOAD_BYTES);
-
-      // The ones that fit go first: a 700 MB video in the selection must not hold up four drawings.
-      if (fits.length) await uploadFiles(fits, destId);
-      if (tooBig.length === 0) return;
-
-      const notVideo = tooBig.filter((f) => !isVideoUpload(f.name, f.type));
-      if (notVideo.length) {
-        setError(
-          `${notVideo.map((f) => `"${f.name}"`).join(', ')} `
-          + `${notVideo.length === 1 ? 'is' : 'are'} larger than ${megabytes(MAX_UPLOAD_BYTES)} MB, `
-          + 'which is the limit for one file.',
-        );
-      }
-
-      // One at a time — cutting is a conversation, and two dialogs at once is nobody's idea of one.
-      const video = tooBig.find((f) => isVideoUpload(f.name, f.type));
-      if (!video) return;
-      setSplitState({ file: video, dest: destId, phase: 'measuring', message: 'Checking how long this video is…' });
-      const durationSec = await readVideoDuration(video);
-      const plan = planSplit({ sizeBytes: video.size, durationSec, capBytes: MAX_UPLOAD_BYTES, name: video.name });
-      if (!plan.needed || plan.parts.length === 0) {
-        setSplitState(null);
-        setError(describePlan(plan, video.size, MAX_UPLOAD_BYTES) || 'That video cannot be stored.');
-        return;
-      }
-      setSplitState({
-        file: video,
-        dest: destId,
-        plan,
-        phase: 'confirm',
-        message: describePlan(plan, video.size, MAX_UPLOAD_BYTES),
-      });
-    },
-    [uploadFiles],
-  );
-
-  /** The person said yes: cut the file, then hand the parts to the ordinary upload path. */
-  const runSplit = useCallback(async () => {
-    if (!splitState?.plan) return;
-    const { file, plan, dest } = splitState;
-    setSplitState({ ...splitState, phase: 'splitting', message: 'Preparing to cut the video…' });
-    const { splitVideo } = await import('@/lib/jobs/video-split-run');
-    const outcome = await splitVideo(file, plan.parts, (p) =>
-      setSplitState((s) => (s ? { ...s, message: `Cutting part ${p.part} of ${p.total}… ${p.pct}%` } : s)));
-    setSplitState(null);
-    if (!outcome.ok || !outcome.files) {
-      setError(outcome.error ?? 'The video could not be split.');
-      return;
-    }
-    // A cut lands on a keyframe, not on the requested second, so a recording with sparse keyframes
-    // can still produce a piece over the cap. Checked here, before the transfer rather than after.
-    const over = outcome.files.find((f) => f.size > MAX_UPLOAD_BYTES);
-    if (over) {
-      setError(
-        `The video was cut, but "${over.name}" is still ${megabytes(over.size)} MB — over the `
-        + `${megabytes(MAX_UPLOAD_BYTES)} MB limit, because this recording's keyframes are far apart. `
-        + 'Please record at a lower resolution, or in shorter clips.',
-      );
-      return;
-    }
-    await uploadFiles(outcome.files, dest);
-  }, [splitState, uploadFiles]);
-
-  async function onUploadInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (files && files.length) await startUpload(Array.from(files), parentId);
-    e.target.value = '';
+  function openUpload(files?: File[] | null) {
+    setUploadDrop(files && files.length ? files : null);
+    setUploadOpen(true);
   }
 
   // ---- folder / node ops -------------------------------------------------
@@ -1000,12 +839,12 @@ export default function FilesPage(): React.ReactElement {
 
   // ---- OS file drop ------------------------------------------------------
   function onPageDragEnter(e: React.DragEvent) {
-    if (!e.dataTransfer.types.includes('Files') || !canWriteHere) return;
+    if (!e.dataTransfer.types.includes('Files')) return;
     dragDepth.current += 1;
     setFileDrag(true);
   }
   function onPageDragOver(e: React.DragEvent) {
-    if (e.dataTransfer.types.includes('Files') && canWriteHere) e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
   }
   function onPageDragLeave(e: React.DragEvent) {
     if (!e.dataTransfer.types.includes('Files')) return;
@@ -1017,9 +856,9 @@ export default function FilesPage(): React.ReactElement {
     setFileDrag(false);
     if (e.dataTransfer.types.includes(NODES_DT)) return; // internal move handled elsewhere
     const files = e.dataTransfer.files;
-    if (files && files.length && canWriteHere) {
+    if (files && files.length) {
       e.preventDefault();
-      startUpload(Array.from(files), parentId);
+      openUpload(Array.from(files));
     }
   }
 
@@ -1065,10 +904,9 @@ export default function FilesPage(): React.ReactElement {
           <button type="button" className="fx-btn fx-btn--ghost" onClick={createFolder} disabled={!canWriteHere || busy} data-testid="fx-new-folder">
             <FolderPlus size={16} /> New folder
           </button>
-          <label className={`fx-btn ${canWriteHere && !busy ? '' : 'fx-btn--disabled'}`} data-testid="fx-upload-label">
-            <Upload size={16} /> Upload
-            <input type="file" multiple onChange={onUploadInput} disabled={!canWriteHere || busy} style={{ display: 'none' }} data-testid="fx-upload-input" />
-          </label>
+          <button type="button" className="fx-btn fx-btn--upload" onClick={() => openUpload()} disabled={busy} data-testid="fx-upload">
+            <Upload size={18} /> Upload files
+          </button>
         </div>
       </header>
 
@@ -1207,7 +1045,6 @@ export default function FilesPage(): React.ReactElement {
         </div>
       )}
 
-      {uploadLabel && <p className="fx__upload" role="status" data-testid="fx-upload-status">{uploadLabel}</p>}
       {error && <p className="fx__error" role="alert" data-testid="fx-error">{error}</p>}
 
       {loading ? (
@@ -1216,7 +1053,7 @@ export default function FilesPage(): React.ReactElement {
         <div className="fx__empty" data-testid="fx-empty">
           <Folder size={40} aria-hidden />
           <p>This folder is empty.</p>
-          {canWriteHere && <p className="fx__empty-hint">Use “New folder”, “Upload”, or drag files here to add something.</p>}
+          {canWriteHere && <p className="fx__empty-hint">Use “Upload files” or “New folder”, or drag files here to add something.</p>}
         </div>
       ) : (
         <ul className="fx__list" data-testid="fx-list">
@@ -1367,31 +1204,17 @@ export default function FilesPage(): React.ReactElement {
         />
       )}
 
-      {splitState && (
-        <div className="fx__modal" role="alertdialog" aria-modal="true" aria-label="This video must be split" data-testid="fx-split-dialog">
-          <div className="fx__sheet fx__split">
-            <div className="fx__sheet-head">
-              <div>
-                <h2 className="fx__sheet-title">This video is too big to store as one file</h2>
-                <p className="fx__sheet-sub">{splitState.file.name}</p>
-              </div>
-            </div>
-            <div className="fx__sheet-body">
-              <p className="fx__split-msg">{splitState.message}</p>
-            </div>
-            {splitState.phase === 'confirm' && (
-              <div className="fx__sheet-foot">
-                <button type="button" className="fx-btn fx-btn--ghost" onClick={() => setSplitState(null)} data-testid="fx-split-cancel">
-                  Cancel
-                </button>
-                <button type="button" className="fx-btn" onClick={() => void runSplit()} data-testid="fx-split-confirm">
-                  Split and upload
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <UploadFilesDialog
+        open={uploadOpen}
+        onClose={() => { setUploadOpen(false); setUploadDrop(null); }}
+        rootId={uploadScope.rootId}
+        allowScopeChange
+        scopeTrail={breadcrumb.map((c) => c.id)}
+        title={uploadTitle}
+        initialDestinationId={uploadScope.destinationId}
+        initialFiles={uploadDrop}
+        onUploaded={() => load(parentId)}
+      />
 
       {permNode && (
         <div
@@ -1642,7 +1465,7 @@ export default function FilesPage(): React.ReactElement {
         <div className="fx__dropzone" aria-hidden>
           <div className="fx__dropzone-card">
             <Upload size={28} />
-            <p>Drop files to upload here</p>
+            <p>Drop to upload — you will choose where next</p>
           </div>
         </div>
       )}
@@ -1688,7 +1511,7 @@ const styles = `
   .fx-chip--danger:hover:not(:disabled) { background: #BD1218; border-color: var(--color-error-text); }
   .fx-chip--ghost { background: transparent; }
 
-  .fx__upload { max-width: 1100px; margin: 0 auto 0.75rem; background: color-mix(in srgb, var(--theme-accent, #1D3095) 10%, var(--theme-bg-surface, #fff)); border: 1px solid color-mix(in srgb, var(--theme-accent, #1D3095) 28%, var(--theme-bg-surface, #fff)); color: var(--color-brand-navy, #1D3095); padding: 0.55rem 0.85rem; border-radius: 8px; font-size: 0.88rem; }
+  .fx-btn--upload { min-height: 44px; padding: 0 1.1rem; font-size: 0.95rem; font-weight: 700; box-shadow: 0 4px 12px color-mix(in srgb, var(--theme-accent, #1D3095) 30%, transparent); }
   .fx__error { max-width: 1100px; margin: 0 auto 0.75rem; background: var(--color-error-surface); color: var(--color-error-text); padding: 0.55rem 0.85rem; border-radius: 8px; font-size: 0.9rem; }
 
   .fx__empty { max-width: 1100px; margin: 2.5rem auto; text-align: center; color: var(--theme-fg-secondary, #6b7280); display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
@@ -1735,8 +1558,6 @@ const styles = `
   .fx__viewer-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   .fx__viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: var(--theme-bg-surface, #fff); }
   .fx__viewer-video { max-width: 100%; max-height: 100%; border-radius: 8px; background: #000; }
-  .fx__split { max-width: 32rem; }
-  .fx__split-msg { margin: 0; line-height: 1.55; white-space: pre-line; color: var(--theme-fg-primary, #1b2559); }
   .fx__viewer-frame { width: 100%; height: 100%; border: none; border-radius: 8px; background: var(--theme-bg-surface, #fff); }
   .fx__viewer-fallback { background: var(--theme-bg-surface, #fff); color: var(--theme-fg-primary, #152050); border-radius: 14px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
 

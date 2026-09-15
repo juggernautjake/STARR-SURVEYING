@@ -22,7 +22,11 @@ import {
 } from './job-folders';
 import { fileKind } from './viewer-model';
 
-export type UploadOwner = { kind: 'job'; jobId: string } | { kind: 'project'; projectId: string };
+export type UploadOwner =
+  | { kind: 'job'; jobId: string }
+  | { kind: 'project'; projectId: string }
+  /** A File Explorer folder (My files, Shared files, …) — `file_nodes`, uploaded through /api/admin/files/upload. */
+  | { kind: 'explorer'; parentId: string };
 
 export interface UploadDestination {
   /** The folder's mount id — what the explorer navigates to afterwards. */
@@ -49,7 +53,10 @@ export interface NewFolderParent {
   label: string;
   group: string;
   groupId: string;
-  jobId: string;
+  /** The job a named folder is made in, or null for a File Explorer folder (see `explorerParentId`). */
+  jobId: string | null;
+  /** A File Explorer folder to make the new folder inside (`POST /api/admin/files`). */
+  explorerParentId?: string | null;
   /** What `POST /api/admin/jobs/folders` needs: a standard folder key, or a named folder's uuid. */
   parent_key: JobFolderKey | null;
   parent_id: string | null;
@@ -99,7 +106,28 @@ export function destinationsFromTree(tree: MountTree | null | undefined): { dest
   };
   const jobName = (job: MountTreeFolder) => cleanFolderName(job.id === tree.root.id ? tree.root.name : job.name);
 
+  const canWrite = (a: string | undefined) => a === 'edit' || a === 'manage';
+
   for (const f of tree.folders) {
+    // ── A File Explorer folder (2026-09-15): offered when the caller can write to it ──
+    if (!f.id.startsWith('mnt:')) {
+      if (!canWrite(f.access)) continue;
+      const trail: string[] = [];
+      const seen = new Set<string>();
+      for (let cur: MountTreeFolder | undefined = f; cur && !seen.has(cur.id); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined) {
+        seen.add(cur.id);
+        trail.unshift(cur.name);
+      }
+      const label = trail.join(' › ');
+      const depth = trail.length - 1;
+      destinations.push({
+        id: f.id, label, group: tree.root.name, groupId: tree.root.id, owner: { kind: 'explorer', parentId: f.id },
+        section: '', fileType: null, only: null, folderId: null, depth,
+      });
+      parents.push({ id: f.id, label, group: tree.root.name, groupId: tree.root.id, jobId: null, explorerParentId: f.id, parent_key: null, parent_id: null, depth });
+      continue;
+    }
+
     const jobNode = parseJobNodeId(f.id);
     if (jobNode) {
       parents.push({ id: f.id, label: 'Top level of the job', group: jobName(f), groupId: f.id, jobId: jobNode.jobId, parent_key: null, parent_id: null, depth: 0 });
@@ -211,4 +239,26 @@ export function groupDestinations<T extends { groupId: string; group: string }>(
     g.items.push(d);
   }
   return out;
+}
+
+/**
+ * Where the Upload files pop-up opens when it is started from a folder on the site-wide Files page
+ * (owner, 2026-09-15: "available from the default main files page … choose a folder in the current
+ * scope"). The scope is the job or project being browsed — or the File Explorer folder, which the
+ * pop-up widens to its place (My files / Shared files) — and the folder itself is pre-chosen when
+ * files can go there. Home, and the read-only sources (Receipts, Research Documents), start with no
+ * scope: the person picks one under "Save into".
+ */
+export function uploadScopeFor(folderId: string | null): { rootId: string | null; destinationId: string | null } {
+  if (!folderId) return { rootId: null, destinationId: null };
+  if (!folderId.startsWith('mnt:')) return { rootId: folderId, destinationId: folderId };
+  const parts = folderId.split(':');
+  if (parts[1] === 'jobs' && parts[2]) {
+    return { rootId: `mnt:jobs:${parts[2]}`, destinationId: parts.length > 3 ? folderId : null };
+  }
+  if (parts[1] === 'projects' && parts[2]) {
+    if (parts[3] && parts[3] !== 'docs') return { rootId: `mnt:projects:${parts[2]}:${parts[3]}`, destinationId: parts.length > 4 ? folderId : null };
+    return { rootId: `mnt:projects:${parts[2]}`, destinationId: parts[3] === 'docs' ? folderId : null };
+  }
+  return { rootId: null, destinationId: null };
 }

@@ -55,24 +55,24 @@ export async function GET(req: NextRequest) {
     notes: n.notes ?? null, tags: n.tags ?? [],
   });
 
-  async function walk(id: string, name: string, path: string[], depth: number, parentId: string | null, nodes?: ReturnType<typeof shape>[]): Promise<void> {
+  async function walk(id: string, name: string, path: string[], depth: number, parentId: string | null, nodes?: ReturnType<typeof shape>[], access?: MountNode['access']): Promise<void> {
     if (folders.length >= MAX_FOLDERS) { truncated = true; return; }
     let listed = nodes;
     if (!listed) {
       const res = await listChildren(id, who, admin);
-      if (!res.ok) { folders.push({ id, name, path, depth, parent_id: parentId, files: [], error: res.error }); return; }
+      if (!res.ok) { folders.push({ id, name, path, depth, parent_id: parentId, files: [], error: res.error, ...(access ? { access } : {}) }); return; }
       listed = (res.nodes ?? []).map(shape);
     }
     const files = listed.filter((n) => n.node_type === 'file');
-    folders.push({ id, name, path, depth, parent_id: parentId, files });
+    folders.push({ id, name, path, depth, parent_id: parentId, files, ...(access ? { access } : {}) });
     total += files.length;
     if (depth >= MAX_DEPTH) return;
     for (const f of listed.filter((n) => n.node_type === 'folder')) {
-      await walk(f.id, f.name, [...path, f.name], depth + 1, id);
+      await walk(f.id, f.name, [...path, f.name], depth + 1, id, undefined, f.access);
     }
   }
 
-  await walk(rootId, rootName, [], 0, null, (rootList.nodes ?? []).map(shape));
+  await walk(rootId, rootName, [], 0, null, (rootList.nodes ?? []).map(shape), rootList.parentAccess);
 
   const tree: MountTree = {
     root: { id: rootId, name: rootName },

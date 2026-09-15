@@ -199,3 +199,9 @@
   .ufd__foot-actions { width: 100%; }
   .ufd__foot-actions .ufd__btn { flex: 1 1 auto; }
 }
+
+/* "Save into" — the scope chooser on the site-wide Files page */
+.ufd__scope { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; border: 1px solid var(--theme-border, #E2E8F0); border-radius: 12px; background: var(--theme-bg-elevated, #F8FAFC); }
+.ufd__scope-label { font-size: 0.92rem; font-weight: 800; }
+.ufd__scope select { flex: 1 1 16rem; min-height: 42px; max-width: 100%; padding: 0 0.6rem; border: 1px solid var(--theme-border, #CBD5E1); border-radius: 10px; background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-fg-primary, #0F172A); font: inherit; font-size: 0.92rem; }
+.ufd__scope select:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 1px; }

@@ -17,7 +17,11 @@
  *                     and a Retry when it is not
  *
  * The folders come from the same tree the FolderExplorer browses (lib/files/upload-destinations.ts),
- * so the folder chosen here is the folder the file is then found in. It uploads in the page, on
+ * so the folder chosen here is the folder the file is then found in. On the site-wide Files page it
+ * also offers a SCOPE — "Save into" My files, Shared files or any project — and the dropdowns then
+ * hold that scope's folders (owner, 2026-09-15: "available from the default main files page inside
+ * of a job, project, or just the website as a whole … choose a folder in the current scope").
+ * It uploads in the page, on
  * purpose, with the progress on screen: the old path handed files to the browser's background
  * transfer on desktop Chrome, where they did not appear until a refresh — or, with no service worker
  * registered, never started at all. Background is still offered where it really works, as a choice.
@@ -27,6 +31,7 @@ import {
   Upload, X, FolderPlus, FileText, Image as ImageIcon, Film, Music, Archive, CheckCircle2, AlertCircle, Loader2,
   RotateCcw, Trash2, Scissors, Sparkles,
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import type { MountTree } from '@/lib/files/mount-node';
 import {
   destinationsFromTree, destinationAccepts, refusalFor, suggestDestination, groupDestinations,
@@ -34,7 +39,8 @@ import {
 } from '@/lib/files/upload-destinations';
 import { checkFolderName, detectJobFileType } from '@/lib/files/job-folders';
 import { fileKind } from '@/lib/files/viewer-model';
-import { uploadJobFileBytes, uploadProjectFileBytes } from '@/lib/jobs/upload-client';
+import { uploadJobFileBytes, uploadProjectFileBytes, putWithProgress } from '@/lib/jobs/upload-client';
+import { contentTypeForUpload } from '@/lib/files/upload';
 import { maxBytesFor, isVideoUpload } from '@/lib/jobs/file-storage';
 import { contentTypeFor, megabytes } from '@/lib/storage/uploads';
 import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
@@ -46,8 +52,14 @@ import './UploadFilesDialog.css';
 export interface UploadFilesDialogProps {
   open: boolean;
   onClose: () => void;
-  /** `mnt:jobs:<jobId>` or `mnt:projects:<projectId>` — whose folders the dropdowns offer. */
-  rootId: string;
+  /** Whose folders the dropdowns offer: `mnt:jobs:<jobId>`, `mnt:projects:<projectId>`, a job under a
+   *  project, or a File Explorer folder (My files / Shared files). Null = the person picks a scope. */
+  rootId: string | null;
+  /** Show the "Save into" chooser (the site-wide Files page): My files, Shared files, or a project. */
+  allowScopeChange?: boolean;
+  /** The folder ids from the top down to `rootId` (the Files page breadcrumb). When one of them is a
+   *  "Save into" place, the pop-up opens on that whole place with `rootId`'s folder pre-chosen. */
+  scopeTrail?: string[];
   /** "24-103 — Smith", shown under the title. */
   title?: string;
   /** A folder to pre-choose for every file — the folder the person was looking at. */
@@ -93,7 +105,13 @@ function KindIcon({ file }: { file: File }) {
   }
 }
 
-export default function UploadFilesDialog({ open, onClose, rootId, title, initialDestinationId, initialFiles, onUploaded }: UploadFilesDialogProps) {
+interface ScopeOption { id: string; label: string; group: 'Your files' | 'Job projects' | 'Here' }
+
+export default function UploadFilesDialog({ open, onClose, rootId, allowScopeChange, scopeTrail, title, initialDestinationId, initialFiles, onUploaded }: UploadFilesDialogProps) {
+  const { data: session } = useSession();
+  const myEmail = session?.user?.email?.toLowerCase() ?? null;
+  const [scopeId, setScopeId] = useState<string | null>(rootId);
+  const [scopes, setScopes] = useState<ScopeOption[]>([]);
   const [tree, setTree] = useState<MountTree | null>(null);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -109,19 +127,24 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
   const dragDepth = useRef(0);
 
   // ── the folders ──
-  const loadTree = useCallback(async (): Promise<MountTree | null> => {
+  const treeSeq = useRef(0);
+  const loadTree = useCallback(async (scope: string | null = scopeId): Promise<MountTree | null> => {
+    // The newest request wins: switching "Save into" twice must not show the first place's folders.
+    const seq = ++treeSeq.current;
     setTreeError(null);
+    if (!scope) { setTree(null); return null; }
     try {
-      const res = await fetch(`/api/admin/files/tree?node=${encodeURIComponent(rootId)}`);
+      const res = await fetch(`/api/admin/files/tree?node=${encodeURIComponent(scope)}`);
       const json = await res.json().catch(() => ({}));
+      if (seq !== treeSeq.current) return null;
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setTree(json as MountTree);
       return json as MountTree;
     } catch (err) {
-      setTreeError(err instanceof Error ? err.message : String(err));
+      if (seq === treeSeq.current) setTreeError(err instanceof Error ? err.message : String(err));
       return null;
     }
-  }, [rootId]);
+  }, [scopeId]);
 
   const { destinations, parents } = useMemo(() => destinationsFromTree(tree), [tree]);
   const destById = useMemo(() => new Map(destinations.map((d) => [d.id, d])), [destinations]);
@@ -142,7 +165,10 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
     setDragOver(false);
     setKeepInBackground(false);
     setItems(makeItems(initialFiles ?? [], initialDestinationId ?? '', []));
-    void loadTree();
+    setScopeId(rootId);
+    setTree(null);
+    void loadTree(rootId);
+    if (allowScopeChange) void loadScopes();
     // Background uploads only where they can actually start: the API AND an active worker.
     const support = backgroundUploadSupport();
     if (support.mode === 'background' && typeof navigator !== 'undefined' && navigator.serviceWorker) {
@@ -154,6 +180,55 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
     // Reset only when the pop-up opens, not whenever a parent re-renders with a new array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  /** The places the site-wide Files page can save into: writable File Explorer roots, then projects. */
+  async function loadScopes() {
+    type Listed = { id: string; name: string; node_type: string; access?: string; is_system?: boolean; is_personal_root?: boolean; owner_email?: string | null };
+    const list = async (parent: string): Promise<Listed[]> => {
+      try {
+        const res = await fetch(`/api/admin/files?parent=${encodeURIComponent(parent)}`);
+        if (!res.ok) return [];
+        return ((await res.json()).nodes ?? []) as Listed[];
+      } catch { return []; }
+    };
+    const writable = (n: Listed) => n.access === 'edit' || n.access === 'manage';
+    const [roots, projects] = await Promise.all([list('root'), list('mnt:projects')]);
+    const folders = roots.filter((n) => n.node_type === 'folder' && !n.id.startsWith('mnt:'));
+    // "My files" is the person's own folder inside the Personal container (as the explorer pop-up finds it).
+    const personal = folders.find((n) => n.is_system && /^personal$/i.test(n.name));
+    const mine = personal && myEmail
+      ? (await list(personal.id)).find((n) => n.is_personal_root && n.owner_email?.toLowerCase() === myEmail) ?? null
+      : null;
+    const yours: ScopeOption[] = [
+      ...(mine ? [{ id: mine.id, label: 'My files', group: 'Your files' as const }] : []),
+      ...folders
+        .filter((n) => writable(n) && n.id !== mine?.id)
+        .map((n) => ({ id: n.id, label: n.is_system && /^shared$/i.test(n.name) ? 'Shared files' : n.name, group: 'Your files' as const })),
+    ];
+    const proj: ScopeOption[] = projects
+      .filter((n) => n.node_type === 'folder')
+      .map((n) => ({ id: n.id, label: n.name, group: 'Job projects' as const }));
+    const all = [...yours, ...proj];
+    setScopes(all);
+
+    // Opened inside a place (My files › Deeds): widen to the whole place, keep the folder pre-chosen.
+    if (rootId && !all.some((sc) => sc.id === rootId) && scopeTrail?.length) {
+      const place = scopeTrail.find((id) => all.some((sc) => sc.id === id));
+      if (place && place !== rootId) {
+        setScopeId(place);
+        void loadTree(place);
+      }
+    }
+  }
+
+  function changeScope(next: string) {
+    const id = next || null;
+    setScopeId(id);
+    setDraft(null);
+    // Folders from the old scope are not in the new one: every waiting file chooses again.
+    setItems((cur) => cur.map((i) => (i.status === 'waiting' || i.status === 'failed' ? { ...i, destId: '' } : i)));
+    void loadTree(id);
+  }
 
   const uploading = phase === 'uploading';
 
@@ -224,16 +299,24 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
     if (!parent) { setDraft({ ...draft, error: 'Choose where the new folder goes.' }); return; }
     setDraft({ ...draft, busy: true, error: null });
     try {
-      const res = await fetch('/api/admin/jobs/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: parent.jobId, name: check.value, parent_key: parent.parent_key, parent_id: parent.parent_id }),
-      });
+      // A File Explorer folder is a `file_nodes` row; a folder inside a job is a named job folder.
+      const explorer = Boolean(parent.explorerParentId);
+      const res = explorer
+        ? await fetch('/api/admin/files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: parent.explorerParentId, name: check.value }),
+        })
+        : await fetch('/api/admin/jobs/folders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: parent.jobId, name: check.value, parent_key: parent.parent_key, parent_id: parent.parent_id }),
+        });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Could not create the folder (HTTP ${res.status}).`);
-      const folderId = (json.folder as { id: string }).id;
+      const madeId = explorer ? (json.node as { id: string }).id : (json.folder as { id: string }).id;
       const fresh = await loadTree();
-      const made = destinationsFromTree(fresh).destinations.find((d) => d.folderId === folderId);
+      const made = destinationsFromTree(fresh).destinations.find((d) => (explorer ? d.id === madeId : d.folderId === madeId));
       if (!made) throw new Error('The folder was made, but did not appear — press Refresh on the files list.');
       setItems((cur) => cur.map((i) => {
         const wanted = draft.forKey === 'all' ? (i.status === 'waiting' || i.status === 'failed') : i.key === draft.forKey;
@@ -282,6 +365,35 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
 
   // ── uploading ──
   async function uploadOne(item: Item, dest: UploadDestination): Promise<boolean> {
+    const onProgress = (p: { pct: number; loaded: number }) =>
+      update(item.key, { pct: p.pct, loaded: p.loaded, status: p.pct >= 100 ? 'finishing' : 'uploading' });
+
+    // ── A File Explorer folder: the explorer's own three-step (sign → PUT → complete) ──
+    if (dest.owner.kind === 'explorer') {
+      const parentId = dest.owner.parentId;
+      update(item.key, { status: 'uploading', pct: 0, loaded: 0, error: undefined });
+      try {
+        const init = await fetch('/api/admin/files/upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: parentId, name: item.file.name, size_bytes: item.file.size }),
+        });
+        if (!init.ok) throw new Error((await init.json().catch(() => ({}))).error ?? `Could not start uploading ${item.file.name}.`);
+        const { signed_url, path } = await init.json();
+        await putWithProgress(signed_url, item.file, onProgress);
+        update(item.key, { status: 'finishing', pct: 100 });
+        const done = await fetch('/api/admin/files/upload/complete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: parentId, name: item.file.name, path, mime_type: contentTypeForUpload(item.file.name, item.file.type), size_bytes: item.file.size }),
+        });
+        if (!done.ok) throw new Error((await done.json().catch(() => ({}))).error ?? `The file went up, but ${item.file.name} could not be saved to the folder.`);
+        update(item.key, { status: 'done', pct: 100, loaded: item.file.size });
+        return true;
+      } catch (err) {
+        update(item.key, { status: 'failed', error: err instanceof Error ? err.message : `Could not upload ${item.file.name}.` });
+        return false;
+      }
+    }
+
     const owner = dest.owner.kind === 'job' ? { job_id: dest.owner.jobId } : { project_id: dest.owner.projectId };
     const rowBody = (bytes: { file_id: string; storage_path: string; storage_bucket: string }) => ({
       ...owner,
@@ -314,8 +426,6 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
         await putInPage(item, started.signed_url);
         await saveRow(rowBody({ file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket }), item.file.name);
       } else {
-        const onProgress = (p: { pct: number; loaded: number }) =>
-          update(item.key, { pct: p.pct, loaded: p.loaded, status: p.pct >= 100 ? 'finishing' : 'uploading' });
         const bytes = dest.owner.kind === 'job'
           ? await uploadJobFileBytes(dest.owner.jobId, item.file, onProgress)
           : await uploadProjectFileBytes(dest.owner.projectId, item.file, onProgress);
@@ -395,7 +505,7 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
   const failedCount = items.filter((i) => i.status === 'failed').length;
   const groups = groupDestinations(destinations);
   const parentGroups = groupDestinations(parents);
-  const loadingFolders = !tree && !treeError;
+  const loadingFolders = Boolean(scopeId) && !tree && !treeError;
 
   /** The dropdown's options — the same for every file, with folders that refuse this file greyed. */
   const folderOptions = (file: File | null) => {
@@ -411,7 +521,7 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
     };
     return (
       <>
-        <option value="">{loadingFolders ? 'Loading folders…' : 'Choose a folder…'}</option>
+        <option value="">{!scopeId ? 'Choose “Save into” first' : loadingFolders ? 'Loading folders…' : 'Choose a folder…'}</option>
         {multiGroup
           ? groups.map((g) => <optgroup key={g.groupId} label={g.group}>{g.items.map(optionFor)}</optgroup>)
           : destinations.map(optionFor)}
@@ -483,7 +593,8 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
         <header className="ufd__head">
           <div>
             <h2 id={titleId} className="ufd__title"><Upload size={18} aria-hidden="true" /> Upload files</h2>
-            {title && <p className="ufd__subtitle">to <strong>{title}</strong></p>}
+            {title && !allowScopeChange && <p className="ufd__subtitle">to <strong>{title}</strong></p>}
+            {allowScopeChange && <p className="ufd__subtitle">Choose where they go, then a folder for each file.</p>}
           </div>
           <button type="button" className="ufd__close" onClick={onClose} disabled={uploading} aria-label="Close" title={uploading ? 'Wait for the uploads to finish' : 'Close'}>
             <X size={20} aria-hidden="true" />
@@ -491,6 +602,24 @@ export default function UploadFilesDialog({ open, onClose, rootId, title, initia
         </header>
 
         <div className="ufd__body">
+          {/* ── the scope: where on the platform these files go (site-wide Files page) ── */}
+          {allowScopeChange && (
+            <label className="ufd__scope" data-testid="ufd-scope">
+              <span className="ufd__scope-label">Save into</span>
+              <select value={scopeId ?? ''} onChange={(e) => changeScope(e.target.value)} disabled={uploading} data-testid="ufd-scope-select">
+                <option value="">Choose a place…</option>
+                {rootId && !scopes.some((sc) => sc.id === rootId) && (
+                  <optgroup label="Where you are"><option value={rootId}>{title ?? 'This folder'}</option></optgroup>
+                )}
+                {(['Your files', 'Job projects'] as const).map((g) => {
+                  const inGroup = scopes.filter((sc) => sc.group === g);
+                  return inGroup.length ? (
+                    <optgroup key={g} label={g}>{inGroup.map((sc) => <option key={sc.id} value={sc.id}>{sc.label}</option>)}</optgroup>
+                  ) : null;
+                })}
+              </select>
+            </label>
+          )}
           {/* ── 1. add files ── */}
           <input ref={inputRef} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input" />
           <div className={`ufd__drop${items.length > 0 ? ' ufd__drop--compact' : ''}${dragOver ? ' ufd__drop--over' : ''}`}>

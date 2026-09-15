@@ -45,7 +45,7 @@ export { explainPutFailure };
 
 /** PUT with a progress callback. XHR rather than fetch because fetch still cannot report upload
  *  progress — and a 300 MB attachment with no progress bar reads as a frozen page. */
-function putWithProgress(url: string, file: File, onProgress?: (p: UploadProgress) => void): Promise<void> {
+export function putWithProgress(url: string, file: File, onProgress?: (p: UploadProgress) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);

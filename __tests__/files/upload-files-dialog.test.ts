@@ -20,7 +20,7 @@ import {
   uploadSpecForRoot, checkFolderName, NAMED_FOLDER_ROOTS, parseJobFolderId,
 } from '@/lib/files/job-folders';
 import {
-  destinationsFromTree, destinationAccepts, suggestDestination, suggestFolderKey, groupDestinations, cleanFolderName,
+  destinationsFromTree, destinationAccepts, suggestDestination, suggestFolderKey, groupDestinations, cleanFolderName, uploadScopeFor,
 } from '@/lib/files/upload-destinations';
 import type { MountTree } from '@/lib/files/mount-node';
 
@@ -378,7 +378,7 @@ describe('the Upload files pop-up', () => {
   });
 
   it('every file has its own required folder dropdown, built from the job\'s real tree', () => {
-    expect(code).toContain('/api/admin/files/tree?node=${encodeURIComponent(rootId)}');
+    expect(code).toContain('/api/admin/files/tree?node=${encodeURIComponent(scope)}');
     expect(code).toContain('destinationsFromTree(tree)');
     expect(src).toContain('aria-label={`Folder for ${item.file.name}`}');
     expect(code).toContain('const canUpload = !uploading && ready.length > 0 && needFolder.length === 0 && !draft;');
@@ -388,7 +388,7 @@ describe('the Upload files pop-up', () => {
   it('"New folder…" creates a folder and puts the file in it', () => {
     expect(src).toContain('＋ New folder…');
     expect(code).toContain("fetch('/api/admin/jobs/folders', {");
-    expect(code).toContain('.find((d) => d.folderId === folderId)');
+    expect(code).toContain('.find((d) => (explorer ? d.id === madeId : d.folderId === madeId))');
   });
 
   it('uploads the bytes and files the row into the chosen folder', () => {
@@ -439,5 +439,90 @@ describe('the callers open it', () => {
     expect(header, 'Upload files comes before Files & photos').toBeLessThan(code.indexOf('data-testid="job-files-quick"'));
     expect(code).toContain("setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })");
     expect(read('app/admin/styles/AdminJobs.css')).toContain('.job-detail__uploadbtn {');
+  });
+});
+
+// ── 6. the site-wide Files page (owner, 2026-09-15) ──────────────────────────────────────────────
+// "Please make sure it is built and surfaced and available from the default main files page inside
+//  of a job, project, or just the website as a whole. Then the user can specifically choose a folder
+//  in the current scope for where they want to save it."
+
+describe('the scope the pop-up opens on from a folder on the Files page', () => {
+  it('Home and the read-only sources: no scope — the person picks one under "Save into"', () => {
+    expect(uploadScopeFor(null)).toEqual({ rootId: null, destinationId: null });
+    expect(uploadScopeFor('mnt:receipts')).toEqual({ rootId: null, destinationId: null });
+    expect(uploadScopeFor('mnt:research')).toEqual({ rootId: null, destinationId: null });
+  });
+
+  it('inside a job: the job, with the folder pre-chosen once one is open', () => {
+    expect(uploadScopeFor(`mnt:jobs:${J}`)).toEqual({ rootId: `mnt:jobs:${J}`, destinationId: null });
+    expect(uploadScopeFor(`mnt:jobs:${J}:photos.${F1}`)).toEqual({ rootId: `mnt:jobs:${J}`, destinationId: `mnt:jobs:${J}:photos.${F1}` });
+    expect(uploadScopeFor(`mnt:projects:${P}:${J}:cad`)).toEqual({ rootId: `mnt:projects:${P}:${J}`, destinationId: `mnt:projects:${P}:${J}:cad` });
+  });
+
+  it('inside a project: the project (all its jobs), with Project documents pre-chosen there', () => {
+    expect(uploadScopeFor(`mnt:projects:${P}`)).toEqual({ rootId: `mnt:projects:${P}`, destinationId: null });
+    expect(uploadScopeFor(`mnt:projects:${P}:docs`)).toEqual({ rootId: `mnt:projects:${P}`, destinationId: `mnt:projects:${P}:docs` });
+  });
+
+  it('a File Explorer folder: itself (the pop-up widens it to My files / Shared files)', () => {
+    expect(uploadScopeFor(F1)).toEqual({ rootId: F1, destinationId: F1 });
+  });
+});
+
+describe('File Explorer folders as destinations', () => {
+  const tree: MountTree = {
+    root: { id: F1, name: 'Jacob' }, breadcrumb: [], total_files: 0, truncated: false,
+    folders: [
+      { id: F1, name: 'Jacob', parent_id: null, depth: 0, path: [], files: [], access: 'manage' },
+      { id: F2, name: 'Deeds', parent_id: F1, depth: 1, path: ['Deeds'], files: [], access: 'edit' },
+      { id: F3, name: 'Read only', parent_id: F1, depth: 1, path: ['Read only'], files: [], access: 'view' },
+    ],
+  };
+  const { destinations, parents } = destinationsFromTree(tree);
+
+  it('are the folders the caller can write to, uploaded through the explorer, with paths', () => {
+    expect(destinations.map((d) => d.label)).toEqual(['Jacob', 'Jacob › Deeds']);
+    expect(destinations[1]).toMatchObject({ owner: { kind: 'explorer', parentId: F2 }, only: null, folderId: null });
+  });
+
+  it('new folders are made in them through the explorer, not as job folders', () => {
+    expect(parents.map((p) => p.explorerParentId)).toEqual([F1, F2]);
+    expect(parents.every((p) => p.jobId === null)).toBe(true);
+  });
+
+  it('the tree route says each explorer folder\'s access, so the dropdown can tell', () => {
+    const route = stripJs(read('app/api/admin/files/tree/route.ts'));
+    expect(route).toContain('rootList.parentAccess');
+    expect(route).toContain('depth + 1, id, undefined, f.access');
+  });
+});
+
+describe('the pop-up on the Files page', () => {
+  const dialog = stripJs(read('app/admin/components/files/UploadFilesDialog.tsx'));
+  const page = read('app/admin/files/page.tsx');
+  const pageCode = stripJs(page);
+
+  it('"Save into": My files, Shared files and every project, and the folders follow the choice', () => {
+    expect(dialog).toContain("label: 'My files'");
+    expect(dialog).toContain("'Shared files'");
+    expect(dialog).toContain("list('mnt:projects')");
+    expect(dialog).toContain('function changeScope(next: string)');
+    expect(read('app/admin/components/files/UploadFilesDialog.tsx')).toContain('data-testid="ufd-scope-select"');
+  });
+
+  it('uploads into an explorer folder through the explorer\'s own sign → PUT → complete', () => {
+    expect(dialog).toContain("fetch('/api/admin/files/upload', {");
+    expect(dialog).toContain('await putWithProgress(signed_url, item.file, onProgress)');
+    expect(dialog).toContain("fetch('/api/admin/files/upload/complete', {");
+  });
+
+  it('the Files page opens it from a big Upload files button and from any drop, on the current scope', () => {
+    expect(page).toContain("import UploadFilesDialog from '@/app/admin/components/files/UploadFilesDialog'");
+    expect(page).toContain('data-testid="fx-upload"');
+    expect(pageCode).toMatch(/<UploadFilesDialog[\s\S]{0,300}rootId=\{uploadScope\.rootId\}[\s\S]{0,40}allowScopeChange/);
+    expect(pageCode).toContain('openUpload(Array.from(files))');
+    expect(pageCode).toContain('initialDestinationId={uploadScope.destinationId}');
+    expect(pageCode, 'the old inline upload is back').not.toMatch(/function startUpload|const startUpload|data-testid="fx-upload-input"/);
   });
 });
