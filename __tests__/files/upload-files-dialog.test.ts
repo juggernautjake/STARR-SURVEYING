@@ -20,7 +20,7 @@ import {
   uploadSpecForRoot, checkFolderName, NAMED_FOLDER_ROOTS, parseJobFolderId,
 } from '@/lib/files/job-folders';
 import {
-  destinationsFromTree, destinationAccepts, suggestDestination, suggestFolderKey, groupDestinations, cleanFolderName, uploadScopeFor,
+  destinationsFromTree, destinationAccepts, suggestDestination, suggestFolderKey, groupDestinations, cleanFolderName, uploadScopeFor, withNewFolder,
 } from '@/lib/files/upload-destinations';
 import type { MountTree } from '@/lib/files/mount-node';
 
@@ -388,7 +388,7 @@ describe('the Upload files pop-up', () => {
   it('"New folder…" creates a folder and puts the file in it', () => {
     expect(src).toContain('＋ New folder…');
     expect(code).toContain("fetch('/api/admin/jobs/folders', {");
-    expect(code).toContain('.find((d) => (explorer ? d.id === madeId : d.folderId === madeId))');
+    expect(code).toContain('withNewFolder(tree, parent, { id: createdRow.id');
   });
 
   it('uploads the bytes and files the row into the chosen folder', () => {
@@ -538,5 +538,41 @@ describe('the project page: Upload files first in the header', () => {
     expect(header, 'Upload files comes before New job').toBeLessThan(code.indexOf('data-testid="project-new-job"'));
     expect(code).toContain('refreshKey={filesRefresh}');
     expect(read('app/admin/styles/AdminProjects.css')).toContain('.proj-page__btn--upload {');
+  });
+});
+
+describe('a new folder appears at once, under the id the listing will give it', () => {
+  const root = `mnt:jobs:${J}`;
+  const t = jobTree([
+    folder(root, '24-103 — Smith', null, 0),
+    folder(`${root}:photos`, 'Photos (1)', root, 1, { folder_key: 'photos' }),
+    folder(`${root}:photos.${F1}`, 'Corners', `${root}:photos`, 2, { folder_key: 'named' }),
+    folder(`${root}:videos`, 'Videos (0)', root, 1, { folder_key: 'videos' }),
+  ]);
+  const { parents } = destinationsFromTree(t);
+
+  it('inside a standard folder: <job>:<root>.<uuid>, placed after the parent subtree', () => {
+    const photos = parents.find((p) => p.parent_key === 'photos')!;
+    const { tree, folderId } = withNewFolder(t, photos, { id: F2, name: 'Monuments' });
+    expect(folderId).toBe(`${root}:photos.${F2}`);
+    expect(tree.folders.map((f) => f.id).indexOf(folderId)).toBe(3);
+    const d = destinationsFromTree(tree).destinations.find((x) => x.id === folderId)!;
+    expect(d).toMatchObject({ label: 'Photos › Monuments', folderId: F2, section: 'photos', only: 'image' });
+  });
+
+  it('inside a named folder it keeps the root; at the top it is top', () => {
+    const corners = parents.find((p) => p.parent_id === F1)!;
+    expect(withNewFolder(t, corners, { id: F3, name: 'NE' }).folderId).toBe(`${root}:photos.${F3}`);
+    const top = parents.find((p) => p.label === 'Top level of the job')!;
+    expect(withNewFolder(t, top, { id: F3, name: 'Letters' }).folderId).toBe(`${root}:top.${F3}`);
+  });
+
+  it('a File Explorer folder is its node id, writable', () => {
+    const et: MountTree = { root: { id: F1, name: 'Mine' }, breadcrumb: [], total_files: 0, truncated: false,
+      folders: [{ id: F1, name: 'Mine', parent_id: null, depth: 0, path: [], files: [], access: 'manage' }] };
+    const p = destinationsFromTree(et).parents[0];
+    const { tree, folderId } = withNewFolder(et, p, { id: F2, name: 'Deeds' });
+    expect(folderId).toBe(F2);
+    expect(destinationsFromTree(tree).destinations.map((d) => d.label)).toEqual(['Mine', 'Mine › Deeds']);
   });
 });

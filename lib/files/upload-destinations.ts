@@ -262,3 +262,44 @@ export function uploadScopeFor(folderId: string | null): { rootId: string | null
   }
   return { rootId: null, destinationId: null };
 }
+
+/**
+ * The tree with a just-created folder added in place, so the pop-up can select it at once instead of
+ * waiting seconds for the whole job to be listed again (the listing is refreshed behind it). The id is
+ * the one the listing will give it: a File Explorer folder is its node id; a named job folder is
+ * `<jobNode>:<root>.<uuid>`, with the root inherited from where it was made.
+ */
+export function withNewFolder(tree: MountTree, parent: NewFolderParent, created: { id: string; name: string }): { tree: MountTree; folderId: string } {
+  let id: string;
+  if (parent.explorerParentId) {
+    id = created.id;
+  } else {
+    const job = parseJobNodeId(parent.id);
+    const std = parseJobFolderId(parent.id);
+    const named = parseNamedFolderId(parent.id);
+    const jobNode = job ? parent.id : parent.id.slice(0, parent.id.lastIndexOf(':'));
+    const root: NamedFolderRoot = std ? std.folder : named ? named.root : 'top';
+    id = `${jobNode}:${root}.${created.id}`;
+  }
+  if (tree.folders.some((f) => f.id === id)) return { tree, folderId: id };
+
+  const parentFolder = tree.folders.find((f) => f.id === parent.id);
+  const depth = (parentFolder?.depth ?? 0) + 1;
+  const entry: MountTreeFolder = {
+    id, name: created.name, parent_id: parent.id, depth,
+    path: [...(parentFolder?.path ?? []), created.name], files: [],
+    ...(parent.explorerParentId ? { access: 'manage' as const } : { folder_key: 'named' }),
+  };
+  // After the parent and everything already under it, so depth-first order holds.
+  const folders = [...tree.folders];
+  let at = folders.findIndex((f) => f.id === parent.id);
+  if (at < 0) at = folders.length - 1;
+  else {
+    const under = new Set([parent.id]);
+    for (let i = at + 1; i < folders.length; i++) {
+      if (folders[i].parent_id && under.has(folders[i].parent_id!)) { under.add(folders[i].id); at = i; } else break;
+    }
+  }
+  folders.splice(at + 1, 0, entry);
+  return { tree: { ...tree, folders }, folderId: id };
+}

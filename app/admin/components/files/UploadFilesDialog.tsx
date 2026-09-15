@@ -34,7 +34,7 @@ import {
 import { useSession } from 'next-auth/react';
 import type { MountTree } from '@/lib/files/mount-node';
 import {
-  destinationsFromTree, destinationAccepts, refusalFor, suggestDestination, groupDestinations,
+  destinationsFromTree, destinationAccepts, refusalFor, suggestDestination, groupDestinations, withNewFolder,
   type UploadDestination, type NewFolderParent,
 } from '@/lib/files/upload-destinations';
 import { checkFolderName, detectJobFileType } from '@/lib/files/job-folders';
@@ -314,10 +314,14 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
         });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Could not create the folder (HTTP ${res.status}).`);
-      const madeId = explorer ? (json.node as { id: string }).id : (json.folder as { id: string }).id;
-      const fresh = await loadTree();
-      const made = destinationsFromTree(fresh).destinations.find((d) => (explorer ? d.id === madeId : d.folderId === madeId));
-      if (!made) throw new Error('The folder was made, but did not appear — press Refresh on the files list.');
+      const createdRow = (explorer ? json.node : json.folder) as { id: string; name: string };
+      // Added in place and selected now; the full listing refreshes behind it (it can take seconds).
+      if (!tree) throw new Error('The folders are still loading — try again in a moment.');
+      const next = withNewFolder(tree, parent, { id: createdRow.id, name: createdRow.name ?? check.value });
+      setTree(next.tree);
+      const made = destinationsFromTree(next.tree).destinations.find((d) => d.id === next.folderId);
+      if (!made) throw new Error('The folder was made, but did not appear — close this and try again.');
+      void loadTree();
       setItems((cur) => cur.map((i) => {
         const wanted = draft.forKey === 'all' ? (i.status === 'waiting' || i.status === 'failed') : i.key === draft.forKey;
         return wanted && destinationAccepts(made, i.file) ? { ...i, destId: made.id, error: undefined } : i;
