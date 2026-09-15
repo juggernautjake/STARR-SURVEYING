@@ -28,7 +28,7 @@
 
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TooltipProps {
@@ -171,6 +171,27 @@ export default function Tooltip({
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [armed, hide]);
+
+  // ── Kept on screen, BEFORE the first paint (2026-09-15) ──
+  // The anchor point is clamped, but a tip centred on a trigger near the edge can still spill off it
+  // by half its own width. Measured and nudged in a layout effect, which runs before the browser
+  // paints — so the correction is never seen as a second position (the "draws, then shifts" bug).
+  useLayoutEffect(() => {
+    const tip = tipRef.current;
+    if (!visible || !tip) return;
+    tip.style.left = `${coords.x}px`;
+    tip.style.top = `${coords.y}px`;
+    const r = tip.getBoundingClientRect();
+    const margin = 8;
+    let dx = 0;
+    let dy = 0;
+    if (r.left < margin) dx = margin - r.left;
+    else if (r.right > window.innerWidth - margin) dx = window.innerWidth - margin - r.right;
+    if (r.top < margin) dy = margin - r.top;
+    else if (r.bottom > window.innerHeight - margin) dy = window.innerHeight - margin - r.bottom;
+    if (dx) tip.style.left = `${coords.x + dx}px`;
+    if (dy) tip.style.top = `${coords.y + dy}px`;
+  }, [visible, coords, text]);
 
   // A disabled tooltip, or text that went away, closes an open one.
   useEffect(() => { if (!enabled || !text) hide(); }, [enabled, text, hide]);

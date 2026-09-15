@@ -428,14 +428,16 @@
   color: #F9FAFB;
   background: #1F2937;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  animation: research-tip-in 0.15s ease-out;
+  /* OPACITY ONLY (owner, 2026-09-15: "it rendered in one location, and then immediately shifts to
+   * the left a bit"). The old `research-tip-in` keyframes animated `transform: translateY(…)`, and an
+   * animated property REPLACES the element's own — so for the 150 ms of the fade the centring
+   * `translate(-50%, -100%)` below was switched off: the tip drew with its left edge at the trigger's
+   * centre, then jumped left by half its width (and up) when the animation ended. Never animate
+   * `transform` on this element; its transform is its position. */
+  animation: ui-fade-in var(--motion-fast, 140ms) var(--ease-out, ease-out);
   word-wrap: break-word;
   white-space: normal;
   text-align: left;
-}
-@keyframes research-tip-in {
-  from { opacity: 0; transform: translateY(2px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 .research-tip--top    { transform: translate(-50%, -100%); }
 .research-tip--bottom { transform: translate(-50%, 0); }
