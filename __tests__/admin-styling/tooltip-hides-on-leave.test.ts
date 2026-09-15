@@ -47,3 +47,23 @@ describe('the shared Tooltip', () => {
     expect(code).toContain('if (closeOpenTooltip && closeOpenTooltip !== hide) closeOpenTooltip();');
   });
 });
+
+describe('the tooltip draws once, where it belongs (owner, 2026-09-15)', () => {
+  // "It rendered in one location, and then immediately shifts to the left a bit." The fade-in
+  // animated `transform`, which replaced the centring translate for the length of the animation.
+  const css = fs.readFileSync(path.join(process.cwd(), 'app/admin/styles/AdminLayout.css'), 'utf8').replace(/\r\n/g, '\n');
+  const rule = css.slice(css.indexOf('.research-tip {'), css.indexOf('}', css.indexOf('.research-tip {')));
+
+  it('is positioned by transform and animated by opacity only — never both on transform', () => {
+    expect(css).toContain('.research-tip--top    { transform: translate(-50%, -100%); }');
+    expect(rule).toContain('animation: ui-fade-in');
+    expect(css, 'the transform-animating keyframes are back').not.toContain('@keyframes research-tip-in');
+    const fade = fs.readFileSync(path.join(process.cwd(), 'app/styles/motion.css'), 'utf8');
+    expect(fade).toMatch(/@keyframes ui-fade-in\s*\{\s*from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
+  });
+
+  it('any edge correction happens in a layout effect, before paint', () => {
+    expect(code).toContain('useLayoutEffect(() => {');
+    expect(code).toContain('tip.getBoundingClientRect()');
+  });
+});
