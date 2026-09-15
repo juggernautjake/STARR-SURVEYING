@@ -9,7 +9,10 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { shapeOf, displayName, originalName, mimeOf, sizeOf, bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
-import { JOB_FOLDERS, folderForJobFile, folderForFieldMedia, type JobFolderKey, type JobFolderSpec } from './job-folders';
+import {
+  JOB_FOLDERS, folderForJobFile, folderForFieldMedia, namedFolderRoots, namedFolderSegment, parseNamedFolderSegment,
+  type JobFolderKey, type JobFolderSpec, type NamedFolderRoot, type NamedFolderRow,
+} from './job-folders';
 import type { MountNode, MountTree, MountTreeFolder } from './mount-node';
 import { isImageMime, isPdfMime } from './upload';
 import { STARR_DRAWING_MIME } from './kinds';
@@ -326,11 +329,24 @@ function foldersVisibleTo(user: FileUser, isAdmin: boolean): JobFolderSpec[] {
   return JOB_FOLDERS.filter((f) => f.sources.some((key) => canSeeKey(key, user, isAdmin)));
 }
 
+/** A folder somebody created and named inside the job (seed 639), with where it resolved to. */
+interface NamedFolder extends NamedFolderRow {
+  /** The standard folder it ultimately sits in, or `top` for the job's top level. */
+  root: NamedFolderRoot;
+  /** Its mount id: `<jobNode>:<root>.<uuid>`. */
+  mountId: string;
+  updated_at?: string | null;
+}
+
 interface JobFolderListing {
   ok: boolean;
   error?: string;
   /** Every folder's items, keyed by folder — the empty standard folders included. */
   byFolder: Map<JobFolderKey, MountNode[]>;
+  /** The job's named folders (owner, 2026-09-15), in name order. */
+  named: NamedFolder[];
+  /** Each named folder's files, keyed by the folder's uuid. */
+  byNamed: Map<string, MountNode[]>;
 }
 
 /** Everything in one job, already filed into the standard folders and shaped as mount nodes.
@@ -339,6 +355,8 @@ interface JobFolderListing {
  *  then read for every folder, so listing a job costs the same whether it shows six folders or one. */
 async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, isAdmin: boolean): Promise<JobFolderListing> {
   const byFolder = new Map<JobFolderKey, MountNode[]>(JOB_FOLDERS.map((f) => [f.key, [] as MountNode[]]));
+  const byNamed = new Map<string, MountNode[]>();
+  let named: NamedFolder[] = [];
   const push = (key: JobFolderKey, n: MountNode) => { byFolder.get(key)?.push(n); };
   const node = (key: JobFolderKey, partial: Omit<MountNode, 'parent_id' | 'node_type' | 'access' | 'folder_key'>): MountNode => ({
     parent_id: `${jobNode}:${key}`,
@@ -349,18 +367,39 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
   });
 
   if (canSeeKey('job-files', user, isAdmin)) {
+    // ── Named folders first (owner, 2026-09-15) ──
+    // They are job_files' own folders, so they sit behind the same gate. A file whose `folder_id`
+    // names a live folder is listed THERE; one whose folder is gone falls back to its standard folder.
+    const folderRes = await supabaseAdmin
+      .from('job_file_folders')
+      .select('id, name, parent_key, parent_id, created_at, updated_at')
+      .eq('job_id', jobId)
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+      .limit(LIMIT);
+    if (folderRes.error) return { ok: false, error: folderRes.error.message, byFolder, named, byNamed };
+    const rows = (folderRes.data ?? []) as Array<NamedFolderRow & { updated_at: string | null }>;
+    const roots = namedFolderRoots(rows);
+    named = rows.map((r) => {
+      const root = roots.get(r.id) ?? 'top';
+      return { ...r, root, mountId: `${jobNode}:${namedFolderSegment(root, r.id)}` };
+    });
+    const namedById = new Map(named.map((f) => [f.id, f]));
+    for (const f of named) byNamed.set(f.id, []);
+
     const { data, error } = await supabaseAdmin
       .from('job_files')
-      .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section, file_type')
+      .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section, file_type, folder_id')
       .eq('job_id', jobId)
       .eq('is_deleted', false)
       .eq('is_backup', false)
       .order('uploaded_at', { ascending: false, nullsFirst: false })
       .limit(LIMIT);
-    if (error) return { ok: false, error: error.message, byFolder };
+    if (error) return { ok: false, error: error.message, byFolder, named, byNamed };
     type Row = JobFileRow & {
       job_id: string | null; project_id: string | null; description: string | null;
       uploaded_at: string | null; created_at: string | null; section: string | null; file_type: string | null;
+      folder_id: string | null;
     };
     for (const r of (data ?? []) as unknown as Row[]) {
       const shape = shapeOf(r);
@@ -368,11 +407,12 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
       // The job page's old split, kept and extended: section decides (photos / videos / research /
       // drawing), then the file type, then the bytes — see folderForJobFile.
       const key = folderForJobFile(r);
+      const inNamed = r.folder_id ? namedById.get(r.folder_id) : undefined;
       // A row that only REFERENCES a File Explorer document (F5) has no bytes of its own, so it is
       // listed AS that document — its explorer id — and opens through the explorer's download route,
       // which re-checks the VIEWER's access to the document rather than the attacher's. A copy that
       // is no longer there (deleted, or not shared with this person) opens to a plain "not here".
-      push(key, node(key, {
+      const fileNode = node(key, {
         id: shape === 'linked' && r.file_node_id ? r.file_node_id : `${MOUNT_PREFIX}job-files:${r.id}`,
         name: displayName(r),
         mime_type: mimeOf(r) ?? mimeFromPath(r.storage_path ?? null),
@@ -382,7 +422,9 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
         notes: r.description ?? null,
         tags: r.tags ?? [],
         original_name: originalName(r),
-      }));
+      });
+      if (inNamed) byNamed.get(inNamed.id)?.push({ ...fileNode, parent_id: inNamed.mountId });
+      else push(key, fileNode);
     }
   }
 
@@ -404,7 +446,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
         .not('storage_path', 'is', null)
         .order('created_at', { ascending: false })
         .limit(LIMIT);
-      if (error) return { ok: false, error: error.message, byFolder };
+      if (error) return { ok: false, error: error.message, byFolder, named, byNamed };
       type Row = {
         id: string; research_project_id: string; original_filename: string | null; document_label: string | null;
         storage_path: string; file_type: string | null; file_size_bytes: number | null; created_at: string;
@@ -433,7 +475,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
       .eq('job_id', jobId)
       .order('updated_at', { ascending: false })
       .limit(LIMIT);
-    if (error) return { ok: false, error: error.message, byFolder };
+    if (error) return { ok: false, error: error.message, byFolder, named, byNamed };
     type Row = { id: string; name: string; feature_count: number; layer_count: number; updated_at: string };
     for (const r of (data ?? []) as Row[]) {
       push('cad', node('cad', {
@@ -457,7 +499,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
       .not('storage_url', 'is', null)
       .order('captured_at', { ascending: false, nullsFirst: false })
       .limit(LIMIT);
-    if (error) return { ok: false, error: error.message, byFolder };
+    if (error) return { ok: false, error: error.message, byFolder, named, byNamed };
     type Row = { id: string; media_type: string; storage_url: string; captured_at: string | null; created_at: string };
     for (const r of (data ?? []) as Row[]) {
       const when = r.captured_at ?? r.created_at;
@@ -482,7 +524,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
       .not('photo_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(LIMIT);
-    if (error) return { ok: false, error: error.message, byFolder };
+    if (error) return { ok: false, error: error.message, byFolder, named, byNamed };
     type Row = { id: string; photo_url: string; vendor_name: string | null; total_cents: number | null; created_at: string };
     for (const r of (data ?? []) as Row[]) {
       push('receipts', node('receipts', {
@@ -496,13 +538,15 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
     }
   }
 
-  return { ok: true, byFolder };
+  return { ok: true, byFolder, named, byNamed };
 }
 
-/** The folder nodes under a job: the standard four always, the catch-alls when they hold something. */
-function jobFolderNodes(jobNode: string, folders: JobFolderSpec[], byFolder: Map<JobFolderKey, MountNode[]>): MountNode[] {
+/** The folder nodes under a job: the standard four always, the catch-alls when they hold something
+ *  — files, or a named folder somebody made inside them. */
+function jobFolderNodes(jobNode: string, folders: JobFolderSpec[], byFolder: Map<JobFolderKey, MountNode[]>, named: readonly NamedFolder[] = []): MountNode[] {
+  const holdsFolders = new Set<string>(named.filter((f) => !f.parent_id).map((f) => f.root));
   return folders
-    .filter((f) => f.standard || (byFolder.get(f.key)?.length ?? 0) > 0)
+    .filter((f) => f.standard || (byFolder.get(f.key)?.length ?? 0) > 0 || holdsFolders.has(f.key))
     .map((f) => {
       const items = byFolder.get(f.key) ?? [];
       return {
@@ -519,6 +563,30 @@ function jobFolderNodes(jobNode: string, folders: JobFolderSpec[], byFolder: Map
         blurb: f.blurb,
       };
     });
+}
+
+/** The named folders directly inside a place: the job's top level, a standard folder, or another
+ *  named folder. */
+function namedChildren(listing: JobFolderListing, parent: { root: NamedFolderRoot } | { id: string }): NamedFolder[] {
+  return listing.named.filter((f) => ('id' in parent
+    ? f.parent_id === parent.id
+    : !f.parent_id && f.root === parent.root));
+}
+
+/** A named folder as a node. It says its own name — no "(n)" count, which a person could have typed. */
+function namedFolderNode(f: NamedFolder, parentId: string, listing: JobFolderListing): MountNode {
+  const files = listing.byNamed.get(f.id) ?? [];
+  return {
+    id: f.mountId,
+    parent_id: parentId,
+    node_type: 'folder',
+    name: f.name,
+    mime_type: null,
+    size_bytes: null,
+    updated_at: files.reduce((a, n) => (n.updated_at > a ? n.updated_at : a), f.updated_at ?? f.created_at ?? ''),
+    access: 'view',
+    folder_key: 'named',
+  };
 }
 
 /** One job's folders (level 2) or one folder's items (level 3), for either mount. */
@@ -539,7 +607,10 @@ async function listJobLevels(
     return {
       ok: true,
       name: jobLabel,
-      nodes: jobFolderNodes(jobNode, folders, listing.byFolder),
+      nodes: [
+        ...jobFolderNodes(jobNode, folders, listing.byFolder, listing.named),
+        ...namedChildren(listing, { root: 'top' }).map((f) => namedFolderNode(f, jobNode, listing)),
+      ],
       trail,
       // The job itself is a page, and from a folder named after it that is usually where somebody
       // wants to go. The explorer opens folders on a name click, so this is offered separately.
@@ -547,15 +618,52 @@ async function listJobLevels(
     };
   }
 
+  // ── A named folder: `<root>.<uuid>` ──
+  const namedSeg = parseNamedFolderSegment(kindSeg);
+  if (namedSeg) {
+    const folder = listing.named.find((f) => f.id === namedSeg.folderId);
+    // The root in the id must be the root the folder actually resolves to — an id minted before a
+    // folder moved should 404 rather than render under the wrong standard folder's breadcrumb.
+    if (!folder || folder.root !== namedSeg.root) return { ok: false, status: 404, error: 'That folder is not here.' };
+    const rootSpec = folder.root === 'top' ? null : folders.find((k) => k.key === folder.root);
+    if (folder.root !== 'top' && !rootSpec) return { ok: false, status: 404, error: 'That folder is not here.' };
+    const chain: NamedFolder[] = [];
+    const seen = new Set<string>();
+    let cur: NamedFolder | undefined = folder;
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      chain.unshift(cur);
+      const parentId: string | null = cur.parent_id;
+      cur = parentId ? listing.named.find((f) => f.id === parentId) : undefined;
+    }
+    return {
+      ok: true,
+      name: folder.name,
+      nodes: [
+        ...namedChildren(listing, { id: folder.id }).map((f) => namedFolderNode(f, folder.mountId, listing)),
+        ...(listing.byNamed.get(folder.id) ?? []),
+      ],
+      trail: [
+        ...trail,
+        ...(rootSpec ? [{ id: `${jobNode}:${rootSpec.key}`, name: rootSpec.label }] : []),
+        ...chain.map((f) => ({ id: f.mountId, name: f.name })),
+      ],
+    };
+  }
+
   // Resolved out of the VISIBLE list, so a forbidden slug and a bad slug both answer 404 — telling
   // somebody a folder exists but is forbidden is itself a disclosure, and there is nothing they can do.
   const kind = folders.find((k) => k.key === kindSeg);
   if (!kind) return { ok: false, status: 404, error: 'That folder is not here.' };
+  const kindNode = `${jobNode}:${kind.key}`;
   return {
     ok: true,
     name: kind.label,
-    nodes: listing.byFolder.get(kind.key) ?? [],
-    trail: [...trail, { id: `${jobNode}:${kind.key}`, name: kind.label }],
+    nodes: [
+      ...namedChildren(listing, { root: kind.key }).map((f) => namedFolderNode(f, kindNode, listing)),
+      ...(listing.byFolder.get(kind.key) ?? []),
+    ],
+    trail: [...trail, { id: kindNode, name: kind.label }],
   };
 }
 
@@ -966,15 +1074,31 @@ export async function listMountTree(
     if (jobId && !p.nodes) {
       const listing = await jobFolderListing(jobId, p.id, user, isAdmin);
       if (!listing.ok) { record({ ...p, error: listing.error }, []); return; }
-      const folderNodes = jobFolderNodes(p.id, foldersVisibleTo(user, isAdmin), listing.byFolder);
+      const folderNodes = jobFolderNodes(p.id, foldersVisibleTo(user, isAdmin), listing.byFolder, listing.named);
       record({ ...p, open_href: `/admin/jobs/${jobId}` }, []);
+      // Named folders under a place, depth-first, each right after its parent.
+      const seenNamed = new Set<string>();
+      const recordNamed = (parentId: string, parentPath: string[], depth: number, under: { root: NamedFolderRoot } | { id: string }): boolean => {
+        for (const nf of namedChildren(listing, under)) {
+          if (seenNamed.has(nf.id)) continue;
+          seenNamed.add(nf.id);
+          if (folders.length >= maxFolders) { truncated = true; return false; }
+          const path = [...parentPath, nf.name];
+          record({ id: nf.mountId, name: nf.name, path, depth, parent_id: parentId, folder_key: 'named' }, listing.byNamed.get(nf.id) ?? []);
+          if (!recordNamed(nf.mountId, path, depth + 1, { id: nf.id })) return false;
+        }
+        return true;
+      };
       for (const f of folderNodes) {
         if (folders.length >= maxFolders) { truncated = true; return; }
+        const path = [...p.path, f.name];
         record(
-          { id: f.id, name: f.name, path: [...p.path, f.name], depth: p.depth + 1, parent_id: p.id, folder_key: f.folder_key, blurb: f.blurb },
+          { id: f.id, name: f.name, path, depth: p.depth + 1, parent_id: p.id, folder_key: f.folder_key, blurb: f.blurb },
           listing.byFolder.get(f.folder_key as JobFolderKey) ?? [],
         );
+        if (!recordNamed(f.id, path, p.depth + 2, { root: f.folder_key as JobFolderKey })) return;
       }
+      recordNamed(p.id, p.path, p.depth + 1, { root: 'top' });
       return;
     }
 

@@ -203,7 +203,8 @@ describe('F5 — wired, not merely authored', () => {
 
   it('the explorer only renders the button where an attach can land — a job folder', () => {
     const s = src(MANAGER);
-    expect(s).toMatch(/\{target\.kind === 'job' && \(/);
+    // `target?.` since 2026-09-15: the button row also shows in a named folder's Rename / Remove.
+    expect(s).toMatch(/\{target\??\.kind === 'job' && \(/);
   });
 
   it('reuses the ONE file explorer pop-up in file mode instead of a second browser', () => {

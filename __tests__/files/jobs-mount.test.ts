@@ -97,7 +97,8 @@ describe('a job folder cannot leak what its source would not', () => {
 
   it('the standard four are always listed; the catch-alls only when they hold something', () => {
     const s = src();
-    expect(s).toMatch(/\.filter\(\(f\) => f\.standard \|\| \(byFolder\.get\(f\.key\)\?\.length \?\? 0\) > 0\)/);
+    // …or a named folder somebody made inside them (2026-09-15), which would be unreachable otherwise.
+    expect(s).toMatch(/\.filter\(\(f\) => f\.standard \|\| \(byFolder\.get\(f\.key\)\?\.length \?\? 0\) > 0 \|\| holdsFolders\.has\(f\.key\)\)/);
   });
 
   it('level 3 resolves the folder out of the VISIBLE list, so a forbidden slug 404s', () => {

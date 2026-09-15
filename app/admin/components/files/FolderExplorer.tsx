@@ -16,8 +16,10 @@
  *   - opens files in the ONE shared viewer (FileViewer.tsx), whose arrows walk the folder — or,
  *     in "All files", the whole subtree — with rename / notes / tags / move / copy / delete
  *     routed to the row behind each file (lib/files/adapters/mount.ts)
- *   - uploads INTO a standard folder (drag-and-drop or the button), attaches a File Explorer
- *     document, and cuts an over-cap video into parts first (the same flow the panels had)
+ *   - uploads through ONE pop-up (UploadFilesDialog.tsx, owner 2026-09-15): the big "Upload files"
+ *     bar, or files dropped anywhere on the explorer, open it; each file is given its folder there
+ *   - makes, renames and removes named folders inside a job (seed 639); attaches a File Explorer
+ *     document into the folder being looked at
  *   - saves one file through the OS dialog; "Download all" zips the folder — or, in "All files",
  *     the whole subtree with its folder paths
  *
@@ -29,23 +31,22 @@ import Link from 'next/link';
 import {
   ChevronRight, Folder, FolderOpen, Layers, Search, Upload, Link2, Eye, Download, ExternalLink, Loader2,
   FileText, Image as ImageIcon, Film, Music, Archive, DraftingCompass, Receipt, BookOpenText, Camera, Video, X, RefreshCw,
+  FolderPlus, Pencil, Trash2,
 } from 'lucide-react';
 import SharedFileViewer from './FileViewer';
 import DownloadAllButton from './DownloadAllButton';
 import FileComments from './FileComments';
 import FileExplorerDialog from './FileExplorerDialog';
+import UploadFilesDialog from './UploadFilesDialog';
 import { formatBytes, formatWhen } from './format';
 import { downloadFile } from '@/lib/files/download';
 import { fileKind } from '@/lib/files/viewer-model';
 import type { MountNode, MountTree, MountTreeFolder } from '@/lib/files/mount-node';
-import { jobFolder, isJobFolderKey, parseJobFolderId, parseProjectDocsId, detectJobFileType, type JobFolderKey } from '@/lib/files/job-folders';
+import {
+  jobFolder, isJobFolderKey, parseJobFolderId, parseProjectDocsId, parseNamedFolderId, parseJobNodeId, uploadSpecForRoot,
+  detectJobFileType, checkFolderName, type JobFolderKey,
+} from '@/lib/files/job-folders';
 import { mountNodeToViewerFile, mountCapabilities, mountViewUrl } from '@/lib/files/adapters/mount';
-import { uploadJobFileBytes, uploadProjectFileBytes } from '@/lib/jobs/upload-client';
-import { maxBytesFor, isVideoUpload, contentTypeFor } from '@/lib/jobs/file-storage';
-import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
-import { megabytes } from '@/lib/storage/uploads';
-import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
-import { readVideoDuration } from '@/lib/jobs/video-split-run';
 import './FolderExplorer.css';
 
 export type FolderExtraKey = JobFolderKey | 'root' | 'docs' | 'job';
@@ -63,6 +64,8 @@ export interface FolderExplorerProps {
   /** Optional heading; the root folder's own name otherwise. */
   title?: string;
   className?: string;
+  /** Bump to re-list — a page that uploaded through its own Upload button asks for the new files. */
+  refreshKey?: number;
 }
 
 type Mode = 'folder' | 'all';
@@ -75,6 +78,8 @@ interface UploadTarget {
   fileType: string | null;
   accept: string | null;
   label: string;
+  /** A named folder's uuid (`job_files.folder_id`), when the folder is one. */
+  folderId: string | null;
 }
 
 /** Where an upload into `folderId` goes, or null when the folder does not take uploads. */
@@ -83,10 +88,26 @@ function uploadTargetFor(folderId: string, folderName: string): UploadTarget | n
   if (jf) {
     const spec = jobFolder(jf.folder);
     if (!spec?.uploadSection) return null;
-    return { kind: 'job', jobId: jf.jobId, section: spec.uploadSection, fileType: spec.uploadFileType, accept: spec.accept, label: spec.label };
+    return { kind: 'job', jobId: jf.jobId, section: spec.uploadSection, fileType: spec.uploadFileType, accept: spec.accept, label: spec.label, folderId: null };
+  }
+  const nf = parseNamedFolderId(folderId);
+  if (nf) {
+    const spec = uploadSpecForRoot(nf.root);
+    return { kind: 'job', jobId: nf.jobId, section: spec.section, fileType: spec.fileType, accept: spec.accept, label: folderName, folderId: nf.folderId };
   }
   const pd = parseProjectDocsId(folderId);
-  if (pd) return { kind: 'project', projectId: pd.projectId, section: 'project', fileType: null, accept: null, label: folderName };
+  if (pd) return { kind: 'project', projectId: pd.projectId, section: 'project', fileType: null, accept: null, label: folderName, folderId: null };
+  return null;
+}
+
+/** Where a NEW named folder made while looking at `folderId` goes, or null when one cannot go there. */
+function newFolderPlaceFor(folderId: string): { job_id: string; parent_key: JobFolderKey | null; parent_id: string | null } | null {
+  const job = parseJobNodeId(folderId);
+  if (job) return { job_id: job.jobId, parent_key: null, parent_id: null };
+  const jf = parseJobFolderId(folderId);
+  if (jf) return jobFolder(jf.folder)?.uploadSection ? { job_id: jf.jobId, parent_key: jf.folder, parent_id: null } : null;
+  const nf = parseNamedFolderId(folderId);
+  if (nf) return { job_id: nf.jobId, parent_key: null, parent_id: nf.folderId };
   return null;
 }
 
@@ -98,6 +119,7 @@ function folderIcon(key: string | undefined, size = 22) {
     case 'videos': return <Video size={size} aria-hidden="true" />;
     case 'receipts': return <Receipt size={size} aria-hidden="true" />;
     case 'documents': case 'docs': return <FileText size={size} aria-hidden="true" />;
+    case 'named': return <FolderOpen size={size} aria-hidden="true" />;
     default: return <Folder size={size} aria-hidden="true" />;
   }
 }
@@ -120,7 +142,7 @@ async function downloadEntry(id: string): Promise<{ url: string; name: string; m
   return typeof url === 'string' ? { url, name: (name as string) ?? id, mime: (mime_type as string) ?? null } : null;
 }
 
-export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className }: FolderExplorerProps) {
+export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className, refreshKey }: FolderExplorerProps) {
   const [tree, setTree] = useState<MountTree | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,8 +155,11 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const [notice, setNotice] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [splitState, setSplitState] = useState<{ file: File; plan?: SplitPlan; phase: 'measuring' | 'confirm' | 'splitting'; message: string } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
+  const [folderForm, setFolderForm] = useState<{ mode: 'new' | 'rename'; name: string; busy: boolean; error: string | null } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const dragDepth = useRef(0);
   const initialApplied = useRef<string | null | undefined>(undefined);
 
   // ── load ──
@@ -154,7 +179,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     }
   }, [rootId, onTotalChange]);
 
-  useEffect(() => { setLoading(true); void load(); }, [load]);
+  useEffect(() => { setLoading(true); void load(); }, [load, refreshKey]);
 
   // ── the structure, indexed ──
   const byId = useMemo(() => new Map((tree?.folders ?? []).map((f) => [f.id, f])), [tree]);
@@ -179,6 +204,9 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       if (anywhere) setCurrentId(anywhere.id);
     }
   }, [tree, byId, initialFolder, rootId]);
+
+  // Leaving a folder closes whatever was being asked about it.
+  useEffect(() => { setConfirmRemove(false); setFolderForm(null); }, [currentId]);
 
   // A folder that vanished after a reload (a job deleted) falls back to the root.
   useEffect(() => {
@@ -281,133 +309,77 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     return resolved.filter((e): e is { name: string; url: string; folder: string } => e !== null);
   }, [mode, groups, folderFiles, current]);
 
-  // ── uploads ──
+  // ── uploads: all through the pop-up ──
   const target = current ? uploadTargetFor(current.id, current.name) : null;
-  const jobUnderCurrent = current ? (parseJobFolderId(current.id)?.jobId ?? null) : null;
+  const jobUnderCurrent = current ? (parseJobFolderId(current.id)?.jobId ?? parseNamedFolderId(current.id)?.jobId ?? null) : null;
+  /** Uploads are offered on a job's or a project's files — the roots the pop-up knows the folders of. */
+  const uploadRoot = /^mnt:(jobs|projects):[^:]+$/.test(rootId) || Boolean(parseJobNodeId(rootId));
+  const newFolderPlace = current ? newFolderPlaceFor(current.id) : null;
+  const namedHere = current ? parseNamedFolderId(current.id) : null;
 
-  async function uploadFiles(chosen: File[]) {
-    if (!target || chosen.length === 0) return;
-    setNotice(null);
+  function openUpload(files?: File[] | null) {
+    setDroppedFiles(files && files.length ? files : null);
+    setUploadOpen(true);
+  }
 
-    // ── BACKGROUND, WHERE THE BROWSER ALLOWS IT (2026-08-19, carried over from the gallery) ──
-    // Owner: "I want it so that I can leave the web app and have it still working in the background
-    // … and then once it is done it can notify me." Handed to the browser via Background Fetch,
-    // which keeps going after the tab closes and wakes the service worker to create the row and
-    // raise the notification. Chrome and Android only — Safari falls through to the foreground path.
-    if (target.kind === 'job' && backgroundUploadSupport().mode === 'background') {
-      await ensureNotifyPermission();
-      let handedOff = 0;
-      for (const file of chosen) {
-        try {
-          const init = await fetch('/api/admin/jobs/files/upload', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: target.jobId, name: file.name, size_bytes: file.size, mime_type: file.type }),
-          });
-          if (!init.ok) throw new Error((await init.json().catch(() => ({}))).error ?? 'Could not start the upload.');
-          const started = await init.json();
-          const ok = await startBackgroundUpload({
-            signedUrl: started.signed_url, file, contentType: contentTypeFor(file.name, file.type),
-            row: {
-              id: started.file_id, rowEndpoint: '/api/admin/jobs/files',
-              rowBody: {
-                job_id: target.jobId, file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket,
-                file_name: file.name, file_type: target.fileType ?? detectJobFileType(file.name),
-                file_size: file.size, mime_type: file.type, section: target.section,
-              },
-              fileName: file.name, sizeBytes: file.size, openUrl: '/admin/jobs/' + target.jobId,
-            },
-          });
-          if (ok) handedOff += 1;
-          else throw new Error('handoff-declined');
-        } catch (e) {
-          // The signed URL is already spent for this file, so there is nothing to fall back TO for
-          // it — say so plainly instead of appearing to succeed.
-          if (e instanceof Error && e.message !== 'handoff-declined') { setNotice(e.message); return; }
-          break; // Background Fetch declined; fall through to the foreground path for everything.
-        }
-      }
-      if (handedOff === chosen.length) {
-        if (inputRef.current) inputRef.current.value = '';
-        // Not reloaded here: the rows do not exist yet — the worker writes them when the transfer
-        // finishes. The Refresh button is there for when the notification arrives.
-        setNotice(handedOff + ' file' + (handedOff === 1 ? '' : 's') + ' handed to the browser — it keeps uploading if you leave this page and notifies you when done. Refresh to see them.');
-        return;
-      }
-    }
+  const onUploaded = useCallback(({ count, destinationIds }: { count: number; destinationIds: string[] }) => {
+    setNotice(`Uploaded ${count} file${count === 1 ? '' : 's'}.`);
+    void load().then(() => {
+      // One destination: open it, so the person sees the files they just put there.
+      if (destinationIds.length === 1) { setCurrentId(destinationIds[0]); setMode('folder'); }
+    });
+  }, [load]);
 
-    let done = 0;
-    for (const file of chosen) {
-      try {
-        const label = `Uploading ${file.name} (${done + 1}/${chosen.length})…`;
-        setBusy(label);
-        const bytes = target.kind === 'job'
-          ? await uploadJobFileBytes(target.jobId as string, file, (p) => setBusy(`${label} ${p.pct}%`))
-          : await uploadProjectFileBytes(target.projectId as string, file, (p) => setBusy(`${label} ${p.pct}%`));
-        const res = await fetch('/api/admin/jobs/files', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(target.kind === 'job' ? { job_id: target.jobId } : { project_id: target.projectId }),
-            file_id: bytes.file_id, storage_path: bytes.storage_path, storage_bucket: bytes.storage_bucket,
-            file_name: file.name, file_type: target.fileType ?? detectJobFileType(file.name),
-            file_size: file.size, mime_type: file.type, section: target.section, description: '',
-          }),
+  // ── named folders: new / rename / remove ──
+  async function saveFolderForm() {
+    if (!folderForm || !current) return;
+    const check = checkFolderName(folderForm.name);
+    if (!check.ok) { setFolderForm({ ...folderForm, error: check.error }); return; }
+    setFolderForm({ ...folderForm, busy: true, error: null });
+    try {
+      if (folderForm.mode === 'new') {
+        if (!newFolderPlace) throw new Error('A folder cannot be made here.');
+        const res = await fetch('/api/admin/jobs/folders', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...newFolderPlace, name: check.value }),
         });
-        if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? `Could not save ${file.name}.`); }
-        done += 1;
-      } catch (err) {
-        setNotice(err instanceof Error ? err.message : `Could not upload ${file.name}.`);
-        break;
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? `Could not create the folder (HTTP ${res.status}).`);
+        setNotice(json.existed ? `"${check.value}" was already here.` : `Created the folder "${check.value}".`);
+      } else {
+        if (!namedHere) throw new Error('Only folders you made can be renamed.');
+        const res = await fetch(`/api/admin/jobs/folders/${namedHere.folderId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: check.value }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? `Could not rename the folder (HTTP ${res.status}).`);
+        setNotice(`Renamed to "${check.value}".`);
       }
+      setFolderForm(null);
+      await load();
+    } catch (err) {
+      setFolderForm((f) => (f ? { ...f, busy: false, error: err instanceof Error ? err.message : String(err) } : f));
     }
-    setBusy(null);
-    if (inputRef.current) inputRef.current.value = '';
-    if (done > 0) setNotice(`Uploaded ${done} file${done === 1 ? '' : 's'} into ${target.label}.`);
-    await load();
   }
 
-  /** The gate: what fits goes up; an over-cap video is offered a cut; anything else is refused with its number. */
-  async function startUpload(list: FileList | File[] | null) {
-    if (!list || list.length === 0 || !target) return;
-    const chosen = Array.from(list);
-    const fits = chosen.filter((f) => f.size <= maxBytesFor(f.name, f.type));
-    const tooBig = chosen.filter((f) => f.size > maxBytesFor(f.name, f.type));
-    if (fits.length) await uploadFiles(fits);
-    if (tooBig.length === 0) return;
-    const notVideo = tooBig.filter((f) => !isVideoUpload(f.name, f.type));
-    if (notVideo.length) {
-      setNotice(`${notVideo.map((f) => `"${f.name}"`).join(', ')} ${notVideo.length === 1 ? 'is' : 'are'} larger than ${megabytes(maxBytesFor(notVideo[0].name, notVideo[0].type))} MB, which is the limit for one file.`);
+  async function removeFolder() {
+    if (!namedHere || !current) return;
+    setConfirmRemove(false);
+    const parentId = current.parent_id;
+    setBusy(`Removing ${current.name}…`);
+    try {
+      const res = await fetch(`/api/admin/jobs/folders/${namedHere.folderId}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `Could not remove the folder (HTTP ${res.status}).`);
+      const moved = Number(json.files_moved_up ?? 0);
+      setNotice(`Removed "${current.name}".${moved ? ` Its ${moved} file${moved === 1 ? '' : 's'} moved up a level.` : ''}`);
+      if (parentId) setCurrentId(parentId);
+      await load();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
     }
-    const video = tooBig.find((f) => isVideoUpload(f.name, f.type));
-    if (!video) return;
-    const cap = maxBytesFor(video.name, video.type);
-    setSplitState({ file: video, phase: 'measuring', message: 'Checking how long this video is…' });
-    const durationSec = await readVideoDuration(video);
-    const plan = planSplit({ sizeBytes: video.size, durationSec, capBytes: cap, name: video.name });
-    if (!plan.needed || plan.parts.length === 0) {
-      setSplitState(null);
-      setNotice(describePlan(plan, video.size, cap) || 'That video cannot be stored.');
-      return;
-    }
-    setSplitState({ file: video, plan, phase: 'confirm', message: describePlan(plan, video.size, cap) });
-  }
-
-  async function runSplit() {
-    if (!splitState?.plan) return;
-    const { file, plan } = splitState;
-    setSplitState({ ...splitState, phase: 'splitting', message: 'Preparing to cut the video…' });
-    const { splitVideo } = await import('@/lib/jobs/video-split-run');
-    const outcome = await splitVideo(file, plan.parts, (pr) =>
-      setSplitState((st) => (st ? { ...st, message: `Cutting part ${pr.part} of ${pr.total}… ${pr.pct}%` } : st)));
-    setSplitState(null);
-    if (!outcome.ok || !outcome.files) { setNotice(outcome.error ?? 'The video could not be split.'); return; }
-    const cap = maxBytesFor(file.name, file.type);
-    const over = outcome.files.find((f) => f.size > cap);
-    if (over) {
-      setNotice(`The video was cut, but "${over.name}" is still ${megabytes(over.size)} MB — over the ${megabytes(cap)} MB limit, because this recording's keyframes are far apart. Please record at a lower resolution, or in shorter clips.`);
-      return;
-    }
-    await uploadFiles(outcome.files);
   }
 
   async function attachFromExplorer(node: { id: string; name: string }) {
@@ -418,7 +390,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       const res = await fetch('/api/admin/jobs/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: target.jobId, file_node_id: node.id, file_name: node.name, file_type: target.fileType ?? detectJobFileType(node.name), section: target.section, description: '' }),
+        body: JSON.stringify({ job_id: target.jobId, file_node_id: node.id, file_name: node.name, file_type: target.fileType ?? detectJobFileType(node.name), section: target.section, description: '', ...(target.folderId ? { folder_id: target.folderId } : {}) }),
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? `Attach failed (${res.status})`); }
       setNotice(`Attached ${node.name}.`);
@@ -436,6 +408,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     if (current.id === rootId) return 'root';
     const jf = parseJobFolderId(current.id);
     if (jf) return jf.folder;
+    if (parseNamedFolderId(current.id)) return null;
     if (parseProjectDocsId(current.id)) return 'docs';
     if (current.folder_key === 'job' || /^mnt:(jobs|projects):[^:]+(:[^:]+)?$/.test(current.id)) return 'job';
     return null;
@@ -525,10 +498,57 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       {/* ── the body: a drop target when the folder takes uploads ── */}
       <div
         className={`fe__body${dragOver ? ' fe__body--drop' : ''}`}
-        onDragOver={target ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
-        onDragLeave={target ? () => setDragOver(false) : undefined}
-        onDrop={target ? (e) => { e.preventDefault(); setDragOver(false); void startUpload(e.dataTransfer.files); } : undefined}
+        onDragEnter={uploadRoot ? (e) => { if (!Array.from(e.dataTransfer.types).includes('Files')) return; e.preventDefault(); dragDepth.current += 1; setDragOver(true); } : undefined}
+        onDragOver={uploadRoot ? (e) => { if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault(); } : undefined}
+        onDragLeave={uploadRoot ? () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragOver(false); } : undefined}
+        onDrop={uploadRoot ? (e) => { e.preventDefault(); dragDepth.current = 0; setDragOver(false); openUpload(Array.from(e.dataTransfer.files)); } : undefined}
       >
+        {/* ── THE UPLOAD BUTTON, WHERE NOBODY CAN MISS IT (owner, 2026-09-15) ──
+            "Make sure we can clearly see the buttons for uploading files." It used to exist only
+            inside a standard folder, so a job opened at its top level had no way to upload at all. */}
+        {uploadRoot && tree && mode === 'folder' && (
+          <div className="fe__cta" data-testid="fe-upload-bar">
+            <span className="fe__cta-icon" aria-hidden="true"><Upload size={22} /></span>
+            <div className="fe__cta-text">
+              <strong>{target ? `Add files to ${target.label}` : 'Add files'}</strong>
+              <span>Drag files anywhere here, or press Upload files and pick them from your computer. You choose the folder for each one.</span>
+            </div>
+            <div className="fe__cta-actions">
+              <button type="button" className="fe__btn fe__btn--primary fe__btn--big" onClick={() => openUpload()} disabled={busy !== null} data-testid="fe-upload">
+                <Upload size={16} aria-hidden="true" /> Upload files
+              </button>
+              {newFolderPlace && (
+                <button type="button" className="fe__btn fe__btn--big" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} data-testid="fe-new-folder">
+                  <FolderPlus size={16} aria-hidden="true" /> New folder
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {confirmRemove && namedHere && current && (
+          <div className="fe__folderform fe__folderform--danger" role="alertdialog" aria-label="Remove folder" data-testid="fe-confirm-remove">
+            <p className="fe__folderform-text">Remove the folder <strong>{current.name}</strong>? No files are deleted — anything inside moves up a level.</p>
+            <button type="button" className="fe__btn fe__btn--danger" onClick={() => void removeFolder()} disabled={busy !== null}>Remove folder</button>
+            <button type="button" className="fe__btn" onClick={() => setConfirmRemove(false)}>Keep it</button>
+          </div>
+        )}
+
+        {folderForm && (
+          <form className="fe__folderform" onSubmit={(e) => { e.preventDefault(); void saveFolderForm(); }} data-testid="fe-folder-form">
+            <label className="fe__folderform-field">
+              <span>{folderForm.mode === 'new' ? `New folder in ${current ? (current.id === rootId && title ? title : current.name.replace(/\s\(\d+\)$/, '')) : 'this folder'}` : 'Rename folder'}</span>
+              <input type="text" value={folderForm.name} maxLength={80} autoFocus placeholder="Folder name" onChange={(e) => setFolderForm({ ...folderForm, name: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === 'Escape') setFolderForm(null); }} />
+            </label>
+            <button type="submit" className="fe__btn fe__btn--primary" disabled={folderForm.busy}>
+              {folderForm.busy ? <Loader2 size={14} className="fe__spin motion-essential" aria-hidden="true" /> : null}
+              {folderForm.mode === 'new' ? 'Create folder' : 'Save name'}
+            </button>
+            <button type="button" className="fe__btn" onClick={() => setFolderForm(null)} disabled={folderForm.busy}>Cancel</button>
+            {folderForm.error && <p className="fe__folderform-error" role="alert">{folderForm.error}</p>}
+          </form>
+        )}
+
         {loading && !tree ? (
           <ul className="fe__rows" aria-busy="true">
             {[0, 1, 2].map((i) => <li key={i} className="fe__row fe__row--skeleton"><span className="m-skeleton fe__sk fe__sk--icon" /><span className="m-skeleton fe__sk fe__sk--name" /><span className="m-skeleton fe__sk fe__sk--meta" /></li>)}
@@ -544,7 +564,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                     <button type="button" className={`fe__tile m-pressable${f.folder_key ? ` fe__tile--${f.folder_key}` : ''}`} onClick={() => setCurrentId(f.id)} data-testid={`fe-folder-${f.folder_key ?? 'folder'}`}>
                       <span className="fe__tile-icon">{folderIcon(f.folder_key)}</span>
                       <span className="fe__tile-body">
-                        <span className="fe__tile-name">{f.name.replace(/\s\(\d+\)$/, '')}</span>
+                        <span className="fe__tile-name">{f.folder_key === 'named' ? f.name : f.name.replace(/\s\(\d+\)$/, '')}</span>
                         {f.blurb && <span className="fe__tile-blurb">{f.blurb}</span>}
                       </span>
                       <span className="fe__tile-count" aria-label={`${countUnder(f.id)} files`}>{countUnder(f.id)}</span>
@@ -558,23 +578,35 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
               <div className="fe__files">
                 <div className="fe__files-head">
                   <h3 className="fe__files-title">{current.id === rootId && childFolders.length > 0 ? 'Files here' : 'Files'}<span className="fe__count">{folderFiles.length}</span></h3>
-                  {target && (
+                  {(target || namedHere) && (
                     <div className="fe__upload">
-                      <input ref={inputRef} type="file" multiple accept={target.accept ?? undefined} hidden onChange={(e) => void startUpload(e.target.files)} />
-                      <button type="button" className="fe__btn fe__btn--primary" onClick={() => inputRef.current?.click()} disabled={busy !== null} data-testid="fe-upload">
-                        <Upload size={14} aria-hidden="true" /> Upload to {target.label}
-                      </button>
-                      {target.kind === 'job' && (
+                      {target?.kind === 'job' && (
                         <button type="button" className="fe__btn" onClick={() => setPickerOpen(true)} disabled={busy !== null} title="Attach a document that already lives in the File Explorer" data-testid="fe-attach">
                           <Link2 size={14} aria-hidden="true" /> Attach from Files
                         </button>
+                      )}
+                      {namedHere && (
+                        <>
+                          <button type="button" className="fe__btn" onClick={() => setFolderForm({ mode: 'rename', name: current.name, busy: false, error: null })} disabled={busy !== null} data-testid="fe-rename-folder">
+                            <Pencil size={14} aria-hidden="true" /> Rename folder
+                          </button>
+                          <button
+                            type="button"
+                            className="fe__btn fe__btn--danger"
+                            onClick={() => setConfirmRemove(true)}
+                            disabled={busy !== null}
+                            data-testid="fe-delete-folder"
+                          >
+                            <Trash2 size={14} aria-hidden="true" /> Remove folder
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
                 </div>
                 {folderFiles.length === 0 ? (
                   <p className="fe__empty">
-                    {q ? 'Nothing here matches.' : target ? `Nothing in ${target.label} yet — drop files here or use Upload.` : 'Nothing here yet.'}
+                    {q ? 'Nothing here matches.' : target ? `Nothing in ${target.label} yet — drag files here, or press Upload files above.` : 'Nothing here yet.'}
                   </p>
                 ) : (
                   <ul className="fe__rows">{folderFiles.map(renderRow)}</ul>
@@ -609,23 +641,21 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
           </div>
         )}
 
-        {dragOver && target && <div className="fe__drop-hint" aria-hidden="true"><Upload size={22} /> Drop to upload into {target.label}</div>}
+        {dragOver && uploadRoot && <div className="fe__drop-hint" aria-hidden="true"><Upload size={22} /> Drop to upload{target ? ` into ${target.label}` : ''} — you will choose the folder next</div>}
       </div>
 
       {extra ? <div className="fe__extra">{extra}</div> : null}
 
-      {/* ── an over-cap video: measure → confirm → cut → upload ── */}
-      {splitState && (
-        <div className="fe__split" role="dialog" aria-label="Video too large">
-          <p>{splitState.message}</p>
-          {splitState.phase === 'confirm' && (
-            <div className="fe__split-actions">
-              <button type="button" className="fe__btn fe__btn--primary" onClick={() => void runSplit()}>Cut it and upload the parts</button>
-              <button type="button" className="fe__btn" onClick={() => setSplitState(null)}>Cancel</button>
-            </div>
-          )}
-          {splitState.phase !== 'confirm' && <Loader2 size={16} className="fe__spin motion-essential" aria-hidden="true" />}
-        </div>
+      {uploadRoot && (
+        <UploadFilesDialog
+          open={uploadOpen}
+          onClose={() => { setUploadOpen(false); setDroppedFiles(null); }}
+          rootId={rootId}
+          title={title ?? tree?.root.name}
+          initialDestinationId={target ? current?.id ?? null : null}
+          initialFiles={droppedFiles}
+          onUploaded={onUploaded}
+        />
       )}
 
       <FileExplorerDialog

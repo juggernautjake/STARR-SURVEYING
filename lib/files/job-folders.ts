@@ -155,6 +155,110 @@ export function parseProjectDocsId(id: string): { projectId: string } | null {
   return null;
 }
 
+// ── Named folders (owner, 2026-09-15) ────────────────────────────────────────────────────────────
+//
+// Folders people create and name themselves, inside a standard folder or at the job's top level
+// (table `job_file_folders`, seed 639). Their mount id keeps the SAME number of segments as a
+// standard folder, so every route that walks `mnt:jobs:<job>:<segment>` walks them too:
+//
+//   mnt:jobs:<job>:<root>.<folderUuid>            <root> = the standard folder it sits in, or `top`
+//   mnt:projects:<project>:<job>:<root>.<folderUuid>
+//
+// The root is in the id because it decides the `section` an upload is filed under, and a client
+// choosing a destination from a dropdown should not need a round trip to learn it.
+
+/** The standard folders a named folder may sit in: every one that takes uploads. */
+export const NAMED_FOLDER_ROOTS: readonly JobFolderKey[] = JOB_FOLDERS.filter((f) => f.uploadSection).map((f) => f.key);
+
+export type NamedFolderRoot = JobFolderKey | 'top';
+
+export interface NamedFolderRow {
+  id: string;
+  name: string;
+  parent_key: string | null;
+  parent_id: string | null;
+  created_at?: string | null;
+}
+
+/** The segment a named folder's mount id ends in. */
+export function namedFolderSegment(root: NamedFolderRoot, folderId: string): string {
+  return `${root}.${folderId}`;
+}
+
+/** `photos.<uuid>` → its parts, or null when the segment is not a named folder. */
+export function parseNamedFolderSegment(seg: string | null | undefined): { root: NamedFolderRoot; folderId: string } | null {
+  if (!seg) return null;
+  const dot = seg.indexOf('.');
+  if (dot <= 0) return null;
+  const root = seg.slice(0, dot);
+  const folderId = seg.slice(dot + 1);
+  if (!/^[0-9a-f-]{36}$/i.test(folderId)) return null;
+  if (root !== 'top' && !(NAMED_FOLDER_ROOTS as readonly string[]).includes(root)) return null;
+  return { root: root as NamedFolderRoot, folderId };
+}
+
+/** A named folder's mount id → the job, the standard root and the folder, or null. */
+export function parseNamedFolderId(id: string): { jobId: string; root: NamedFolderRoot; folderId: string } | null {
+  const parts = id.split(':');
+  if (parts[0] !== 'mnt') return null;
+  if (parts[1] === 'jobs' && parts.length === 4) {
+    const nf = parseNamedFolderSegment(parts[3]);
+    return nf ? { jobId: parts[2], ...nf } : null;
+  }
+  if (parts[1] === 'projects' && parts.length === 5) {
+    const nf = parseNamedFolderSegment(parts[4]);
+    return nf ? { jobId: parts[3], ...nf } : null;
+  }
+  return null;
+}
+
+/** A job's own node under either mount — `mnt:jobs:<job>` or `mnt:projects:<project>:<job>` — or null. */
+export function parseJobNodeId(id: string): { jobId: string; projectId: string | null } | null {
+  const parts = id.split(':');
+  if (parts[0] !== 'mnt') return null;
+  if (parts[1] === 'jobs' && parts.length === 3 && parts[2]) return { jobId: parts[2], projectId: null };
+  if (parts[1] === 'projects' && parts.length === 4 && parts[3] && parts[3] !== 'docs') return { jobId: parts[3], projectId: parts[2] };
+  return null;
+}
+
+/** What an upload INTO a named folder is filed as: its standard root's section and type, or the
+ *  catch-all section for a folder at the job's top level. */
+export function uploadSpecForRoot(root: NamedFolderRoot): { section: string; fileType: string | null; accept: string | null } {
+  if (root === 'top') return { section: 'general', fileType: null, accept: null };
+  const spec = jobFolder(root);
+  return { section: spec?.uploadSection ?? 'general', fileType: spec?.uploadFileType ?? null, accept: spec?.accept ?? null };
+}
+
+/** The standard folder every named folder ultimately sits in, following `parent_id` up.
+ *  Cycle-safe: a loop (which the schema cannot make, but a bad row could) resolves to `top`. */
+export function namedFolderRoots(rows: readonly NamedFolderRow[]): Map<string, NamedFolderRoot> {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const out = new Map<string, NamedFolderRoot>();
+  for (const r of rows) {
+    const seen = new Set<string>();
+    let cur: NamedFolderRow | undefined = r;
+    let root: NamedFolderRoot = 'top';
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      if (cur.parent_id) { cur = byId.get(cur.parent_id); if (!cur) { root = 'top'; break; } continue; }
+      root = isJobFolderKey(cur.parent_key) && (NAMED_FOLDER_ROOTS as readonly string[]).includes(cur.parent_key) ? cur.parent_key : 'top';
+      break;
+    }
+    out.set(r.id, root);
+  }
+  return out;
+}
+
+/** The rule for a folder name, shared by the pop-up and the API. */
+export function checkFolderName(raw: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  const value = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim() : '';
+  if (!value) return { ok: false, error: 'Give the folder a name.' };
+  if (value.length > 80) return { ok: false, error: 'Keep folder names to 80 characters or fewer.' };
+  if (/[\\/:*?"<>|]/.test(value)) return { ok: false, error: 'Folder names cannot contain \\ / : * ? " < > |' };
+  if (value === '.' || value === '..') return { ok: false, error: 'That is not a usable folder name.' };
+  return { ok: true, value };
+}
+
 // ── What kind of file an upload is, from its name ────────────────────────────────────────────────
 //
 // The vocabulary `job_files.file_type` has always used (moved here from the job page's file manager

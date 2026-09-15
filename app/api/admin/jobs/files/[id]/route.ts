@@ -26,6 +26,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { checkLabel, parseTags } from '@/lib/files/labels';
+import { checkJobFolderId } from '@/lib/files/job-folders-server';
 import { downloadHref, shapeOf, type JobFileRow } from '@/lib/jobs/file-storage';
 
 export const GET = withErrorHandler(async (req: NextRequest, ctx: { params: { id: string } }) => {
@@ -56,6 +57,8 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
     description?: string | null;
     file_type?: string;
     section?: string;
+    /** 2026-09-15 — the named folder inside the same job (null = straight into the standard folder). */
+    folder_id?: string | null;
   };
 
   const { data: existing } = await supabaseAdmin
@@ -97,6 +100,13 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
   // rejected a value the dropdown offers would be a bug that only appears after a deploy.
   if (typeof body.file_type === 'string' && body.file_type.trim()) patch.file_type = body.file_type.trim();
   if (typeof body.section === 'string' && body.section.trim()) patch.section = body.section.trim();
+
+  // A move between folders of the same job: a named folder of THIS job, or null to leave one.
+  if ('folder_id' in body) {
+    const folder = await checkJobFolderId(body.folder_id, existing.job_id);
+    if (!folder.ok) return NextResponse.json({ error: folder.error }, { status: folder.status });
+    patch.folder_id = folder.folderId;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });

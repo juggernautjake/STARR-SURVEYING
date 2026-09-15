@@ -299,3 +299,40 @@
   .fe__search input { min-width: 7rem; }
   .fe__all { max-height: none; }
 }
+
+/* ── Upload bar + named folders (owner, 2026-09-15) ──
+ * "Make sure we can clearly see the buttons for uploading files." A full-width bar at the top of
+ * every job and project folder, with the one button that opens the Upload files pop-up. */
+.fe__cta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border: 2px dashed color-mix(in srgb, var(--theme-accent, #1D3095) 40%, var(--theme-border, #E2E8F0));
+  border-radius: 14px;
+  background: var(--theme-brand-tint, #EEF2FF);
+}
+.fe__cta-icon { display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; background: var(--theme-accent, #1D3095); color: var(--theme-accent-fg, #FFFFFF); flex: 0 0 auto; }
+.fe__cta-text { display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 16rem; min-width: 0; }
+.fe__cta-text strong { font-size: 1rem; }
+.fe__cta-text span { font-size: 0.82rem; color: var(--theme-fg-secondary, #475569); }
+.fe__cta-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.fe__btn--big { min-height: 44px; padding: 0 1.15rem; font-size: 0.95rem; font-weight: 700; }
+.fe__btn--danger { color: var(--theme-danger-fg, #B91C1C); }
+.fe__btn--danger:hover:not(:disabled) { border-color: var(--theme-danger-fg, #B91C1C); background: var(--theme-danger-bg, #FEE2E2); }
+
+.fe__folderform { display: flex; align-items: flex-end; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.9rem; padding: 0.7rem 0.85rem; border: 1px solid var(--theme-accent, #1D3095); border-radius: 12px; background: var(--theme-bg-surface, #FFFFFF); animation: ui-rise var(--motion-base) var(--ease-out); }
+.fe__folderform--danger { align-items: center; border-color: var(--theme-danger-fg, #B91C1C); background: var(--theme-danger-bg, #FEE2E2); }
+.fe__folderform-text { flex: 1 1 16rem; margin: 0; font-size: 0.88rem; }
+.fe__folderform-field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1 1 16rem; min-width: 0; font-size: 0.8rem; font-weight: 700; color: var(--theme-fg-secondary, #475569); }
+.fe__folderform-field input { min-height: 36px; padding: 0 0.6rem; border: 1px solid var(--theme-border, #CBD5E1); border-radius: 10px; background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-fg-primary, #0F172A); font: inherit; font-size: 0.9rem; }
+.fe__folderform-field input:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 1px; }
+.fe__folderform-error { flex-basis: 100%; margin: 0; font-size: 0.8rem; color: var(--theme-danger-fg, #B91C1C); }
+.fe__tile--named .fe__tile-icon { background: var(--theme-bg-elevated, #F1F5F9); color: var(--theme-fg-secondary, #475569); }
+
+@media (max-width: 720px) {
+  .fe__cta-actions { width: 100%; }
+  .fe__cta-actions .fe__btn { flex: 1 1 auto; justify-content: center; }
+}

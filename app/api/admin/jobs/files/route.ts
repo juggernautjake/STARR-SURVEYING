@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
+import { checkJobFolderId } from '@/lib/files/job-folders-server';
 import { downloadHref, shapeOf, wantsBackupRow, JOB_FILES_BUCKET, type JobFileRow } from '@/lib/jobs/file-storage';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -106,11 +107,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     file_id, storage_path, storage_bucket,
     // 2026-08-19 — a project-level document, belonging to the engagement rather than to one job.
     project_id,
+    // 2026-09-15 — the named folder (seed 639) the upload pop-up filed it into, inside the job.
+    folder_id,
   } = await req.json();
   if (!file_name) return NextResponse.json({ error: 'file_name required' }, { status: 400 });
   if (!job_id && !project_id) {
     return NextResponse.json({ error: 'A file must belong to a job or a project.' }, { status: 400 });
   }
+
+  const folder = await checkJobFolderId(folder_id, job_id);
+  if (!folder.ok) return NextResponse.json({ error: folder.error }, { status: folder.status });
 
   // F5 — attaching an existing File Explorer document. The permission check is the point of doing it
   // here rather than trusting the client: without it, anyone who can post to this route could attach
@@ -159,6 +165,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       mime_type, section: section || 'general', description,
       uploaded_by: session.user.email,
       file_node_id: file_node_id ?? null,
+      // Only written when set, so an upload with no named folder is the same insert it always was.
+      ...(folder.folderId ? { folder_id: folder.folderId } : {}),
       ...(isStorage
         ? {
             name: file_name,
@@ -202,7 +210,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     action_type: 'job_file_uploaded',
     entity_type: 'job',
     entity_id: job_id,
-    metadata: { file_name, file_type },
+    metadata: { file_name, file_type, ...(folder.folderId ? { folder_id: folder.folderId } : {}) },
   }));
 
   return NextResponse.json({ file }, { status: 201 });
