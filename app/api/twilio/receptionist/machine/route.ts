@@ -36,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const q = new URL(url).searchParams;
   const step = q.get('step');
+  const voiceId = q.get('v');
   const n = int(q.get('n'), 20);
   const ask = int(q.get('ask'), 20);
   const callSid = params.CallSid ?? '';
@@ -60,13 +61,13 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
     }
-    return twimlResponse(afterRecording(n + (saved ? 1 : 0), saved, ask));
+    return twimlResponse(afterRecording(n + (saved ? 1 : 0), saved, ask, voiceId));
   }
 
   // ── the answer to "is there anything else?" ──
   if (step === 'else') {
     const heard = (params.SpeechResult ?? '').trim();
-    const outcome = afterAnythingElse(heard, n, ask);
+    const outcome = afterAnythingElse(heard, n, ask, voiceId);
     if (callSid) {
       await appendTurns(supabaseAdmin, callSid, [
         ...(heard ? [{ role: 'caller' as const, text: heard }] : []),

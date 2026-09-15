@@ -92,20 +92,23 @@ export const RELAY_HINTS = [
 ].join(', ');
 
 /** The TwiML that hands the live call to the relay. Returned by after-dial when the owner did not pick up. */
-export function relayTwiml(cfg: RelayConfig, callSid: string, from: string, opts: { test?: boolean; actionPath?: string; knownName?: string | null } = {}): string {
+export function relayTwiml(cfg: RelayConfig, callSid: string, from: string, opts: { test?: boolean; actionPath?: string; knownName?: string | null; voice?: { provider: 'ElevenLabs' | 'Google' | 'Amazon'; voice: string } | null } = {}): string {
   const actionPath = opts.actionPath ?? '/api/twilio/receptionist/relay-ended';
+  // A chosen voice (the test bench auditioning one, or the live voice in settings) wins over the env default.
+  const ttsProvider = opts.voice?.provider ?? cfg.ttsProvider;
+  const ttsVoice = opts.voice?.voice ?? cfg.voice;
   const attrs = [
     `url="${esc(relaySocketUrl(cfg, callSid))}"`,
     `welcomeGreeting="${esc(greeting(opts.knownName))}"`,
     // A caller who starts talking over the greeting is answered, not talked over.
     'welcomeGreetingInterruptible="speech"',
     'interruptible="speech"',
-    `ttsProvider="${cfg.ttsProvider}"`,
-    `voice="${esc(cfg.voice)}"`,
+    `ttsProvider="${ttsProvider}"`,
+    `voice="${esc(ttsVoice)}"`,
     'language="en-US"',
     'transcriptionProvider="Deepgram"',
     'speechModel="nova-3-general"',
-    cfg.ttsProvider === 'ElevenLabs' ? 'elevenlabsTextNormalization="on"' : '',
+    ttsProvider === 'ElevenLabs' ? 'elevenlabsTextNormalization="on"' : '',
     `hints="${esc(RELAY_HINTS)}"`,
     'dtmfDetection="false"',
   ].filter(Boolean).join(' ');

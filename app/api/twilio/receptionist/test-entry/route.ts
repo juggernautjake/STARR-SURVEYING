@@ -25,6 +25,7 @@ import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 import { parseVersion } from '@/lib/receptionist/version';
 import { machineOpening } from '@/lib/receptionist/answering-machine';
+import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,15 +56,23 @@ export async function POST(request: Request): Promise<Response> {
   // answering machine live callers get. From "Call my phone" it rides in the URL (?version=); from the
   // browser it is a Voice SDK connect parameter. Either way Twilio signed it.
   const version = parseVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'agent';
+  // …and which voice to audition (owner, 2026-09-15: "I want more natural female voice options").
+  const voiceId = (new URL(url).searchParams.get('voice') ?? params.voice ?? '').trim() || null;
+  const voice = voiceId ? resolveVoice(voiceId) : null;
   if (version === 'answering-machine') {
-    return twimlResponse(twiml(say(RECORDING_NOTICE), machineOpening()));
+    return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), machineOpening(voiceId)));
   }
 
   // Real callers hear the notice before the owner's phone rings; a test call never rings him, so
   // the notice is spoken here, then the receptionist exactly as in production.
   const known = await lookupKnownCaller(supabaseAdmin, tester);
   const relay = relayConfig();
-  if (relay) return twimlResponse(twiml(say(RECORDING_NOTICE), relayTwiml(relay, callSid, tester, { test: true, knownName: known?.name })));
+  if (relay) {
+    return twimlResponse(twiml(
+      say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
+      relayTwiml(relay, callSid, tester, { test: true, knownName: known?.name, voice: voice ? { provider: voice.provider, voice: voice.relayVoice } : null }),
+    ));
+  }
   const state = { ...emptyState(), test: true };
-  return twimlResponse(twiml(say(RECORDING_NOTICE), gather('/api/twilio/receptionist/turn', greeting(known?.name))), { 'set-cookie': stateCookieHeader(state) });
+  return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), gather('/api/twilio/receptionist/turn', greeting(known?.name), { voice: sayVoiceFor(voiceId) })), { 'set-cookie': stateCookieHeader(state) });
 }

@@ -60,7 +60,11 @@ export async function POST(request: Request): Promise<Response> {
       const analysis = await analyzeCall(updated);
       if (analysis) updated = (await updateCall(supabaseAdmin, call.call_sid, { ...contactColumns(updated, analysis), analysis, summary: analysis.summary, kind: analysis.caller_type === 'personal' ? 'personal' : analysis.caller_type === 'vendor' ? 'vendor' : analysis.caller_type === 'customer' || analysis.caller_type === 'existing_client' ? 'customer' : 'unknown' })) ?? updated;
     }
-    await notifyOwners({ from: call.from_number, facts: {}, summary: updated?.analysis?.summary || `Transcript is ready for the call ${OWNER_NAME} answered.`, callId: call.id, answeredBy: 'owner', call: updated ?? call });
+    // A test call is transcribed and analysed like any other; it just tells nobody (notifyOwners
+    // refuses a test row anyway — this keeps the intent visible at the call site).
+    if (!call.is_test) {
+      await notifyOwners({ from: call.from_number, facts: {}, summary: updated?.analysis?.summary || `Transcript is ready for the call ${OWNER_NAME} answered.`, callId: call.id, answeredBy: 'owner', call: updated ?? call });
+    }
   } catch (err) {
     console.error('[transcript] failed:', err);
   }

@@ -19,7 +19,7 @@ import { gather, hangup, record, say, twiml, twimlResponse } from '@/lib/twilio/
 import { readStateCookie, stateCookieHeader, clearStateCookieHeader, type CallState } from '@/lib/receptionist/state';
 import { nextReply } from '@/lib/receptionist/brain';
 import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
-import { appendTurns, factsToColumns, updateCall } from '@/lib/receptionist/calls';
+import { appendTurns, factsToColumns, isTestCall, updateCall } from '@/lib/receptionist/calls';
 import { finishCall } from '@/lib/receptionist/finish';
 import { defer } from '@/lib/server/defer';
 import { knownCallerLine, lookupKnownCaller } from '@/lib/receptionist/known-caller';
@@ -78,8 +78,10 @@ export async function POST(request: Request): Promise<Response> {
   await appendTurns(supabaseAdmin, callSid, [{ role: 'caller', text: heard }, { role: 'assistant', text: reply.say }]);
   await updateCall(supabaseAdmin, callSid, factsToColumns(state.facts));
 
-  // Save the lead once, the moment there is enough to save.
-  if (reply.readyToSave && !state.facts.leadId && !state.test) {
+  // Save the lead once, the moment there is enough to save. A test call captures the facts (they show
+  // on /admin/calls) but never becomes a lead — checked against the ROW as well as the cookie, because
+  // a cookie can go missing and the row cannot (owner, 2026-09-15).
+  if (reply.readyToSave && !state.facts.leadId && !state.test && !(await isTestCall(supabaseAdmin, callSid))) {
     try {
       const lead = await insertLeadFromForm(supabaseAdmin, leadFrom(state, from));
       if (lead) {

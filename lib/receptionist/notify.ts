@@ -35,6 +35,8 @@ export interface CallOutcome {
   answeredBy?: PhoneCall['answered_by'];
   /** The call row when known: its columns and analysis fill in whatever the live facts lack. */
   call?: Partial<PhoneCall> | null;
+  /** A test call, when the row is not to hand. Same effect as `call.is_test`: nobody is told. */
+  test?: boolean;
 }
 
 export function personalRecipient(env: Record<string, string | undefined> = process.env): string | null {
@@ -165,6 +167,15 @@ export async function notifyOwners(
   o: CallOutcome,
   deps: { send?: typeof sendSMSViaTwilio; email?: (subject: string, text: string) => Promise<boolean>; inApp?: (o: CallOutcome) => Promise<number>; env?: Record<string, string | undefined> } = {},
 ): Promise<{ texted: number; emailed: boolean; belled: number }> {
+  // ── A TEST CALL TELLS NOBODY. THE CHECK LIVES HERE (owner, 2026-09-15) ──────────────────────
+  // "For test calls, it should all be closed so I can test the voice and the responses." Every caller
+  // used to make this check for itself, and the Voice Intelligence transcript webhook did not — so a
+  // test call the owner answered still texted, emailed and rang the bell. One gate, at the door that
+  // every text, email and in-app notification goes through, cannot be forgotten by the next caller.
+  if (o.test || o.call?.is_test) {
+    console.log('[receptionist] test call — no text, no email, no bell');
+    return { texted: 0, emailed: false, belled: 0 };
+  }
   const send = deps.send ?? sendSMSViaTwilio;
   const text = outcomeText(o);
   const belled = await (deps.inApp ?? notifyInApp)(o);

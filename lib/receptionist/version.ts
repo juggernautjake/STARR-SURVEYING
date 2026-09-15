@@ -43,3 +43,10 @@ export function liveVersionFrom(stored: unknown): ReceptionistVersion {
   const obj = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
   return parseVersion(obj.live_version) ?? DEFAULT_LIVE_VERSION;
 }
+
+/** The voice live calls are spoken in (an id from lib/receptionist/voices.ts), or null for the default. */
+export function liveVoiceFrom(stored: unknown): string | null {
+  const obj = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
+  const v = typeof obj.voice === 'string' ? obj.voice.trim() : '';
+  return v || null;
+}

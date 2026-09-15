@@ -23,6 +23,7 @@ import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 import type { CallState } from '@/lib/receptionist/state';
 import { VERSION_LABELS, type ReceptionistVersion } from '@/lib/receptionist/version';
+import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
 
 const RS = '';
 
@@ -51,17 +52,22 @@ export default function ReceptionistTestPage(): React.ReactElement {
   useEffect(() => { refresh(); const t = setInterval(refresh, 10_000); return () => clearInterval(t); }, [refresh]);
 
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
-  const [live, setLive] = useState<{ version: ReceptionistVersion; updatedBy: string | null; updatedAt: string | null } | null>(null);
+  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
   const [confirmAgent, setConfirmAgent] = useState(false);
   const [testVersion, setTestVersion] = useState<ReceptionistVersion>('agent');
+  // The voice a test call is spoken in. Remembered, so auditioning one voice after another is quick.
+  const [testVoice, setTestVoice] = useState<string>(DEFAULT_VOICE_ID);
+  useEffect(() => { try { const v = localStorage.getItem('rtest-voice'); if (v) setTestVoice(v); } catch { /* private mode */ } }, []);
+  const chooseVoice = (id: string) => { setTestVoice(id); try { localStorage.setItem('rtest-voice', id); } catch { /* ignore */ } };
+  const voice = RECEPTIONIST_VOICES.find((v) => v.id === testVoice) ?? RECEPTIONIST_VOICES[0];
   useEffect(() => {
     fetch('/api/admin/receptionist-test/version').then((r) => r.json()).then((j) => { if (j?.version) setLive(j); }).catch((e: Error) => reportPageError(e));
   }, [reportPageError]);
-  const setLiveVersion = async (version: ReceptionistVersion) => {
+  const saveLive = async (patch: { version?: ReceptionistVersion; voice?: string | null }) => {
     setLiveBusy(true);
     try {
-      const r = await fetch('/api/admin/receptionist-test/version', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ version }) });
+      const r = await fetch('/api/admin/receptionist-test/version', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
       setLive(j);
@@ -72,6 +78,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       setLiveBusy(false);
     }
   };
+  const setLiveVersion = (version: ReceptionistVersion) => saveLive({ version });
 
   // ── 1. browser call ───────────────────────────────────────────────────────────────────────────
   const [browserStatus, setBrowserStatus] = useState<string>('idle');
@@ -95,7 +102,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       const device = new Device(j.token, { logLevel: 1 }) as unknown as Device;
       deviceRef.current = device;
       setBrowserStatus('connecting');
-      const call = await device.connect({ params: { version: testVersion } });
+      const call = await device.connect({ params: { version: testVersion, voice: testVoice } });
       callRef.current = call;
       setSeconds(0);
       call.on('accept', () => setBrowserStatus('in call'));
@@ -115,7 +122,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
   const callMyPhone = async () => {
     setPhoneStatus('placing call…');
     try { localStorage.setItem('rtest-phone', phone); } catch { /* ignore */ }
-    const r = await fetch('/api/admin/receptionist-test/call', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: phone, version: testVersion }) });
+    const r = await fetch('/api/admin/receptionist-test/call', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: phone, version: testVersion, voice: testVoice }) });
     const j = (await r.json()) as { callSid?: string; error?: string; to?: string };
     if (!r.ok || !j.callSid) { setPhoneStatus(`Failed: ${j.error ?? r.status}`); return; }
     setPhoneStatus(`Ringing ${j.to}. Answer it to test the ${VERSION_LABELS[testVersion].name.toLowerCase()}. The call appears below when it ends.`);
@@ -201,6 +208,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
               When Hank doesn&apos;t pick up, callers get: <b data-testid="rtest-live-version">{VERSION_LABELS[live.version].name}</b>
             </p>
             <p>{VERSION_LABELS[live.version].blurb}</p>
+            <p className="rtest__status">Voice: <b>{(RECEPTIONIST_VOICES.find((v) => v.id === (live.voice ?? DEFAULT_VOICE_ID)) ?? RECEPTIONIST_VOICES[0]).name}</b></p>
             {live.updatedBy && <small className="rtest__status">Set by {live.updatedBy}{live.updatedAt ? ` · ${fmtWhen(live.updatedAt)}` : ''}</small>}
             <div className="rtest__row">
               {live.version === 'agent' ? (
@@ -244,6 +252,28 @@ export default function ReceptionistTestPage(): React.ReactElement {
           ))}
         </div>
         <p>Browser and phone test calls below run this version. The text chat always talks to the full agent.</p>
+
+        <h3 className="rtest__subhead">Voice</h3>
+        <div className="rtest__row">
+          <select className="rtest__input" value={testVoice} onChange={(e) => chooseVoice(e.target.value)} aria-label="Voice to test" data-testid="rtest-voice">
+            {(['ElevenLabs', 'Google', 'Amazon'] as const).map((prov) => (
+              <optgroup key={prov} label={prov === 'ElevenLabs' ? 'ElevenLabs (most natural, used by the live agent)' : prov === 'Google' ? 'Google Chirp 3 HD (no extra bill)' : 'Amazon Polly generative'}>
+                {RECEPTIONIST_VOICES.filter((v) => v.provider === prov).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          {voice.sample && <a className="rtest__btn rtest__btn--ghost" href={voice.sample} target="_blank" rel="noreferrer">Hear samples ↗</a>}
+          <button
+            type="button"
+            className="rtest__btn rtest__btn--ghost"
+            onClick={() => void saveLive({ voice: testVoice })}
+            disabled={liveBusy || live?.voice === testVoice}
+            data-testid="rtest-voice-live"
+          >
+            {live?.voice === testVoice ? 'This is the live voice' : 'Use this voice on live calls'}
+          </button>
+        </div>
+        <p>{voice.blurb}{voice.provider === 'ElevenLabs' ? ' The answering machine speaks through Twilio, which has no ElevenLabs voices, so it uses the closest Google voice.' : ''}</p>
       </section>
 
       <div className="rtest__grid">
@@ -324,7 +354,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       </section>
 
       <div className="rtest__note">
-        What test mode changes: no texts, no bell notifications, no lead in the queue. Everything else, including the voice, the relay, quoting through the website calculator, the land-law answers and the recording, is the production path.
+        <b>A test call reaches nobody.</b> No text, no email, no bell on the website, and no lead in the queue — the check sits at the one door every alert goes through, so it cannot be missed. Hank&apos;s phone never rings either. What a test call DOES do is the production path: the same voice and timing, the recording, the transcript and the AI analysis, all on its own page under Recent test calls.
       </div>
     </div>
   );

@@ -12,11 +12,11 @@ export const RECEPTIONIST_VOICE = process.env.RECEPTIONIST_VOICE || 'Google.en-U
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] as string));
 
-export function say(text: string): string {
-  return `<Say voice="${RECEPTIONIST_VOICE}">${esc(text)}</Say>`;
+export function say(text: string, voice?: string | null): string {
+  return `<Say voice="${esc(voice || RECEPTIONIST_VOICE)}">${esc(text)}</Say>`;
 }
 
-export function gather(action: string, prompt?: string, opts: { timeout?: number } = {}): string {
+export function gather(action: string, prompt?: string, opts: { timeout?: number; voice?: string | null } = {}): string {
   const attrs = [
     'input="speech"',
     `action="${esc(action)}"`,
@@ -28,7 +28,7 @@ export function gather(action: string, prompt?: string, opts: { timeout?: number
     'speechModel="phone_call"',
     'actionOnEmptyResult="true"',
   ].join(' ');
-  return `<Gather ${attrs}>${prompt ? say(prompt) : ''}</Gather>`;
+  return `<Gather ${attrs}>${prompt ? say(prompt, opts.voice) : ''}</Gather>`;
 }
 
 export function record(action: string, transcribeCallback: string, maxSeconds = 180): string {

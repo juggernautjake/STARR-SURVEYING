@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { insertLeadFromForm, notifyIntakeRecipients, type LeadIntakeInput } from '@/lib/leads/intake';
 import { streamReply } from '@/lib/receptionist/brain';
-import { appendTurns, factsToColumns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
+import { isTestCall, appendTurns, factsToColumns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { finishCall, summaryFromTurns } from '@/lib/receptionist/finish';
 import { RELAY_RS, relayConfig, validRelaySecret, type RelayRequest } from '@/lib/receptionist/relay';
 import type { CallState } from '@/lib/receptionist/state';
@@ -79,7 +79,6 @@ export async function POST(request: Request): Promise<Response> {
   if (body.event !== 'turn') return NextResponse.json({ error: 'unknown event' }, { status: 400 });
 
   const state: CallState = body.state ?? { turns: [], facts: {}, silence: 0, started: Date.now() };
-  const isTest = body.test === true || state.test === true;
   const heard = (body.heard ?? '').trim();
   const from = body.from ?? '';
   // First turn: does this number belong to someone we know? One lookup, carried in the facts after.
@@ -88,6 +87,8 @@ export async function POST(request: Request): Promise<Response> {
     if (line) state.facts = { ...state.facts, knownCaller: line };
   }
   const callSid = body.callSid;
+  // The row is the authority: a relay payload or a cookie can lose the flag, the row cannot.
+  const isTest = body.test === true || state.test === true || await isTestCall(supabaseAdmin, callSid);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
