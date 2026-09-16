@@ -276,7 +276,10 @@ export default function JobDetailPage() {
     if (activeTab === 'fieldwork') {
       fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { handleError(err, 'load field data'); });
     }
-    if (activeTab === 'propertymap') {
+    // The header button and the Files tab both name the map and carry its point count, so the
+    // summary is fetched wherever you land, not only on its own tab. It is two small columns and a
+    // count — the endpoint exists precisely so this costs nothing.
+    if (activeTab === 'propertymap' || activeTab === 'files' || activeTab === 'overview') {
       fetch(`/api/admin/jobs/${jobId}/property-map?summary=1`).then(r => r.json()).then(d => setPropertyMap(d)).catch((err: unknown) => { handleError(err, 'load property map summary'); });
     }
     if (activeTab === 'financial') {
@@ -511,6 +514,26 @@ export default function JobDetailPage() {
                 <span className="job-detail__filesbtn-count">{job.file_count}</span>
               )}
             </button>
+            {/* ── THE PROPERTY MAP, IN THE HEADER (owner, 2026-09-16) ───────────────────────────
+                "where is the button to create the interactive map? Please make sure it is easy to
+                find in the files and in the job … I am not seeing how to do that."
+                It was a tab — one of eight, which is the same mistake the Files tab made in August
+                and got fixed the same way. A header action is visible from every tab, says which of
+                the two things it does, and carries the point count when there is one. */}
+            <Link
+              href={`/admin/jobs/${jobId}/map`}
+              className="job-detail__action job-detail__action--ghost"
+              title={propertyMap?.exists
+                ? 'Open the aerial with the numbered points of interest on it'
+                : 'Upload an aerial of the property and start marking points of interest on it'}
+              data-testid="job-property-map-header"
+            >
+              <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
+              {propertyMap?.exists ? 'Interactive map' : 'Create interactive map'}
+              {propertyMap?.exists && propertyMap.points > 0 && (
+                <span className="job-detail__filesbtn-count">{propertyMap.points}</span>
+              )}
+            </Link>
             <Link
               href={`/admin/jobs/${jobId}/field`}
               className="job-detail__action job-detail__action--ghost"
@@ -988,6 +1011,28 @@ export default function JobDetailPage() {
                   />
                 </>
               ),
+              // Standing in the Photos folder is where "which fence corner is this one?" gets
+              // asked, and the map is the answer to it — so the way there is offered right here.
+              photos: (
+                <div className="job-cad-start" data-testid="job-property-map-photos">
+                  <div>
+                    <strong>Interactive property map</strong>
+                    <p>
+                      {propertyMap?.exists
+                        ? 'Pin any of these photos to a point on the aerial, so the next person knows exactly where each one was taken.'
+                        : 'Upload an aerial of the property and pin these photos to the spots they were taken, so the next person knows what they are looking at.'}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/admin/jobs/${jobId}/map`}
+                    className="jobs-page__btn jobs-page__btn--primary"
+                    data-testid="job-property-map-photos-btn"
+                  >
+                    <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
+                    {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+                  </Link>
+                </div>
+              ),
               cad: (
                 <div className="job-cad-start">
                   <div>
@@ -1005,6 +1050,30 @@ export default function JobDetailPage() {
               ),
               root: (
                 <>
+                  {/* ── THE PROPERTY MAP, WHERE THE PHOTOS ARE (owner, 2026-09-16) ──────────────
+                      "Please make sure it is easy to find in the files and in the job."
+                      This is the top of the job's files — the folder somebody is standing in when
+                      they are looking at four hundred photos and wondering which fence corner each
+                      one is. That is precisely the question the map answers, so the way to it
+                      belongs here as well as in the header. */}
+                  <div className="job-cad-start" data-testid="job-property-map-files">
+                    <div>
+                      <strong>Interactive property map</strong>
+                      <p>
+                        {propertyMap?.exists
+                          ? `An aerial of this property with ${propertyMap.points} ${propertyMap.points === 1 ? 'point' : 'points'} of interest marked on it. Each point holds the notes, photos, video and voice notes for that spot.`
+                          : 'Upload an aerial or satellite view of the property, then drop numbered points on it and attach the notes, photos, video and voice notes for each spot — so anyone can see what the crew saw, and where.'}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/admin/jobs/${jobId}/map`}
+                      className="jobs-page__btn jobs-page__btn--primary"
+                      data-testid="job-property-map-files-btn"
+                    >
+                      <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
+                      {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+                    </Link>
+                  </div>
                   {/* The other direction of the same link (2026-08-19). The File Explorer carries the
                       same folder under Job Projects — the view somebody wants when they are looking
                       for a file rather than working the job. */}
