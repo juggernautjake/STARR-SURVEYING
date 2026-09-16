@@ -87,6 +87,75 @@ export default function ReceptionistTestPage(): React.ReactElement {
   };
   const setLiveVersion = (version: ReceptionistVersion) => saveLive({ version });
 
+  // ── talk to an agent right now, in this browser (owner, 2026-09-15) ───────────────────────────
+  // "There should be a button to click to just start a conversation." WebRTC straight to ElevenLabs:
+  // no phone, no Twilio, nobody rung. The transcript builds live here and is filed on /admin/calls.
+  type TalkAgent = 'starr' | 'generic';
+  const [talkAgent, setTalkAgent] = useState<TalkAgent>('starr');
+  const [talkState, setTalkState] = useState<'idle' | 'connecting' | 'live' | 'ended' | 'error'>('idle');
+  const [talkError, setTalkError] = useState<string | null>(null);
+  const [talkTurns, setTalkTurns] = useState<Array<{ role: 'caller' | 'assistant'; text: string }>>([]);
+  const [talkSpeaking, setTalkSpeaking] = useState<'agent' | 'you' | null>(null);
+  const [talkSeconds, setTalkSeconds] = useState(0);
+  const [filing, setFiling] = useState<string | null>(null);
+  const convRef = useRef<{ endSession: () => Promise<void> } | null>(null);
+  const talkBox = useRef<HTMLDivElement>(null);
+  useEffect(() => { talkBox.current?.scrollTo({ top: talkBox.current.scrollHeight }); }, [talkTurns]);
+  useEffect(() => {
+    if (talkState !== 'live') return;
+    const t = setInterval(() => setTalkSeconds((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [talkState]);
+
+  const startTalking = async () => {
+    setTalkError(null);
+    setTalkTurns([]);
+    setTalkSeconds(0);
+    setTalkState('connecting');
+    try {
+      const r = await fetch('/api/admin/receptionist-test/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ agent: talkAgent }) });
+      const j = (await r.json()) as { token?: string; error?: string };
+      if (!r.ok || !j.token) throw new Error(j.error ?? `HTTP ${r.status}`);
+      // The microphone is asked for here, by the browser, on this click — never in the background.
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const { Conversation } = await import('@elevenlabs/client');
+      const conversation = await Conversation.startSession({
+        conversationToken: j.token,
+        connectionType: 'webrtc',
+        onConnect: () => setTalkState('live'),
+        onDisconnect: () => { setTalkState('ended'); convRef.current = null; },
+        onError: (message: string) => { setTalkError(String(message)); setTalkState('error'); },
+        onModeChange: ({ mode }: { mode: string }) => setTalkSpeaking(mode === 'speaking' ? 'agent' : 'you'),
+        onMessage: ({ message, source }: { message: string; source: string }) => {
+          if (!message) return;
+          setTalkTurns((cur) => [...cur, { role: source === 'ai' ? 'assistant' : 'caller', text: message }]);
+        },
+      });
+      convRef.current = conversation as unknown as { endSession: () => Promise<void> };
+    } catch (e) {
+      setTalkError((e as Error).message);
+      setTalkState('error');
+    }
+  };
+  const stopTalking = async () => {
+    try { await convRef.current?.endSession(); } catch { /* already gone */ }
+    convRef.current = null;
+    setTalkState('ended');
+    setTalkSpeaking(null);
+  };
+  const fileTranscripts = async () => {
+    setFiling('Filing the conversation…');
+    try {
+      const r = await fetch('/api/admin/receptionist-test/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 10 }) });
+      const j = (await r.json()) as { imported?: number; updated?: number; error?: string };
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setFiling(`Filed: ${j.imported ?? 0} new, ${j.updated ?? 0} updated. They are on the Calls page.`);
+      refresh();
+    } catch (e) {
+      setFiling((e as Error).message);
+    }
+  };
+
   // ── 1. browser call ───────────────────────────────────────────────────────────────────────────
   const [browserStatus, setBrowserStatus] = useState<string>('idle');
   const [browserErr, setBrowserErr] = useState<string | null>(null);
@@ -235,6 +304,59 @@ export default function ReceptionistTestPage(): React.ReactElement {
               )}
             </div>
           </>
+        )}
+      </section>
+
+      {/* ── TALK TO AN AGENT, RIGHT NOW ── */}
+      <section className={`rtest__card ${talkState === 'live' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-talk" data-testid="rtest-talk">
+        <h2 id="rt-talk">Talk to an agent now</h2>
+        <p>Straight from this browser over the internet — no phone call, nobody rung, no Twilio minutes. Everything said is transcribed here and can be filed on the Calls page.</p>
+        <div className="rtest__versions" role="radiogroup" aria-label="Which agent to talk to">
+          {([
+            { id: 'starr' as const, name: 'Starr Surveying receptionist', blurb: 'Ellie: the real thing — the firm\u2019s services, the land-law knowledge base, the rules about never committing the firm.' },
+            { id: 'generic' as const, name: 'General conversation', blurb: 'The same voice and turn-taking with no business behind it. For judging how natural the conversation feels about anything at all.' },
+          ]).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="radio"
+              aria-checked={talkAgent === a.id}
+              className={`rtest__version${talkAgent === a.id ? ' rtest__version--on' : ''}`}
+              onClick={() => setTalkAgent(a.id)}
+              disabled={talkState === 'live' || talkState === 'connecting'}
+              data-testid={`rtest-talk-${a.id}`}
+            >
+              <b>{a.name}</b>
+              <span>{a.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <div className="rtest__row">
+          {talkState === 'live' || talkState === 'connecting' ? (
+            <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void stopTalking()} data-testid="rtest-talk-stop">End conversation</button>
+          ) : (
+            <button type="button" className="rtest__btn" onClick={() => void startTalking()} data-testid="rtest-talk-start">Start conversation</button>
+          )}
+          <span className={`rtest__status ${talkState === 'live' ? 'rtest__status--live' : ''}`} aria-live="polite">
+            {talkState === 'live' && <span className="rtest__dot" aria-hidden="true" />}
+            {talkState === 'live'
+              ? `Live · ${Math.floor(talkSeconds / 60)}:${String(talkSeconds % 60).padStart(2, '0')}${talkSpeaking === 'agent' ? ' · speaking' : talkSpeaking === 'you' ? ' · listening' : ''}`
+              : talkState === 'connecting' ? 'Connecting — allow the microphone…'
+              : talkState === 'ended' ? 'Conversation ended'
+              : talkState === 'error' ? 'Could not connect' : 'Ready'}
+          </span>
+          {talkTurns.length > 0 && talkState !== 'live' && (
+            <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => void fileTranscripts()} data-testid="rtest-talk-file">File it on the Calls page</button>
+          )}
+        </div>
+        {talkError && <div className="rtest__status rtest__status--err">{talkError}</div>}
+        {filing && <div className="rtest__status" aria-live="polite">{filing}</div>}
+        {talkTurns.length > 0 && (
+          <div className="rtest__chat" ref={talkBox} aria-live="polite" data-testid="rtest-talk-transcript">
+            {talkTurns.map((t, i) => (
+              <div key={i} className={`rtest__msg rtest__msg--${t.role === 'assistant' ? 'assistant' : 'caller'}`}>{t.text}</div>
+            ))}
+          </div>
         )}
       </section>
 
