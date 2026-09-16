@@ -28,7 +28,8 @@ const media = (over: Partial<PointMedia> = {}): PointMedia => ({
 
 const point = (over: Partial<MapPoint> = {}): MapPoint => ({
   id: 'p1', mapId: 'map1', ordinal: 1, title: 'Pipe found', notes: null, x: 0.5, y: 0.5,
-  pointType: 'monument_found', status: 'open', lat: null, lng: null, media: [],
+  pointType: 'monument_found', status: 'open', geometry: 'point', vertices: [],
+  bearingDeg: null, fovDeg: null, fovRadius: null, lat: null, lng: null, media: [],
   createdBy: null, createdAt: '2026-09-16T00:00:00Z', updatedAt: '2026-09-16T00:00:00Z', ...over,
 });
 

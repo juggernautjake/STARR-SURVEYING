@@ -101,6 +101,53 @@ inline text prompts. Everything an editor can do, per the request: add a point, 
 information to an existing point (notes, photos, video, audio, type, title), and remove information
 from an existing point (detach media, clear notes).
 
+### Second follow-up: a point of interest is not always a point
+
+> "I want to be able to create a point that is just a single point on the map. Then I want to create
+> a point that has a field of view feature, where you can set the point, and then you can show the
+> field of view of that point. This would be for pictures that are taken and the uploader wanted to
+> show where they were and what direction they were facing and what their field of view was when
+> they took the picture. I also want to create a mechanic where the user create the first point, then
+> can click to draw connected lines that represent what path they walked. This would be for if the
+> user takes a video and starts at one point and then walks to another point, taking a video of the
+> property as they go … The user would need to be able to define the field of view too, how wide or
+> narrow it is and in what direction from the point."
+
+Four shapes, one table, one list. The temptation is a table per shape; resist it. What is described
+here is not four features — it is one feature, *"here is a thing on this property and here is what I
+know about it"*, drawn four ways. Everything that makes a point useful (the number, title, notes,
+type, status, photos, video, voice notes) is identical across all four, and splitting the table
+makes the side list a union query that can never be ordered properly.
+
+| Shape | What it is for | How it is drawn |
+|---|---|---|
+| `point` | One spot. The default, and what most things are. | Click. |
+| `fov` | Where somebody stood and which way they faced, for a photo. | Click where you stood, drag to aim. Handles for direction and width, or type the numbers. |
+| `path` | A route walked while recording a video. | Click the start, click each turn, double-click / Enter / Finish to end. |
+| `area` | A region: heavy brush, a flood-prone corner, the wrong stretch of fence. | Click each corner, double-click / Enter / Finish to close. |
+
+**`x`/`y` stays required for every shape.** It is where the numbered marker sits, what the list
+scrolls to, and what still renders if the rest fails — a path whose vertices will not parse is a
+labelled dot at the trailhead, never a missing row.
+
+**The trigonometry happens in pixels, the data lives in fractions.** Fractions of the image box are
+not isotropic: on a 4000×3000 aerial, 0.1 across is 400 px and 0.1 down is 300 px. Do the angles in
+fraction space and a cone aimed north-east points somewhere else, and a "straight" path measures
+wrong. `lib/jobs/property-map-shapes.ts` converts in, works, and converts back; the tests pass a 4:3
+box precisely to hold that line.
+
+**Measurements are only made where they can be honest.** A path's length in feet and an area's size
+in acres need a georeferenced map (Phase 7). Without one, the list says "2 legs" and "3 corners" and
+nothing else. An invented distance on a surveyor's drawing is worse than no distance.
+
+**The instructions are on screen while you draw.** Every shape carries a `howTo` string that the
+editor shows in a hint bar during placement — "Click where you started, then click each turn you
+made. Double-click, press Enter, or hit Finish to end it." That, rather than a help page, is what
+"easy to learn" means here.
+
+**Rejected for now:** freehand drawing (produces hundreds of vertices nobody can edit), and a
+separate "arrow" shape (a narrow `fov` already is one).
+
 ## Additions beyond the literal request, and why each earns its place
 
 Everything the owner asked for is in Phases 1–5. These are the additions, each justified by the job
@@ -253,6 +300,27 @@ ways to find it.
 
 **Done when:** points can be placed, moved, renamed, deleted, and the list and map agree at all
 times.
+
+## Phase 2b — Four shapes, not one (the second follow-up)
+
+- [x] `seeds/642_job_map_point_shapes.sql` — `geometry`, `vertices` (jsonb), `bearing_deg`,
+      `fov_deg`, `fov_radius` on `job_map_points`, with CHECKs that a cone cannot be stored pointing
+      nowhere and existing rows become `point`.
+- [x] `lib/jobs/property-map-shapes.ts` — the whole geometry layer, pure: `POINT_GEOMETRIES` with a
+      `howTo` per shape, cone path/handle maths, vertex append with a zero-length guard, path length
+      in feet and area in acres (only where georeferenced), label placement, `shapeSummary`,
+      `isDrawable`.
+- [x] The points API accepts and clears the new columns; switching a cone back to a dot clears the
+      bearing, and a vertex list is cleaned and capped before it is stored.
+- [x] The loader returns them, degrading an unreadable vertex list to the anchor.
+- [x] `__tests__/jobs/property-map-shapes.test.ts` — 27 tests, including the 4:3 aspect-ratio trap.
+- [ ] The editor: shape picker with hints, live drawing with a rubber band, Enter/double-click to
+      finish, Escape to cancel, Backspace to undo a vertex.
+- [ ] Cone editing: an aim handle, a width handle, numeric bearing and width, camera presets.
+- [ ] Shape editing: drag a vertex, insert one at a segment midpoint, delete one, change a point's
+      shape after the fact.
+- [ ] The SVG overlay: cones, paths and areas drawn under the pins, honouring selection, hover and
+      the type filter.
 
 ## Phase 3 — Attach media to a point
 

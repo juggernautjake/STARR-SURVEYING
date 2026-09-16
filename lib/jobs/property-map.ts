@@ -9,6 +9,12 @@
 // parts that will be wrong in interesting ways, so they live where a test can reach them without a
 // DOM, a network or a Supabase client. The React component and the API routes are thin over this.
 
+// The four ways a point can be DRAWN — a dot, a camera cone, a walked path, an area — and the
+// trigonometry they need live in ./property-map-shapes.ts. Only the type is imported here, and only
+// as a type: that import is erased at compile time, so the two modules do not form a runtime cycle.
+// Consumers that need the helpers import them from ./property-map-shapes directly.
+import type { GeometryId } from './property-map-shapes';
+
 // ── THE SHAPES ──────────────────────────────────────────────────────────────────────────────────
 
 /** A point's position: 0–1 fractions of the image's own box, never pixels. An aerial can be
@@ -37,10 +43,21 @@ export interface MapPoint {
   ordinal: number;
   title: string;
   notes: string | null;
+  /** Where the numbered marker sits. For a path it is the start; for a cone, where the camera was.
+   *  Required for every shape, so a point whose geometry fails to render is still a labelled dot
+   *  rather than a missing row. */
   x: number;
   y: number;
   pointType: PointTypeId;
   status: PointStatus;
+  /** How this one is drawn. See POINT_GEOMETRIES. */
+  geometry: GeometryId;
+  /** The bends after (x, y), for `path` and `area`. Empty for the other two. */
+  vertices: RelativePoint[];
+  /** `fov` only: which way the camera faced, and how wide and far to draw the cone. */
+  bearingDeg: number | null;
+  fovDeg: number | null;
+  fovRadius: number | null;
   lat: number | null;
   lng: number | null;
   media: PointMedia[];

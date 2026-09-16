@@ -17,7 +17,38 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { loadPropertyMap } from '@/lib/jobs/property-map-server';
-import { clampToImage, isKnownPointType, nextOrdinal, renumber, DEFAULT_POINT_TYPE, POINT_STATUSES } from '@/lib/jobs/property-map';
+import { clampToImage, isKnownPointType, nextOrdinal, renumber, DEFAULT_POINT_TYPE, POINT_STATUSES, type RelativePoint } from '@/lib/jobs/property-map';
+import {
+  isKnownGeometry, DEFAULT_GEOMETRY, clampBearing, clampFovDeg, clampFovRadius,
+  FOV_DEFAULT_DEG, FOV_DEFAULT_RADIUS, type GeometryId,
+} from '@/lib/jobs/property-map-shapes';
+
+/** The bends of a path or an area, as the browser drew them. Anything that is not a pair of finite
+ *  numbers is dropped rather than stored: a vertex the renderer cannot draw is a gap in a line
+ *  somebody will later mistake for a property feature. Capped, because a drag that fires on every
+ *  mouse move can otherwise write ten thousand of them. */
+function cleanVertices(raw: unknown): RelativePoint[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RelativePoint[] = [];
+  for (const v of raw.slice(0, 500)) {
+    const p = v as { x?: unknown; y?: unknown };
+    if (typeof p?.x === 'number' && typeof p?.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+      out.push(clampToImage({ x: p.x, y: p.y }));
+    }
+  }
+  return out;
+}
+
+/** The three numbers that make a camera cone, defaulted the way a phone camera actually behaves so
+ *  a cone placed without touching a slider already looks like the photograph it describes. */
+function fovColumns(geometry: GeometryId, body: { bearing_deg?: unknown; fov_deg?: unknown; fov_radius?: unknown }) {
+  if (geometry !== 'fov') return { bearing_deg: null, fov_deg: null, fov_radius: null };
+  return {
+    bearing_deg: clampBearing(typeof body.bearing_deg === 'number' ? body.bearing_deg : 0),
+    fov_deg: clampFovDeg(typeof body.fov_deg === 'number' ? body.fov_deg : FOV_DEFAULT_DEG),
+    fov_radius: clampFovRadius(typeof body.fov_radius === 'number' ? body.fov_radius : FOV_DEFAULT_RADIUS),
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +80,7 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
   if (g.error) return g.error;
   const body = (await req.json().catch(() => ({}))) as {
     map_id?: string; x?: number; y?: number; title?: string; notes?: string; point_type?: string; status?: string;
+    geometry?: string; vertices?: unknown; bearing_deg?: number; fov_deg?: number; fov_radius?: number;
   };
   if (!body.map_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
@@ -58,6 +90,8 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
   }
 
   const at = clampToImage({ x: body.x, y: body.y });
+  const geometry: GeometryId = isKnownGeometry(body.geometry) ? body.geometry : DEFAULT_GEOMETRY;
+  const vertices = geometry === 'path' || geometry === 'area' ? cleanVertices(body.vertices) : [];
   const { error } = await supabaseAdmin.from('job_map_points').insert({
     map_id: body.map_id,
     ordinal: nextOrdinal(await livePoints(body.map_id)),
@@ -65,6 +99,9 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     notes: (body.notes ?? '').trim() || null,
     x: at.x,
     y: at.y,
+    geometry,
+    vertices: vertices.length ? vertices : null,
+    ...fovColumns(geometry, body),
     point_type: isKnownPointType(body.point_type) ? body.point_type : DEFAULT_POINT_TYPE,
     status: POINT_STATUSES.some((s) => s.id === body.status) ? body.status : 'open',
     created_by: g.email,
@@ -80,6 +117,7 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
   const body = (await req.json().catch(() => ({}))) as {
     map_id?: string; point_id?: string; title?: string; notes?: string | null;
     x?: number; y?: number; point_type?: string; status?: string; lat?: number | null; lng?: number | null;
+    geometry?: string; vertices?: unknown; bearing_deg?: number; fov_deg?: number; fov_radius?: number;
   };
   if (!body.map_id || !body.point_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
@@ -109,6 +147,27 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
   }
   if (body.lat !== undefined) patch.lat = body.lat;
   if (body.lng !== undefined) patch.lng = body.lng;
+
+  // ── CHANGING WHAT SHAPE A POINT IS ──────────────────────────────────────────────────────────
+  // Switching a cone back to a plain dot has to clear the cone, or the row keeps a bearing nothing
+  // draws and the next renderer that learns about bearings shows a ghost. Same for the vertices of
+  // a path somebody turned into a point.
+  if (body.geometry !== undefined) {
+    if (!isKnownGeometry(body.geometry)) return NextResponse.json({ error: 'Unknown shape.' }, { status: 400 });
+    patch.geometry = body.geometry;
+    Object.assign(patch, fovColumns(body.geometry, body));
+    if (body.geometry !== 'path' && body.geometry !== 'area') patch.vertices = null;
+  }
+  if (body.vertices !== undefined) {
+    const cleaned = cleanVertices(body.vertices);
+    patch.vertices = cleaned.length ? cleaned : null;
+  }
+  // Aiming or widening a cone that is already a cone, without restating its geometry.
+  if (body.geometry === undefined) {
+    if (body.bearing_deg !== undefined) patch.bearing_deg = clampBearing(body.bearing_deg);
+    if (body.fov_deg !== undefined) patch.fov_deg = clampFovDeg(body.fov_deg);
+    if (body.fov_radius !== undefined) patch.fov_radius = clampFovRadius(body.fov_radius);
+  }
 
   const { error } = await supabaseAdmin.from('job_map_points')
     .update(patch).eq('id', body.point_id).eq('map_id', body.map_id).is('deleted_at', null);
