@@ -20,6 +20,18 @@ const env = readEnv(path.join(root, '.env.local'));
 const KEY = process.env.ELEVENLABS_CONVAI_KEY || env.ELEVENLABS_CONVAI_KEY || process.env.ELEVENLABS_API_KEY || env.ELEVENLABS_API_KEY || '';
 const API = 'https://api.elevenlabs.io';
 const AGENT_NAME = 'Starr Surveying receptionist (Ellie)';
+// A second agent with no Starr knowledge at all: the same voice and turn-taking, for judging how the
+// platform handles ordinary conversation (owner, 2026-09-15: "a version that is just generic all
+// around conversation for any reason, and one that is totally geared … for Starr Surveying").
+const GENERIC_AGENT_NAME = 'General conversation (test)';
+const GENERIC_PROMPT = `You are a friendly, natural-sounding voice assistant on a phone call. You are here so the person can judge how well you hold a conversation — about anything at all.
+
+How you sound: one or two short sentences per turn, under forty words. Ask one question at a time, then stop and listen. Let the person interrupt you, and stop the moment they start talking. Plain spoken English: no lists, no markdown, no symbols. Say numbers the way people say them out loud.
+
+How you behave: be warm and curious. Follow the person's lead rather than steering. If they ask a factual question you are unsure of, say so plainly instead of guessing. If they ask whether you are a person, say you are an AI assistant. Never claim to be human.
+
+You have no business to represent and nothing to sell. If asked what you do, say you are a test assistant the owner is using to judge how natural the voice and conversation feel.`;
+const GENERIC_FIRST = "Hey — I'm an AI assistant, and this call is recorded. Talk to me about anything you like.";
 
 // Defaults chosen from the 2026-09-15 research: the expressive realtime model, a warm female voice,
 // and Claude as the brain. All three are overridable from the command line.
@@ -133,6 +145,23 @@ if (args.includes('--check') || args.length === 0) {
   for (const a of agents.json?.agents ?? []) console.log('   ·', a.name, a.agent_id);
   const nums = await api('GET', '/v1/convai/phone-numbers');
   console.log('phone numbers:', nums.ok ? JSON.stringify(nums.json).slice(0, 200) : `${nums.status} ${nums.json?.detail?.message ?? ''}`);
+  process.exit(0);
+}
+
+if (args.includes('--generic')) {
+  const list = await api('GET', '/v1/convai/agents');
+  if (!list.ok) { console.error('cannot list agents:', list.status); process.exit(1); }
+  const existing = (list.json.agents ?? []).find((a) => a.name === GENERIC_AGENT_NAME);
+  const payload = agentPayload({ prompt: GENERIC_PROMPT, first: GENERIC_FIRST, keywords: [] }, opts);
+  payload.name = GENERIC_AGENT_NAME;
+  payload.tags = ['starr-surveying', 'generic-test'];
+  const res = existing
+    ? await api('PATCH', `/v1/convai/agents/${existing.agent_id}`, payload)
+    : await api('POST', '/v1/convai/agents/create', payload);
+  if (!res.ok) { console.error('generic agent failed:', res.status, JSON.stringify(res.json).slice(0, 400)); process.exit(1); }
+  const id = res.json?.agent_id ?? existing?.agent_id;
+  console.log(`${existing ? 'updated' : 'created'} generic agent ${id}`);
+  console.log('Set ELEVENLABS_AGENT_ID_GENERIC=' + id);
   process.exit(0);
 }
 

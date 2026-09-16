@@ -333,3 +333,44 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(script).toContain('retention_days');
   });
 });
+
+// ── talking to an agent from the browser, and filing what was said ─────────────────────────────
+describe('the test bench talks to an agent directly', () => {
+  it('two agents: the trained receptionist and a general-conversation one', async () => {
+    const { agentIdFor, agentsConfigured, toCallTurns } = await import('@/lib/receptionist/elevenlabs-agents');
+    expect(agentIdFor('starr', { ELEVENLABS_AGENT_ID: 'agent_abc' })).toBe('agent_abc');
+    expect(agentIdFor('generic', { ELEVENLABS_AGENT_ID_GENERIC: 'agent_xyz' })).toBe('agent_xyz');
+    expect(agentIdFor('starr', { ELEVENLABS_AGENT_ID: 'not-an-agent' })).toBeNull();
+    expect(agentsConfigured({})).toBe(false);
+    // ElevenLabs says user/agent; the call record says caller/assistant
+    expect(toCallTurns({ conversation_id: 'c', agent_id: 'a', transcript: [
+      { role: 'agent', message: 'Starr Surveying, this is Ellie.' },
+      { role: 'user', message: 'Hi, I need a survey.' },
+      { role: 'user', message: '  ' },
+    ] })).toEqual([
+      { role: 'assistant', text: 'Starr Surveying, this is Ellie.' },
+      { role: 'caller', text: 'Hi, I need a survey.' },
+    ]);
+  });
+
+  it('the token is admin-only and short-lived; the import files test rows only', () => {
+    const talk = read('app/api/admin/receptionist-test/talk/route.ts');
+    expect(talk).toContain('isAdmin(session.user.roles)');
+    expect(talk).toContain('conversationToken(kind)');
+    const imp = read('app/api/admin/receptionist-test/import/route.ts');
+    expect(imp).toContain('isAdmin(session.user.roles)');
+    expect(imp).toContain('isTest: true');
+    expect(imp).toContain('`EL-${full.conversation_id}`');
+  });
+
+  it('the page has a start button, a live transcript and a way to file it', () => {
+    const page = read('app/admin/dev/receptionist/page.tsx');
+    expect(page).toContain('data-testid="rtest-talk-start"');
+    expect(page).toContain('data-testid="rtest-talk-transcript"');
+    expect(page).toContain('data-testid="rtest-talk-file"');
+    expect(page).toContain('data-testid={`rtest-talk-${a.id}`}');
+    expect(page, 'a general-conversation agent as well as the trained one').toContain("id: 'generic' as const");
+    expect(page).toContain("import('@elevenlabs/client')");
+    expect(page, 'the microphone is asked for on the click').toContain('navigator.mediaDevices.getUserMedia');
+  });
+});
