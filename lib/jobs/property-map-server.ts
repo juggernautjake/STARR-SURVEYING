@@ -23,9 +23,24 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { bucketOf, displayName, mimeOf, sizeOf, type JobFileRow } from './file-storage';
 import {
-  mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE,
-  type MapPoint, type PointMedia, type PropertyMap, type Georeference,
+  mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE, clampToImage,
+  type MapPoint, type PointMedia, type PropertyMap, type Georeference, type RelativePoint,
 } from './property-map';
+import { isKnownGeometry, DEFAULT_GEOMETRY } from './property-map-shapes';
+
+/** jsonb is whatever was written into it. A shape whose vertices are unreadable degrades to its
+ *  anchor — a labelled dot where the path started — rather than throwing the whole map away. */
+function readVertices(raw: unknown): RelativePoint[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RelativePoint[] = [];
+  for (const v of raw) {
+    const p = v as { x?: unknown; y?: unknown };
+    if (typeof p?.x === 'number' && typeof p?.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+      out.push(clampToImage({ x: p.x, y: p.y }));
+    }
+  }
+  return out;
+}
 
 /** Long enough that a review session never trips over an expiry, short enough that a leaked URL is
  *  not a permanent one. */
@@ -40,6 +55,9 @@ interface PointRow {
   id: string; map_id: string; ordinal: number; title: string; notes: string | null;
   x: number; y: number; point_type: string; status: string; lat: number | null; lng: number | null;
   created_by: string | null; created_at: string; updated_at: string;
+  // seeds/642: how the point is drawn, and what each shape needs.
+  geometry: string | null; vertices: unknown; bearing_deg: number | null;
+  fov_deg: number | null; fov_radius: number | null;
 }
 interface MediaRow {
   id: string; point_id: string; job_file_id: string; kind: string;
@@ -166,6 +184,11 @@ export async function loadPropertyMap(jobId: string, mapId?: string | null): Pro
       y: p.y,
       pointType: isKnownPointType(p.point_type) ? p.point_type : DEFAULT_POINT_TYPE,
       status: pointStatus(p.status),
+      geometry: isKnownGeometry(p.geometry) ? p.geometry : DEFAULT_GEOMETRY,
+      vertices: readVertices(p.vertices),
+      bearingDeg: typeof p.bearing_deg === 'number' ? p.bearing_deg : null,
+      fovDeg: typeof p.fov_deg === 'number' ? p.fov_deg : null,
+      fovRadius: typeof p.fov_radius === 'number' ? p.fov_radius : null,
       lat: p.lat,
       lng: p.lng,
       media: sortMedia(mediaByPoint.get(p.id) ?? []),
