@@ -13,6 +13,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { parseVersion } from '@/lib/receptionist/version';
 import { readLiveVersion, writeLiveSettings } from '@/lib/receptionist/version-server';
 import { voiceById } from '@/lib/receptionist/voices';
+import { elevenLabsConfigured } from '@/lib/receptionist/elevenlabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,8 @@ async function requireAdmin() {
 export const GET = withErrorHandler(async () => {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
-  return NextResponse.json(await readLiveVersion(supabaseAdmin));
+  // `elevenLabsReady` tells the test bench whether to offer the ElevenLabs agent as a test option.
+  return NextResponse.json({ ...(await readLiveVersion(supabaseAdmin)), elevenLabsReady: elevenLabsConfigured() });
 }, { routeName: 'admin/receptionist-test/version' });
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {

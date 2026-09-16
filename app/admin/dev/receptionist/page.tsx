@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 import type { CallState } from '@/lib/receptionist/state';
-import { VERSION_LABELS, type ReceptionistVersion } from '@/lib/receptionist/version';
+import { VERSION_LABELS, TEST_VERSION_LABELS, type ReceptionistVersion, type TestVersion } from '@/lib/receptionist/version';
 import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
 
 const RS = '';
@@ -52,10 +52,10 @@ export default function ReceptionistTestPage(): React.ReactElement {
   useEffect(() => { refresh(); const t = setInterval(refresh, 10_000); return () => clearInterval(t); }, [refresh]);
 
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
-  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null } | null>(null);
+  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
   const [confirmAgent, setConfirmAgent] = useState(false);
-  const [testVersion, setTestVersion] = useState<ReceptionistVersion>('agent');
+  const [testVersion, setTestVersion] = useState<TestVersion>('agent');
   // The voice a test call is spoken in. Remembered, so auditioning one voice after another is quick.
   const [testVoice, setTestVoice] = useState<string>(DEFAULT_VOICE_ID);
   useEffect(() => { try { const v = localStorage.getItem('rtest-voice'); if (v) setTestVoice(v); } catch { /* private mode */ } }, []);
@@ -125,7 +125,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
     const r = await fetch('/api/admin/receptionist-test/call', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: phone, version: testVersion, voice: testVoice }) });
     const j = (await r.json()) as { callSid?: string; error?: string; to?: string };
     if (!r.ok || !j.callSid) { setPhoneStatus(`Failed: ${j.error ?? r.status}`); return; }
-    setPhoneStatus(`Ringing ${j.to}. Answer it to test the ${VERSION_LABELS[testVersion].name.toLowerCase()}. The call appears below when it ends.`);
+    setPhoneStatus(`Ringing ${j.to}. Answer it to test the ${TEST_VERSION_LABELS[testVersion].name.toLowerCase()}. The call appears below when it ends.`);
     setTimeout(refresh, 8000);
   };
 
@@ -235,7 +235,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       <section className="rtest__card" aria-labelledby="rt-version">
         <h2 id="rt-version">Version to test</h2>
         <div className="rtest__versions" role="radiogroup" aria-labelledby="rt-version">
-          {(['agent', 'answering-machine'] as const).map((v) => (
+          {(['agent', 'answering-machine', ...(live?.elevenLabsReady ? ['elevenlabs' as const] : [])] as TestVersion[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -245,13 +245,13 @@ export default function ReceptionistTestPage(): React.ReactElement {
               onClick={() => setTestVersion(v)}
               data-testid={`rtest-version-${v}`}
             >
-              <b>{VERSION_LABELS[v].name}</b>
-              <span>{VERSION_LABELS[v].blurb}</span>
+              <b>{TEST_VERSION_LABELS[v].name}</b>
+              <span>{TEST_VERSION_LABELS[v].blurb}</span>
               {live?.version === v && <em className="pill">Live now</em>}
             </button>
           ))}
         </div>
-        <p>Browser and phone test calls below run this version. The text chat always talks to the full agent.</p>
+        <p>Browser and phone test calls below run this version. The text chat always talks to the full agent.{live && !live.elevenLabsReady ? ' The ElevenLabs agent appears here once ELEVENLABS_SIP_URI is set.' : ''}</p>
 
         <h3 className="rtest__subhead">Voice</h3>
         <div className="rtest__row">
@@ -279,7 +279,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       <div className="rtest__grid">
         <section className={`rtest__card ${browserStatus === 'in call' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-browser">
           <h2 id="rt-browser">Call from this browser</h2>
-          <p>Uses your microphone and speakers. Same voice and timing as the business line. Testing: <b>{VERSION_LABELS[testVersion].name}</b>.</p>
+          <p>Uses your microphone and speakers. Same voice and timing as the business line. Testing: <b>{TEST_VERSION_LABELS[testVersion].name}</b>.</p>
           <div className="rtest__row">
             {browserStatus === 'in call' || browserStatus === 'connecting' ? (
               <button type="button" className="rtest__btn rtest__btn--danger" onClick={hangUp}>Hang up</button>
@@ -297,7 +297,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
         <section className="rtest__card" aria-labelledby="rt-phone">
           <h2 id="rt-phone">Call my phone</h2>
-          <p>Twilio rings the number below from the business line and the <b>{VERSION_LABELS[testVersion].name.toLowerCase()}</b> answers when you pick up.</p>
+          <p>Twilio rings the number below from the business line and the <b>{TEST_VERSION_LABELS[testVersion].name.toLowerCase()}</b> answers when you pick up.</p>
           <div className="rtest__row">
             <input id="rtest-phone" className="rtest__input" type="tel" inputMode="tel" placeholder="(254) 555-0100" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone number to call" />
             <button type="button" className="rtest__btn" onClick={callMyPhone} disabled={phone.replace(/\D/g, '').length < 10}>Call me</button>
