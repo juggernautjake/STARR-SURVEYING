@@ -244,6 +244,36 @@ describe('real-world coordinates, when somebody bothers to tie the map down', ()
   });
 });
 
+describe('a person can actually find it', () => {
+  // Owner, 2026-09-16: "where is the button to create the interactive map? Please make sure it is
+  // easy to find in the files and in the job … I am not seeing how to do that."
+  //
+  // It shipped as a tab — one of eight — which is the same mistake the Files tab made in August and
+  // got fixed the same way. Four doors now, and this test is what keeps them open.
+  const job = read('app/admin/jobs/[id]/page.tsx');
+
+  it('is a header action, visible from every tab', () => {
+    expect(job).toContain('data-testid="job-property-map-header"');
+    expect(job, 'and it says which of the two things it does').toMatch(/propertyMap\?\.exists \? 'Interactive map' : 'Create interactive map'/);
+  });
+
+  it('is at the top of the job’s files, and in the Photos folder where the question comes up', () => {
+    expect(job).toContain('data-testid="job-property-map-files-btn"');
+    expect(job).toContain('data-testid="job-property-map-photos-btn"');
+    expect(job, 'the owner’s own words for the two states').toMatch(/View Interactive Map' : 'Create Interactive Map/);
+  });
+
+  it('still has its own tab', () => {
+    expect(job).toContain("key: 'propertymap'");
+    expect(job).toContain("label: 'Property Map'");
+  });
+
+  it('knows whether a map exists before you open its tab, or the header would lie', () => {
+    expect(job).toMatch(/activeTab === 'propertymap' \|\| activeTab === 'files' \|\| activeTab === 'overview'/);
+    expect(job, 'the summary endpoint exists so this costs nothing').toContain('property-map?summary=1');
+  });
+});
+
 describe('the schema and the routes agree with the module', () => {
   const seed = read('seeds/641_job_property_maps.sql');
 
