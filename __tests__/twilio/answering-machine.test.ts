@@ -310,10 +310,48 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const xml = elevenLabsDial('sip:+18338426971@sip.rtc.elevenlabs.io:5060', { callerId: '+12545550100', action: '/x', recordingCallback: 'https://s/api/twilio/recording' });
     expect(xml).toContain('<Sip>sip:+18338426971@sip.rtc.elevenlabs.io:5060</Sip>');
     expect(xml, 'the call must still be recorded like every other path').toContain('record="record-from-answer-dual"');
-    // the LIVE switch cannot select it: parseVersion refuses, only parseTestVersion accepts
-    const { parseVersion, parseTestVersion } = await import('@/lib/receptionist/version');
-    expect(parseVersion('elevenlabs')).toBeNull();
+    // Owner, 2026-09-16: "Let's please make the conversational agent the active live version for
+    // calls for now so we can test it in the real world." The live switch refused `elevenlabs` until
+    // then; it takes it now, and the answering machine is still what an absent or broken setting gets.
+    const { parseVersion, parseTestVersion, liveVersionFrom, DEFAULT_LIVE_VERSION } = await import('@/lib/receptionist/version');
+    expect(parseVersion('elevenlabs')).toBe('elevenlabs');
     expect(parseTestVersion('elevenlabs')).toBe('elevenlabs');
+    expect(liveVersionFrom({ live_version: 'elevenlabs' })).toBe('elevenlabs');
+    expect(liveVersionFrom(null), 'no setting is still the safe one').toBe(DEFAULT_LIVE_VERSION);
+    expect(liveVersionFrom({ live_version: 'something else' })).toBe('answering-machine');
+  });
+
+  // ── THE AGENT ON A REAL CALL (owner, 2026-09-16) ──────────────────────────────────────────────
+  it('a live call dials the agent over SIP, recorded, and wraps up at agent-ended', () => {
+    const src = read('app/api/twilio/receptionist/after-dial/route.ts');
+    expect(src, 'the live switch reaches the agent').toContain("live.version === 'elevenlabs'");
+    expect(src, 'dialed over the SIP trunk').toContain('elevenLabsDial(sip');
+    expect(src, 'its own wrap-up, not the relay fallback').toContain("action: '/api/twilio/receptionist/agent-ended'");
+    expect(src, 'recorded like every other path').toContain('recordingCallback');
+    // A deployment with no trunk configured must answer, not drop the call.
+    expect(src).toContain("live.version === 'elevenlabs' && !sip");
+    expect(src).toContain('machineStart(live.voice)');
+  });
+
+  it('a dial that never connects falls back to the answering machine instead of silence', () => {
+    const src = read('app/api/twilio/receptionist/agent-ended/route.ts');
+    for (const status of ['busy', 'failed', 'no-answer', 'canceled']) expect(src).toContain(`'${status}'`);
+    expect(src).toContain('machineStart(live.voice)');
+    // a completed leg is wrapped up once, through the one function that notifies
+    expect(src).toContain('finishCall(callSid, from, { facts: {}, turns: [] }');
+    expect(src).toContain("answered_by: 'ai'");
+    expect(src).toContain('hangup()');
+  });
+
+  it('an agent call is transcribed, analysed, and mailed out like every other call', () => {
+    const rec = read('app/api/twilio/recording/route.ts');
+    // Voice Intelligence used to be asked only for calls Hank answered; the agent's calls have no
+    // turns of their own, so the recording is the only transcript they will ever have.
+    expect(rec).toContain("call.answered_by === 'ai' && (call.transcript?.length ?? 0) === 0");
+    const tr = read('app/api/twilio/transcript/route.ts');
+    expect(tr, 'the agent is not Hank on the calls page').toContain("answeredByAi ? 'assistant' : 'owner'");
+    expect(tr, 'and the owners are told who took it').toContain("answeredBy: answeredByAi ? 'ai' : 'owner'");
+    expect(tr, 'test calls still tell nobody').toContain('if (!call.is_test)');
   });
 
   it('the agent speaks from OUR knowledge modules, not a pasted copy', async () => {
@@ -388,7 +426,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(p).toMatch(/spell your last name/);
     expect(p).toMatch(/letter by letter/);
     expect(p).toMatch(/digit by digit/);
-    expect(p).toMatch(/all ten digits back/);
+    expect(p).toMatch(/read all ten back in groups/);
     expect(p).toMatch(/lowercase/);
   });
 
@@ -399,6 +437,33 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(p).toMatch(/THE MOMENT THE CALLER STARTS SPEAKING, STOP/);
     expect(p).toMatch(/do not repeat the part they talked over/);
     expect(p).toMatch(/Never stack two questions/);
+  });
+
+  it('asks any question once, and lets a struggling caller off the hook', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    // Owner, 2026-09-16: "If the caller is struggling to answer a question … it should reassure them
+    // and tell them that Hank can get that info from them later when he calls … If they say to just
+    // hold on while they look it up, then that is fine and the agent should just wait a bit longer."
+    expect(p).toMatch(/ASK ANY QUESTION ONCE/);
+    expect(p).toMatch(/WHEN THEY CANNOT COME UP WITH IT/);
+    expect(p).toMatch(/THEY ARE LOOKING IT UP/);
+    expect(p).toMatch(/no rush, take your time/);
+    expect(p).toMatch(/Hank can get that from you when he calls/);
+    expect(p).toMatch(/Never ask a third time/);
+  });
+
+  it('asks a returning caller whether it is the old property or a new request', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const { knownCallerLine } = await import('@/lib/receptionist/known-caller');
+    // Owner, 2026-09-16: "If the customer is found to be a pre-existing caller, then the agent should
+    // ask if they are calling about a previous property or a new request."
+    const ask = /calling about the property you spoke to us about before, or is this a new request/;
+    expect(agentPrompt()).toMatch(ask);
+    expect(knownCallerLine({
+      name: 'Jane Doe', email: null, source: 'call', lastSeen: '2026-08-02T15:00:00Z', lastAbout: null,
+      timesCalled: 1, enquiries: [{ when: '2026-08-02T15:00:00Z', service: 'boundary', address: '1 Main St', name: 'Jane Doe' }],
+    })!).toMatch(ask);
   });
 
   it('has no land-law material left to clutter the call with', async () => {

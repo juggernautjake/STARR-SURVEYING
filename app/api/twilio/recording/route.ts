@@ -7,6 +7,12 @@
 // For calls a person answered there is no transcript yet. If a Voice Intelligence service is
 // configured, one is requested here and /api/twilio/transcript stores it when it's done.
 //
+// Since 2026-09-16 the same is true of a call the CONVERSATIONAL AGENT answered: the conversation
+// happens between the caller and ElevenLabs, so this process never hears a word of it and the row
+// has no turns of its own. The recording is all there is, and transcribing it is what gives the
+// owner a summary, an analysis, and a searchable call on /admin/calls. The relay and <Gather>
+// versions write their turns as they go, so a row that already has a transcript is left alone.
+//
 // PUBLIC BY DESIGN: Twilio-signed, like the receptionist routes.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -38,7 +44,8 @@ export async function POST(request: Request): Promise<Response> {
     recording_duration: Number(params.RecordingDuration) || null,
     recording_source: call.answered_by === 'owner' ? 'dial' : 'ai',
   };
-  if (call.answered_by === 'owner' && intelligenceServiceSid() && params.RecordingSid) {
+  const needsTranscript = call.answered_by === 'owner' || (call.answered_by === 'ai' && (call.transcript?.length ?? 0) === 0);
+  if (needsTranscript && !call.transcript_sid && intelligenceServiceSid() && params.RecordingSid) {
     try {
       const t = await createTranscript(params.RecordingSid);
       patch.transcript_sid = t.sid;
