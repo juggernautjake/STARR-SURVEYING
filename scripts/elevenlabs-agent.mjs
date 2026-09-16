@@ -126,10 +126,39 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], ini
         speed: 0.95,
       },
       asr: { quality: 'high', keywords },
-      // Patient turn-taking: wait longer before assuming the caller is finished, so a person
-      // reading an address off a tax statement is not cut off mid-number.
-      turn: { turn_timeout: 10, mode: 'turn', turn_eagerness: 'patient' },
-      conversation: { max_duration_seconds: 900, text_only: false },
+      // ── TURN-TAKING, TUNED FROM PUBLISHED GUIDANCE (2026-09-16) ────────────────────────────────
+      // `patient` is what ElevenLabs recommends verbatim for collecting phone numbers, addresses
+      // and emails — exactly this call. `spelling_patience` already defaults to `auto`, which gives
+      // the model extra room while someone is spelling, so it is left alone.
+      //
+      // soft timeout: the platform default is -1, meaning the agent says nothing while it thinks and
+      // the caller hears dead air. Three seconds, then a filler with NO time estimate in it — the
+      // docs warn against "one second…" because real response times are unpredictable.
+      //
+      // interruption_ignore_terms: matched case-insensitively and only as the whole utterance, so
+      // these catch a listener's backchannel without swallowing a real interruption. "Wait" and
+      // "stop" are deliberately absent — those must always cut the agent off.
+      turn: {
+        turn_timeout: 10,
+        mode: 'turn',
+        turn_eagerness: 'patient',
+        silence_end_call_timeout: 30,
+        interruption_ignore_terms: ['mhm', 'mm-hmm', 'uh huh', 'okay', 'ok', 'gotcha', 'yeah', 'right', 'sure'],
+        soft_timeout_config: {
+          timeout_seconds: 3,
+          message: 'Let me get that written down.',
+          disable_until_first_user_message: true,
+        },
+      },
+      conversation: {
+        max_duration_seconds: 900,
+        text_only: false,
+        // Let a caller key the callback number instead of saying it. Speech capture of a ten-digit
+        // number is the least reliable thing on the call; a keypress is exact by construction. Only
+        // out-of-band DTMF (which is what Twilio's SIP trunk sends) is read, so speech stays the
+        // default path and this is the fallback, never the other way round.
+        dtmf_input_settings: { dtmf_input_timeout: 3, hash_terminator: true },
+      },
     },
     platform_settings: {
       // The owner's calls, kept no longer than they are useful. ElevenLabs' own default is two years.
@@ -138,6 +167,75 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], ini
       // Ask us who is calling before answering. Null clears it, so a deployment without a cron
       // secret does not leave a stale URL pointing at an endpoint that cannot authenticate it.
       workspace_overrides: { conversation_initiation_client_data_webhook: initHook },
+      // ── WHAT THE CALL IS FOR, EXTRACTED AFTER IT ENDS ─────────────────────────────────────────
+      // The live model's job is to have the conversation; pulling structured fields out of it mid
+      // call is work it does badly and pays for in latency. These run once, afterwards, and each
+      // description states the WRITTEN format — without that, the platform's default text
+      // normalisation hands back "two five four…" instead of digits.
+      data_collection: {
+        full_name: { type: 'string', description: 'The caller\'s full name as they gave it, spelling corrections applied. Empty if they never gave one.' },
+        callback_number: { type: 'string', description: 'The best callback number, digits only, no punctuation, e.g. "2543151123". If they said to use the number they were calling from, put that number here.' },
+        email: { type: 'string', description: 'The caller\'s email address in written form, all lowercase, e.g. "jacob@gmail.com". Empty if they declined or never gave one.' },
+        property_address: { type: 'string', description: 'The property the call is about, written as an address, e.g. "4557 Briggs Road, Killeen, TX". If rural with no address, the county plus the nearest road or crossroads.' },
+        property_id: { type: 'string', description: 'The county appraisal district property ID, digits and letters only, if the caller had one.' },
+        service_wanted: { type: 'string', description: 'The kind of survey or work they asked about, in a few words, e.g. "boundary survey for a fence".' },
+        deadline: { type: 'string', description: 'Any date or deadline they named — a closing, permit, court date or build start — as they said it. Empty if none.' },
+        left_message: { type: 'boolean', description: 'True if the caller left a message for the owner during the call.' },
+        wants_callback: { type: 'boolean', description: 'True if the caller wants the owner to call them back.' },
+      },
+      // ── THE OWNER'S THREE RULES, ENFORCED OUTSIDE THE PROMPT ──────────────────────────────────
+      // They are in # Guardrails in the system prompt as well, but a rule that lives only in a
+      // prompt is one a determined caller can talk the model out of — and "I think it was giving out
+      // the same quote for all requests" is what that looked like in production. This is a separate
+      // model checking the reply before the caller hears it.
+      //
+      // ONE combined policy, not three: each is a check in front of every agent turn, and three
+      // checks is three times the latency for the same coverage.
+      //
+      // `blocking` + `retry` rather than the platform default of `streaming` + `end_call`. The
+      // default would hang up on a customer for asking what a survey costs, which is worse than the
+      // thing it prevents. Blocking costs a fast check (flash-lite) before each reply and gives the
+      // agent up to three attempts to answer without breaking a rule.
+      //
+      // ── AND WHY IT IS SWITCHED OFF (measured, 2026-09-16) ─────────────────────────────────────
+      // It was built, enabled, and then A/B'd against the same simulated price-pushing caller:
+      //
+      //     guardrail OFF: 9 turns, the caller gets a proper refusal and leaves their details
+      //     guardrail ON:  2 turns, the conversation stops dead
+      //
+      // The retry loop does not recover. It ends the call on a customer whose only crime was asking
+      // what a survey costs — which is the single most common question on this line, and a far worse
+      // outcome than the one the guardrail exists to prevent.
+      //
+      // It is left here, wired and disabled, because the config was the hard part and the failure is
+      // worth recording: flip `is_enabled` to true only alongside a real call test, not a hunch.
+      // The protection it was meant to add is already covered better upstream — the agent is given
+      // no prices at all (lib/receptionist/knowledge.ts, `prices: false`), which is why every
+      // simulation refuses correctly without it. A model cannot read out a number it never had.
+      guardrails: {
+        custom: {
+          config: {
+            configs: [{
+              name: 'no prices, no legal advice, no commitments',
+              is_enabled: false,
+              execution_mode: 'blocking',
+              // The platform's default retry line is "I'm sorry but I can't answer that question,
+              // would you like to know something else?" — which is the wrong sentence for somebody
+              // who just asked what a survey costs. This is the one they should hear instead.
+              trigger_action: {
+                type: 'retry',
+                feedback: 'That reply broke one of the firm\'s rules ({{trigger_reason}}). Say it again without it. If they asked about price, the answer is that Hank is the only one who gives quotes and he will have one for them when he calls back, and then take the details so he can look at the property first — warmly, in one or two sentences, and never with a number in it. If they asked a legal question, say it is a good question for Hank and that he deals with it every day, and write it down for him. If they asked when work would happen, say Hank will look at it and call them back, usually the same or next business day.',
+              },
+              prompt: [
+                'Flag the assistant\'s reply if it does ANY of the following:',
+                '1. States, estimates, implies or approximates a price, price range, hourly rate, percentage, fee, deposit or ballpark for any service — in figures or in words. Only the owner gives quotes. Saying WHAT the price depends on (size, distance, terrain, brush, record research, number of corners, what is built on the property) is allowed and must NOT be flagged.',
+                '2. Gives legal advice or an opinion on a boundary dispute, easement, deed, permit, plat requirement, adverse possession, or what a neighbour may or may not do. Saying the owner will answer it is allowed.',
+                '3. Commits the firm: promising a date, scheduling work, saying when a crew will arrive, or offering a discount. Saying the owner will look at it and call back is allowed.',
+              ].join('\n'),
+            }],
+          },
+        },
+      },
     },
     tags: ['starr-surveying', 'receptionist'],
   };

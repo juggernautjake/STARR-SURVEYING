@@ -1,0 +1,346 @@
+// lib/jobs/property-map.ts — the interactive property map, with no browser and no database in it.
+//
+// Owner, 2026-09-16: "For each job, I want it so that we can create an interactive map … place
+// points of interest on the map image … with that dot we can attach meta data."
+// Spec: docs/planning/in-progress/interactive-property-map-2026-09-16.md
+//
+// Everything here is a pure function or a constant, on purpose. The rules that decide where a pin
+// sits, what number it wears, what colour it is and what kind of thing is attached to it are the
+// parts that will be wrong in interesting ways, so they live where a test can reach them without a
+// DOM, a network or a Supabase client. The React component and the API routes are thin over this.
+
+// ── THE SHAPES ──────────────────────────────────────────────────────────────────────────────────
+
+/** A point's position: 0–1 fractions of the image's own box, never pixels. An aerial can be
+ *  rescanned at a different size and every pin stays on the fence corner it was put on. */
+export interface RelativePoint {
+  x: number;
+  y: number;
+}
+
+export interface PropertyMap {
+  id: string;
+  jobId: string;
+  title: string;
+  fileId: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  georeference: Georeference | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MapPoint {
+  id: string;
+  mapId: string;
+  ordinal: number;
+  title: string;
+  notes: string | null;
+  x: number;
+  y: number;
+  pointType: PointTypeId;
+  status: PointStatus;
+  lat: number | null;
+  lng: number | null;
+  media: PointMedia[];
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MediaKind = 'image' | 'video' | 'audio' | 'document';
+
+export interface PointMedia {
+  id: string;
+  pointId: string;
+  jobFileId: string;
+  kind: MediaKind;
+  name: string;
+  caption: string | null;
+  ordinal: number;
+  /** Signed, ready to use. The map's one GET returns these so the browser never asks per file. */
+  url: string | null;
+  thumbUrl: string | null;
+  sizeBytes: number | null;
+  mimeType: string | null;
+}
+
+// ── WHAT A POINT CAN BE ─────────────────────────────────────────────────────────────────────────
+// Owner, 2026-09-16: "we should be able to make the points of interest appear as different colors
+// depending on what they are. there should be a generic point of interest, but there can be points
+// of interest related to buildings, utilities, fences, property boundaries, street view, and
+// whatever you can think of. The default for a new point of interest is the generic kind."
+//
+// The vocabulary lives here rather than in a database CHECK so that adding "cattle guard" next
+// spring is one line and a colour token instead of a migration. Every entry carries:
+//
+//   token   a CSS custom property holding the colour, defined in the page's stylesheet. Colour is
+//           never the only signal — the icon, the number and the label all carry the meaning too,
+//           for colour-blind readers and for anything printed in grey.
+//   icon    a lucide-react component NAME, as a string, so this module stays free of React.
+//   hint    what a person should pick it for, shown under the option in the editor.
+export type PointTypeId =
+  | 'generic' | 'boundary' | 'monument_found' | 'monument_set' | 'building' | 'utility'
+  | 'fence' | 'street_view' | 'access' | 'encroachment' | 'water' | 'vegetation'
+  | 'easement' | 'hazard';
+
+export interface PointType {
+  id: PointTypeId;
+  label: string;
+  hint: string;
+  token: string;
+  icon: string;
+}
+
+export const POINT_TYPES: readonly PointType[] = [
+  { id: 'generic',        label: 'Point of interest', hint: 'Anything worth marking. The default.',                     token: '--map-pin-generic',   icon: 'MapPin' },
+  { id: 'boundary',       label: 'Property boundary', hint: 'A property line, a corner in question, a line of occupation.', token: '--map-pin-boundary', icon: 'Spline' },
+  { id: 'monument_found', label: 'Monument found',    hint: 'An existing pin, rod, pipe or axle located on the ground.',  token: '--map-pin-found',     icon: 'Crosshair' },
+  { id: 'monument_set',   label: 'Monument set',      hint: 'A corner the crew set.',                                     token: '--map-pin-set',       icon: 'Target' },
+  { id: 'building',       label: 'Building',          hint: 'A house, barn, shed, slab or foundation.',                   token: '--map-pin-building',  icon: 'Home' },
+  { id: 'utility',        label: 'Utility',           hint: 'Meter, pole, pedestal, riser, manhole, buried line marker.',  token: '--map-pin-utility',   icon: 'Zap' },
+  { id: 'fence',          label: 'Fence',             hint: 'A fence, a gate post, or where the fence type changes.',      token: '--map-pin-fence',     icon: 'Fence' },
+  { id: 'street_view',    label: 'Street view',       hint: 'Stand here, look this way — a vantage photo.',                token: '--map-pin-view',      icon: 'Camera' },
+  { id: 'access',         label: 'Access',            hint: 'Gate, cattle guard, locked entry, the way in for the truck.', token: '--map-pin-access',    icon: 'DoorOpen' },
+  { id: 'encroachment',   label: 'Encroachment',      hint: 'Something across a line. The thing Hank must see.',           token: '--map-pin-encroach',  icon: 'AlertTriangle' },
+  { id: 'water',          label: 'Water / drainage',  hint: 'Creek, pond, culvert, drainage, flood-prone ground.',         token: '--map-pin-water',     icon: 'Waves' },
+  { id: 'vegetation',     label: 'Vegetation',        hint: 'Heavy brush, tree line, a clearing problem for the crew.',    token: '--map-pin-vegetation', icon: 'Trees' },
+  { id: 'easement',       label: 'Easement',          hint: 'A recorded easement, where it actually runs on the ground.',  token: '--map-pin-easement',  icon: 'Route' },
+  { id: 'hazard',         label: 'Hazard',            hint: 'Dog, bull, unstable ground, live wire. Crew safety.',         token: '--map-pin-hazard',    icon: 'ShieldAlert' },
+];
+
+export const DEFAULT_POINT_TYPE: PointTypeId = 'generic';
+
+export function pointType(id: string | null | undefined): PointType {
+  return POINT_TYPES.find((t) => t.id === id) ?? POINT_TYPES[0]!;
+}
+
+/** A point type the database gave us that this build does not know about — a row written by a newer
+ *  deploy, or a hand edit. It renders as generic rather than disappearing. */
+export function isKnownPointType(id: string | null | undefined): id is PointTypeId {
+  return POINT_TYPES.some((t) => t.id === id);
+}
+
+export type PointStatus = 'open' | 'resolved' | 'attention';
+
+export const POINT_STATUSES: readonly { id: PointStatus; label: string; hint: string }[] = [
+  { id: 'open',      label: 'Open',            hint: 'Recorded. Nothing outstanding.' },
+  { id: 'resolved',  label: 'Resolved',        hint: 'Dealt with — the corner was set, the question answered.' },
+  { id: 'attention', label: 'Needs attention', hint: 'Somebody has to go back to this, or Hank has to see it.' },
+];
+
+export function pointStatus(id: string | null | undefined): PointStatus {
+  return POINT_STATUSES.some((s) => s.id === id) ? (id as PointStatus) : 'open';
+}
+
+// ── WHERE A PIN GOES ────────────────────────────────────────────────────────────────────────────
+
+/** Turn a click anywhere on (or slightly off) the image into a position on it.
+ *
+ *  Clamped, not rejected: a click two pixels past the edge is somebody aiming at the corner pin, and
+ *  dropping it would feel broken. A zero-sized box (the image has not laid out yet) answers the
+ *  centre rather than dividing by zero. */
+export function relativeFromClick(clientX: number, clientY: number, box: { left: number; top: number; width: number; height: number }): RelativePoint {
+  if (!(box.width > 0) || !(box.height > 0)) return { x: 0.5, y: 0.5 };
+  return clampToImage({ x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height });
+}
+
+export function clampToImage(p: RelativePoint): RelativePoint {
+  const fix = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.5);
+  return { x: round6(fix(p.x)), y: round6(fix(p.y)) };
+}
+
+/** Six decimals is about a tenth of a pixel on a 100-megapixel image — past the point of meaning,
+ *  and it keeps the JSON small when forty points go over the wire. */
+function round6(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+/** Where a pin sits in CSS terms, as percentages of the frame. */
+export function pinStyle(p: RelativePoint): { left: string; top: string } {
+  const c = clampToImage(p);
+  return { left: `${c.x * 100}%`, top: `${c.y * 100}%` };
+}
+
+/** Pixels on the stored image, for export and for georeferencing. */
+export function toImagePixels(p: RelativePoint, width: number, height: number): { x: number; y: number } {
+  const c = clampToImage(p);
+  return { x: Math.round(c.x * width), y: Math.round(c.y * height) };
+}
+
+// ── NUMBERING ───────────────────────────────────────────────────────────────────────────────────
+
+/** The number a new point should wear: one past the highest in use, never a gap-filler. Reusing a
+ *  freed number would silently rename "point 4" in every note, photo caption and phone call that
+ *  ever referred to it. */
+export function nextOrdinal(points: Pick<MapPoint, 'ordinal'>[]): number {
+  return points.reduce((max, p) => Math.max(max, p.ordinal || 0), 0) + 1;
+}
+
+/** Close the gaps after a delete or a reorder: 1..n in the current order, stable for anything
+ *  already correct. Returns only what actually changed, so the API writes two rows instead of forty. */
+export function renumber<T extends { id: string; ordinal: number }>(points: T[]): Array<{ id: string; ordinal: number }> {
+  return [...points]
+    .sort((a, b) => a.ordinal - b.ordinal)
+    .map((p, i) => ({ id: p.id, ordinal: i + 1 }))
+    .filter((next) => points.find((p) => p.id === next.id)?.ordinal !== next.ordinal);
+}
+
+/** Move a point to a new position in the list (drag to reorder), then renumber. */
+export function reorder<T extends { id: string; ordinal: number }>(points: T[], id: string, toIndex: number): Array<{ id: string; ordinal: number }> {
+  const sorted = [...points].sort((a, b) => a.ordinal - b.ordinal);
+  const from = sorted.findIndex((p) => p.id === id);
+  if (from < 0) return [];
+  const target = Math.min(sorted.length - 1, Math.max(0, toIndex));
+  const [moved] = sorted.splice(from, 1);
+  sorted.splice(target, 0, moved!);
+  return sorted.map((p, i) => ({ id: p.id, ordinal: i + 1 })).filter((next) => points.find((p) => p.id === next.id)?.ordinal !== next.ordinal);
+}
+
+export function sortPoints<T extends { ordinal: number }>(points: T[]): T[] {
+  return [...points].sort((a, b) => a.ordinal - b.ordinal);
+}
+
+/** "3. Pipe found at the NE corner" — the label the list, the popup and the export all use. */
+export function pointLabel(point: Pick<MapPoint, 'ordinal' | 'title'>): string {
+  return `${point.ordinal}. ${point.title}`.trim();
+}
+
+// ── WHAT IS ATTACHED ────────────────────────────────────────────────────────────────────────────
+
+/** Which of the four kinds a file is, from its MIME type and, failing that, its name.
+ *
+ *  Phone cameras and the audio recorder both produce types the obvious `startsWith` misses —
+ *  `video/quicktime` from an iPhone, `audio/webm;codecs=opus` from the fieldbook recorder, and
+ *  HEIC photos that arrive as `image/heic` or with no type at all. */
+export function mediaKindFor(mimeType: string | null | undefined, fileName?: string | null): MediaKind {
+  const mime = (mimeType ?? '').toLowerCase().split(';')[0]!.trim();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  const ext = (fileName ?? '').toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? '';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif', 'bmp', 'tif', 'tiff'].includes(ext)) return 'image';
+  if (['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv', 'hevc', '3gp'].includes(ext)) return 'video';
+  if (['m4a', 'mp3', 'wav', 'aac', 'ogg', 'oga', 'opus', 'amr', 'caf'].includes(ext)) return 'audio';
+  return 'document';
+}
+
+/** Only images and video get a generated preview; audio and documents show an icon. */
+export function wantsThumbnail(kind: MediaKind): boolean {
+  return kind === 'image' || kind === 'video';
+}
+
+/** What the point's card shows before anything is opened: the counts, worded for a person. */
+export function mediaSummary(media: Pick<PointMedia, 'kind'>[]): string {
+  const n = (k: MediaKind) => media.filter((m) => m.kind === k).length;
+  const parts = [
+    [n('image'), 'photo', 'photos'] as const,
+    [n('video'), 'video', 'videos'] as const,
+    [n('audio'), 'voice note', 'voice notes'] as const,
+    [n('document'), 'file', 'files'] as const,
+  ].filter(([count]) => count > 0).map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  return parts.length ? parts.join(', ') : 'No attachments yet';
+}
+
+/** The order media shows in: photos first (they are what people scan), then video, voice notes,
+ *  files; within a kind, the order they were attached. */
+export function sortMedia(media: PointMedia[]): PointMedia[] {
+  const rank: Record<MediaKind, number> = { image: 0, video: 1, audio: 2, document: 3 };
+  return [...media].sort((a, b) => rank[a.kind] - rank[b.kind] || a.ordinal - b.ordinal);
+}
+
+// ── FINDING A POINT ─────────────────────────────────────────────────────────────────────────────
+
+export interface PointFilter {
+  text?: string;
+  types?: PointTypeId[];
+  statuses?: PointStatus[];
+  withMediaOnly?: boolean;
+}
+
+/** The side list's search and filter. Text matches the title, the notes, the type's label and any
+ *  caption or file name — so "pipe", "encroach" and "NE corner" all find the right pin.
+ *
+ *  A query that is ONLY digits is treated as the point's number first, because that is what a person
+ *  typing "7" means. Without that, "7" also matches every photo called IMG_4471.JPG, and the one
+ *  search everybody uses — jump to the point somebody just read out to me over the phone — returns
+ *  half the map. It falls back to a normal text search when no point wears that number. */
+export function filterPoints(points: MapPoint[], filter: PointFilter): MapPoint[] {
+  const text = (filter.text ?? '').trim().toLowerCase();
+  const byType = points.filter((p) => {
+    if (filter.types?.length && !filter.types.includes(p.pointType)) return false;
+    if (filter.statuses?.length && !filter.statuses.includes(p.status)) return false;
+    if (filter.withMediaOnly && p.media.length === 0) return false;
+    return true;
+  });
+  if (!text) return byType;
+
+  if (/^\d+$/.test(text)) {
+    const numbered = byType.filter((p) => String(p.ordinal) === text);
+    if (numbered.length) return numbered;
+  }
+  return byType.filter((p) => [
+    String(p.ordinal), p.title, p.notes ?? '', pointType(p.pointType).label,
+    ...p.media.map((m) => `${m.name} ${m.caption ?? ''}`),
+  ].join(' ').toLowerCase().includes(text));
+}
+
+/** The types actually present on a map — the legend shows these and nothing else, so a map of
+ *  fence corners does not display a key of fourteen things it does not contain. */
+export function typesInUse(points: Pick<MapPoint, 'pointType'>[]): PointType[] {
+  const present = new Set(points.map((p) => p.pointType));
+  return POINT_TYPES.filter((t) => present.has(t.id));
+}
+
+// ── REAL-WORLD COORDINATES (Phase 7; pure, so it is built and tested once) ──────────────────────
+
+export interface GeoAnchor extends RelativePoint {
+  lat: number;
+  lng: number;
+}
+
+export interface Georeference {
+  a: GeoAnchor;
+  b: GeoAnchor;
+}
+
+/** A two-anchor affine tie: scale and offset per axis, from two points whose real coordinates are
+ *  known. Deliberately not a full rotation fit — an aerial the operator saved from a mapping site is
+ *  north-up, and two corners are all anybody will patiently click. Returns null when the anchors are
+ *  too close together to define a scale, which would otherwise produce coordinates in the Atlantic. */
+export function affineFromTwoPoints(geo: Georeference | null | undefined): { lat0: number; lng0: number; dLat: number; dLng: number } | null {
+  if (!geo?.a || !geo?.b) return null;
+  const dx = geo.b.x - geo.a.x;
+  const dy = geo.b.y - geo.a.y;
+  if (Math.abs(dx) < 0.02 || Math.abs(dy) < 0.02) return null;
+  const dLng = (geo.b.lng - geo.a.lng) / dx;
+  const dLat = (geo.b.lat - geo.a.lat) / dy;
+  return { lat0: geo.a.lat - geo.a.y * dLat, lng0: geo.a.lng - geo.a.x * dLng, dLat, dLng };
+}
+
+export function pixelToLatLng(p: RelativePoint, geo: Georeference | null | undefined): { lat: number; lng: number } | null {
+  const fit = affineFromTwoPoints(geo);
+  if (!fit) return null;
+  const c = clampToImage(p);
+  return { lat: round6(fit.lat0 + c.y * fit.dLat), lng: round6(fit.lng0 + c.x * fit.dLng) };
+}
+
+/** Straight-line distance in feet between two pins on a georeferenced map. Equirectangular, which
+ *  is accurate to a fraction of a foot over a property and far easier to reason about than
+ *  haversine at this scale. */
+export function distanceFeet(a: RelativePoint, b: RelativePoint, geo: Georeference | null | undefined): number | null {
+  const pa = pixelToLatLng(a, geo);
+  const pb = pixelToLatLng(b, geo);
+  if (!pa || !pb) return null;
+  const midLat = ((pa.lat + pb.lat) / 2) * (Math.PI / 180);
+  const feetPerDegLat = 364000;
+  const dLat = (pb.lat - pa.lat) * feetPerDegLat;
+  const dLng = (pb.lng - pa.lng) * feetPerDegLat * Math.cos(midLat);
+  return Math.round(Math.sqrt(dLat * dLat + dLng * dLng));
+}
+
+/** A link a phone will open in its maps app. */
+export function mapsHref(lat: number, lng: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}

@@ -359,7 +359,11 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const p = agentPrompt();
     expect(p.length).toBeGreaterThan(4000);
     expect(p).toContain('Starr Surveying');
-    expect(p, 'never commits the firm').toMatch(/Never commit the firm/);
+    expect(p, 'never commits the firm').toMatch(/Commit the firm to nothing/);
+    expect(p, 'the six blocks the platform weights').toMatch(/# Personality[\s\S]*# Environment[\s\S]*# Tone[\s\S]*# Goal[\s\S]*# Guardrails/);
+    // Published guidance: past ~2000 tokens a voice prompt buys latency and nothing else. The
+    // firm's own facts live in the knowledge base, which is retrieved only when somebody asks.
+    expect(p.length, 'roughly under 2000 tokens').toBeLessThan(8200);
     expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
@@ -389,9 +393,10 @@ describe('handing a test call to the ElevenLabs agent', () => {
   it('sends every price question to Hank, and says so twice over', async () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
-    expect(p).toMatch(/PRICES: YOU DO NOT GIVE THEM/);
-    expect(p, 'only Hank quotes').toMatch(/Hank is the only one who gives quotes/);
-    expect(p, 'and he does it on the callback').toMatch(/when he calls you back/);
+    expect(p, 'in the block the model weights most').toMatch(/# Guardrails/);
+    expect(p, 'only Hank quotes').toMatch(/Hank is the only person who gives prices/);
+    expect(p, 'and he does it on the callback').toMatch(/when he calls back/);
+    expect(p, 'not even hedged').toMatch(/never state, estimate, hint at or ballpark one/);
     expect(p, 'no ballparks either').toMatch(/ballpark/);
   });
 
@@ -399,17 +404,19 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
     // "It should not assume the caller is a previous caller … the agent asked if the caller was Jacob."
-    expect(p).toMatch(/═══ WHO IS CALLING ═══/);
+    expect(p).toMatch(/# Environment/);
     expect(p).toMatch(/no memory of previous conversations/);
     // Since the caller registry (2026-09-16) the prompt defers entirely to the block it is handed:
     // a CONFIRMED name may be greeted with, an overheard one may not, and nothing may be guessed.
-    expect(p).toMatch(/THE BLOCK ABOVE IS THE ONLY THING THAT DECIDES/);
-    expect(p).toMatch(/Never guess/);
+    // The caller-history block decides what may be said about who they are — confirm, never assert.
+    expect(p).toMatch(/decides whether you may use a name or must ask for one/);
+    expect(p).toMatch(/confirm rather than assert/);
+    expect(p).toMatch(/never guess a name/i);
     expect(p).toMatch(/Never assume the caller is the person whose number it is/);
     // Everything it knows arrives as data at the start of the call, looked up from the number and
     // carrying its own orders (lib/receptionist/agent-init.ts), never as something it remembers.
     expect(p).toContain('{{caller_history}}');
-    expect(p).toMatch(/about a PHONE, not a person/);
+    expect(p).toMatch(/a PHONE, not a person/);
   });
 
   it('offers a message on every call and asks what else it can do afterwards', async () => {
@@ -417,31 +424,40 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const p = agentPrompt();
     // "Please make sure it give the caller to leave a message for Hank if they would like. After
     //  they leave a message, it can ask them if it can help them with anything else."
-    expect(p).toMatch(/TAKING A MESSAGE/);
+    expect(p).toMatch(/Offer to take a message for Hank\*\* on every call/);
     expect(p).toMatch(/I can take a message for Hank if you'd like/);
-    expect(p).toMatch(/Do not interrupt a message/);
-    expect(p).toMatch(/anything else I can help you with/);
+    expect(p).toMatch(/Never interrupt a message/);
+    expect(p).toMatch(/anything else you can help with/);
   });
 
   it('reads numbers, emails, names and addresses back before trusting them', async () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
     // "It needs to be good at parsing numbers and emails and names and property addresses."
-    expect(p).toMatch(/GETTING THE DETAILS RIGHT/);
-    expect(p).toMatch(/spell your last name/);
+    expect(p, 'a numbered procedure, not advice').toMatch(/Take the details one field at a time/);
+    expect(p).toMatch(/spell the last name/);
     expect(p).toMatch(/letter by letter/);
     expect(p).toMatch(/digit by digit/);
-    expect(p).toMatch(/read all ten back in groups/);
     expect(p).toMatch(/lowercase/);
+    // Groups first, single digits only after a correction — the reconciliation of two bodies of
+    // published guidance that disagree with each other (see the module header).
+    expect(p).toMatch(/Read it back in groups/);
+    expect(p).toMatch(/one digit at a time/);
+    // Email is the field that breaks: username and domain as separate turns, and a yes/no close.
+    expect(p).toMatch(/part before the at sign first/);
+    expect(p).toMatch(/is that right, yes or no\?/);
+    // Confirm the set once at the end; on a correction, fix only the item that was wrong.
+    expect(p).toMatch(/Confirm the whole set once, at the end/);
+    expect(p).toMatch(/confirm only that one/);
   });
 
   it('stops talking the moment the caller does not', async () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
     // "The agent was just really bad with interruptions and stuff."
-    expect(p).toMatch(/THE MOMENT THE CALLER STARTS SPEAKING, STOP/);
-    expect(p).toMatch(/do not repeat the part they talked over/);
-    expect(p).toMatch(/Never stack two questions/);
+    expect(p).toMatch(/Stop the instant the caller starts speaking/);
+    expect(p).toMatch(/do not repeat what they talked over/);
+    expect(p, 'one question per turn').toMatch(/Ask one question, then stop and listen/);
   });
 
   it('asks any question once, and lets a struggling caller off the hook', async () => {
@@ -450,12 +466,10 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // Owner, 2026-09-16: "If the caller is struggling to answer a question … it should reassure them
     // and tell them that Hank can get that info from them later when he calls … If they say to just
     // hold on while they look it up, then that is fine and the agent should just wait a bit longer."
-    expect(p).toMatch(/ASK ANY QUESTION ONCE/);
-    expect(p).toMatch(/WHEN THEY CANNOT COME UP WITH IT/);
-    expect(p).toMatch(/THEY ARE LOOKING IT UP/);
-    expect(p).toMatch(/no rush, take your time/);
+    expect(p).toMatch(/When a caller is struggling, stop asking/);
+    expect(p, 'looking something up is not struggling').toMatch(/no rush, take your time/);
     expect(p).toMatch(/Hank can get that from you when he calls/);
-    expect(p).toMatch(/Never ask a third time/);
+    expect(p).toMatch(/Never ask the same thing a third time/);
   });
 
   it('asks a returning caller whether it is the old property or a new request', async () => {
@@ -464,7 +478,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // Owner, 2026-09-16: "If the customer is found to be a pre-existing caller, then the agent should
     // ask if they are calling about a previous property or a new request."
     const ask = /calling about the property you spoke to us about before, or is this a new request/;
-    expect(agentPrompt()).toMatch(ask);
+    expect(agentPrompt(), 'the prompt asks which it is').toMatch(/about the property they called about before or something new/);
     expect(knownCallerLine({
       name: 'Jane Doe', nameCertain: false, relationship: 'customer', notes: null,
       email: null, source: 'call', lastSeen: '2026-08-02T15:00:00Z', lastAbout: null,
@@ -478,7 +492,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const everything = [agentPrompt(), ...agentKnowledgeDocs().map((d) => `${d.name} ${d.text}`)].join(' ');
     expect(everything, 'statute citations').not.toMatch(/Property Code|Civil Practice|statutes dot capitol/i);
     expect(everything, 'the adverse-possession briefing').not.toMatch(/adverse possession/i);
-    expect(agentPrompt(), 'legal questions go to Hank').toMatch(/Never give legal advice/);
+    expect(agentPrompt(), 'legal questions go to Hank').toMatch(/Legal questions belong to Hank/);
   });
 
   it('is fully briefed on the work the firm actually does', async () => {

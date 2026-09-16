@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 278,
+  "count": 283,
   "byArea": {
     "public": 43,
-    "admin": 184,
+    "admin": 189,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -96,6 +96,24 @@
       "file": "app/admin/calendar"
     },
     {
+      "route": "/admin/calls",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/calls"
+    },
+    {
+      "route": "/admin/calls/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/calls/[id]"
+    },
+    {
+      "route": "/admin/calls/registry",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/calls/registry"
+    },
+    {
       "route": "/admin/cards",
       "area": "admin",
       "dynamic": false,
@@ -160,6 +178,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/design/versions"
+    },
+    {
+      "route": "/admin/dev/receptionist",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/dev/receptionist"
     },
     {
       "route": "/admin/discussions",
@@ -406,6 +430,12 @@
       "area": "admin",
       "dynamic": true,
       "file": "app/admin/jobs/[id]/field"
+    },
+    {
+      "route": "/admin/jobs/[id]/map",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/jobs/[id]/map"
     },
     {
       "route": "/admin/jobs/import",
