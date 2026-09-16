@@ -62,3 +62,13 @@
 .analysis__stat b { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; opacity: .65; }
 .analysis__list { margin: .3rem 0 .8rem; padding-left: 1.2rem; font-size: .92rem; }
 .analysis__list li { margin: .2rem 0; }
+
+/* The way to the test bench, from the page where its results land (owner, 2026-09-16: "is there a
+ * navigation pathway … I can't find it"). */
+.calls-page__testbtn {
+  display: inline-flex; align-items: center; gap: .4rem; min-height: 40px; padding: 0 .95rem;
+  border: 1px solid rgba(29,48,149,.55); border-radius: 10px; background: rgba(29,48,149,.08);
+  color: inherit; font-size: .88rem; font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.calls-page__testbtn:hover { background: rgba(29,48,149,.16); }
+.calls-page__testbtn:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }

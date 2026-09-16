@@ -58,6 +58,9 @@ export default function CallsPage(): React.ReactElement {
           <h1 className="calls-page__title">Calls</h1>
           <p className="calls-page__sub">Every call to the business line. Click one to listen, read the transcript, and turn it into a lead or project.</p>
         </div>
+        <Link href="/admin/dev/receptionist" className="calls-page__testbtn" data-testid="calls-test-link">
+          Test the receptionist →
+        </Link>
         <div className="calls-page__filters" role="group" aria-label="Filter calls">
           {filters.map(([f, label]) => (
             <button key={f} type="button" className="calls-page__filter" aria-pressed={filter === f} onClick={() => setFilter(f)}>{label}</button>
