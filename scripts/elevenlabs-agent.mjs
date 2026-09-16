@@ -13,6 +13,7 @@
 // The key needs Conversational AI read+write. A text-to-speech key returns 401 "missing_permissions".
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -68,9 +69,10 @@ async function buildPrompt() {
   // tsx runs the TypeScript modules directly; they import only pure data files.
   const script = `
     import { agentPrompt, agentFirstMessage, AGENT_KEYWORDS, agentKnowledgeDocs } from './lib/receptionist/agent-prompt';
+    import { INIT_PLACEHOLDERS } from './lib/receptionist/agent-init';
     import fs from 'node:fs';
     fs.mkdirSync(${JSON.stringify(path.dirname(out))}, { recursive: true });
-    fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify({ prompt: agentPrompt(), first: agentFirstMessage(), keywords: [...AGENT_KEYWORDS], docs: agentKnowledgeDocs() }));
+    fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify({ prompt: agentPrompt(), first: agentFirstMessage(), keywords: [...AGENT_KEYWORDS], docs: agentKnowledgeDocs(), placeholders: INIT_PLACEHOLDERS }));
   `;
   const tmp = path.join(root, '_agent-prompt.build.ts');
   fs.writeFileSync(tmp, script);
@@ -83,13 +85,28 @@ async function buildPrompt() {
   return JSON.parse(fs.readFileSync(out, 'utf8'));
 }
 
-function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = []) {
+/** The URL ElevenLabs asks "who is calling?" before every call, and the token that lets it ask.
+ *  Derived from TWILIO_AUTH_TOKEN exactly as the route derives it (lib/receptionist/agent-init.ts) —
+ *  the one secret that is provably in both this machine's .env.local and the deployment, so the two
+ *  sides cannot disagree about the token and fail silently. */
+function initWebhook(env) {
+  const secret = (env.TWILIO_AUTH_TOKEN ?? '').trim();
+  const site = (env.NEXT_PUBLIC_SITE_URL ?? env.SITE_URL ?? 'https://www.starr-surveying.com').replace(/[/]$/, '');
+  if (!secret) return null;
+  const token = crypto.createHash('sha256').update(`${secret}:elevenlabs-conversation-init:v1`).digest('hex').slice(0, 32);
+  return { url: `${site}/api/elevenlabs/conversation-init?t=${token}`, request_headers: {} };
+}
+
+function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], initHook = null) {
   return {
     name: AGENT_NAME,
     conversation_config: {
       agent: {
         first_message: first,
         language: 'en',
+        // What the prompt's {{placeholders}} say when no webhook answered — a browser test, or a
+        // webhook ElevenLabs could not reach. Without them the prompt would render the braces.
+        dynamic_variables: { dynamic_variable_placeholders: opts.placeholders ?? {} },
         prompt: {
           prompt,
           llm: opts.llm,
@@ -118,6 +135,9 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = []) {
       // The owner's calls, kept no longer than they are useful. ElevenLabs' own default is two years.
       privacy: { retention_days: opts.retentionDays, delete_audio: false },
       call_limits: { agent_concurrency_limit: 4 },
+      // Ask us who is calling before answering. Null clears it, so a deployment without a cron
+      // secret does not leave a stale URL pointing at an endpoint that cannot authenticate it.
+      workspace_overrides: { conversation_initiation_client_data_webhook: initHook },
     },
     tags: ['starr-surveying', 'receptionist'],
   };
@@ -206,7 +226,9 @@ if (args.includes('--apply')) {
     knowledgeBase.push({ type: 'text', id, name: doc.name, usage_mode: 'auto' });
   }
 
-  const payload = agentPayload(built, opts, knowledgeBase);
+  const hook = initWebhook(env);
+  console.log(hook ? `initiation webhook: ${hook.url.replace(/t=.*/, 't=…')}` : 'initiation webhook: OFF (no TWILIO_AUTH_TOKEN here) — the agent will not know who is calling');
+  const payload = agentPayload(built, { ...opts, placeholders: built.placeholders }, knowledgeBase, hook);
   const res = existing
     ? await api('PATCH', `/v1/convai/agents/${existing.agent_id}`, payload)
     : await api('POST', '/v1/convai/agents/create', payload);
