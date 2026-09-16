@@ -16,6 +16,10 @@
 
 export type ReceptionistVersion = 'answering-machine' | 'agent';
 
+/** What a TEST call can run. `elevenlabs` is the platform agent being evaluated (2026-09-15); it is
+ *  not yet a live option — live calls choose between the two versions above. */
+export type TestVersion = ReceptionistVersion | 'elevenlabs';
+
 export const RECEPTIONIST_SETTINGS_KEY = 'receptionist';
 export const DEFAULT_LIVE_VERSION: ReceptionistVersion = 'answering-machine';
 
@@ -30,12 +34,27 @@ export const VERSION_LABELS: Record<ReceptionistVersion, { name: string; blurb: 
   },
 };
 
+export const TEST_VERSION_LABELS: Record<TestVersion, { name: string; blurb: string }> = {
+  ...VERSION_LABELS,
+  elevenlabs: {
+    name: 'ElevenLabs agent (evaluating)',
+    blurb: 'The same instructions run on ElevenLabs Agents with Expressive Mode — the most natural option, being evaluated before it answers anyone real.',
+  },
+};
+
 /** A stored or requested version, or null when it is not one. Accepts a few spellings. */
 export function parseVersion(value: unknown): ReceptionistVersion | null {
   const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (v === 'answering-machine' || v === 'machine' || v === 'answering_machine' || v === 'voicemail') return 'answering-machine';
   if (v === 'agent' || v === 'ai' || v === 'full') return 'agent';
   return null;
+}
+
+/** Like `parseVersion`, but a test call may also ask for the ElevenLabs agent. */
+export function parseTestVersion(value: unknown): TestVersion | null {
+  const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (v === 'elevenlabs' || v === 'eleven' || v === '11labs') return 'elevenlabs';
+  return parseVersion(value);
 }
 
 /** The live version from the stored settings object — the answering machine unless it clearly says agent. */

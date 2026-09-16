@@ -23,7 +23,8 @@ import { startCall, updateCall } from '@/lib/receptionist/calls';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
-import { parseVersion } from '@/lib/receptionist/version';
+import { parseTestVersion } from '@/lib/receptionist/version';
+import { elevenLabsDial, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 import { machineOpening } from '@/lib/receptionist/answering-machine';
 import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
 
@@ -55,12 +56,23 @@ export async function POST(request: Request): Promise<Response> {
   // The test bench picks per call: the full agent (the default — it is the one being honed) or the
   // answering machine live callers get. From "Call my phone" it rides in the URL (?version=); from the
   // browser it is a Voice SDK connect parameter. Either way Twilio signed it.
-  const version = parseVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'agent';
+  const version = parseTestVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'agent';
   // …and which voice to audition (owner, 2026-09-15: "I want more natural female voice options").
   const voiceId = (new URL(url).searchParams.get('voice') ?? params.voice ?? '').trim() || null;
   const voice = voiceId ? resolveVoice(voiceId) : null;
   if (version === 'answering-machine') {
     return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), machineOpening(voiceId)));
+  }
+
+  // The ElevenLabs agent (2026-09-15), on a test call only. Twilio keeps the leg, so the recording,
+  // the call row and the transcript work exactly as they do for every other path.
+  const sip = elevenLabsSipUri();
+  if (version === 'elevenlabs' && sip) {
+    const base = url.replace(/\/api\/twilio\/.*$/, '');
+    return twimlResponse(twiml(
+      say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
+      elevenLabsDial(sip, { callerId: tester, action: '/api/twilio/receptionist/relay-ended', recordingCallback: `${base}/api/twilio/recording` }),
+    ));
   }
 
   // Real callers hear the notice before the owner's phone rings; a test call never rings him, so

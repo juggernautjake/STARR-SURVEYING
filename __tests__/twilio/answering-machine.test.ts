@@ -299,3 +299,37 @@ describe('choosing the voice', () => {
     expect(page).toContain('device.connect({ params: { version: testVersion, voice: testVoice } })');
   });
 });
+
+// ── the ElevenLabs agent, on test calls only (owner, 2026-09-15) ────────────────────────────────
+describe('handing a test call to the ElevenLabs agent', () => {
+  it('is offered only when the SIP number is configured, and never to live callers', async () => {
+    const { elevenLabsSipUri, elevenLabsConfigured, elevenLabsDial } = await import('@/lib/receptionist/elevenlabs');
+    expect(elevenLabsSipUri({})).toBeNull();
+    expect(elevenLabsSipUri({ ELEVENLABS_SIP_URI: 'not a uri' })).toBeNull();
+    expect(elevenLabsConfigured({ ELEVENLABS_SIP_URI: 'sip:+18338426971@sip.rtc.elevenlabs.io:5060' })).toBe(true);
+    const xml = elevenLabsDial('sip:+18338426971@sip.rtc.elevenlabs.io:5060', { callerId: '+12545550100', action: '/x', recordingCallback: 'https://s/api/twilio/recording' });
+    expect(xml).toContain('<Sip>sip:+18338426971@sip.rtc.elevenlabs.io:5060</Sip>');
+    expect(xml, 'the call must still be recorded like every other path').toContain('record="record-from-answer-dual"');
+    // the LIVE switch cannot select it: parseVersion refuses, only parseTestVersion accepts
+    const { parseVersion, parseTestVersion } = await import('@/lib/receptionist/version');
+    expect(parseVersion('elevenlabs')).toBeNull();
+    expect(parseTestVersion('elevenlabs')).toBe('elevenlabs');
+  });
+
+  it('the agent speaks from OUR knowledge modules, not a pasted copy', async () => {
+    const { agentPrompt, agentFirstMessage, AGENT_KEYWORDS } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    expect(p.length).toBeGreaterThan(4000);
+    expect(p).toContain('Starr Surveying');
+    expect(p, 'the land-law situations').toMatch(/encroachment/i);
+    expect(p, 'never commits the firm').toMatch(/Never commit the firm/);
+    expect(p, 'never quotes a price').toMatch(/Never quote a price/);
+    expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
+    expect(AGENT_KEYWORDS).toContain('Bell County');
+    // and the script builds it from the module rather than holding its own copy
+    const script = read('scripts/elevenlabs-agent.mjs');
+    expect(script).toContain("from './lib/receptionist/agent-prompt'");
+    expect(script).toContain('eleven_v3_conversational');
+    expect(script).toContain('retention_days');
+  });
+});

@@ -8,7 +8,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { createCall, twilioConfigured } from '@/lib/twilio/rest';
 import { SITE_URL } from '@/lib/seo/business';
-import { parseVersion } from '@/lib/receptionist/version';
+import { parseTestVersion } from '@/lib/receptionist/version';
 import { voiceById } from '@/lib/receptionist/voices';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!twilioConfigured()) return NextResponse.json({ error: 'Twilio is not configured on this deployment.' }, { status: 503 });
   const body = (await req.json().catch(() => ({}))) as { to?: string; version?: string; voice?: string };
   // Which receptionist to test (2026-09-15): the full agent unless the answering machine is asked for.
-  const version = parseVersion(body.version) ?? 'agent';
+  const version = parseTestVersion(body.version) ?? 'agent';
   const voice = voiceById(body.voice)?.id ?? null;
   const digits = (body.to ?? '').replace(/\D/g, '');
   const to = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : '';
