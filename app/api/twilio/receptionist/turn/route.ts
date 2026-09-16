@@ -67,7 +67,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   state.silence = 0;
   if (state.turns.length === 0 && !state.facts.knownCaller) {
-    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from));
+    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from, { currentCallSid: callSid, since: new Date(state.started).toISOString() }));
     if (line) state.facts = { ...state.facts, knownCaller: line };
   }
   state.turns.push({ role: 'caller', text: heard });

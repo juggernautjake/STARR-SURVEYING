@@ -36,7 +36,7 @@ const GENERIC_FIRST = "Hey — I'm an AI assistant, and this call is recorded. T
 // Defaults chosen from the 2026-09-15 research: the expressive realtime model, a warm female voice,
 // and Claude as the brain. All three are overridable from the command line.
 const DEFAULTS = {
-  voiceId: process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL', // Sarah — warm, unhurried
+  voiceId: process.env.ELEVENLABS_VOICE_ID || 'hA4zGnmTwX2NQiTRMt7o', // Riley — owner's pick, 2026-09-16
   ttsModel: 'eleven_v3_conversational',                              // Expressive Mode
   llm: 'claude-sonnet-4-5',
   retentionDays: 30,
@@ -94,7 +94,9 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = []) {
           prompt,
           llm: opts.llm,
           temperature: 0.4,
-          max_tokens: 300,
+          // Owner, 2026-09-16: "The agent was just really bad with interruptions." A long turn is
+          // what a caller talks over, so the ceiling comes down to about three spoken sentences.
+          max_tokens: 160,
           ...(knowledgeBase.length ? { knowledge_base: knowledgeBase, rag: { enabled: true } } : {}),
         },
       },
@@ -107,7 +109,9 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = []) {
         speed: 0.95,
       },
       asr: { quality: 'high', keywords },
-      turn: { turn_timeout: 8, mode: 'turn', turn_eagerness: 'normal' },
+      // Patient turn-taking: wait longer before assuming the caller is finished, so a person
+      // reading an address off a tax statement is not cut off mid-number.
+      turn: { turn_timeout: 10, mode: 'turn', turn_eagerness: 'patient' },
       conversation: { max_duration_seconds: 900, text_only: false },
     },
     platform_settings: {
@@ -172,10 +176,22 @@ if (args.includes('--apply')) {
   if (!list.ok) { console.error('cannot list agents:', list.status, list.json?.detail?.message ?? ''); process.exit(1); }
   const existing = (list.json.agents ?? []).find((a) => a.name === AGENT_NAME);
 
-  // The reference material lives in the knowledge base, not in the system prompt: 44 KB of statutes
-  // and situations would otherwise be re-sent on every single turn of every call.
+  // The reference material lives in the knowledge base, not in the system prompt: the service
+  // briefs would otherwise be re-sent on every single turn of every call.
+  //
+  // STALE DOCS ARE DELETED, not just unlinked. The land-law library lived here until 2026-09-16,
+  // when the owner took it off the call ("It doesn't need to know all of the legal stuff"), and a
+  // document left in the account is a document a future --apply could silently re-attach.
   const kbList = await api('GET', '/v1/convai/knowledge-base');
   const known = new Map((kbList.json?.documents ?? []).map((d) => [d.name, d.id]));
+  const wanted = new Set((built.docs ?? []).map((d) => d.name));
+  for (const [name, id] of known) {
+    if (wanted.has(name) || !/^(Texas land law|Texas statute excerpts|Starr Surveying)/.test(name)) continue;
+    const gone = await api('DELETE', `/v1/convai/knowledge-base/${id}`);
+    console.log(`knowledge base: ${gone.ok ? 'removed' : `could not remove (HTTP ${gone.status})`} stale document "${name}"`);
+    if (gone.ok) known.delete(name);
+  }
+
   const knowledgeBase = [];
   for (const doc of built.docs ?? []) {
     let id = known.get(doc.name);

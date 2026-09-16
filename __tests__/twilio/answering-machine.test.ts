@@ -321,9 +321,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const p = agentPrompt();
     expect(p.length).toBeGreaterThan(4000);
     expect(p).toContain('Starr Surveying');
-    expect(p, 'the land-law situations').toMatch(/encroachment/i);
     expect(p, 'never commits the firm').toMatch(/Never commit the firm/);
-    expect(p, 'never quotes a price').toMatch(/Never quote a price/);
     expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
@@ -331,6 +329,97 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(script).toContain("from './lib/receptionist/agent-prompt'");
     expect(script).toContain('eleven_v3_conversational');
     expect(script).toContain('retention_days');
+  });
+
+  // ── What the owner asked for after hearing the first real calls (2026-09-16) ──────────────────
+  // Every one of these is a sentence he said, turned into something that fails the build if it
+  // stops being true. They test the prompt the agent is actually given, not our intentions.
+
+  it('carries no price anywhere: not a figure, not a range, not a rush percentage', async () => {
+    const { agentPrompt, agentKnowledgeDocs } = await import('@/lib/receptionist/agent-prompt');
+    // "I think it was giving out the same quote for all requests." It was reading the website's
+    // typical ranges out of its own prompt. Nothing with a dollar sign reaches it now.
+    const everything = [agentPrompt(), ...agentKnowledgeDocs().map((d) => d.text)].join(' ');
+    expect(everything, 'a dollar figure').not.toMatch(/\$\s?\d/);
+    expect(everything, 'a spelled-out range').not.toMatch(/\d{3,4} to \$?\d{3,4}/);
+    expect(everything, 'the rush percentage').not.toMatch(/25 percent|twenty-five percent/i);
+    // "an hour or two on site" is field time, not money; a rate always has a currency on it
+    expect(everything, 'the hourly rate').not.toMatch(/(dollars|\$\d+)\s*(an|per)\s*hour|billed at/i);
+    expect(everything, 'the calculator').not.toMatch(/calculator/i);
+  });
+
+  it('sends every price question to Hank, and says so twice over', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    expect(p).toMatch(/PRICES: YOU DO NOT GIVE THEM/);
+    expect(p, 'only Hank quotes').toMatch(/Hank is the only one who gives quotes/);
+    expect(p, 'and he does it on the callback').toMatch(/when he calls you back/);
+    expect(p, 'no ballparks either').toMatch(/ballpark/);
+  });
+
+  it('does not know who is calling and never pretends to', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    // "It should not assume the caller is a previous caller … the agent asked if the caller was Jacob."
+    expect(p).toMatch(/YOU DO NOT KNOW WHO IS CALLING/);
+    expect(p).toMatch(/You have never spoken to this person before/);
+    expect(p).toMatch(/do not guess a name/);
+    expect(p).toMatch(/no memory of previous conversations/);
+    // the one door left open, and it is the owner's: history arrives as data, with its own orders
+    expect(p).toMatch(/CALLER HISTORY/);
+  });
+
+  it('offers a message on every call and asks what else it can do afterwards', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    // "Please make sure it give the caller to leave a message for Hank if they would like. After
+    //  they leave a message, it can ask them if it can help them with anything else."
+    expect(p).toMatch(/TAKING A MESSAGE/);
+    expect(p).toMatch(/I can take a message for Hank if you'd like/);
+    expect(p).toMatch(/Do not interrupt a message/);
+    expect(p).toMatch(/anything else I can help you with/);
+  });
+
+  it('reads numbers, emails, names and addresses back before trusting them', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    // "It needs to be good at parsing numbers and emails and names and property addresses."
+    expect(p).toMatch(/GETTING THE DETAILS RIGHT/);
+    expect(p).toMatch(/spell your last name/);
+    expect(p).toMatch(/letter by letter/);
+    expect(p).toMatch(/digit by digit/);
+    expect(p).toMatch(/all ten digits back/);
+    expect(p).toMatch(/lowercase/);
+  });
+
+  it('stops talking the moment the caller does not', async () => {
+    const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
+    const p = agentPrompt();
+    // "The agent was just really bad with interruptions and stuff."
+    expect(p).toMatch(/THE MOMENT THE CALLER STARTS SPEAKING, STOP/);
+    expect(p).toMatch(/do not repeat the part they talked over/);
+    expect(p).toMatch(/Never stack two questions/);
+  });
+
+  it('has no land-law material left to clutter the call with', async () => {
+    const { agentPrompt, agentKnowledgeDocs } = await import('@/lib/receptionist/agent-prompt');
+    // "It doesn't need to know all of the legal stuff and clutter down the conversation."
+    const everything = [agentPrompt(), ...agentKnowledgeDocs().map((d) => `${d.name} ${d.text}`)].join(' ');
+    expect(everything, 'statute citations').not.toMatch(/Property Code|Civil Practice|statutes dot capitol/i);
+    expect(everything, 'the adverse-possession briefing').not.toMatch(/adverse possession/i);
+    expect(agentPrompt(), 'legal questions go to Hank').toMatch(/Never give legal advice/);
+  });
+
+  it('is fully briefed on the work the firm actually does', async () => {
+    const { agentKnowledgeDocs } = await import('@/lib/receptionist/agent-prompt');
+    const docs = agentKnowledgeDocs();
+    const services = docs.find((d) => /every service/i.test(d.name))!;
+    expect(services, 'a service brief').toBeTruthy();
+    for (const s of ['BOUNDARY SURVEY', 'ELEVATION CERTIFICATE', 'CONSTRUCTION STAKING', 'TOPOGRAPHIC SURVEY']) {
+      expect(services.text).toContain(s);
+    }
+    expect(docs.some((d) => /how a job runs/i.test(d.name)), 'the process and the service area').toBe(true);
+    expect(docs.some((d) => /questions callers ask/i.test(d.name)), 'the FAQ').toBe(true);
   });
 });
 
@@ -359,8 +448,12 @@ describe('the test bench talks to an agent directly', () => {
     expect(talk).toContain('conversationToken(kind)');
     const imp = read('app/api/admin/receptionist-test/import/route.ts');
     expect(imp).toContain('isAdmin(session.user.roles)');
-    expect(imp).toContain('isTest: true');
-    expect(imp).toContain('`EL-${full.conversation_id}`');
+    // 2026-09-16: the import moved to a module the cron shares, so the row shape is asserted where
+    // it now lives. The route keeps the admin gate, and that is what is checked of it here.
+    expect(imp).toContain('importAgentConversations');
+    const lib = read('lib/receptionist/import-conversations.ts');
+    expect(lib).toContain('isTest: true');
+    expect(lib).toContain('`EL-${full.conversation_id}`');
   });
 
   it('the page has a start button, a live transcript and a way to file it', () => {

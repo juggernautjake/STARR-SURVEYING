@@ -83,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
   const from = body.from ?? '';
   // First turn: does this number belong to someone we know? One lookup, carried in the facts after.
   if (state.turns.length === 0 && !state.facts.knownCaller) {
-    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from));
+    const line = knownCallerLine(await lookupKnownCaller(supabaseAdmin, from, { currentCallSid: body.callSid, since: new Date(state.started ?? Date.now()).toISOString() }));
     if (line) state.facts = { ...state.facts, knownCaller: line };
   }
   const callSid = body.callSid;

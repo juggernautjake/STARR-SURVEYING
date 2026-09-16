@@ -262,20 +262,32 @@ describe('round three: what the third live call taught', () => {
     s.finish();
     expect(words.join('')).toBe('Okay.');
   });
-  it('greets a known caller by first name and asks if it is them', () => {
-    expect(greeting('Jacob Maddux')).toMatch(/^Hi, thanks for calling Starr Surveying\. This is Ellie\. Is this Jacob\?/);
-    expect(greeting(null)).not.toContain('Is this');
+  // Owner, 2026-09-16: "It should not assume the caller is a previous caller … Another call the agent
+  // asked if the caller was Jacob, which is me." The greeting names nobody now: caller ID says which
+  // phone is calling, never who is holding it.
+  it('greets nobody by name, however well we think we know the number', () => {
+    expect(greeting()).toMatch(/^Hi, thanks for calling Starr Surveying\. This is Ellie\./);
+    expect(greeting()).not.toContain('Is this');
+    expect(greeting()).toMatch(/leave him a message/);
   });
   it('recognises a number however it is written, and says what is on file', async () => {
     const { digitsOf, knownCallerLine } = await import('@/lib/receptionist/known-caller');
     expect(digitsOf('+12543151123')).toBe('2543151123');
     expect(digitsOf('(254) 315-1123')).toBe('2543151123');
     expect(digitsOf('254.315.1123')).toBe('2543151123');
-    const line = knownCallerLine({ name: 'Jane Doe', email: 'jane@example.test', source: 'lead', lastSeen: '2026-08-02T15:00:00Z', lastAbout: 'boundary survey at 1 Main St', timesCalled: 2 });
-    expect(line).toContain('on file as Jane Doe');
-    expect(line).toContain('jane@example.test');
-    expect(line).toContain('2 prior calls');
-    expect(line).toMatch(/confirm it is them/);
+    const line = knownCallerLine({
+      name: 'Jane Doe', email: 'jane@example.test', source: 'lead', lastSeen: '2026-08-02T15:00:00Z',
+      lastAbout: 'boundary survey at 1 Main St', timesCalled: 2,
+      enquiries: [{ when: '2026-08-02T15:00:00Z', service: 'boundary', address: '1 Main St', name: 'Jane Doe' }],
+    })!;
+    // It is told the history — and told, in the same breath, not to act on it until the caller does.
+    expect(line).toContain('Jane Doe');
+    expect(line).toContain('1 Main St');
+    expect(line).toContain('2 times before');
+    expect(line).toMatch(/do not greet them by name/);
+    expect(line).toMatch(/have you called us before\?/);
+    expect(line).toMatch(/NEVER MIX JOBS/);
+    expect(line).toMatch(/new call is a new job/);
     expect(knownCallerLine(null)).toBeNull();
   });
   it('the script asks for an email and spells it back, allows one estimate, and knows the time-limit rule', async () => {
@@ -284,7 +296,9 @@ describe('round three: what the third live call taught', () => {
     expect(p).toMatch(/letter by letter/);
     // Owner, 2026-09-12: "should ask how to spell a name, especially a last name, if it is not sure."
     expect(p).toMatch(/spell your last name/);
-    expect(p).toMatch(/ONE ESTIMATE PER CALL/);
+    // Owner, 2026-09-16: "I don't want to offer quotes anymore at all with the AI agent."
+    expect(p).toMatch(/only \$\{?Hank\}? gives official quotes|only Hank gives official quotes/);
+    expect(p).not.toMatch(/ONE ESTIMATE PER CALL/);
     expect(p).toMatch(/TIME LIMIT REACHED/);
     expect(p).toContain('"email": "..."');
     // Owner, 2026-09-12: "check and see if the caller has a property id … if they are wanting a quote for a property."

@@ -22,7 +22,6 @@ import { getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
-import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 import { readLiveVersion } from '@/lib/receptionist/version-server';
 import { machineStart } from '@/lib/receptionist/answering-machine';
 import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
@@ -75,10 +74,9 @@ export async function POST(request: Request): Promise<Response> {
   // ConversationRelay (streaming speech both ways, interruptible; see lib/receptionist/relay.ts).
   // Without it, or when the relay fails (relay-ended falls back here), the request-response
   // <Gather> loop below runs.
-  const known = await lookupKnownCaller(supabaseAdmin, from);
   const relay = relayConfig();
   const chosen = live.voice ? resolveVoice(live.voice) : null;
-  if (relay) return twimlResponse(twiml(relayTwiml(relay, callSid, from, { knownName: known?.name, voice: chosen ? { provider: chosen.provider, voice: chosen.relayVoice } : null })));
-  const xml = twiml(gather('/api/twilio/receptionist/turn', greeting(known?.name), { voice: sayVoiceFor(live.voice) }));
+  if (relay) return twimlResponse(twiml(relayTwiml(relay, callSid, from, { voice: chosen ? { provider: chosen.provider, voice: chosen.relayVoice } : null })));
+  const xml = twiml(gather('/api/twilio/receptionist/turn', greeting(), { voice: sayVoiceFor(live.voice) }));
   return twimlResponse(xml, { 'set-cookie': stateCookieHeader(emptyState()) });
 }
