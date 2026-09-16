@@ -399,12 +399,14 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
     // "It should not assume the caller is a previous caller … the agent asked if the caller was Jacob."
-    expect(p).toMatch(/YOU DO NOT KNOW WHO IS CALLING/);
-    expect(p).toMatch(/You have never spoken to this person before/);
-    expect(p).toMatch(/do not guess a name/);
+    expect(p).toMatch(/═══ WHO IS CALLING ═══/);
     expect(p).toMatch(/no memory of previous conversations/);
-    // the one door left open, and it is the owner's: history arrives as data, with its own orders
-    expect(p).toMatch(/CALLER HISTORY/);
+    expect(p).toMatch(/Do not guess a name/);
+    expect(p).toMatch(/Never assume the caller is the person whose number it is/);
+    // Everything it knows arrives as data at the start of the call, looked up from the number and
+    // carrying its own orders (lib/receptionist/agent-init.ts), never as something it remembers.
+    expect(p).toContain('{{caller_history}}');
+    expect(p).toMatch(/about a PHONE, not a person/);
   });
 
   it('offers a message on every call and asks what else it can do afterwards', async () => {
