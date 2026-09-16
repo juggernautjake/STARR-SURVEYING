@@ -276,7 +276,8 @@ describe('round three: what the third live call taught', () => {
     expect(digitsOf('(254) 315-1123')).toBe('2543151123');
     expect(digitsOf('254.315.1123')).toBe('2543151123');
     const line = knownCallerLine({
-      name: 'Jane Doe', email: 'jane@example.test', source: 'lead', lastSeen: '2026-08-02T15:00:00Z',
+      name: 'Jane Doe', nameCertain: false, relationship: 'customer', notes: null,
+      email: 'jane@example.test', source: 'lead', lastSeen: '2026-08-02T15:00:00Z',
       lastAbout: 'boundary survey at 1 Main St', timesCalled: 2,
       enquiries: [{ when: '2026-08-02T15:00:00Z', service: 'boundary', address: '1 Main St', name: 'Jane Doe' }],
     })!;
@@ -284,7 +285,7 @@ describe('round three: what the third live call taught', () => {
     expect(line).toContain('Jane Doe');
     expect(line).toContain('1 Main St');
     expect(line).toContain('2 times before');
-    expect(line).toMatch(/do not greet them by name/);
+    expect(line).toMatch(/DO NOT say that name first/);
     expect(line).toMatch(/have you called us before\?/);
     expect(line).toMatch(/NEVER MIX JOBS/);
     expect(line).toMatch(/new call is a new job/);

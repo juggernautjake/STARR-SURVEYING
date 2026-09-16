@@ -401,7 +401,10 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // "It should not assume the caller is a previous caller … the agent asked if the caller was Jacob."
     expect(p).toMatch(/═══ WHO IS CALLING ═══/);
     expect(p).toMatch(/no memory of previous conversations/);
-    expect(p).toMatch(/Do not guess a name/);
+    // Since the caller registry (2026-09-16) the prompt defers entirely to the block it is handed:
+    // a CONFIRMED name may be greeted with, an overheard one may not, and nothing may be guessed.
+    expect(p).toMatch(/THE BLOCK ABOVE IS THE ONLY THING THAT DECIDES/);
+    expect(p).toMatch(/Never guess/);
     expect(p).toMatch(/Never assume the caller is the person whose number it is/);
     // Everything it knows arrives as data at the start of the call, looked up from the number and
     // carrying its own orders (lib/receptionist/agent-init.ts), never as something it remembers.
@@ -463,7 +466,8 @@ describe('handing a test call to the ElevenLabs agent', () => {
     const ask = /calling about the property you spoke to us about before, or is this a new request/;
     expect(agentPrompt()).toMatch(ask);
     expect(knownCallerLine({
-      name: 'Jane Doe', email: null, source: 'call', lastSeen: '2026-08-02T15:00:00Z', lastAbout: null,
+      name: 'Jane Doe', nameCertain: false, relationship: 'customer', notes: null,
+      email: null, source: 'call', lastSeen: '2026-08-02T15:00:00Z', lastAbout: null,
       timesCalled: 1, enquiries: [{ when: '2026-08-02T15:00:00Z', service: 'boundary', address: '1 Main St', name: 'Jane Doe' }],
     })!).toMatch(ask);
   });

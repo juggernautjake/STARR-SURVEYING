@@ -47,7 +47,10 @@ describe('what ElevenLabs is told before it answers', () => {
     const vars = await initVariables(fakeClient({ phone_calls: [PRIOR_CALL], leads: [], customers: [] }), { caller_id: '+12545550142' });
     expect(vars.caller_history).toContain('Ed Bowen');
     expect(vars.caller_history).toContain('4557 Briggs Road, Killeen');
-    expect(vars.caller_history, 'the standing order travels with the facts').toMatch(/do not greet them by name/);
+    // The standing order travels with the facts — and for a name nobody confirmed, the order is
+    // that it may be recognised but never spoken first (lib/receptionist/registry.ts).
+    expect(vars.caller_history).toMatch(/DO NOT say that name first/);
+    expect(vars.caller_history).toMatch(/nobody has confirmed it belongs to them/);
     expect(vars.caller_history).toMatch(/have you called us before\?/);
     expect(vars.caller_history).toMatch(/or is this a new request/);
     expect(vars.caller_history).toMatch(/NEVER MIX JOBS/);

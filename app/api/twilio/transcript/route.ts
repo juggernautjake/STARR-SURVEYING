@@ -19,6 +19,7 @@ import { getTranscript, getTranscriptSentences } from '@/lib/twilio/rest';
 import { getCallByRecordingSid, updateCall, type CallTurn } from '@/lib/receptionist/calls';
 import { analyzeCall, contactColumns } from '@/lib/receptionist/analysis';
 import { notifyOwners } from '@/lib/receptionist/notify';
+import { rememberCaller } from '@/lib/receptionist/registry';
 import { OWNER_NAME } from '@/lib/receptionist/knowledge';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,20 @@ export async function POST(request: Request): Promise<Response> {
     if (updated) {
       const analysis = await analyzeCall(updated);
       if (analysis) updated = (await updateCall(supabaseAdmin, call.call_sid, { ...contactColumns(updated, analysis), analysis, summary: analysis.summary, kind: analysis.caller_type === 'personal' ? 'personal' : analysis.caller_type === 'vendor' ? 'vendor' : analysis.caller_type === 'customer' || analysis.caller_type === 'existing_client' ? 'customer' : 'unknown' })) ?? updated;
+    }
+    // The analysis is the best contact data a call ever produces — a name and an email read back
+    // and confirmed out loud. It teaches the caller ID memory (lib/receptionist/registry.ts) the
+    // same way a finished call does, as `observed`: the next call may recognise the name, never
+    // greet with it. Only a person typing it on the registry page makes a name certain.
+    if (!call.is_test) {
+      await rememberCaller(supabaseAdmin, {
+        phone: call.from_number,
+        name: updated?.caller_name ?? call.caller_name ?? null,
+        email: updated?.caller_email ?? call.caller_email ?? null,
+        about: updated?.analysis?.intent ?? null,
+        at: call.started_at ?? undefined,
+        isTest: false,
+      });
     }
     // A test call is transcribed and analysed like any other; it just tells nobody (notifyOwners
     // refuses a test row anyway — this keeps the intent visible at the call site).

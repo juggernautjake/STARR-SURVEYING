@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { analyzeCall, contactColumns } from './analysis';
 import { factsToColumns, getCallBySid, updateCall } from './calls';
 import { notifyOwners } from './notify';
+import { rememberCaller } from './registry';
 import type { CallState } from './state';
 
 export async function finishCall(callSid: string, from: string, state: Pick<CallState, 'facts' | 'turns'> & { started?: number }, summary: string): Promise<void> {
@@ -20,11 +21,39 @@ export async function finishCall(callSid: string, from: string, state: Pick<Call
     const analysis = await analyzeCall(call);
     if (analysis) call = (await updateCall(supabaseAdmin, callSid, { ...contactColumns(call, analysis), analysis, summary: analysis.summary || summary })) ?? call;
   }
+  // ── THE CALL ID MEMORY (owner, 2026-09-16) ──────────────────────────────────────────────────
+  // "Build out the whole infrastructure for the call id rememberance log that attaches call info
+  // and names and stuff to a number." Every finished real call is counted against its number here,
+  // and anything learned that is safe to learn — a name where none was known, an email, what they
+  // rang about — is written to ./registry.ts. An overheard name lands as `observed`, so the next
+  // call may RECOGNISE it but not greet with it; only a person typing it on the admin page makes
+  // it certain. Test calls teach it nothing, which is the whole reason it asked a stranger whether
+  // he was Jacob before this existed.
+  if (call && !call.is_test) {
+    await rememberCaller(supabaseAdmin, {
+      phone: from || call.from_number,
+      name: call.caller_name ?? state.facts.name ?? null,
+      email: call.caller_email ?? state.facts.email ?? null,
+      about: aboutFrom(call, state, summary),
+      at: call.started_at ?? undefined,
+      isTest: false,
+    });
+  }
+
   // Test calls are reviewed on /admin/calls like any other; they just never ring anyone's phone.
   if (call && !call.notified_at && !call.is_test) {
     await notifyOwners({ from, facts: state.facts, summary: call.analysis?.summary || summary, callId: call.id, answeredBy: 'ai', call });
     await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
   }
+}
+
+/** What the next call's greeting should know they rang about last time: the property and the survey
+ *  if we got them, otherwise the first clause of the summary. Kept short — it is read aloud. */
+function aboutFrom(call: { service?: string | null; property_address?: string | null } | null, state: Pick<CallState, 'facts'>, summary: string): string | null {
+  const service = (call?.service ?? state.facts.service ?? '').replace(/_/g, ' ').trim();
+  const address = (call?.property_address ?? state.facts.address ?? '').trim();
+  if (service || address) return [service, address && `at ${address}`].filter(Boolean).join(' ');
+  return summary.trim().split(/(?<=\.)\s/)[0]?.slice(0, 200) || null;
 }
 
 /** The fallback summary when the brain never wrote one: what the caller said, trimmed. */
