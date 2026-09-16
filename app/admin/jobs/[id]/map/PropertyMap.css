@@ -44,6 +44,11 @@
   --pmap-shade: rgb(15 23 42 / 0.55);
   --pmap-skeleton: rgb(148 163 184 / 0.22);
   --pmap-skeleton-sheen: rgb(148 163 184 / 0.38);
+
+  /* A drawn shape is the pin's colour at low opacity, so a cone, a walk and a region read as the
+   * same thing as their numbered marker without burying the aerial underneath them. */
+  --pmap-shape-fill: 0.16;
+  --pmap-shape-fill-hot: 0.3;
 }
 
 /* ── THE SAME FOURTEEN, ON THE FOUR DARK SKINS ───────────────────────────────────────────────── */
@@ -72,6 +77,10 @@
   --pmap-shade: rgb(2 6 23 / 0.72);
   --pmap-skeleton: rgb(148 163 184 / 0.18);
   --pmap-skeleton-sheen: rgb(203 213 225 / 0.28);
+
+  /* Lighter pins over a night-time aerial need a touch more fill to be seen at all. */
+  --pmap-shape-fill: 0.22;
+  --pmap-shape-fill-hot: 0.38;
 }
 
 /* ── PAGE SHELL ──────────────────────────────────────────────────────────────────────────────── */
@@ -331,7 +340,10 @@
   overflow: visible;
 }
 
-.pmap__frame--placing { cursor: crosshair; }
+/* While a shape is being drawn the frame IS the drawing surface: a crosshair, no browser panning
+ * stealing the drag on a phone, and nothing on top of it that could swallow a click. */
+.pmap__frame--drawing { cursor: crosshair; touch-action: none; }
+.pmap__frame--drawing .pmap__pin { pointer-events: none; }
 
 .pmap__aerial {
   display: block;
@@ -450,6 +462,355 @@
   box-shadow: 0 0 0 3px var(--theme-accent, rgb(29 48 149)), 0 2px 8px var(--pmap-shade);
 }
 
+/* ── THE FOUR SHAPES, DRAWN OVER THE AERIAL ──────────────────────────────────────────────────── */
+/* One SVG, sitting exactly on the picture, in the IMAGE's own pixel coordinates — every `d`, every
+ * `points` string and every handle position comes straight out of lib/jobs/property-map-shapes.ts
+ * with no scaling done here. `preserveAspectRatio="none"` is safe precisely because the frame
+ * shrink-wraps the rendered image, so stretching the viewBox to the frame IS stretching it onto the
+ * aerial.
+ *
+ * Under the pins, because a numbered marker must never be covered by the wedge it belongs to.
+ * Inert by default; the shapes themselves opt back in so hovering a cone lights its row up, the
+ * same way hovering the pin does. */
+.pmap__shapes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* While something is being drawn, nothing already on the map may take the click. The element
+ * selector is load-bearing: `.pmap__shapes--inert *` alone ties on specificity with
+ * `.pmap__shape-fill` below and loses on source order, which is a click that selects the cone you
+ * were drawing over instead of adding a corner. */
+svg.pmap__shapes--inert * { pointer-events: none; }
+
+.pmap__shape {
+  color: var(--pmap-pin-colour, var(--map-pin-generic));
+  pointer-events: none;
+}
+
+/* A shape being drawn is not any point's colour yet, so it wears the accent — the same signal the
+ * selected pin and the selected row already use. */
+.pmap__shape--draft { color: var(--theme-accent, rgb(29 48 149)); }
+
+.pmap__shape-fill,
+.pmap__shape-line,
+.pmap__shape-bend {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* `non-scaling-stroke` is what keeps a 2px line 2px whether the aerial is 1,200 or 12,000 pixels
+ * wide. Without it the stroke is measured in image pixels and vanishes on a big scan. */
+.pmap__shape-fill {
+  fill: currentColor;
+  fill-opacity: var(--pmap-shape-fill);
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  transition: fill-opacity 0.14s ease, stroke-width 0.14s ease;
+}
+
+.pmap__shape-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-width 0.14s ease;
+}
+
+.pmap__shape-bend { fill: currentColor; stroke: none; }
+
+/* The centre line of a cone: which way the camera was actually pointed, out to its reach. Dashed,
+ * so it reads as an aim rather than as a wall. */
+.pmap__shape-centre {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* The rubber band from the last click to the cursor. */
+.pmap__shape-band {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Selected and hovered shapes behave exactly like the pins do: heavier, and lit. */
+.pmap__shape--active .pmap__shape-fill,
+.pmap__shape--selected .pmap__shape-fill {
+  fill-opacity: var(--pmap-shape-fill-hot);
+  stroke-width: 3.5;
+}
+
+.pmap__shape--active .pmap__shape-line,
+.pmap__shape--selected .pmap__shape-line { stroke-width: 5; }
+
+.pmap__shape--active,
+.pmap__shape--selected { filter: drop-shadow(0 0 5px var(--pmap-glow)); }
+
+/* ── THE HANDLES ─────────────────────────────────────────────────────────────────────────────── */
+/* ABOVE the pins, because a handle you cannot grab is not a handle. Only the open point has any, so
+ * there is never a field of them to hunt through. */
+.pmap__handles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.pmap__handle-group { color: var(--pmap-pin-colour, var(--map-pin-generic)); }
+
+.pmap__handle {
+  fill: var(--theme-bg-surface, rgb(255 255 255));
+  stroke: currentColor;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.pmap__handle--width { stroke-dasharray: 4 3; }
+
+.pmap__handle:hover,
+.pmap__handle--live {
+  fill: currentColor;
+  stroke: var(--theme-bg-surface, rgb(255 255 255));
+  cursor: grabbing;
+}
+
+.pmap__handle-add {
+  pointer-events: auto;
+  cursor: copy;
+}
+
+.pmap__handle-add circle {
+  fill: var(--theme-bg-surface, rgb(255 255 255));
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.pmap__handle-add line {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pmap__handle-add:hover circle { opacity: 1; stroke-dasharray: none; }
+
+/* ── THE SHAPE PICKER ────────────────────────────────────────────────────────────────────────── */
+/* Four choices, each carrying the sentence that says what it is FOR. The hint is on the button and
+ * not in a tooltip, because a tooltip is a thing you have to already suspect exists. */
+.pmap__picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
+.pmap__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  text-align: left;
+  cursor: pointer;
+}
+
+.pmap__pick:hover:not(:disabled) { background: var(--theme-bg-elevated, rgb(243 244 246)); }
+.pmap__pick:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pmap__pick--on {
+  border-color: var(--theme-accent, rgb(29 48 149));
+  box-shadow: inset 0 0 0 1px var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+.pmap__pick-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+}
+
+.pmap__pick-hint {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+/* ── THE HOW-TO BAR ──────────────────────────────────────────────────────────────────────────── */
+/* Owner: "make them easy to learn and use in the interactive map." This is that, literally: the
+ * geometry's own `howTo` string, on screen for as long as the shape is being drawn, beside the
+ * buttons for the keys it names. */
+.pmap__howto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+  font-size: 0.8rem;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+}
+
+.pmap__howto-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.pmap__howto-steps { color: var(--theme-fg-secondary, rgb(55 65 81)); }
+
+.pmap__howto-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pmap__howto-count {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+  white-space: nowrap;
+}
+
+/* Why Finish is not available yet. A disabled button with no reason beside it is the commonest way
+ * a drawing tool feels broken. */
+.pmap__howto-why {
+  flex-basis: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--theme-warning, rgb(180 83 9));
+}
+
+/* ── THE SHAPE SWITCHER AND THE CONE CONTROLS, IN THE PANEL ──────────────────────────────────── */
+.pmap__switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.pmap__switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pmap__switch-btn:hover:not(:disabled) { background: var(--theme-bg-elevated, rgb(243 244 246)); }
+.pmap__switch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pmap__switch-btn--on {
+  border-color: var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-accent, rgb(29 48 149));
+  color: var(--theme-accent-fg, rgb(255 255 255));
+}
+
+.pmap__inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pmap__input--num { width: 5.5rem; flex: 0 0 auto; }
+
+.pmap__bearing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+}
+
+.pmap__range {
+  width: 100%;
+  margin: 0.15rem 0 0.35rem;
+  accent-color: var(--theme-accent, rgb(29 48 149));
+}
+
+/* The presets exist so nobody has to know what 68° means. */
+.pmap__presets {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.pmap__preset {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pmap__preset:hover { background: var(--theme-bg-elevated, rgb(243 244 246)); }
+
+.pmap__preset--on {
+  border-color: var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-accent, rgb(29 48 149));
+  color: var(--theme-accent-fg, rgb(255 255 255));
+}
+
+.pmap__switch-btn:focus-visible,
+.pmap__preset:focus-visible,
+.pmap__pick:focus-visible,
+.pmap__range:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
+}
+
 /* ── THE HOVER PREVIEW ───────────────────────────────────────────────────────────────────────── */
 .pmap__popup {
   position: absolute;
@@ -546,6 +907,29 @@
 .pmap__row--selected {
   border-left-color: var(--theme-accent, rgb(29 48 149));
   background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+/* The number and the shape's icon, stacked — so a person scanning the list sees "4, a cone" without
+ * reading a word. Colour is never the only signal, and now neither is the number. */
+.pmap__row-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.pmap__row-geom {
+  display: inline-flex;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+.pmap__row-shape {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
 }
 
 .pmap__row-num {
@@ -925,15 +1309,26 @@
 @media (max-width: 420px) {
   .pmap__title { font-size: 1.05rem; }
   .pmap__search { flex-basis: 100%; max-width: none; }
+  /* One shape per row rather than two half-legible ones, and the how-to bar stacks so the
+   * instruction is never truncated — it is the one thing on screen that must be readable. */
+  .pmap__picker { grid-template-columns: minmax(0, 1fr); }
+  .pmap__switch { grid-template-columns: minmax(0, 1fr); }
+  .pmap__howto { align-items: flex-start; flex-direction: column; }
+  .pmap__howto-actions { width: 100%; }
+  .pmap__input--num { width: 4.5rem; }
 }
 
 /* ── MOTION ──────────────────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .pmap__pin,
   .pmap__pin-dot,
+  .pmap__shape-fill,
+  .pmap__shape-line,
   .pmap__detail { transition: none; }
   .pmap__pin:hover,
   .pmap__pin:focus-visible,
   .pmap__pin--active { transform: translate(-50%, -50%); }
+  /* The glow STAYS: it is a static state signal, not motion, and it is how a selected cone is told
+   * from an unselected one at a glance. Only the tween goes. */
   .pmap__skeleton { animation: none; }
 }
