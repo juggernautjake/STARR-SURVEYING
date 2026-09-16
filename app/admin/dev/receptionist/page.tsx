@@ -355,7 +355,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
         <p>Straight from this browser over the internet — no phone call, nobody rung, no Twilio minutes. Everything said is transcribed here and can be filed on the Calls page.</p>
         <div className="rtest__versions" role="radiogroup" aria-label="Which agent to talk to">
           {([
-            { id: 'starr' as const, name: 'Starr Surveying receptionist', blurb: 'Ellie: the real thing — the firm\u2019s services, the land-law knowledge base, the rules about never committing the firm.' },
+            { id: 'starr' as const, name: 'Starr Surveying receptionist', blurb: 'Ellie: the real thing — the firm\u2019s services, taking a message for Hank, and the rules: no prices, no promises, no guessing who is calling.' },
             { id: 'generic' as const, name: 'General conversation', blurb: 'The same voice and turn-taking with no business behind it. For judging how natural the conversation feels about anything at all.' },
           ]).map((a) => (
             <button
@@ -528,7 +528,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
         <section className="rtest__card" aria-labelledby="rt-chat" style={{ gridColumn: '1 / -1' }}>
           <h2 id="rt-chat">Text chat (full AI agent)</h2>
-          <p>The same brain by keyboard: try a quote, a land-law question, or a full intake. Each reply shows how long the first word took, which is what a caller feels.</p>
+          <p>The same brain by keyboard: push it for a price, leave a message, or run a full intake. Each reply shows how long the first word took, which is what a caller feels.</p>
           <div className="rtest__chat" ref={chatBox} aria-live="polite">
             {msgs.length === 0 && <div className="rtest__msg rtest__msg--assistant">Ellie: Hi, thanks for calling Starr Surveying. You can leave a message, or ask me anything. Type below to start.</div>}
             {msgs.map((m, i) => (

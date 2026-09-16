@@ -116,6 +116,13 @@ export const PROCESS: string[] = [
   'Deliverables: the plat, drawings, letters, descriptions, or certificates the customer needs are prepared and delivered on or before the due date.',
 ];
 
+/** The same seven steps, with the calculator and the phone estimate taken out of step two — for a
+ *  receptionist that is not allowed to put a number anywhere near a caller. */
+export const PROCESS_NO_PRICES: string[] = PROCESS.map((p) =>
+  p.startsWith('Quote:')
+    ? `Quote: ${OWNER_NAME} sends a written quote after he has looked at the property and the records. He is the only person who gives a price, and it always comes in writing.`
+    : p);
+
 export const PRICE_CHANGES = [
   'The quoted price can change if conditions on the property turn out to be more adverse than understood when the quote was written (heavier brush, corners that cannot be found, access problems), or if the requirements for the survey change.',
   'Rush jobs usually carry an extra fee (about 25 percent), and long-distance jobs usually carry a travel fee.',
@@ -158,6 +165,17 @@ export const FAQ: Array<{ q: string; a: string }> = [
   { q: 'How do I know a surveyor is licensed?', a: 'Look them up on the Texas Board of Professional Engineers and Land Surveyors site, pels dot texas dot gov, by name or license number.' },
   { q: 'Where can I find an existing survey of my property?', a: 'Your closing documents from the title company, the county clerk’s records, the General Land Office for older rural tracts, the county appraisal district for rough maps, or the surveyor who did the last one.' },
 ];
+
+/** The FAQ as a receptionist may say it. With `prices` off, the questions that are about money are
+ *  dropped and the money clause comes out of the ones that are mostly about something else — the
+ *  timing answer used to end with the rush fee, which is how "rush adds about twenty-five percent"
+ *  reached a caller's ear on a call where nobody was meant to hear a number at all. */
+export function faqPairs(prices = true): Array<{ q: string; a: string }> {
+  if (prices) return FAQ;
+  return FAQ
+    .filter((f) => !/price|cost|\$|quote/i.test(f.q + f.a) || /How long does a survey take/i.test(f.q))
+    .map((f) => ({ q: f.q, a: f.a.replace(/,? at a 25 percent rush fee\.?/i, '.').replace(/\s+/g, ' ').trim() }));
+}
 
 export const ABOUT = {
   founded: `${BUSINESS_NAME} is a family land surveying firm in Belton, Texas, owned and operated by a Registered Professional Land Surveyor, with more than fifteen years of professional surveying experience in Central Texas.`,
@@ -273,24 +291,42 @@ export const WEBSITE = {
   payInvoice: 'pay an invoice online from the services page or the link in the invoice email',
 };
 
+/** What a given receptionist is allowed to be told.
+ *
+ *  Owner, 2026-09-16, after listening back to real calls: "I don't want to offer quotes anymore at
+ *  all with the AI agent … It doesn't need to know all of the legal stuff and clutter down the
+ *  conversation." Both of those turned out to be *knowledge* problems, not prompt problems. The
+ *  agent read the website's typical ranges ("$600 to $3,500") and the rush percentage straight out
+ *  of this block and said them out loud as if they were a quote. A model cannot decline to quote a
+ *  price it was handed. So the prices and the land-law material come out of the block entirely for
+ *  the conversational agent; what is not in the prompt cannot be spoken. */
+export interface KnowledgeOptions {
+  /** Dollar figures, hourly rates, rush percentages, typical ranges. Off for the phone agent. */
+  prices?: boolean;
+  /** The Texas land-law basics and the statute resource list. Off for the phone agent. */
+  law?: boolean;
+}
+
 /** The knowledge block for the system prompt. Written to be read by a model, not a person. */
-export function knowledgeText(): string {
+export function knowledgeText(opts: KnowledgeOptions = {}): string {
+  const { prices = true, law = true } = opts;
   return [
-    `FIRM: ${BUSINESS_NAME} (legal name Starr Technical Services, Inc.), ${OFFICE_STREET}, ${OFFICE_CITY}, ${OFFICE_REGION}. Phone ${PHONE_DISPLAY}. Email ${EMAIL}. Website ${SITE_HOST} (request form and instant estimate calculator). Office hours ${hoursSentence()}; field crews work outside those hours.`,
+    `FIRM: ${BUSINESS_NAME} (legal name Starr Technical Services, Inc.), ${OFFICE_STREET}, ${OFFICE_CITY}, ${OFFICE_REGION}. Phone ${PHONE_DISPLAY}. Email ${EMAIL}. Website ${SITE_HOST}${prices ? ' (request form and instant estimate calculator)' : ' (request form)'}. Office hours ${hoursSentence()}; field crews work outside those hours.`,
     ABOUT.founded + ' ' + ABOUT.team + ' ' + ABOUT.equipment,
-    `SERVICES (for each: what the work is; when someone needs it; what they receive; how long the field work runs; the typical price range on the website):\n` +
-      SERVICES.map((s) => `- ${s.name}: ${s.what} When: ${s.when} You receive: ${s.deliverable} Field time: ${s.field} Typically ${s.typical}.`).join('\n'),
-    `HOW A JOB GOES, IN ORDER:\n` + PROCESS.map((p, i) => `${i + 1}. ${p}`).join('\n'),
-    `PRICE CHANGES AND FEES: ${PRICE_CHANGES.join(' ')}`,
-    `WEBSITE (${WEBSITE.home}): ${WEBSITE.requestForm}; ${WEBSITE.calculator}; ${WEBSITE.resources}; ${WEBSITE.payInvoice}.`,
-    `TEXAS LAND LAW BASICS (general statements of the law as of September 2026; each names its source):\n` +
-      LAND_LAW.map((l) => `- ${l.topic}: ${l.what} Source: ${l.source}`).join('\n'),
-    `ONLINE RESOURCES YOU MAY NAME (say them as written in quotes):\n` +
-      LAW_RESOURCES.map((r) => `- ${r.name}, "${r.spoken}": ${r.for}`).join('\n'),
+    `SERVICES (for each: what the work is; when someone needs it; what they receive; how long the field work runs${prices ? '; the typical price range on the website' : ''}):\n` +
+      SERVICES.map((s) => `- ${s.name}: ${s.what} When: ${s.when} You receive: ${s.deliverable} Field time: ${s.field}${prices ? ` Typically ${s.typical}.` : ''}`).join('\n'),
+    `HOW A JOB GOES, IN ORDER:\n` + (prices ? PROCESS : PROCESS_NO_PRICES).map((p, i) => `${i + 1}. ${p}`).join('\n'),
+    prices ? `PRICE CHANGES AND FEES: ${PRICE_CHANGES.join(' ')}` : null,
+    `WEBSITE (${WEBSITE.home}): ${WEBSITE.requestForm}; ${prices ? `${WEBSITE.calculator}; ` : ''}${WEBSITE.resources}; ${WEBSITE.payInvoice}.`,
+    law ? `TEXAS LAND LAW BASICS (general statements of the law as of September 2026; each names its source):\n` +
+      LAND_LAW.map((l) => `- ${l.topic}: ${l.what} Source: ${l.source}`).join('\n') : null,
+    law ? `ONLINE RESOURCES YOU MAY NAME (say them as written in quotes):\n` +
+      LAW_RESOURCES.map((r) => `- ${r.name}, "${r.spoken}": ${r.for}`).join('\n') : null,
     `HOURS (the same hours shown on Google): ${hoursSentence()}. Field crews work outside those hours; ${OWNER_NAME} returns calls as soon as he can, usually the same or next business day.`,
     `SERVICE AREA: primarily within ${SERVICE_AREA.radiusMiles} miles of Belton, including ${SERVICE_AREA.counties.join(', ')} counties. ${SERVICE_AREA.beyond}`,
-    `TIMING: ${TIMING.residential} ${TIMING.larger} ${TIMING.rush} ${TIMING.quoteTurnaround}`,
-    `PRICING: ${PRICING_RULES.drivers} Field crew time is billed at $${PRICING_RULES.fieldRatePerHour} an hour and travel at $${PRICING_RULES.travelPerMile.toFixed(2)} a mile one way from Belton in the calculator. Rush is plus 25 percent. ${PRICING_RULES.disclaimer}`,
-    `FAQ:\n` + FAQ.map((f) => `- Q: ${f.q} A: ${f.a}`).join('\n'),
-  ].join('\n\n');
+    `TIMING: ${TIMING.residential} ${TIMING.larger} ${prices ? TIMING.rush : 'Rush service is often available for time-sensitive transactions.'} ${prices ? TIMING.quoteTurnaround : `A written quote from ${OWNER_NAME} usually follows within a business day or two of him calling back.`}`,
+    prices ? `PRICING: ${PRICING_RULES.drivers} Field crew time is billed at $${PRICING_RULES.fieldRatePerHour} an hour and travel at $${PRICING_RULES.travelPerMile.toFixed(2)} a mile one way from Belton in the calculator. Rush is plus 25 percent. ${PRICING_RULES.disclaimer}`
+      : `PRICING: you do not have prices and must never state, estimate or hint at one. What drives the price, if they ask what it depends on: ${PRICING_RULES.drivers} Only ${OWNER_NAME} gives prices, in a written quote, after he has looked at the property and the records.`,
+    `FAQ:\n` + faqPairs(prices).map((f) => `- Q: ${f.q} A: ${f.a}`).join('\n'),
+  ].filter(Boolean).join('\n\n');
 }

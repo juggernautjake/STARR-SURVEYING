@@ -22,7 +22,6 @@ import { greeting, RECORDING_NOTICE } from '@/lib/receptionist/brain';
 import { startCall, updateCall } from '@/lib/receptionist/calls';
 import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
-import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 import { parseTestVersion } from '@/lib/receptionist/version';
 import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 import { machineOpening } from '@/lib/receptionist/answering-machine';
@@ -77,14 +76,13 @@ export async function POST(request: Request): Promise<Response> {
 
   // Real callers hear the notice before the owner's phone rings; a test call never rings him, so
   // the notice is spoken here, then the receptionist exactly as in production.
-  const known = await lookupKnownCaller(supabaseAdmin, tester);
   const relay = relayConfig();
   if (relay) {
     return twimlResponse(twiml(
       say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
-      relayTwiml(relay, callSid, tester, { test: true, knownName: known?.name, voice: voice ? { provider: voice.provider, voice: voice.relayVoice } : null }),
+      relayTwiml(relay, callSid, tester, { test: true, voice: voice ? { provider: voice.provider, voice: voice.relayVoice } : null }),
     ));
   }
   const state = { ...emptyState(), test: true };
-  return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), gather('/api/twilio/receptionist/turn', greeting(known?.name), { voice: sayVoiceFor(voiceId) })), { 'set-cookie': stateCookieHeader(state) });
+  return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), gather('/api/twilio/receptionist/turn', greeting(), { voice: sayVoiceFor(voiceId) })), { 'set-cookie': stateCookieHeader(state) });
 }
