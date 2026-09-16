@@ -374,3 +374,39 @@ describe('the test bench talks to an agent directly', () => {
     expect(page, 'the microphone is asked for on the click').toContain('navigator.mediaDevices.getUserMedia');
   });
 });
+
+// ── auditioning and switching the agent's voice (owner, 2026-09-16) ────────────────────────────
+describe('voices on the test bench', () => {
+  it('the shortlist is real ElevenLabs voice ids, grouped, with the current one marked', async () => {
+    const { AGENT_VOICES, AGENT_VOICE_GROUPS, agentVoiceById } = await import('@/lib/receptionist/agent-voices');
+    expect(AGENT_VOICES.length).toBeGreaterThanOrEqual(10);
+    for (const v of AGENT_VOICES) {
+      expect(v.id, v.name).toMatch(/^[A-Za-z0-9]{20}$/);
+      expect(v.blurb.length, v.name).toBeGreaterThan(20);
+      expect(AGENT_VOICE_GROUPS).toContain(v.group);
+    }
+    // the voice the agent was created with is in the list, so it can be shown as current
+    expect(agentVoiceById('EXAVITQu4vr4xnSDxMaL')?.name).toBe('Sarah');
+    expect(agentVoiceById('not-a-voice')).toBeNull();
+    expect(new Set(AGENT_VOICES.map((v) => v.id)).size, 'no duplicate ids').toBe(AGENT_VOICES.length);
+  });
+
+  it('the sample speaks the receptionist\'s real opening line, through the speech key', () => {
+    const route = read('app/api/admin/receptionist-test/voice-sample/route.ts');
+    expect(route).toContain('agentFirstMessage()');
+    expect(route).toContain('ELEVENLABS_API_KEY');
+    expect(route, 'cached so a second audition is free').toContain('cache.set(voice.id, audio)');
+    expect(route).toContain("isAdmin(session.user.roles)");
+  });
+
+  it('switching writes the voice to the agent at ElevenLabs, per agent or both', () => {
+    const route = read('app/api/admin/receptionist-test/voices/route.ts');
+    expect(route).toContain("conversation_config: { tts: { voice_id: voice.id } }");
+    expect(route).toContain("body.agent === 'starr' ? ['starr'] : body.agent === 'generic' ? ['generic'] : ['starr', 'generic']");
+    expect(route).toContain('isAdmin(session.user.roles)');
+    const page = read('app/admin/dev/receptionist/page.tsx');
+    expect(page).toContain('data-testid="rtest-voices"');
+    expect(page).toContain('rtest-voice-play-');
+    expect(page).toContain("assignVoice(v, 'both')");
+  });
+});
