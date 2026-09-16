@@ -24,6 +24,7 @@ import type { PhoneCall } from '@/lib/receptionist/calls';
 import type { CallState } from '@/lib/receptionist/state';
 import { VERSION_LABELS, TEST_VERSION_LABELS, type ReceptionistVersion, type TestVersion } from '@/lib/receptionist/version';
 import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
+import { AGENT_VOICES, AGENT_VOICE_GROUPS, type AgentVoice } from '@/lib/receptionist/agent-voices';
 
 const RS = '';
 
@@ -86,6 +87,47 @@ export default function ReceptionistTestPage(): React.ReactElement {
     }
   };
   const setLiveVersion = (version: ReceptionistVersion) => saveLive({ version });
+
+  // ── the agent's voice: hear it, then switch to it (owner, 2026-09-16) ─────────────────────────
+  const [agentVoices, setAgentVoices] = useState<{ starr: string | null; generic: string | null }>({ starr: null, generic: null });
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState<string | null>(null);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const sampleRef = useRef<HTMLAudioElement | null>(null);
+  const loadAgentVoices = useCallback(() => {
+    fetch('/api/admin/receptionist-test/voices')
+      .then((r) => r.json())
+      .then((j: { current?: { starr: string | null; generic: string | null } }) => { if (j.current) setAgentVoices(j.current); })
+      .catch(() => { /* the card still renders; switching will report the error */ });
+  }, []);
+  useEffect(() => { loadAgentVoices(); }, [loadAgentVoices]);
+
+  const playSample = (voice: AgentVoice) => {
+    sampleRef.current?.pause();
+    if (playing === voice.id) { setPlaying(null); return; }
+    const audio = new Audio(`/api/admin/receptionist-test/voice-sample?voice=${encodeURIComponent(voice.id)}`);
+    sampleRef.current = audio;
+    setPlaying(voice.id);
+    audio.onended = () => setPlaying(null);
+    audio.onerror = () => { setPlaying(null); setVoiceNote(`Could not play the ${voice.name} sample.`); };
+    void audio.play().catch(() => { setPlaying(null); setVoiceNote('The browser blocked playback — click the page once and try again.'); });
+  };
+  const assignVoice = async (voice: AgentVoice, agent: 'starr' | 'generic' | 'both') => {
+    setVoiceBusy(voice.id);
+    setVoiceNote(null);
+    try {
+      const r = await fetch('/api/admin/receptionist-test/voices', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ voiceId: voice.id, agent }) });
+      const j = (await r.json()) as { error?: string; agents?: string[] };
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setVoiceNote(`${voice.name} is now the voice for ${(j.agents ?? []).map((a) => (a === 'starr' ? 'the Starr receptionist' : 'general conversation')).join(' and ')}. Start a conversation to hear it.`);
+      loadAgentVoices();
+    } catch (e) {
+      setVoiceNote((e as Error).message);
+    } finally {
+      setVoiceBusy(null);
+    }
+  };
+  useEffect(() => () => sampleRef.current?.pause(), []);
 
   // ── talk to an agent right now, in this browser (owner, 2026-09-15) ───────────────────────────
   // "There should be a button to click to just start a conversation." WebRTC straight to ElevenLabs:
@@ -358,6 +400,56 @@ export default function ReceptionistTestPage(): React.ReactElement {
             ))}
           </div>
         )}
+      </section>
+
+      {/* ── VOICES: hear one, then put it on an agent ── */}
+      <section className="rtest__card" aria-labelledby="rt-voices" data-testid="rtest-voices">
+        <h2 id="rt-voices">Voices</h2>
+        <p>Press play to hear the voice say the receptionist&apos;s actual opening line. When you like one, put it on an agent and start a conversation — it takes effect on the next call, with no deploy.</p>
+        {voiceNote && <div className="rtest__status" aria-live="polite">{voiceNote}</div>}
+        {AGENT_VOICE_GROUPS.map((group) => {
+          const inGroup = AGENT_VOICES.filter((v) => v.group === group);
+          if (inGroup.length === 0) return null;
+          return (
+            <div key={group} className="rtest__voicegroup">
+              <h3 className="rtest__subhead">{group}</h3>
+              <ul className="rtest__voices">
+                {inGroup.map((v) => {
+                  const onStarr = agentVoices.starr === v.id;
+                  const onGeneric = agentVoices.generic === v.id;
+                  return (
+                    <li key={v.id} className={`rtest__voice${onStarr || onGeneric ? ' rtest__voice--on' : ''}`} data-testid={`rtest-voice-${v.id}`}>
+                      <button
+                        type="button"
+                        className="rtest__play"
+                        onClick={() => playSample(v)}
+                        aria-label={playing === v.id ? `Stop the ${v.name} sample` : `Play the ${v.name} sample`}
+                        data-testid={`rtest-voice-play-${v.id}`}
+                      >
+                        {playing === v.id ? '■' : '▶'}
+                      </button>
+                      <div className="rtest__voice-body">
+                        <b>{v.name}</b>
+                        {v.recommended && <span className="pill">Worth trying</span>}
+                        {onStarr && <span className="pill pill--ai">On the Starr agent</span>}
+                        {onGeneric && <span className="pill">On general chat</span>}
+                        <span>{v.blurb}</span>
+                      </div>
+                      <div className="rtest__voice-actions">
+                        <button type="button" className="rtest__btn rtest__btn--ghost" disabled={voiceBusy === v.id || onStarr} onClick={() => void assignVoice(v, 'starr')}>
+                          {onStarr ? 'In use' : 'Use for Starr'}
+                        </button>
+                        <button type="button" className="rtest__btn rtest__btn--ghost" disabled={voiceBusy === v.id} onClick={() => void assignVoice(v, 'both')}>
+                          Use for both
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </section>
 
       {/* ── WHICH VERSION A TEST CALL RUNS ── */}
