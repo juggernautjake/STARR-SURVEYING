@@ -62,7 +62,14 @@ export default function ReceptionistTestPage(): React.ReactElement {
   const chooseVoice = (id: string) => { setTestVoice(id); try { localStorage.setItem('rtest-voice', id); } catch { /* ignore */ } };
   const voice = RECEPTIONIST_VOICES.find((v) => v.id === testVoice) ?? RECEPTIONIST_VOICES[0];
   useEffect(() => {
-    fetch('/api/admin/receptionist-test/version').then((r) => r.json()).then((j) => { if (j?.version) setLive(j); }).catch((e: Error) => reportPageError(e));
+    fetch('/api/admin/receptionist-test/version').then((r) => r.json()).then((j) => {
+      if (!j?.version) return;
+      setLive(j);
+      // Test calls default to the conversational agent being honed — the ElevenLabs one where it is
+      // configured (owner, 2026-09-15: "only testing the fully functional and conversational AI voice
+      // agent … keep just the simpler answering machine style recording for live calls").
+      if (j.elevenLabsReady) setTestVersion((cur) => (cur === 'agent' ? 'elevenlabs' : cur));
+    }).catch((e: Error) => reportPageError(e));
   }, [reportPageError]);
   const saveLive = async (patch: { version?: ReceptionistVersion; voice?: string | null }) => {
     setLiveBusy(true);
