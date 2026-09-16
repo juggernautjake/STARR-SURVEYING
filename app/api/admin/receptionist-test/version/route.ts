@@ -36,7 +36,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (gate.error) return gate.error;
   const body = (await req.json().catch(() => ({}))) as { version?: string; voice?: string | null };
   const version = 'version' in body ? parseVersion(body.version) : undefined;
-  if ('version' in body && !version) return NextResponse.json({ error: 'version must be "answering-machine" or "agent".' }, { status: 400 });
+  if ('version' in body && !version) return NextResponse.json({ error: 'version must be "answering-machine", "elevenlabs" or "agent".' }, { status: 400 });
   let voice: string | null | undefined;
   if ('voice' in body) {
     if (body.voice === null || body.voice === '') voice = null;

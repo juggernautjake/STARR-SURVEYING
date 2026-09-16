@@ -55,7 +55,8 @@ export default function ReceptionistTestPage(): React.ReactElement {
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
   const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
-  const [confirmAgent, setConfirmAgent] = useState(false);
+  // Which version the owner is about to put in front of real callers, while they confirm it.
+  const [confirmAgent, setConfirmAgent] = useState<ReceptionistVersion | null>(null);
   const [testVersion, setTestVersion] = useState<TestVersion>('agent');
   // The voice a test call is spoken in. Remembered, so auditioning one voice after another is quick.
   const [testVoice, setTestVoice] = useState<string>(DEFAULT_VOICE_ID);
@@ -79,7 +80,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
       setLive(j);
-      setConfirmAgent(false);
+      setConfirmAgent(null);
     } catch (e) {
       reportPageError(e as Error);
     } finally {
@@ -329,20 +330,32 @@ export default function ReceptionistTestPage(): React.ReactElement {
             <p className="rtest__status">Voice: <b>{(RECEPTIONIST_VOICES.find((v) => v.id === (live.voice ?? DEFAULT_VOICE_ID)) ?? RECEPTIONIST_VOICES[0]).name}</b></p>
             {live.updatedBy && <small className="rtest__status">Set by {live.updatedBy}{live.updatedAt ? ` · ${fmtWhen(live.updatedAt)}` : ''}</small>}
             <div className="rtest__row">
-              {live.version === 'agent' ? (
+              {live.version !== 'answering-machine' ? (
                 <button type="button" className="rtest__btn" onClick={() => void setLiveVersion('answering-machine')} disabled={liveBusy} data-testid="rtest-live-machine">
                   Switch live calls back to the answering machine
                 </button>
-              ) : confirmAgent ? (
+              ) : null}
+              {confirmAgent ? (
                 <>
-                  <span className="rtest__status">Real customers will talk to the full AI agent. Only do this once it sounds right on test calls.</span>
-                  <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void setLiveVersion('agent')} disabled={liveBusy} data-testid="rtest-live-agent-confirm">Yes, use the full agent on live calls</button>
-                  <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(false)} disabled={liveBusy}>Cancel</button>
+                  <span className="rtest__status">Real customers will talk to {VERSION_LABELS[confirmAgent].name.toLowerCase()}. Only do this once it sounds right on test calls.</span>
+                  <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void setLiveVersion(confirmAgent)} disabled={liveBusy} data-testid="rtest-live-agent-confirm">
+                    Yes, put it on live calls
+                  </button>
+                  <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(null)} disabled={liveBusy}>Cancel</button>
                 </>
               ) : (
-                <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(true)} disabled={liveBusy} data-testid="rtest-live-agent">
-                  Put the full AI agent on live calls…
-                </button>
+                <>
+                  {live.version !== 'elevenlabs' && live.elevenLabsReady !== false && (
+                    <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent('elevenlabs')} disabled={liveBusy} data-testid="rtest-live-elevenlabs">
+                      Put the conversational agent on live calls…
+                    </button>
+                  )}
+                  {live.version !== 'agent' && (
+                    <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent('agent')} disabled={liveBusy} data-testid="rtest-live-agent">
+                      Use the relay agent instead…
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </>

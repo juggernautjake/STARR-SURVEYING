@@ -25,6 +25,7 @@ import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { readLiveVersion } from '@/lib/receptionist/version-server';
 import { machineStart } from '@/lib/receptionist/answering-machine';
 import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
+import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,9 +48,9 @@ export async function POST(request: Request): Promise<Response> {
     return twimlResponse(twiml(hangup()));
   }
 
+  const base = url.replace(/\/api\/twilio\/.*$/, '');
   // Hank did not take it. Record the live call (dual channel) so the page has audio for this leg too.
   if (twilioConfigured() && callSid && !existing?.recording_sid) {
-    const base = url.replace(/\/api\/twilio\/.*$/, '');
     startCallRecording(callSid, `${base}/api/twilio/recording`).catch((err) => console.error('[receptionist] could not start recording:', err));
   }
 
@@ -60,12 +61,31 @@ export async function POST(request: Request): Promise<Response> {
   // answering machine (lib/receptionist/version.ts). The machine leaves answered_by unset until the
   // caller actually leaves something, so a hang-up during the greeting still reaches the owners as missed.
   const live = await readLiveVersion(supabaseAdmin);
-  if (live.version === 'answering-machine') {
+  const sip = live.version === 'elevenlabs' ? elevenLabsSipUri() : null;
+
+  // ── THE CONVERSATIONAL AGENT ON A REAL CALL (owner, 2026-09-16) ─────────────────────────────
+  // "Let's please make the conversational agent the active live version for calls for now so we can
+  // test it in the real world." Twilio keeps the leg and dials the agent over SIP, so the recording,
+  // the call row, the transcript, the analysis and the owner's text all work exactly as they do on
+  // every other path — the only difference is who is talking. When the leg ends, `agent-ended`
+  // wraps the call up; if the trunk cannot be reached at all, that route falls back to the machine
+  // so a caller is never dropped, and so does this one if the SIP URI is missing from the deployment.
+  if (live.version === 'elevenlabs' && sip) {
+    await updateCall(supabaseAdmin, callSid, { status: 'in-progress', answered_by: 'ai' });
+    return twimlResponse(twiml(elevenLabsDial(sip, {
+      callerId: from,
+      action: '/api/twilio/receptionist/agent-ended',
+      recordingCallback: `${base}/api/twilio/recording`,
+      auth: elevenLabsSipAuth(),
+    })));
+  }
+  if (live.version === 'answering-machine' || (live.version === 'elevenlabs' && !sip)) {
+    if (!sip && live.version === 'elevenlabs') console.error('[after-dial] live version is elevenlabs but no SIP URI is configured — answering with the machine');
     await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
     return twimlResponse(machineStart(live.voice));
   }
 
-  // The full agent is answering.
+  // The relay/<Gather> agent is answering.
   await updateCall(supabaseAdmin, callSid, { status: 'in-progress', answered_by: 'ai' });
   // The caller already heard the recording notice before the phone rang (entry route), so the
   // receptionist goes straight to the greeting.

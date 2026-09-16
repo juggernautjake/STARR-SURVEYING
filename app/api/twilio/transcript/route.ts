@@ -1,8 +1,11 @@
 // app/api/twilio/transcript/route.ts — Voice Intelligence finished transcribing a recording.
 //
-// Only calls a person answered come through here (the AI leg already has its transcript, turn by
-// turn). The webhook names the transcript; we fetch its sentences, map channel 1 to the caller and
-// channel 2 to the owner (dual-channel <Dial> recording), store them on the call, run the analysis,
+// Calls a person answered come through here, and since 2026-09-16 so do calls the conversational
+// agent answered on ElevenLabs — for those, this is the ONLY transcript there is, because the
+// conversation happened between the caller and ElevenLabs and no turns were written as it went.
+//
+// The webhook names the transcript; we fetch its sentences, map channel 1 to the caller and channel
+// 2 to whoever was on the other end (Hank, or the agent), store them on the call, run the analysis,
 // and notify the owners with the summary.
 //
 // PUBLIC BY DESIGN: Twilio-signed. Intelligence webhooks may arrive as JSON; Twilio then signs the
@@ -54,7 +57,11 @@ export async function POST(request: Request): Promise<Response> {
     const call = await getCallByRecordingSid(supabaseAdmin, recordingSid);
     if (!call) return new Response(null, { status: 204 });
     const sentences = await getTranscriptSentences(transcriptSid);
-    const turns: CallTurn[] = sentences.map((s) => ({ role: s.media_channel === 2 ? 'owner' : 'caller', text: s.transcript }));
+    // Channel 2 is the answering end of the dial: Hank on a call he picked up, the receptionist on
+    // one it took. Calling the agent 'owner' would put its words in Hank's mouth on the calls page.
+    const answeredByAi = call.answered_by === 'ai';
+    const other: CallTurn['role'] = answeredByAi ? 'assistant' : 'owner';
+    const turns: CallTurn[] = sentences.map((s) => ({ role: s.media_channel === 2 ? other : 'caller', text: s.transcript }));
     let updated = await updateCall(supabaseAdmin, call.call_sid, { transcript: turns, transcript_sid: transcriptSid, transcript_status: 'completed' });
     if (updated) {
       const analysis = await analyzeCall(updated);
@@ -63,7 +70,14 @@ export async function POST(request: Request): Promise<Response> {
     // A test call is transcribed and analysed like any other; it just tells nobody (notifyOwners
     // refuses a test row anyway — this keeps the intent visible at the call site).
     if (!call.is_test) {
-      await notifyOwners({ from: call.from_number, facts: {}, summary: updated?.analysis?.summary || `Transcript is ready for the call ${OWNER_NAME} answered.`, callId: call.id, answeredBy: 'owner', call: updated ?? call });
+      await notifyOwners({
+        from: call.from_number,
+        facts: {},
+        summary: updated?.analysis?.summary || (answeredByAi ? 'Transcript is ready for the call the receptionist answered.' : `Transcript is ready for the call ${OWNER_NAME} answered.`),
+        callId: call.id,
+        answeredBy: answeredByAi ? 'ai' : 'owner',
+        call: updated ?? call,
+      });
     }
   } catch (err) {
     console.error('[transcript] failed:', err);

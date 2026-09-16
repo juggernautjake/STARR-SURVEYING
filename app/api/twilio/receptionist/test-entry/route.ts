@@ -63,14 +63,15 @@ export async function POST(request: Request): Promise<Response> {
     return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), machineOpening(voiceId)));
   }
 
-  // The ElevenLabs agent (2026-09-15), on a test call only. Twilio keeps the leg, so the recording,
-  // the call row and the transcript work exactly as they do for every other path.
+  // The ElevenLabs agent. Twilio keeps the leg, so the recording, the call row and the transcript
+  // work exactly as they do for every other path. Since 2026-09-16 a live call takes this same road
+  // (after-dial), and both ends at `agent-ended` — one wrap-up, one fallback, tested by both.
   const sip = elevenLabsSipUri();
   if (version === 'elevenlabs' && sip) {
     const base = url.replace(/\/api\/twilio\/.*$/, '');
     return twimlResponse(twiml(
       say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
-      elevenLabsDial(sip, { callerId: tester, action: '/api/twilio/receptionist/relay-ended', recordingCallback: `${base}/api/twilio/recording`, auth: elevenLabsSipAuth() }),
+      elevenLabsDial(sip, { callerId: tester, action: '/api/twilio/receptionist/agent-ended', recordingCallback: `${base}/api/twilio/recording`, auth: elevenLabsSipAuth() }),
     ));
   }
 
