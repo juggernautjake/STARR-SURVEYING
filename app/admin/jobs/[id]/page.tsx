@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
   Camera, Video, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
-  Circle, Upload, type LucideIcon,
+  Circle, Upload, Map as MapIcon, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
@@ -98,6 +98,12 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   // drawing tools under CAD. Old tab keys still land somewhere: see `openTab`.
   { key: 'files', label: 'Files', Icon: Folder, tip: 'Every file for this job in its standard folders — Research, CAD, Photos, Videos, Documents. Upload into a folder, open anything in the viewer, or view all files across the folders at once. Research notes live under Research; drawings under CAD.' },
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
+  // ── Property Map (interactive-property-map-2026-09-16) ────────────────────────────────────
+  // Owner: *"There should just be a button in each job page that first says, 'Create Interactive
+  // Map' and then once it has been created, it can say, 'View Interactive Map'."* The tab asks the
+  // summary endpoint — which exists so this button never pays for the whole map, its points and
+  // sixty signed URLs just to decide which of two words to say.
+  { key: 'propertymap', label: 'Property Map', Icon: MapIcon, tip: 'An aerial of the property with numbered points of interest on it. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
@@ -126,6 +132,9 @@ export default function JobDetailPage() {
   const [filesRefresh, setFilesRefresh] = useState(0);
   /** Every tab's count, fetched once on load so the strip is informative before anything is opened. */
   const [tabCountsLoaded, setTabCountsLoaded] = useState<Record<string, number>>({});
+  /** Does this job have an interactive property map yet, and how many points are on it? The whole
+   *  reason `?summary=1` exists: the button must not pay for the map to decide what to say. */
+  const [propertyMap, setPropertyMap] = useState<{ exists: boolean; mapId: string | null; title: string | null; points: number } | null>(null);
   // contacts plan Slice 6 — linked-contacts state for the overview tab.
   const [contactLinks, setContactLinks] = useState<Array<{
     id: string; role: string; notes?: string | null;
@@ -266,6 +275,9 @@ export default function JobDetailPage() {
     }
     if (activeTab === 'fieldwork') {
       fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { handleError(err, 'load field data'); });
+    }
+    if (activeTab === 'propertymap') {
+      fetch(`/api/admin/jobs/${jobId}/property-map?summary=1`).then(r => r.json()).then(d => setPropertyMap(d)).catch((err: unknown) => { handleError(err, 'load property map summary'); });
     }
     if (activeTab === 'financial') {
       fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch((err: unknown) => { handleError(err, 'load payments'); });
@@ -444,6 +456,7 @@ export default function JobDetailPage() {
     ...(filesTotal !== null ? { files: filesTotal } : {}),
     ...(research.length > 0 ? { research: research.length } : {}),
     ...(fieldData.length > 0 ? { fieldwork: fieldData.length } : {}),
+    ...(propertyMap?.exists ? { propertymap: propertyMap.points } : {}),
   };
 
   return (
@@ -1082,6 +1095,32 @@ export default function JobDetailPage() {
                 </Link>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Property Map (interactive-property-map-2026-09-16) ───────────────────────────────
+            One card, two words, following the `job-cad-start` pattern next door: the whole map
+            lives on its own route, because a numbered aerial with a point list beside it is not a
+            thing that fits inside a tab body — and because the drafter wants to open it in its own
+            window beside CAD. */}
+        {activeTab === 'propertymap' && (
+          <div className="job-cad-start" data-testid="job-property-map-card">
+            <div>
+              <strong>Interactive property map</strong>
+              <p>
+                {propertyMap?.exists
+                  ? `${propertyMap.title ?? 'Property map'} — ${propertyMap.points} ${propertyMap.points === 1 ? 'point of interest' : 'points of interest'}. Open it to review the photos, video, notes and voice notes pinned to each one.`
+                  : 'Upload an aerial of the property and drop numbered points on it — monuments found, encroachments, the gate the truck fits through. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.'}
+              </p>
+            </div>
+            <Link
+              href={`/admin/jobs/${jobId}/map`}
+              className="jobs-page__btn jobs-page__btn--primary"
+              data-testid="job-property-map-link"
+            >
+              <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
+              {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+            </Link>
           </div>
         )}
 
