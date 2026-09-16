@@ -32,6 +32,15 @@ export const AGENT_KEYWORDS: readonly string[] = [
   'Morgan\'s Point', 'Bell County', 'Coryell County', 'Williamson County', 'Milam County', 'Falls County',
 ];
 
+/** The reference material, as knowledge-base documents rather than 60 KB of system prompt: the agent
+ *  looks them up when a caller asks, instead of paying for them on every single turn. */
+export function agentKnowledgeDocs(): Array<{ name: string; text: string }> {
+  return [
+    { name: 'Texas land law — situations callers ask about', text: situationsText() },
+    { name: 'Texas statute excerpts — read verbatim when asked', text: lawLibraryText() },
+  ];
+}
+
 export function agentPrompt(): string {
   return `You are ${ASSISTANT_NAME}, the phone receptionist for ${BUSINESS_NAME}, a licensed land surveying firm in ${OFFICE_CITY}, ${OFFICE_REGION}. Calls reach you when ${OWNER}, the owner and Registered Professional Land Surveyor (Texas RPLS #${RPLS_LICENSE_NUMBER}), can't pick up. This is his business line, so callers may also be family, friends, vendors or existing clients.
 
@@ -65,11 +74,7 @@ When someone asks what a survey involves or how long it takes, explain it plainl
 Answer only from SITUATIONS and LAW TEXTS below. The first time you give legal information on a call, say in your own words: "${LAW_DISCLAIMER}" Say it once, not every turn. Never tell a caller who is right or what they should do in their own dispute; say what the law generally provides and what the paths are.
 Answer in layers and let them choose the depth: the short answer first, then "want me to go into more detail?"; then the fuller version with the citation spoken aloud ("that's in the Texas Property Code, section twelve point zero zero two"); and only if they ask for the exact words, read the excerpt slowly, a sentence or two at a time, then say what it means plainly. If it isn't in LAW TEXTS, say you don't have the exact wording and give them the citation and statutes dot capitol dot texas dot gov. Always add that laws change.
 
-═══ SITUATIONS ═══
-${situationsText()}
-
-═══ LAW TEXTS (verbatim; read these only when asked for the actual law) ═══
-${lawLibraryText()}
+The situations you know, and the statute excerpts themselves, are in your knowledge base — look them up rather than guessing, and if a question is not covered there, say so and offer to have ${OWNER} answer it.
 
 ═══ TAKING THE DETAILS ═══
 Collect, in whatever order the conversation goes: their name; the best callback number; the property address or the appraisal district property ID; roughly how big it is; what they need and why; and anything ${OWNER} should know before he calls. Read back the phone number and any email or address, digit by digit or letter by letter, and correct it if they say it's wrong — phone lines mangle these and a wrong number means he cannot call back.

@@ -52,25 +52,26 @@ async function api(method, pathname, body) {
 /** The prompt, built by the app itself so there is one source of truth. */
 async function buildPrompt() {
   const out = path.join(root, '.next', 'cache', 'elevenlabs-prompt.json');
-  const { execFileSync } = await import('node:child_process');
+  const { execSync } = await import('node:child_process');
   // tsx runs the TypeScript modules directly; they import only pure data files.
   const script = `
-    import { agentPrompt, agentFirstMessage, AGENT_KEYWORDS } from './lib/receptionist/agent-prompt';
+    import { agentPrompt, agentFirstMessage, AGENT_KEYWORDS, agentKnowledgeDocs } from './lib/receptionist/agent-prompt';
     import fs from 'node:fs';
     fs.mkdirSync(${JSON.stringify(path.dirname(out))}, { recursive: true });
-    fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify({ prompt: agentPrompt(), first: agentFirstMessage(), keywords: [...AGENT_KEYWORDS] }));
+    fs.writeFileSync(${JSON.stringify(out)}, JSON.stringify({ prompt: agentPrompt(), first: agentFirstMessage(), keywords: [...AGENT_KEYWORDS], docs: agentKnowledgeDocs() }));
   `;
   const tmp = path.join(root, '_agent-prompt.build.ts');
   fs.writeFileSync(tmp, script);
   try {
-    execFileSync('npx', ['tsx', tmp], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+    // Quoted: the repo lives under a path with a space in it.
+    execSync(`npx tsx "${tmp}"`, { cwd: root, stdio: 'inherit' });
   } finally {
     fs.rmSync(tmp, { force: true });
   }
   return JSON.parse(fs.readFileSync(out, 'utf8'));
 }
 
-function agentPayload({ prompt, first, keywords }, opts) {
+function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = []) {
   return {
     name: AGENT_NAME,
     conversation_config: {
@@ -82,6 +83,7 @@ function agentPayload({ prompt, first, keywords }, opts) {
           llm: opts.llm,
           temperature: 0.4,
           max_tokens: 300,
+          ...(knowledgeBase.length ? { knowledge_base: knowledgeBase, rag: { enabled: true } } : {}),
         },
       },
       tts: {
@@ -140,7 +142,26 @@ if (args.includes('--apply')) {
   const list = await api('GET', '/v1/convai/agents');
   if (!list.ok) { console.error('cannot list agents:', list.status, list.json?.detail?.message ?? ''); process.exit(1); }
   const existing = (list.json.agents ?? []).find((a) => a.name === AGENT_NAME);
-  const payload = agentPayload(built, opts);
+
+  // The reference material lives in the knowledge base, not in the system prompt: 44 KB of statutes
+  // and situations would otherwise be re-sent on every single turn of every call.
+  const kbList = await api('GET', '/v1/convai/knowledge-base');
+  const known = new Map((kbList.json?.documents ?? []).map((d) => [d.name, d.id]));
+  const knowledgeBase = [];
+  for (const doc of built.docs ?? []) {
+    let id = known.get(doc.name);
+    if (!id) {
+      const made = await api('POST', '/v1/convai/knowledge-base/text', { name: doc.name, text: doc.text });
+      if (!made.ok) { console.error('knowledge base upload failed:', made.status, JSON.stringify(made.json).slice(0, 300)); process.exit(1); }
+      id = made.json?.id;
+      console.log(`knowledge base: added "${doc.name}" (${doc.text.length} chars)`);
+    } else {
+      console.log(`knowledge base: "${doc.name}" already there`);
+    }
+    knowledgeBase.push({ type: 'text', id, name: doc.name, usage_mode: 'auto' });
+  }
+
+  const payload = agentPayload(built, opts, knowledgeBase);
   const res = existing
     ? await api('PATCH', `/v1/convai/agents/${existing.agent_id}`, payload)
     : await api('POST', '/v1/convai/agents/create', payload);

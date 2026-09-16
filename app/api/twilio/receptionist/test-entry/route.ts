@@ -24,7 +24,7 @@ import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { lookupKnownCaller } from '@/lib/receptionist/known-caller';
 import { parseTestVersion } from '@/lib/receptionist/version';
-import { elevenLabsDial, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
+import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 import { machineOpening } from '@/lib/receptionist/answering-machine';
 import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
 
@@ -71,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
     const base = url.replace(/\/api\/twilio\/.*$/, '');
     return twimlResponse(twiml(
       say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
-      elevenLabsDial(sip, { callerId: tester, action: '/api/twilio/receptionist/relay-ended', recordingCallback: `${base}/api/twilio/recording` }),
+      elevenLabsDial(sip, { callerId: tester, action: '/api/twilio/receptionist/relay-ended', recordingCallback: `${base}/api/twilio/recording`, auth: elevenLabsSipAuth() }),
     ));
   }
 

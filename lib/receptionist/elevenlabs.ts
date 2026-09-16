@@ -22,12 +22,20 @@ export function elevenLabsSipUri(env: Record<string, string | undefined> = proce
 export const elevenLabsConfigured = (env: Record<string, string | undefined> = process.env): boolean =>
   elevenLabsSipUri(env) !== null;
 
+/** SIP digest credentials, when the agent's inbound trunk is locked to them. Sent on the <Sip> noun,
+ *  so a stranger who finds the SIP address cannot open a session and spend the firm's minutes. */
+export function elevenLabsSipAuth(env: Record<string, string | undefined> = process.env): { username: string; password: string } | null {
+  const username = (env.ELEVENLABS_SIP_USERNAME ?? '').trim();
+  const password = (env.ELEVENLABS_SIP_PASSWORD ?? '').trim();
+  return username && password ? { username, password } : null;
+}
+
 /**
  * Dial the agent. `callerId` is the caller's own number so the agent can greet a known caller, and
  * the recording callback is the same one every other path uses, so a call answered by ElevenLabs is
  * reviewed on /admin/calls like any other.
  */
-export function elevenLabsDial(uri: string, opts: { callerId: string; action: string; recordingCallback?: string }): string {
+export function elevenLabsDial(uri: string, opts: { callerId: string; action: string; recordingCallback?: string; auth?: { username: string; password: string } | null }): string {
   const attrs = [
     `action="${esc(opts.action)}"`,
     'method="POST"',
@@ -35,5 +43,6 @@ export function elevenLabsDial(uri: string, opts: { callerId: string; action: st
     opts.callerId ? `callerId="${esc(opts.callerId)}"` : '',
     opts.recordingCallback ? `record="record-from-answer-dual" recordingStatusCallback="${esc(opts.recordingCallback)}" recordingStatusCallbackMethod="POST"` : '',
   ].filter(Boolean).join(' ');
-  return `<Dial ${attrs}><Sip>${esc(uri)}</Sip></Dial>`;
+  const auth = opts.auth ? ` username="${esc(opts.auth.username)}" password="${esc(opts.auth.password)}"` : '';
+  return `<Dial ${attrs}><Sip${auth}>${esc(uri)}</Sip></Dial>`;
 }
