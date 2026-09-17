@@ -24,7 +24,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { bucketOf, displayName, mimeOf, sizeOf, type JobFileRow } from './file-storage';
 import {
   mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE, clampToImage,
-  type MapPoint, type PointMedia, type PropertyMap, type Georeference, type RelativePoint,
+  type MapPoint, type PointMedia, type PropertyMap, type Georeference, type RelativePoint, type MediaKind,
 } from './property-map';
 import { isKnownGeometry, DEFAULT_GEOMETRY } from './property-map-shapes';
 
@@ -210,4 +210,84 @@ export async function propertyMapSummary(jobId: string): Promise<{ exists: boole
   const { count } = await supabaseAdmin
     .from('job_map_points').select('id', { count: 'exact', head: true }).eq('map_id', row.id).is('deleted_at', null);
   return { exists: true, mapId: row.id, title: row.title, points: count ?? 0 };
+}
+
+// ── THE FILE PANEL BESIDE THE MAP ───────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-16: "we need all of the job files, photos, videos, audio files, etc to be available
+// to us to see in a panel next to the map while we are building the interactive map, so that we can
+// assign them to points of interest if we want to … once a file has been assigned to a point, it
+// cannot be assigned to another point. It will still be in the … panel, but it will be a bit
+// transparent and marked as already assigned."
+//
+// The panel is a to-do list: what have I not placed yet? That only works if "assigned" is a property
+// of the FILE, so this returns every file of the job with its assignment attached, already signed —
+// one request for the lot, the same reason the map itself is one request. A hundred photographs is a
+// hundred serial signing round trips otherwise, and the panel is the thing somebody sits in front of
+// for an hour.
+export interface LibraryFile {
+  id: string;
+  name: string;
+  kind: MediaKind;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  uploadedAt: string | null;
+  /** Which standard folder it lives in — the panel groups by this. */
+  section: string | null;
+  url: string | null;
+  thumbUrl: string | null;
+  /** Null when the file is free. Otherwise the point that has it, so the panel can say "on 4". */
+  assignedTo: { pointId: string; mediaId: string; ordinal: number; title: string } | null;
+}
+
+/** Every file on the job, with thumbnails and assignment state, for the panel beside the map. */
+export async function loadMapLibrary(jobId: string, mapId: string | null): Promise<LibraryFile[]> {
+  const { data: fileRows, error } = await supabaseAdmin
+    .from('job_files').select('*').eq('job_id', jobId).eq('is_deleted', false)
+    .order('uploaded_at', { ascending: false }).limit(500);
+  if (error) throw new Error(error.message);
+  const files = (fileRows ?? []) as JobFileRow[];
+  if (files.length === 0) return [];
+
+  // Who has what. Scoped to this map's points when there is a map, so a second map on the same job
+  // does not report a file as free when the first map is using it — the constraint is job-wide.
+  const { data: pointRows } = mapId
+    ? await supabaseAdmin.from('job_map_points').select('id, ordinal, title').eq('map_id', mapId).is('deleted_at', null)
+    : { data: [] as Array<{ id: string; ordinal: number; title: string }> };
+  const points = new Map(((pointRows ?? []) as Array<{ id: string; ordinal: number; title: string }>).map((p) => [p.id, p]));
+
+  const { data: assignedRows } = await supabaseAdmin
+    .from('job_map_point_media').select('id, point_id, job_file_id')
+    .in('job_file_id', files.map((f) => String(f.id))).is('deleted_at', null);
+  const assigned = new Map(((assignedRows ?? []) as Array<{ id: string; point_id: string; job_file_id: string }>)
+    .map((a) => [a.job_file_id, a]));
+
+  const toSign: Array<{ bucket: string; path: string }> = [];
+  for (const f of files) {
+    if (f.storage_path) toSign.push({ bucket: bucketOf(f), path: String(f.storage_path) });
+  }
+  const signed = await signAll(toSign);
+
+  return files.map((f) => {
+    const kind = mediaKindFor(mimeOf(f), displayName(f));
+    const url = f.storage_path ? signed.get(`${bucketOf(f)}:${String(f.storage_path)}`) ?? null : null;
+    const a = assigned.get(String(f.id));
+    const point = a ? points.get(a.point_id) : undefined;
+    return {
+      id: String(f.id),
+      name: displayName(f),
+      kind,
+      mimeType: mimeOf(f),
+      sizeBytes: sizeOf(f),
+      uploadedAt: (f as { uploaded_at?: string | null }).uploaded_at ?? null,
+      section: (f as { section?: string | null }).section ?? null,
+      url,
+      // No generated thumbnails yet (that is a later phase), so an image previews from itself and
+      // everything else shows its icon. Declared here so the panel never has to know the difference.
+      thumbUrl: kind === 'image' ? url : null,
+      assignedTo: a
+        ? { pointId: a.point_id, mediaId: a.id, ordinal: point?.ordinal ?? 0, title: point?.title ?? 'another point' }
+        : null,
+    };
+  });
 }

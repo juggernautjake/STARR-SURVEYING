@@ -61,6 +61,29 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     return NextResponse.json({ error: 'That file does not belong to this job.' }, { status: 404 });
   }
 
+  // ── ONE FILE, ONE POINT (owner, 2026-09-16) ─────────────────────────────────────────────────
+  // "once a file has been assigned to a point, it cannot be assigned to another point … There will
+  // be an option to unassign it which will require confirmation."
+  //
+  // The database enforces this (seeds/643) because two fast drags are two requests in flight and a
+  // check here cannot see the other one. This check exists for the SENTENCE: the constraint can only
+  // say "duplicate key", and what somebody dragging a photo needs to hear is which pin already has
+  // it, so they can go and take it off that one.
+  const { data: taken } = await supabaseAdmin.from('job_map_point_media')
+    .select('point_id, job_map_points!inner(ordinal, title)')
+    .eq('job_file_id', body.job_file_id).is('deleted_at', null).maybeSingle();
+  if (taken) {
+    const on = (taken as { point_id: string; job_map_points?: { ordinal: number; title: string } }).job_map_points;
+    const where = on ? `point ${on.ordinal}, ${on.title}` : 'another point';
+    return NextResponse.json({
+      error: (taken as { point_id: string }).point_id === point.id
+        ? 'That file is already on this point.'
+        : `That file is already on ${where}. Unassign it there first, then it can go here.`,
+      code: 'already_assigned',
+      assigned_point_id: (taken as { point_id: string }).point_id,
+    }, { status: 409 });
+  }
+
   const { data: existing } = await supabaseAdmin.from('job_map_point_media')
     .select('ordinal').eq('point_id', point.id).is('deleted_at', null).order('ordinal', { ascending: false }).limit(1);
   const nextOrdinal = ((existing ?? [])[0] as { ordinal: number } | undefined)?.ordinal ?? 0;
@@ -75,9 +98,12 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     ordinal: nextOrdinal + 1,
     created_by: g.email,
   });
-  // The unique index says the same file cannot hang on the same point twice; a double-click should
-  // be a no-op, not an error the person has to read.
-  if (error && !/duplicate key|unique/i.test(error.message)) {
+  // The index is the authority, and it wins a race the check above cannot see. A second drag that
+  // lands a millisecond later is told the same thing, in the same words.
+  if (error) {
+    if (/duplicate key|unique/i.test(error.message)) {
+      return NextResponse.json({ error: 'That file was just assigned to another point. Unassign it there first.', code: 'already_assigned' }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   return NextResponse.json(await loadPropertyMap(params.id, point.map_id));

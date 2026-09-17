@@ -339,6 +339,52 @@ times.
 
 **Done when:** a point can hold notes, photos, video and audio, and all of it plays.
 
+## Phase 3b — The file panel, and one file to one point
+
+> "we need all of the job files, photos, videos, audio files, etc to be available to us to see in a
+> panel next to the map while we are building the interactive map, so that we can assign them to
+> points of interest if we want to. We should be able to grab the thumbnail/preview … and drag it to
+> a point, or open up a point's panel and it should have a drop box … once a file has been assigned
+> to a point, it cannot be assigned to another point. It will still be in the … panel, but it will be
+> a bit transparent and marked as already assigned. There will be an option to unassign it which will
+> require confirmation … so that I can start placing points and then adding data to them very quickly
+> and easily!"
+
+**The panel is a to-do list**, and that is the whole design. Its job is to answer *what have I not
+placed yet?* at a glance, which only works if "assigned" is a property of the FILE rather than
+something to cross-reference against the points. So the library endpoint returns every file with its
+assignment attached, and the exclusivity rule is what keeps the greyed-out state honest: the moment
+one photograph can hang on three pins, the panel stops being a list of work left to do.
+
+**The constraint lives in the database, not the route.** Two fast drags are two requests in flight at
+once; a check-then-insert passes both and leaves exactly the state that was asked to be impossible. A
+partial unique index cannot be raced. The route's check exists for the *sentence* — a constraint can
+only say "duplicate key", and what somebody dragging a photo needs to hear is which pin already has
+it.
+
+- [x] `seeds/643_job_map_media_one_point.sql` — unique on `job_file_id` among live rows, replacing
+      the old per-point index; existing double assignments resolved newest-wins.
+- [x] `loadMapLibrary()` — every job file with kind, size, section, a signed URL and `assignedTo`,
+      signed in bulk. Measured on a real job: 22 files in 851 ms, one request.
+- [x] `GET …/property-map/library` — its own endpoint, so assigning one photo does not reload the
+      aerial and its points.
+- [x] Attach refuses a taken file with a 409 that names the point holding it, and says the same thing
+      when the index wins the race instead.
+- [x] Unassign stays a soft delete, so the file is free again the instant the confirmation is
+      accepted, and the record of where it was survives.
+- [ ] The panel: tiles with thumbnails, kind filter, search, unassigned first, a count of what is
+      left to place.
+- [ ] Drag a tile onto a pin, a shape, or a list row. A drop box in the point panel that takes both a
+      tile and a file from the desktop.
+- [ ] Tap-to-assign for touch and keyboard, because drag-and-drop is neither.
+- [ ] Assigned tiles: dimmed, badged with the point number, click the badge to go to it, unassign
+      behind an inline confirmation.
+
+**Known gap this exposed:** the first real job tried has twenty PDFs and two images, and only images
+preview. PDF first-page thumbnails (and video poster frames) are the thumbnail phase below, and this
+panel is the reason it matters — a grid of identical document icons is a filing cabinet, not a
+to-do list.
+
 ## Phase 4 — The interaction the request is really about
 
 - [x] Hover a pin: enlarge (`transform: scale`), a soft glow, the title on a label, and a **preview

@@ -44,9 +44,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  AlertTriangle, Camera, Check, ChevronLeft, Compass, Crosshair, DoorOpen, ExternalLink, Fence,
-  FileText, Hash, Hexagon, Home, MapPin, Mic, Music, Pencil, Plus, Route, Search, ShieldAlert,
-  Spline, Tag, Target, Trash2, Trees, Undo2, Upload, Video, Waves, X, Zap, type LucideIcon,
+  AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronUp, Compass, Crosshair, DoorOpen,
+  ExternalLink, Eye, Fence, FileText, Folder, Hash, Hexagon, Home, MapPin, Mic, Music, Pencil, Plus,
+  Route, Search, ShieldAlert, Spline, Tag, Target, Trash2, Trees, Undo2, Upload, Video, Waves, X,
+  Zap, type LucideIcon,
 } from 'lucide-react';
 
 import { usePageError } from '@/app/admin/hooks/usePageError';
@@ -54,8 +55,10 @@ import { useToast } from '@/app/admin/components/Toast';
 import MediaViewer, { type MediaItem } from '@/app/admin/components/MediaViewer';
 import AudioRecorder from '@/app/admin/components/fieldbook/AudioRecorder';
 import { usePageTitle } from '@/lib/admin/page-title';
+import { formatBytes } from '@/app/admin/components/files/format';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import { detectJobFileType } from '@/lib/files/job-folders';
+import type { LibraryFile } from '@/lib/jobs/property-map-server';
 import {
   POINT_STATUSES, POINT_TYPES, clampToImage, filterPoints, mapsHref, mediaKindFor, mediaSummary,
   pinStyle, pointLabel, pointType, relativeFromClick, sortMedia, typesInUse,
@@ -99,6 +102,78 @@ const KIND_ICON: Record<MediaKind, LucideIcon> = {
 /** The popup's width in `PropertyMap.css`, in pixels. Clamping needs a number, and a number that
  *  disagrees with the stylesheet clamps the wrong box — so it is named here and nowhere else. */
 const POPUP_WIDTH = 256;
+
+// ── THE FILE PANEL ──────────────────────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-16: "we need all of the job files, photos, videos, audio files, etc to be available
+// to us to see in a panel next to the map while we are building the interactive map … We should be
+// able to grab the thumbnail/preview of the file … and drag it to a point, or open up a point's
+// panel and it should have a drop box that we can then drag the files into … once a file has been
+// assigned to a point, it cannot be assigned to another point. It will still be in the … panel, but
+// it will be a bit transparent and marked as already assigned … Please build this all out so that I
+// can start placing points and then adding data to them very quickly and easily!"
+//
+// ── THE THREE DECISIONS THE PANEL IS MADE OF ───────────────────────────────────────────────────
+//
+// 1. THE PANEL IS ON THE LEFT, NOT THE RIGHT. The detail drawer is fixed to the right edge and
+//    covers whatever is under it — so a file panel on the right would be hidden at exactly the
+//    moment a point's drop box is open and somebody wants to drag into it. Left of the aerial, the
+//    tiles and the drop box are on screen together.
+//
+// 2. DRAG IS THE FAST PATH, NOT THE ONLY PATH. HTML5 drag-and-drop does not exist on a phone and
+//    cannot be driven from a keyboard. So every assignment goes through ONE function, and three
+//    gestures reach it: a drag onto a target, a tap that arms a tile and a second tap on a target,
+//    and Enter on the tile followed by Enter on a pin. Arming is the same state for touch and for
+//    the keyboard, which is why there is only one of it.
+//
+// 3. THE TILE GOES GREY THE INSTANT IT IS DROPPED. "Assigning should feel like dealing cards" is a
+//    latency requirement: the answer comes back with the whole map in it, which is not free, and a
+//    tile that waits for it reads as a drop that did not take. It greys optimistically and comes
+//    back if the request fails.
+
+/** The drag payload. A private MIME type, so a photo dragged out of the desktop's file manager and
+ *  a tile dragged out of this panel can never be mistaken for one another — the first uploads, the
+ *  second only links. */
+const FILE_DRAG_TYPE = 'application/x-starr-file';
+
+/** How long a tile flashes after a 409, in ms. Long enough to find with your eye, short enough that
+ *  the next drag is not waiting on it. */
+const FLASH_MS = 1800;
+
+/** The order the panel groups kinds in, and what each group is called. Photographs first because on
+ *  a survey there are ten of them for every other thing. */
+const KIND_ORDER: readonly MediaKind[] = ['image', 'video', 'audio', 'document'];
+const KIND_LABEL: Record<MediaKind, string> = {
+  image: 'Photos', video: 'Video', audio: 'Audio', document: 'Documents',
+};
+const KIND_ONE: Record<MediaKind, string> = {
+  image: 'Photo', video: 'Video', audio: 'Audio', document: 'Document',
+};
+
+/** A file the panel is waiting on, or one the server refused. */
+interface Conflict {
+  fileId: string;
+  message: string;
+  pointId: string | null;
+}
+
+/** What the "On 4" chip says. A file held by a point on ANOTHER map of the same job comes back with
+ *  an ordinal of 0 — the constraint is job-wide, the numbering is not — and "On 0" is a lie, so
+ *  that case says so plainly instead. */
+function assignedChip(file: LibraryFile): string {
+  const ord = file.assignedTo?.ordinal ?? 0;
+  return ord > 0 ? `On ${ord}` : 'Assigned';
+}
+
+/** Unplaced first, then newest first — the panel is a to-do list, and the thing most likely to be
+ *  wanted next is the photograph that came off the camera last. */
+function sortLibrary(files: LibraryFile[]): LibraryFile[] {
+  return [...files].sort((a, b) => {
+    const placed = Number(Boolean(a.assignedTo)) - Number(Boolean(b.assignedTo));
+    if (placed !== 0) return placed;
+    return String(b.uploadedAt ?? '').localeCompare(String(a.uploadedAt ?? ''));
+  });
+}
 
 /** A drag has to travel this far, in screen pixels, before it counts as a drag rather than a click.
  *  Below it, placing a cone is a plain click and gets the phone-camera defaults. */
@@ -256,6 +331,34 @@ export default function JobPropertyMapPage() {
   const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
   const [draft, setDraft] = useState<{ title: string; notes: string } | null>(null);
 
+  // ── THE FILE PANEL ───────────────────────────────────────────────────────────────────────────
+  const [library, setLibrary] = useState<LibraryFile[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [fileSearch, setFileSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<MediaKind | 'all'>('all');
+  const [unplacedOnly, setUnplacedOnly] = useState(false);
+  /** The tile that has been tapped or Entered: the touch and keyboard half of a drag. */
+  const [armedFileId, setArmedFileId] = useState<string | null>(null);
+  /** The tile being dragged right now, which is what turns every pin into a lit drop target. */
+  const [dragFileId, setDragFileId] = useState<string | null>(null);
+  /** Which target the pointer is over, so exactly one thing is highlighted at a time. */
+  const [overPointId, setOverPointId] = useState<string | null>(null);
+  /** Optimistically greyed: dropped, not yet answered for. */
+  const [placing, setPlacing] = useState<string[]>([]);
+  const [confirmUnassign, setConfirmUnassign] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [flashFileId, setFlashFileId] = useState<string | null>(null);
+
+  const filesScrollRef = useRef<HTMLDivElement | null>(null);
+  /** Where the panel was scrolled to when a refresh started. A reload that jumps the panel back to
+   *  the top costs more time than the assignment saved. */
+  const keepScrollRef = useRef<number | null>(null);
+  /** `dataTransfer.getData` is empty during dragover in every browser, and Safari empties it on
+   *  drop for a custom type often enough to matter. The id is mirrored here as the fallback. */
+  const dragFileRef = useRef<string | null>(null);
+  const flashTimer = useRef<number | null>(null);
+
   // ── DRAWING AND EDITING SHAPES ───────────────────────────────────────────────────────────────
   const [draw, setDraw] = useState<Draw | null>(null);
   /** Where the cursor is while a path or an area is part-drawn, for the rubber-band segment. */
@@ -316,6 +419,10 @@ export default function JobPropertyMapPage() {
 
   const savePrefs = useCallback((next: Prefs) => { setPrefs(next); writePrefs(next); }, []);
 
+  /** Put the armed tile down again. Declared up here because Escape — which is the only way out of
+   *  a half-finished gesture — is bound long before the assignment code below runs. */
+  const disarm = useCallback(() => { setArmedFileId(null); setOverPointId(null); }, []);
+
   /** Every mutating call answers with the whole map, so this is the only place state is replaced. */
   const mutate = useCallback(async (what: string, url: string, init: RequestInit, done?: string) => {
     setBusy(true);
@@ -326,6 +433,43 @@ export default function JobPropertyMapPage() {
     if (done) addToast(done, 'success');
     return res;
   }, [safeFetch, addToast]);
+
+  // ── THE LIBRARY: ONE REQUEST, EVERY FILE, ALREADY SIGNED ──────────────────────────────────────
+  // Deliberately its own call and not folded into the map's. Uploading changes the library, drawing
+  // changes the map, and a drag that assigns one photo should reload neither more than it must.
+  const loadLibrary = useCallback(async (mapId: string | null) => {
+    const qs = mapId ? `?map_id=${encodeURIComponent(mapId)}` : '';
+    const data = await safeFetch<{ files: LibraryFile[] }>(`/api/admin/jobs/${jobId}/property-map/library${qs}`);
+    setLibraryLoading(false);
+    if (data) setLibrary(Array.isArray(data.files) ? data.files : []);
+  }, [jobId, safeFetch]);
+
+  /** Refresh the panel without losing the person's place in it. */
+  const refreshLibrary = useCallback((mapId: string | null) => {
+    keepScrollRef.current = filesScrollRef.current?.scrollTop ?? null;
+    void loadLibrary(mapId);
+  }, [loadLibrary]);
+
+  useEffect(() => {
+    if (!jobId || !map?.id) return;
+    setLibraryLoading(true);
+    void loadLibrary(map.id);
+  }, [jobId, map?.id, loadLibrary]);
+
+  // Put the panel back where it was. Layout has to have happened first, which is what makes this an
+  // effect on the data rather than a line at the end of the fetch.
+  useEffect(() => {
+    const to = keepScrollRef.current;
+    if (to === null || !filesScrollRef.current) return;
+    filesScrollRef.current.scrollTop = to;
+    keepScrollRef.current = null;
+  }, [library]);
+
+  // Edit mode is when files get placed, so that is when the panel opens itself. It stays a toggle:
+  // seeing what is still unplaced is useful while reviewing too, which is why it exists in view mode.
+  useEffect(() => { setPanelOpen(editing); }, [editing]);
+
+  useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
 
   // ── THE FRAME'S SIZE, WHICH THE POPUP AND THE HANDLES ARE SCALED AGAINST ──────────────────────
   const measure = useCallback(() => {
@@ -473,8 +617,12 @@ export default function JobPropertyMapPage() {
       { method: 'DELETE' },
       'Point deleted.',
     );
-    if (res) setSelectedId(null);
-  }, [map, jobId, mutate]);
+    if (!res) return;
+    setSelectedId(null);
+    // Its attachments went with it, so every one of those files is free again and the panel has to
+    // stop showing them as placed on a point that no longer exists.
+    refreshLibrary(map.id);
+  }, [map, jobId, mutate, refreshLibrary]);
 
   // ── DRAWING ──────────────────────────────────────────────────────────────────────────────────
   const arm = useCallback((geometry: GeometryId) => {
@@ -689,6 +837,9 @@ export default function JobPropertyMapPage() {
 
       if (e.key === 'Escape') {
         if (viewing) return;
+        // An armed tile is the newest thing on screen, so it is the first thing Escape takes back.
+        if (armedFileId) { e.preventDefault(); disarm(); return; }
+        if (conflict) { e.preventDefault(); setConflict(null); return; }
         if (draw) { e.preventDefault(); cancelDraw(); return; }
         if (selectedId) { setSelectedId(null); return; }
         if (editing) setEditing(false);
@@ -712,7 +863,10 @@ export default function JobPropertyMapPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewing, selectedId, editing, draw, vertexSel, cancelDraw, finishDraw, undoVertex, removeVertex]);
+  }, [
+    viewing, selectedId, editing, draw, vertexSel, armedFileId, conflict,
+    cancelDraw, finishDraw, undoVertex, removeVertex, disarm,
+  ]);
 
   const onPinDown = (e: React.PointerEvent<HTMLButtonElement>, p: MapPoint) => {
     if (!editing) return;
@@ -741,6 +895,8 @@ export default function JobPropertyMapPage() {
   const onPinClick = (p: MapPoint) => {
     // A drag that ended over the pin fires a click too. Swallow that one.
     if (movedRef.current) { movedRef.current = false; return; }
+    // While a tile is armed, a pin is a destination rather than a thing to open.
+    if (takeTarget(p.id)) return;
     setSelectedId((cur) => (cur === p.id ? null : p.id));
   };
 
@@ -749,10 +905,168 @@ export default function JobPropertyMapPage() {
       'detach that file',
       `/api/admin/jobs/${jobId}/property-map/media?point_id=${encodeURIComponent(pointId)}&media_id=${encodeURIComponent(mediaId)}`,
       { method: 'DELETE' },
-      'Detached. The file is still in the job.',
+      'Detached. The file is free again, and still in the job.',
     );
     setConfirmMedia(null);
-  }, [jobId, mutate]);
+    // Detaching here and unassigning in the panel are the same act seen from two sides. The panel
+    // has to hear about it or the tile stays greyed out over a point that no longer has it.
+    refreshLibrary(map?.id ?? null);
+  }, [jobId, mutate, refreshLibrary, map?.id]);
+
+  // ── ASSIGNING: ONE FUNCTION, THREE GESTURES ──────────────────────────────────────────────────
+  /** A tile that just bounced off a 409, lit for long enough to find. */
+  const flashTile = useCallback((fileId: string) => {
+    setFlashFileId(fileId);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashFileId(null), FLASH_MS);
+  }, []);
+
+  /** Attach a file the job already has to a point. Not `safeFetch`, and that is the point: a 409
+   *  here is not a failure to report, it is a SENTENCE the server wrote for this exact moment
+   *  ("That file is already on point 4, Pipe at NE corner…"), and `safeFetch` returns null. */
+  const assignFile = useCallback(async (pointId: string, fileId: string) => {
+    if (!map || !fileId) return;
+    const point = pointsRef.current.find((p) => p.id === pointId);
+    if (!point) return;
+
+    setArmedFileId(null);
+    setOverPointId(null);
+    setConflict(null);
+    // Grey it NOW. The response carries the whole map, which is not free, and a tile that waits for
+    // it reads as a drop that did not take.
+    setPlacing((cur) => (cur.includes(fileId) ? cur : [...cur, fileId]));
+
+    try {
+      const res = await fetch(`/api/admin/jobs/${jobId}/property-map/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ point_id: pointId, job_file_id: fileId }),
+      });
+
+      if (res.ok) {
+        const next = (await res.json()) as MapPayload;
+        setPayload(next);
+        // Mark the tile placed from the answer we already have, so it does not blink back to
+        // "unplaced" for the length of the library's own round trip.
+        const landed = next.points.find((p) => p.id === pointId);
+        const row = landed?.media.find((m) => m.jobFileId === fileId);
+        setLibrary((cur) => cur.map((f) => (f.id === fileId
+          ? {
+            ...f,
+            assignedTo: {
+              pointId,
+              mediaId: row?.id ?? '',
+              ordinal: landed?.ordinal ?? point.ordinal,
+              title: landed?.title ?? point.title,
+            },
+          }
+          : f)));
+        addToast(`Added to ${pointLabel(landed ?? point)}.`, 'success', 1800);
+        refreshLibrary(map.id);
+        return;
+      }
+
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string; code?: string; assigned_point_id?: string;
+      };
+      // The server's words, not ours: it knows which pin has the file and says so by name.
+      const message = body.error ?? 'That file could not be added to this point.';
+      addToast(message, 'error');
+      if (body.code === 'already_assigned') {
+        setConflict({ fileId, message, pointId: body.assigned_point_id ?? null });
+        refreshLibrary(map.id);
+      }
+      flashTile(fileId);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'assign a file to a map point' });
+      addToast('Could not reach the server — nothing was changed.', 'error');
+      flashTile(fileId);
+    } finally {
+      // Roll the optimistic grey back. On the happy path the tile is already marked placed above,
+      // so this only ever undoes a drop that failed.
+      setPlacing((cur) => cur.filter((id) => id !== fileId));
+    }
+  }, [map, jobId, addToast, refreshLibrary, flashTile, reportPageError]);
+
+  const unassignFile = useCallback(async (file: LibraryFile) => {
+    const at = file.assignedTo;
+    if (!at || !map) return;
+    setConfirmUnassign(null);
+    setPlacing((cur) => (cur.includes(file.id) ? cur : [...cur, file.id]));
+    const res = await mutate(
+      'unassign that file',
+      `/api/admin/jobs/${jobId}/property-map/media?point_id=${encodeURIComponent(at.pointId)}&media_id=${encodeURIComponent(at.mediaId)}`,
+      { method: 'DELETE' },
+      'Unassigned. The file is free to go on another point.',
+    );
+    setPlacing((cur) => cur.filter((id) => id !== file.id));
+    if (!res) return;
+    setLibrary((cur) => cur.map((f) => (f.id === file.id ? { ...f, assignedTo: null } : f)));
+    if (conflict?.fileId === file.id) setConflict(null);
+    refreshLibrary(map.id);
+  }, [map, jobId, mutate, refreshLibrary, conflict?.fileId]);
+
+  /** The one-click recovery from a 409: go and look at the pin that already has the file. */
+  const showConflictPoint = useCallback(() => {
+    if (!conflict?.pointId) return;
+    setSelectedId(conflict.pointId);
+    flashTile(conflict.fileId);
+    setConflict(null);
+  }, [conflict, flashTile]);
+
+  /** The "On 4" chip. Clicking it selects that point, on the map and in the list at once. */
+  const showFilePoint = useCallback((file: LibraryFile) => {
+    if (file.assignedTo) setSelectedId(file.assignedTo.pointId);
+  }, []);
+
+  /** True when the click was spent assigning, so the caller does not ALSO change the selection.
+   *  This is the touch and keyboard path: arm a tile, then tap a pin, a shape or a row. */
+  const takeTarget = useCallback((pointId: string): boolean => {
+    if (!editing || !armedFileId) return false;
+    void assignFile(pointId, armedFileId);
+    return true;
+  }, [editing, armedFileId, assignFile]);
+
+  // ── THE DRAG ITSELF ──────────────────────────────────────────────────────────────────────────
+  const onTileDragStart = useCallback((e: React.DragEvent, file: LibraryFile) => {
+    if (!editing || file.assignedTo) { e.preventDefault(); return; }
+    e.dataTransfer.setData(FILE_DRAG_TYPE, file.id);
+    e.dataTransfer.setData('text/plain', file.name);
+    e.dataTransfer.effectAllowed = 'copy';
+    dragFileRef.current = file.id;
+    setDragFileId(file.id);
+    setConflict(null);
+  }, [editing]);
+
+  const onTileDragEnd = useCallback(() => {
+    dragFileRef.current = null;
+    setDragFileId(null);
+    setOverPointId(null);
+  }, []);
+
+  const onTargetDragOver = useCallback((e: React.DragEvent, pointId: string) => {
+    if (!editing || !dragFileRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+    setOverPointId(pointId);
+  }, [editing]);
+
+  const onTargetDragLeave = useCallback((pointId: string) => {
+    setOverPointId((cur) => (cur === pointId ? null : cur));
+  }, []);
+
+  const onTargetDrop = useCallback((e: React.DragEvent, pointId: string) => {
+    if (!editing) return;
+    const fileId = e.dataTransfer.getData(FILE_DRAG_TYPE) || dragFileRef.current || '';
+    if (!fileId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragFileRef.current = null;
+    setDragFileId(null);
+    setOverPointId(null);
+    void assignFile(pointId, fileId);
+  }, [editing, assignFile]);
 
   // ── ATTACHING: UPLOAD THE BYTES, ROW THE FILE, LINK IT ───────────────────────────────────────
   // Three steps and no copying: the bytes go straight to storage, the row lands in the job's own
@@ -809,13 +1123,44 @@ export default function JobPropertyMapPage() {
         }
       }
       if (attached > 0) addToast(`${attached} ${attached === 1 ? 'file' : 'files'} attached.`, 'success');
+      // A file that just landed in the job belongs in the panel, already marked as placed.
+      if (attached > 0) refreshLibrary(map?.id ?? null);
     });
-  }, [selected, jobId, safeAction, safeFetch, reportPageError, addToast, uploadIntoJob]);
+  }, [selected, jobId, safeAction, safeFetch, reportPageError, addToast, uploadIntoJob, refreshLibrary, map?.id]);
 
   const onVoiceNote = useCallback((blob: Blob) => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     void attachFiles([new File([blob], `voice-note-${stamp}.webm`, { type: 'audio/webm' })]);
   }, [attachFiles]);
+
+  // ── THE POINT'S OWN DROP BOX ─────────────────────────────────────────────────────────────────
+  // Owner: "open up a point's panel and it should have a drop box that we can then drag the files
+  // into." It takes both kinds of drop, and they are not the same act: a tile from the panel is a
+  // file the job already has, so it only LINKS; a file from the desktop uploads first and then
+  // links, down the same path everything else on this page uploads through.
+  const onDetailDragOver = useCallback((e: React.DragEvent) => {
+    if (!editing || !selectedId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDropOver(true);
+  }, [editing, selectedId]);
+
+  const onDetailDrop = useCallback((e: React.DragEvent) => {
+    if (!editing || !selectedId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(false);
+    const fileId = e.dataTransfer.getData(FILE_DRAG_TYPE) || dragFileRef.current || '';
+    if (fileId) {
+      dragFileRef.current = null;
+      setDragFileId(null);
+      setOverPointId(null);
+      void assignFile(selectedId, fileId);
+      return;
+    }
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) void attachFiles(files);
+  }, [editing, selectedId, assignFile, attachFiles]);
 
   // ── CREATING THE MAP, AND REPLACING ITS AERIAL ───────────────────────────────────────────────
   const createMap = useCallback(async (file: File) => {
@@ -887,6 +1232,76 @@ export default function JobPropertyMapPage() {
       above,
     };
   }, [hoverId, points, frame, drag]);
+
+  // ── THE PANEL'S OWN DERIVED STATE ────────────────────────────────────────────────────────────
+  /** "22 files · 14 unplaced" — the progress bar of the whole exercise. */
+  const unplacedCount = useMemo(() => library.filter((f) => !f.assignedTo).length, [library]);
+
+  const kindCounts = useMemo(() => {
+    const out: Record<MediaKind, number> = { image: 0, video: 0, audio: 0, document: 0 };
+    for (const f of library) out[f.kind] += 1;
+    return out;
+  }, [library]);
+
+  const visibleFiles = useMemo(() => {
+    const needle = fileSearch.trim().toLowerCase();
+    return sortLibrary(library.filter((f) => {
+      if (kindFilter !== 'all' && f.kind !== kindFilter) return false;
+      if (unplacedOnly && f.assignedTo) return false;
+      if (needle && !f.name.toLowerCase().includes(needle)) return false;
+      return true;
+    }));
+  }, [library, kindFilter, unplacedOnly, fileSearch]);
+
+  /** Grouped by kind while nothing is filtered — a heading is cheaper to read than a chip you have
+   *  to click. With a kind chosen there is only one group, so the headings go away. */
+  const fileGroups = useMemo(() => (
+    KIND_ORDER
+      .map((kind) => ({ kind, files: visibleFiles.filter((f) => f.kind === kind) }))
+      .filter((g) => g.files.length > 0)
+  ), [visibleFiles]);
+
+  const armedFile = useMemo(
+    () => library.find((f) => f.id === armedFileId) ?? null,
+    [library, armedFileId],
+  );
+
+  /** Every pin, shape and row is a landing place right now — which is what the highlight is for. */
+  const assigning = Boolean(dragFileId || armedFileId);
+
+  const pointOrdinal = useCallback(
+    (pointId: string | null | undefined) => points.find((p) => p.id === pointId)?.ordinal ?? null,
+    [points],
+  );
+
+  const armTile = useCallback((file: LibraryFile) => {
+    if (!editing) {
+      addToast('Turn on Edit map to place files on points.', 'info', 2600);
+      return;
+    }
+    if (file.assignedTo) {
+      addToast(`${file.name} is already on ${assignedChip(file).toLowerCase()}. Unassign it first.`, 'info', 2600);
+      flashTile(file.id);
+      return;
+    }
+    setConflict(null);
+    setArmedFileId((cur) => (cur === file.id ? null : file.id));
+  }, [editing, addToast, flashTile]);
+
+  /** Drop targets each need the same four props. Written once so a pin, a shape and a row cannot
+   *  drift apart in what they accept. */
+  const targetProps = useCallback((pointId: string) => ({
+    onDragOver: (e: React.DragEvent) => onTargetDragOver(e, pointId),
+    onDragEnter: (e: React.DragEvent) => onTargetDragOver(e, pointId),
+    onDragLeave: () => onTargetDragLeave(pointId),
+    onDrop: (e: React.DragEvent) => onTargetDrop(e, pointId),
+  }), [onTargetDragOver, onTargetDragLeave, onTargetDrop]);
+
+  /** What a target is called while something is being assigned — the "Assign selected file"
+   *  affordance the keyboard needs, said in the accessible name rather than only drawn. */
+  const targetLabel = useCallback((p: MapPoint, fallback: string) => (
+    assigning ? `Assign selected file to ${pointLabel(p)}` : fallback
+  ), [assigning]);
 
   // ── RENDER ───────────────────────────────────────────────────────────────────────────────────
   const backHref = `/admin/jobs/${jobId}`;
@@ -964,7 +1379,11 @@ export default function JobPropertyMapPage() {
   }
 
   return (
-    <div className="pmap" data-testid="pmap">
+    <div
+      className={`pmap${assigning ? ' pmap--assigning' : ''}`}
+      data-testid="pmap"
+      data-assigning={assigning ? 'true' : 'false'}
+    >
       <div className="pmap__head">
         <div>
           <Link className="pmap__back" href={backHref} data-testid="pmap-back">
@@ -1130,6 +1549,22 @@ export default function JobPropertyMapPage() {
         >
           <Hash size={12} aria-hidden /> Numbers {prefs.numbers ? 'on' : 'off'}
         </button>
+        {/* The panel opens itself in edit mode, but seeing what is still unplaced is worth having
+            while reviewing too — so it is a toggle in both, and it says the count either way. */}
+        <button
+          className={`pmap__toggle${panelOpen ? ' pmap__toggle--on' : ''}`}
+          type="button"
+          aria-pressed={panelOpen}
+          aria-controls="pmap-files-panel"
+          data-testid="pmap-files-toggle"
+          onClick={() => setPanelOpen((cur) => !cur)}
+        >
+          <Folder size={12} aria-hidden /> Files
+          <span className="pmap__toggle-count" data-testid="pmap-files-toggle-count">
+            {libraryLoading ? '…' : `${library.length} · ${unplacedCount} unplaced`}
+          </span>
+          {panelOpen ? <ChevronUp size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
+        </button>
         <span className="pmap__search">
           <Search size={13} aria-hidden />
           <input
@@ -1169,7 +1604,60 @@ export default function JobPropertyMapPage() {
         </div>
       )}
 
-      <div className="pmap__body">
+      {/* ── WHAT IS BEING ASSIGNED, AND WHAT WENT WRONG ──────────────────────────────────────── */}
+      {/* One bar, above the fold, for both — because on a phone the panel is BELOW the map and a
+          message that lives inside it is a message nobody sees while tapping a pin. */}
+      {(armedFile || conflict) && (
+        <div className="pmap__assign-bar" data-testid="pmap-assign-bar">
+          {armedFile && (
+            <>
+              <span className="pmap__assign-msg" role="status" data-testid="pmap-armed">
+                <Target size={14} aria-hidden />
+                <strong>Assign to…</strong>
+                <span className="pmap__assign-name" title={armedFile.name}>{armedFile.name}</span>
+                <span className="pmap__assign-hint">
+                  Tap a pin, a shape or a row in the list. Escape cancels.
+                </span>
+              </span>
+              <button
+                className="pmap__btn"
+                type="button"
+                data-testid="pmap-armed-cancel"
+                onClick={disarm}
+              >
+                <X size={13} aria-hidden /> Cancel
+              </button>
+            </>
+          )}
+          {conflict && (
+            <>
+              <span className="pmap__assign-msg pmap__assign-msg--bad" role="alert" data-testid="pmap-conflict">
+                <AlertTriangle size={14} aria-hidden /> {conflict.message}
+              </span>
+              {conflict.pointId && (
+                <button
+                  className="pmap__btn pmap__btn--primary"
+                  type="button"
+                  data-testid="pmap-conflict-show"
+                  onClick={showConflictPoint}
+                >
+                  <Eye size={13} aria-hidden /> Show me
+                </button>
+              )}
+              <button
+                className="pmap__btn"
+                type="button"
+                data-testid="pmap-conflict-dismiss"
+                onClick={() => setConflict(null)}
+              >
+                <X size={13} aria-hidden /> Dismiss
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className={`pmap__body${panelOpen ? ' pmap__body--files' : ''}`}>
         <div className="pmap__main">
           <div className="pmap__stage">
             <div
@@ -1222,6 +1710,8 @@ export default function JobPropertyMapPage() {
                     `pmap__shape--${p.geometry}`,
                     selectedId === p.id ? 'pmap__shape--selected' : '',
                     hoverId === p.id ? 'pmap__shape--active' : '',
+                    assigning ? 'pmap__shape--target' : '',
+                    overPointId === p.id ? 'pmap__shape--over' : '',
                   ].filter(Boolean).join(' ');
                   const aim = px(fovAimHandle(origin, c.bearingDeg, c.fovRadius, box));
                   const o = px(origin);
@@ -1232,11 +1722,15 @@ export default function JobPropertyMapPage() {
                       style={pinVars(p.pointType)}
                       data-point-id={p.id}
                       data-testid={`pmap-shape-${p.ordinal}`}
-                      onClick={() => setSelectedId((cur) => (cur === p.id ? null : p.id))}
+                      {...targetProps(p.id)}
+                      onClick={() => {
+                        if (takeTarget(p.id)) return;
+                        setSelectedId((cur) => (cur === p.id ? null : p.id));
+                      }}
                       onPointerEnter={() => setHoverId(p.id)}
                       onPointerLeave={() => setHoverId((cur) => (cur === p.id ? null : cur))}
                     >
-                      <title>{`${pointLabel(p)} — ${shapeSummary(p, map.georeference)}`}</title>
+                      <title>{targetLabel(p, `${pointLabel(p)} — ${shapeSummary(p, map.georeference)}`)}</title>
                       {p.geometry === 'fov' && (
                         <>
                           <path className="pmap__shape-fill" d={fovPath(origin, c.bearingDeg, c.fovDeg, c.fovRadius, box)} />
@@ -1303,13 +1797,18 @@ export default function JobPropertyMapPage() {
                       drag?.id === p.id ? 'pmap__pin--dragging' : '',
                       selectedId === p.id ? 'pmap__pin--selected' : '',
                       active ? 'pmap__pin--active' : '',
+                      assigning ? 'pmap__pin--target' : '',
+                      overPointId === p.id ? 'pmap__pin--over' : '',
                     ].filter(Boolean).join(' ')}
                     style={{ ...pinStyle(at), ...pinVars(p.pointType) }}
-                    title={pointLabel(p)}
-                    aria-label={`${pointLabel(p)} — ${type.label}, ${geometryOf(p.geometry).label}. ${shapeSummary(p, map.georeference)}. ${mediaSummary(p.media)}`}
+                    title={targetLabel(p, pointLabel(p))}
+                    aria-label={assigning
+                      ? `Assign selected file to ${pointLabel(p)}`
+                      : `${pointLabel(p)} — ${type.label}, ${geometryOf(p.geometry).label}. ${shapeSummary(p, map.georeference)}. ${mediaSummary(p.media)}`}
                     aria-pressed={selectedId === p.id}
                     data-point-id={p.id}
                     data-testid={`pmap-pin-${p.ordinal}`}
+                    {...targetProps(p.id)}
                     onClick={(e) => { e.stopPropagation(); onPinClick(p); }}
                     onPointerDown={(e) => onPinDown(e, p)}
                     onPointerMove={(e) => onPinMove(e, p)}
@@ -1324,6 +1823,13 @@ export default function JobPropertyMapPage() {
                       <Icon size={11} strokeWidth={2.5} aria-hidden />
                       {prefs.numbers && <span className="pmap__pin-num">{p.ordinal}</span>}
                     </span>
+                    {/* The "Assign selected file" affordance, drawn. It only exists while something
+                        is armed or in mid-drag, so there is never a field of plus signs to read. */}
+                    {assigning && (
+                      <span className="pmap__pin-take" aria-hidden data-testid={`pmap-pin-take-${p.ordinal}`}>
+                        <Plus size={10} strokeWidth={3} />
+                      </span>
+                    )}
                     {prefs.labels && <span className="pmap__pin-label">{p.title}</span>}
                   </button>
                 );
@@ -1471,6 +1977,143 @@ export default function JobPropertyMapPage() {
           </div>
         </div>
 
+        {/* ── THE FILE PANEL ──────────────────────────────────────────────────────────────────── */}
+        {/* Left of the aerial on purpose: the detail drawer is fixed to the RIGHT edge, so a panel
+            over there would be hidden at exactly the moment a point's drop box is open. */}
+        {panelOpen && (
+          <aside
+            className="pmap__files"
+            id="pmap-files-panel"
+            aria-label="Job files"
+            data-testid="pmap-files"
+          >
+            <div className="pmap__files-head">
+              <span className="pmap__files-title">
+                <Folder size={14} aria-hidden /> Files
+              </span>
+              <span className="pmap__files-count" data-testid="pmap-files-count">
+                {library.length} {library.length === 1 ? 'file' : 'files'} · {unplacedCount} unplaced
+              </span>
+              <button
+                className="pmap__btn pmap__btn--ghost"
+                type="button"
+                aria-label="Hide the file panel"
+                data-testid="pmap-files-close"
+                onClick={() => setPanelOpen(false)}
+              >
+                <X size={14} aria-hidden />
+              </button>
+            </div>
+
+            <div className="pmap__files-tools">
+              <span className="pmap__search">
+                <Search size={13} aria-hidden />
+                <input
+                  className="pmap__search-input"
+                  type="search"
+                  value={fileSearch}
+                  placeholder="Search files by name…"
+                  aria-label="Search this job's files by name"
+                  data-testid="pmap-files-search"
+                  onChange={(e) => setFileSearch(e.target.value)}
+                />
+              </span>
+              <div className="pmap__files-kinds" role="group" aria-label="Show one kind of file">
+                <button
+                  type="button"
+                  className={`pmap__files-kind${kindFilter === 'all' ? ' pmap__files-kind--on' : ''}`}
+                  aria-pressed={kindFilter === 'all'}
+                  data-testid="pmap-files-kind-all"
+                  onClick={() => setKindFilter('all')}
+                >
+                  All <span className="pmap__files-kind-n">{library.length}</span>
+                </button>
+                {KIND_ORDER.filter((k) => kindCounts[k] > 0).map((k) => {
+                  const K = KIND_ICON[k];
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`pmap__files-kind${kindFilter === k ? ' pmap__files-kind--on' : ''}`}
+                      aria-pressed={kindFilter === k}
+                      data-testid={`pmap-files-kind-${k}`}
+                      onClick={() => setKindFilter((cur) => (cur === k ? 'all' : k))}
+                    >
+                      <K size={11} aria-hidden /> {KIND_LABEL[k]}
+                      <span className="pmap__files-kind-n">{kindCounts[k]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <label className="pmap__files-only">
+                <input
+                  type="checkbox"
+                  checked={unplacedOnly}
+                  data-testid="pmap-files-unplaced-only"
+                  onChange={(e) => setUnplacedOnly(e.target.checked)}
+                />
+                Unplaced only
+              </label>
+            </div>
+
+            <div className="pmap__files-scroll" ref={filesScrollRef} data-testid="pmap-files-scroll">
+              {libraryLoading && (
+                <p className="pmap__hint" data-testid="pmap-files-loading">Loading this job&apos;s files…</p>
+              )}
+              {!libraryLoading && visibleFiles.length === 0 && (
+                <p className="pmap__hint" data-testid="pmap-files-empty">
+                  {library.length === 0
+                    ? 'This job has no files yet. Upload from the job page, or attach straight to a point below.'
+                    : 'No file matches that search or filter.'}
+                </p>
+              )}
+              {fileGroups.map((group) => {
+                const K = KIND_ICON[group.kind];
+                return (
+                  <section className="pmap__files-section" key={group.kind}>
+                    {kindFilter === 'all' && (
+                      <h3 className="pmap__files-section-head">
+                        <K size={12} aria-hidden /> {KIND_LABEL[group.kind]}
+                        <span className="pmap__files-kind-n">{group.files.length}</span>
+                      </h3>
+                    )}
+                    <div className="pmap__files-grid">
+                      {group.files.map((file) => (
+                        <FileTile
+                          key={file.id}
+                          file={file}
+                          editing={editing}
+                          armed={armedFileId === file.id}
+                          dragging={dragFileId === file.id}
+                          placing={placing.includes(file.id)}
+                          flashing={flashFileId === file.id}
+                          confirming={confirmUnassign === file.id}
+                          onArm={() => armTile(file)}
+                          onDragStart={(e) => onTileDragStart(e, file)}
+                          onDragEnd={onTileDragEnd}
+                          onOpen={() => {
+                            if (file.url) setViewing({ url: file.url, name: file.name, type: file.mimeType ?? undefined });
+                          }}
+                          onShowPoint={() => showFilePoint(file)}
+                          onAskUnassign={() => setConfirmUnassign(file.id)}
+                          onCancelUnassign={() => setConfirmUnassign(null)}
+                          onUnassign={() => void unassignFile(file)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+
+            <p className="pmap__files-foot">
+              {editing
+                ? 'Drag a tile onto a pin, a shape or a row — or tap a tile, then tap where it goes.'
+                : 'Turn on Edit map to place these on points.'}
+            </p>
+          </aside>
+        )}
+
         <div className="pmap__side">
           <div className="pmap__side-head">Points ({listed.length})</div>
           <ul className="pmap__list" ref={listRef} data-testid="pmap-list">
@@ -1493,12 +2136,19 @@ export default function JobPropertyMapPage() {
                       'pmap__row',
                       selectedId === p.id ? 'pmap__row--selected' : '',
                       hoverId === p.id ? 'pmap__row--active' : '',
+                      assigning ? 'pmap__row--target' : '',
+                      overPointId === p.id ? 'pmap__row--over' : '',
                     ].filter(Boolean).join(' ')}
                     style={pinVars(p.pointType)}
                     data-point-id={p.id}
                     data-testid={`pmap-row-${p.ordinal}`}
                     aria-pressed={selectedId === p.id}
-                    onClick={() => setSelectedId((cur) => (cur === p.id ? null : p.id))}
+                    aria-label={assigning ? `Assign selected file to ${pointLabel(p)}` : undefined}
+                    {...targetProps(p.id)}
+                    onClick={() => {
+                      if (takeTarget(p.id)) return;
+                      setSelectedId((cur) => (cur === p.id ? null : p.id));
+                    }}
                     onMouseEnter={() => setHoverId(p.id)}
                     onMouseLeave={() => setHoverId((cur) => (cur === p.id ? null : cur))}
                     onFocus={() => setHoverId(p.id)}
@@ -1537,15 +2187,9 @@ export default function JobPropertyMapPage() {
         aria-hidden={!selected}
         aria-label="Point details"
         data-testid="pmap-detail"
-        onDragOver={(e) => { if (editing && selected) { e.preventDefault(); setDropOver(true); } }}
+        onDragOver={onDetailDragOver}
         onDragLeave={() => setDropOver(false)}
-        onDrop={(e) => {
-          if (!editing || !selected) return;
-          e.preventDefault();
-          setDropOver(false);
-          const files = Array.from(e.dataTransfer.files ?? []);
-          if (files.length) void attachFiles(files);
-        }}
+        onDrop={onDetailDrop}
       >
         {selected && (
           <>
@@ -1816,8 +2460,32 @@ export default function JobPropertyMapPage() {
               )}
 
               {editing && (
-                <div className={`pmap__drop${dropOver ? ' pmap__drop--over' : ''}`} data-testid="pmap-drop">
-                  Drag photos, video or audio here to attach them to this point.
+                <div
+                  className={[
+                    'pmap__drop',
+                    dropOver ? 'pmap__drop--over' : '',
+                    assigning ? 'pmap__drop--target' : '',
+                  ].filter(Boolean).join(' ')}
+                  data-testid="pmap-drop"
+                  onDragOver={onDetailDragOver}
+                  onDragEnter={onDetailDragOver}
+                  onDragLeave={() => setDropOver(false)}
+                  onDrop={onDetailDrop}
+                >
+                  <strong className="pmap__drop-head">Drop files here to add them to this point</strong>
+                  <span className="pmap__drop-sub">
+                    From the panel on the left, or straight from your computer.
+                  </span>
+                  {armedFile && (
+                    <button
+                      className="pmap__btn pmap__btn--primary pmap__drop-take"
+                      type="button"
+                      data-testid="pmap-drop-assign-armed"
+                      onClick={() => void assignFile(selected.id, armedFile.id)}
+                    >
+                      <Plus size={13} aria-hidden /> Put {armedFile.name} here
+                    </button>
+                  )}
                   <div className="pmap__drop-actions">
                     <input
                       ref={attachRef}
@@ -1927,6 +2595,173 @@ function MediaTile({
         ) : (
           <button className="pmap__tile-detach" type="button" onClick={onAskDetach} data-testid={`pmap-detach-${media.id}`}>
             <X size={10} aria-hidden /> Detach
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+/** One file in the panel beside the map.
+ *
+ *  Owner: "We should be able to grab the thumbnail/preview of the file … and drag it to a point …
+ *  once a file has been assigned to a point, it cannot be assigned to another point. It will still
+ *  be in the … panel, but it will be a bit transparent and marked as already assigned. There will be
+ *  an option to unassign it which will require confirmation."
+ *
+ *  So an assigned tile is NOT removed, and it is not merely faded either: fade alone is a signal
+ *  somebody with low vision or a bright screen cannot read. It fades AND wears a chip with the
+ *  point's number on it — and that chip is a button, because the first question after "which point
+ *  has it?" is always "show me".
+ *
+ *  The confirm is inline and not `window.confirm`: a modal dialog takes the focus away from a panel
+ *  somebody is working down, and cannot say which point in the same breath. */
+function FileTile({
+  file, editing, armed, dragging, placing, flashing, confirming,
+  onArm, onDragStart, onDragEnd, onOpen, onShowPoint, onAskUnassign, onCancelUnassign, onUnassign,
+}: {
+  file: LibraryFile;
+  editing: boolean;
+  armed: boolean;
+  dragging: boolean;
+  placing: boolean;
+  flashing: boolean;
+  confirming: boolean;
+  onArm: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onOpen: () => void;
+  onShowPoint: () => void;
+  onAskUnassign: () => void;
+  onCancelUnassign: () => void;
+  onUnassign: () => void;
+}) {
+  const Kind = KIND_ICON[file.kind];
+  const assigned = Boolean(file.assignedTo);
+  const chip = assignedChip(file);
+  const where = file.assignedTo?.ordinal ? `point ${file.assignedTo.ordinal}` : 'that point';
+  // An assigned file cannot go anywhere else, so it cannot be dragged anywhere else. Refusing the
+  // drag is kinder than accepting it and answering with a 409.
+  const canDrag = editing && !assigned && !placing;
+
+  return (
+    <div
+      className={[
+        'pmap__file',
+        assigned ? 'pmap__file--assigned' : '',
+        armed ? 'pmap__file--armed' : '',
+        dragging ? 'pmap__file--dragging' : '',
+        placing ? 'pmap__file--placing' : '',
+        flashing ? 'pmap__file--flash' : '',
+        canDrag ? 'pmap__file--draggable' : '',
+      ].filter(Boolean).join(' ')}
+      draggable={canDrag}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      data-file-id={file.id}
+      data-testid={`pmap-file-${file.id}`}
+    >
+      {/* Draggable on the BUTTON as well as on the tile around it. Firefox will not start a drag
+          from inside a form control just because an ancestor is draggable, and the thumbnail — the
+          thing the owner asked to be able to "grab" — is inside this button. `dragstart` bubbles,
+          so the handler above still gets it either way. */}
+      <button
+        className="pmap__file-pick"
+        type="button"
+        draggable={canDrag}
+        aria-pressed={armed}
+        data-testid={`pmap-file-pick-${file.id}`}
+        title={file.name}
+        aria-label={[
+          file.name,
+          KIND_ONE[file.kind],
+          formatBytes(file.sizeBytes),
+          assigned ? `already on ${where}` : 'not placed yet',
+          editing && !assigned ? 'Press Enter to assign it to a point.' : '',
+        ].filter(Boolean).join(', ')}
+        onClick={onArm}
+      >
+        <span className="pmap__file-shot">
+          {file.thumbUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              className="pmap__file-img"
+              src={file.thumbUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
+          ) : (
+            <span className="pmap__file-icon"><Kind size={20} aria-hidden /></span>
+          )}
+          {placing && <span className="pmap__file-veil" data-testid={`pmap-file-placing-${file.id}`}>Placing…</span>}
+          {armed && <span className="pmap__file-veil" data-testid={`pmap-file-armed-${file.id}`}>Assign to…</span>}
+        </span>
+        <span className="pmap__file-name" title={file.name}>{file.name}</span>
+        <span className="pmap__file-meta">{KIND_ONE[file.kind]} · {formatBytes(file.sizeBytes)}</span>
+      </button>
+
+      <span className="pmap__file-tools">
+        {file.url && (
+          <button
+            className="pmap__file-tool"
+            type="button"
+            aria-label={`Open ${file.name}`}
+            title={`Open ${file.name}`}
+            data-testid={`pmap-file-open-${file.id}`}
+            onClick={onOpen}
+          >
+            <Eye size={11} aria-hidden />
+          </button>
+        )}
+      </span>
+
+      {assigned && (
+        <button
+          className="pmap__file-on"
+          type="button"
+          title={`Show me ${where}`}
+          aria-label={`${file.name} is on ${where}. Show me.`}
+          data-testid={`pmap-file-on-${file.id}`}
+          onClick={onShowPoint}
+        >
+          <MapPin size={10} aria-hidden /> {chip}
+        </button>
+      )}
+
+      {assigned && editing && (
+        confirming ? (
+          <div className="pmap__file-confirm" role="group" data-testid={`pmap-file-confirm-${file.id}`}>
+            <span className="pmap__file-confirm-ask">Take this off {where}?</span>
+            <span className="pmap__file-confirm-acts">
+              <button
+                className="pmap__btn pmap__btn--danger"
+                type="button"
+                data-testid={`pmap-file-unassign-yes-${file.id}`}
+                onClick={onUnassign}
+              >
+                Unassign
+              </button>
+              <button
+                className="pmap__btn"
+                type="button"
+                data-testid={`pmap-file-unassign-no-${file.id}`}
+                onClick={onCancelUnassign}
+              >
+                Cancel
+              </button>
+            </span>
+          </div>
+        ) : (
+          <button
+            className="pmap__file-unassign"
+            type="button"
+            aria-label={`Unassign ${file.name} from ${where}`}
+            data-testid={`pmap-file-unassign-${file.id}`}
+            onClick={onAskUnassign}
+          >
+            <X size={10} aria-hidden /> Unassign
           </button>
         )
       )}

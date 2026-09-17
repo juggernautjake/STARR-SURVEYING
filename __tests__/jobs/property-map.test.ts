@@ -245,6 +245,59 @@ describe('real-world coordinates, when somebody bothers to tie the map down', ()
   });
 });
 
+describe('the file panel beside the map, and one file one point', () => {
+  // Owner, 2026-09-16: "we need all of the job files, photos, videos, audio files, etc to be
+  // available to us to see in a panel next to the map … once a file has been assigned to a point,
+  // it cannot be assigned to another point … There will be an option to unassign it which will
+  // require confirmation."
+  const seed = read('seeds/643_job_map_media_one_point.sql');
+  const media = read('app/api/admin/jobs/[id]/property-map/media/route.ts');
+  const server = read('lib/jobs/property-map-server.ts');
+
+  it('the database is what enforces one point per file, not the route', () => {
+    // Two fast drags are two requests in flight; a check-then-insert passes both.
+    expect(seed).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_job_map_point_media_one_point');
+    expect(seed).toContain('ON public.job_map_point_media (job_file_id) WHERE deleted_at IS NULL');
+    expect(seed, 'the old per-point index is dropped, not left to mislead').toContain('DROP INDEX IF EXISTS public.uq_job_map_point_media_file');
+  });
+
+  it('a file that is somehow on two points loses the older assignment, newest wins', () => {
+    expect(seed).toContain('row_number() OVER (PARTITION BY job_file_id ORDER BY created_at DESC');
+  });
+
+  it('being refused says WHICH point has the file, because that is what you need to hear', () => {
+    expect(media).toMatch(/already on \$\{where\}/);
+    expect(media).toContain('Unassign it there first');
+    expect(media).toContain("code: 'already_assigned'");
+    expect(media, 'and the same sentence when the index wins the race').toContain('That file was just assigned to another point.');
+  });
+
+  it('dragging a file onto the point that already has it is told so plainly', () => {
+    expect(media).toContain("'That file is already on this point.'");
+  });
+
+  it('unassigning frees the file at once — that is what the confirmation promises', () => {
+    // A soft delete, and the unique index only counts live rows, so the file is immediately free.
+    expect(media).toContain("deleted_at: new Date().toISOString()");
+    expect(seed).toMatch(/frees the file immediately|instantly\s+free/);
+  });
+
+  it('the panel gets every file with its thumbnail and who has it, in one request', () => {
+    expect(server).toContain('export async function loadMapLibrary');
+    expect(server, 'signed in bulk like the map itself').toMatch(/signAll\(toSign\)/);
+    expect(server, 'assignment arrives as a property of the file').toContain('assignedTo');
+    expect(server, 'and it names the point, so the tile can say "on 4"').toContain('ordinal: point?.ordinal ?? 0');
+    const route = read('app/api/admin/jobs/[id]/property-map/library/route.ts');
+    expect(route).toContain('loadMapLibrary(params.id, mapId)');
+    expect(route, 'admin only, like everything else on a job').toContain('isAdmin(session.user.roles)');
+  });
+
+  it('is its own endpoint, so assigning one photo does not reload the aerial', () => {
+    const route = read('app/api/admin/jobs/[id]/property-map/library/route.ts');
+    expect(route).toMatch(/deliberately NOT folded into the map/);
+  });
+});
+
 describe('a person can actually find it', () => {
   // Owner, 2026-09-16: "where is the button to create the interactive map? Please make sure it is
   // easy to find in the files and in the job … I am not seeing how to do that."
