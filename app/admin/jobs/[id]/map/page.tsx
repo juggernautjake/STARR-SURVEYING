@@ -493,7 +493,10 @@ const DRAG_SLOP = 6;
 //   · shape strokes — `vector-effect: non-scaling-stroke`, which was already there for big scans.
 //   · handles, vertices, bends — `unit` has the zoom folded into it, so `HANDLE_R * unit` is still
 //     nine screen pixels at 8×. Not one call site changed.
-//   · pins and the hover preview — counter-scaled in CSS by `--pmap-unzoom`.
+//   · the hover preview — counter-scaled in CSS by `--pmap-unzoom`, because it is a reading
+//     surface rather than a mark on the photograph. The PINS ride the transform like the picture
+//     does (owner, 2026-09-17: "All of the points and shapes and stuff should also zoom with the
+//     image"), which is what makes them feel painted on rather than floating above.
 
 /** Fit, and eight times it. Past 8× an aerial is mush: the limit is the scan's resolution, not the
  *  viewer's. Below 1× is the fit, and there is nothing under the picture worth showing. */
@@ -2548,6 +2551,9 @@ export default function JobPropertyMapPage() {
                 // Read by the pins and the hover preview, which counter-scale themselves so they
                 // stay the size a finger and an eye expect at every zoom.
                 '--pmap-unzoom': 1 / view.zoom,
+                // 1 at every zoom: the pins scale with the picture. Kept as a variable so the
+                // decision has one place to live if a pin ever needs taming at 8×.
+                '--pmap-pin-scale': 1,
               } as CSSProperties}
               onClick={onFrameClick}
               onDoubleClick={onFrameDoubleClick}
