@@ -3622,6 +3622,14 @@ function FileTile({
   const Kind = KIND_ICON[file.kind];
   const assigned = Boolean(file.assignedTo);
   const chip = assignedChip(file);
+  // ── NEVER SHOW A BROKEN IMAGE (owner, 2026-09-17) ─────────────────────────────────────────
+  // The owner reported the PDF previews as broken. They were not — they were still arriving, and
+  // a bare <img> whose bytes have not turned up yet renders the browser's broken-image glyph.
+  // A tile that says "this file is broken" while it loads is a bug report waiting to happen, and
+  // it produced exactly one. So the thumbnail is only shown once it has actually decoded: until
+  // then the tile wears its kind icon, and if the image genuinely fails it keeps it for good.
+  const [imgState, setImgState] = useState<'loading' | 'ok' | 'failed'>(file.thumbUrl ? 'loading' : 'failed');
+  useEffect(() => { setImgState(file.thumbUrl ? 'loading' : 'failed'); }, [file.thumbUrl]);
   const where = file.assignedTo?.ordinal ? `point ${file.assignedTo.ordinal}` : 'that point';
   // An assigned file cannot go anywhere else, so it cannot be dragged anywhere else. Refusing the
   // drag is kinder than accepting it and answering with a 409.
@@ -3671,17 +3679,27 @@ function FileTile({
         ].filter(Boolean).join(', ')}
         onClick={onOpen}
       >
-        {file.thumbUrl ? (
+        {file.thumbUrl && imgState !== 'failed' && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            className="pmap__file-img"
+            className={`pmap__file-img${imgState === 'ok' ? '' : ' pmap__file-img--waiting'}`}
             src={file.thumbUrl}
             alt=""
             loading="lazy"
             decoding="async"
             draggable={false}
+            onLoad={() => setImgState('ok')}
+            onError={() => setImgState('failed')}
           />
-        ) : (
+        )}
+        {imgState === 'loading' && (
+          // A spinner rather than the kind icon while the preview is on its way (owner, 2026-09-17:
+          // "if they are loading they just like, have spinning loading wheel"). It says "wait" where
+          // a static icon says "this is what you get" — and the browser's broken glyph, which is
+          // what used to be here, said "this is broken".
+          <span className="pmap__file-spinner" role="status" aria-label={`Loading the preview of ${file.name}`} data-testid={`pmap-file-loading-${file.id}`} />
+        )}
+        {imgState === 'failed' && (
           <span className="pmap__file-icon"><Kind size={20} aria-hidden /></span>
         )}
         {canOpen && <span className="pmap__file-eye" aria-hidden><Eye size={11} /></span>}

@@ -1695,6 +1695,8 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   aspect-ratio: 4 / 3;
   object-fit: cover;
   background: var(--pmap-skeleton);
+  /* Fades in once decoded, so a tile does not snap from spinner to picture. */
+  transition: opacity 160ms ease;
 }
 
 .pmap__file-icon {
@@ -1704,6 +1706,46 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   width: 100%;
   aspect-ratio: 4 / 3;
   color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+/* ── WAITING FOR A PREVIEW ────────────────────────────────────────────────────────────────────
+   Owner, 2026-09-17: "if they are loading they just like, have spinning loading wheel or something
+   like that?" — after reporting the PDF previews as broken when they were merely still arriving.
+   A spinner says "wait"; the kind icon says "this is what you get"; the browser's broken-image
+   glyph, which is what used to be here, says "this is broken". Only one of those was true. */
+/* Overlaid on the thumbnail rather than placed beside it: the <img> has to stay in the layout to
+   load at all, so a spinner with its own box would make every waiting tile twice as tall. The
+   button is the positioned ancestor (`.pmap__file-shot { position: relative }`), and when there is
+   no image at all the wash of skeleton colour gives the ring something to sit on. */
+.pmap__file-spinner {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: var(--pmap-skeleton);
+}
+
+.pmap__file-spinner::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  border: 2px solid var(--theme-border, rgb(229 231 235));
+  border-top-color: var(--theme-accent, rgb(29 48 149));
+  animation: pmap-spin 0.7s linear infinite;
+}
+
+@keyframes pmap-spin { to { transform: rotate(360deg); } }
+
+.pmap__file-img--waiting { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* No spin and no fade: a steady ring, and the picture simply appears. */
+  .pmap__file-spinner::after { animation: none; }
+  .pmap__file-img { transition: none; }
 }
 
 /* "Assign to…" and "Placing…" sit ON the thumbnail rather than beside it, so the tile never changes
