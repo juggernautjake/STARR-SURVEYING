@@ -45,19 +45,24 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronUp, Compass, Crosshair, DoorOpen,
-  ExternalLink, Eye, Fence, FileText, Folder, Hash, Hexagon, Home, MapPin, Mic, Music, Pencil, Plus,
-  Route, Search, ShieldAlert, Spline, Tag, Target, Trash2, Trees, Undo2, Upload, Video, Waves, X,
-  Zap, type LucideIcon,
+  ExternalLink, Eye, Fence, FileText, Folder, GripVertical, Hash, Hexagon, Home, MapPin, Maximize2,
+  Mic, Minus, Music, Pencil, Plus, Route, Search, ShieldAlert, Spline, Tag, Target, Trash2, Trees,
+  Undo2, Upload, Video, Waves, X, Zap, type LucideIcon,
 } from 'lucide-react';
 
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
-import MediaViewer, { type MediaItem } from '@/app/admin/components/MediaViewer';
+import SharedFileViewer from '@/app/admin/components/files/FileViewer';
+import Tooltip from '@/app/admin/research/components/Tooltip';
 import AudioRecorder from '@/app/admin/components/fieldbook/AudioRecorder';
 import { usePageTitle } from '@/lib/admin/page-title';
 import { formatBytes } from '@/app/admin/components/files/format';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import { detectJobFileType } from '@/lib/files/job-folders';
+import type { ViewerCollection, ViewerFile } from '@/lib/files/viewer-model';
+import {
+  THUMB_MIME, THUMB_QUALITY, needsThumb, posterTime, thumbSize, type ThumbState,
+} from '@/lib/jobs/file-thumbnails';
 import type { LibraryFile } from '@/lib/jobs/property-map-server';
 import {
   POINT_STATUSES, POINT_TYPES, clampToImage, filterPoints, mapsHref, mediaKindFor, mediaSummary,
@@ -175,9 +180,428 @@ function sortLibrary(files: LibraryFile[]): LibraryFile[] {
   });
 }
 
+// ── THE PREVIEWS ARE MADE HERE, IN THIS BROWSER ─────────────────────────────────────────────────
+//
+// Owner, 2026-09-16: "we need to make it so that we can see the first page thumbnail and poster
+// frames for videos."
+//
+// The deployment has no PDF renderer and no video decoder. Every browser that opens this panel has
+// both. So the panel makes the previews that do not exist yet and posts them to
+// `POST …/property-map/thumbnail`, which keeps them for everybody else — the work happens once per
+// file for the whole company rather than once per person per visit.
+//
+// WHAT A PREVIEW IS ALLOWED TO BE is not decided here. `lib/jobs/file-thumbnails.ts` owns every
+// number — which kinds can have one, how big it may be, what format and quality, and where in a
+// clip the frame is grabbed from — and is tested without a browser. Not one of those values is
+// repeated in this file; they are imported.
+//
+// ── THE THREE RULES THE QUEUE IS BUILT AROUND ──────────────────────────────────────────────────
+//
+// 1. IT NEVER BLOCKS THE PANEL, AND NEVER BLOCKS A DRAG. A tile renders its icon immediately and
+//    swaps the picture in when it arrives. Two files at a time: a job with two hundred photographs
+//    must not open two hundred sockets, and rendering PDFs back to back on the main thread is how
+//    a panel becomes unusable to drag out of.
+//
+// 2. ONE ATTEMPT PER FILE, PER SESSION, EVER. A file that fails posts `failed`, which is what stops
+//    this panel — and every other person's — spending fifteen seconds on the same unopenable scan
+//    forever. Within a session `thumbTriedRef` is the second half of that promise: a library
+//    refresh after every assignment must not re-queue what is already in flight.
+//
+// 3. IT STOPS DEAD ON UNMOUNT. One AbortController for the whole queue: leaving the page rejects
+//    the in-flight decode, cancels the POST, and the workers exit at their next check.
+
+/** Two at a time. */
+const THUMB_WORKERS = 2;
+
+/** A PDF pdf.js cannot make sense of and a codec the browser will not decode both tend to HANG
+ *  rather than fail, so every attempt carries its own deadline. Past it the file is reported as
+ *  failed, which is the honest answer: this browser could not do it. */
+const THUMB_TIMEOUT_MS = 15_000;
+
+/** One file to make a preview of. Captured at the moment it is queued, so a worker never reads back
+ *  into React state that has moved on under it. */
+interface ThumbJob {
+  id: string;
+  url: string;
+  kind: MediaKind;
+  isPdf: boolean;
+}
+
+// ── pdf.js, loaded on first use ─────────────────────────────────────────────────────────────────
+// Copied deliberately, line for line, from `app/admin/components/files/FileViewer.tsx`: the
+// minified build, the worker served from /pdfjs/, the wasm and standard-font paths beside it. The
+// comment there explains why each of those is not negotiable; duplicating the loader rather than
+// exporting it keeps the viewer — which is the thing people actually read PDFs in — free of any
+// dependency on this panel.
+
+type PdfViewport = { width: number; height: number };
+type PdfPage = {
+  getViewport(o: { scale: number; rotation?: number }): PdfViewport;
+  render(o: { canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }): { promise: Promise<void>; cancel(): void };
+};
+type PdfDocument = { numPages: number; getPage(n: number): Promise<PdfPage>; destroy(): Promise<void> };
+type PdfLib = {
+  getDocument(src: { url: string; withCredentials?: boolean; wasmUrl?: string; standardFontDataUrl?: string }): { promise: Promise<PdfDocument> };
+  GlobalWorkerOptions: { workerSrc: string };
+};
+
+const PDFJS_ASSETS = '/pdfjs/';
+let pdfLibPromise: Promise<PdfLib> | null = null;
+function loadPdfLib(): Promise<PdfLib> {
+  if (!pdfLibPromise) {
+    // The MINIFIED build on purpose. pdf.mjs is itself a webpack bundle with its own
+    // __webpack_require__; under next dev (eval-wrapped modules) that name collides with Next's and
+    // module evaluation dies in __webpack_require__.r with 'Object.defineProperty called on
+    // non-object' — while next build, which mangles names, passes. pdf.min.mjs has them mangled
+    // already, so it evaluates the same way in both (2026-09-10).
+    pdfLibPromise = import('pdfjs-dist/build/pdf.min.mjs').then((mod) => {
+      const lib = mod as unknown as PdfLib;
+      // The worker is a static file copied from node_modules by scripts/copy-pdfjs-assets.mjs
+      // (prebuild/predev). Bundling it by URL worked in dev and failed the production build.
+      lib.GlobalWorkerOptions.workerSrc = PDFJS_ASSETS + 'pdf.worker.min.mjs';
+      return lib;
+    });
+  }
+  return pdfLibPromise;
+}
+
+/** Documents here are PDFs; a .docx or a .dwg has no renderer in this browser either, which is why
+ *  the shared rules decide by MIME and extension rather than by kind. */
+function isPdfFile(file: { mimeType: string | null; name: string }): boolean {
+  return (file.mimeType ?? '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+/** `crossOrigin` when — and only when — the bytes come from somewhere else. An <img> or <video>
+ *  WITHOUT it taints the canvas and `toDataURL` throws a SecurityError; one WITH it against a
+ *  server that answers no CORS headers refuses to load at all. Same origin needs neither. */
+function crossOriginFor(url: string): 'anonymous' | undefined {
+  if (url.startsWith('/')) return undefined;
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin ? undefined : 'anonymous';
+  } catch {
+    return undefined;
+  }
+}
+
+/** Paint a loaded image or a seeked video onto a canvas at the size the shared rules ask for, and
+ *  hand back the data URL. `thumbSize` fits the long edge and never scales anything UP. */
+function drawToThumb(source: CanvasImageSource, width: number, height: number): string {
+  if (!width || !height) throw new Error('That file reported no dimensions.');
+  const want = thumbSize(width, height);
+  const canvas = document.createElement('canvas');
+  canvas.width = want.width;
+  canvas.height = want.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('This browser gave no 2D canvas.');
+  ctx.drawImage(source, 0, 0, want.width, want.height);
+  return canvas.toDataURL(THUMB_MIME, THUMB_QUALITY);
+}
+
+/** Page one of a PDF, rendered at the scale `thumbSize` asks for rather than at a scale invented
+ *  here — which is also what stops a small page being blown up into a blurrier file. */
+async function pdfThumb(url: string, signal: AbortSignal): Promise<string> {
+  const lib = await loadPdfLib();
+  if (signal.aborted) throw new Error('The page was left.');
+  const doc = await lib.getDocument({
+    url,
+    withCredentials: url.startsWith('/'),
+    wasmUrl: PDFJS_ASSETS + 'wasm/',
+    standardFontDataUrl: PDFJS_ASSETS + 'standard_fonts/',
+  }).promise;
+  try {
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const want = thumbSize(base.width, base.height);
+    const viewport = page.getViewport({ scale: want.width / base.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.floor(viewport.width));
+    canvas.height = Math.max(1, Math.floor(viewport.height));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('This browser gave no 2D canvas.');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    if (signal.aborted) throw new Error('The page was left.');
+    return canvas.toDataURL(THUMB_MIME, THUMB_QUALITY);
+  } finally {
+    void doc.destroy();
+  }
+}
+
+/** A poster frame: a detached <video> that loads its metadata only, seeks to where `posterTime`
+ *  says the picture actually starts — never frame zero, which on a phone is a black frame or
+ *  somebody's boot — and is painted onto a canvas once the seek lands. */
+function videoThumb(url: string, signal: AbortSignal): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    const cross = crossOriginFor(url);
+    if (cross) video.crossOrigin = cross;
+
+    let settled = false;
+    const finish = (act: () => void) => {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+      signal.removeEventListener('abort', onAbort);
+      // Let go of the bytes: a queue of 4K clips left attached is a hundred megabytes of nothing.
+      video.removeAttribute('src');
+      video.load();
+      act();
+    };
+    const onMeta = () => {
+      try {
+        video.currentTime = posterTime(video.duration);
+      } catch {
+        finish(() => reject(new Error('That video would not seek.')));
+      }
+    };
+    const onSeeked = () => {
+      try {
+        const shot = drawToThumb(video, video.videoWidth, video.videoHeight);
+        finish(() => resolve(shot));
+      } catch (err) {
+        finish(() => reject(err instanceof Error ? err : new Error(String(err))));
+      }
+    };
+    const onError = () => finish(() => reject(new Error('That video would not decode here.')));
+    const onAbort = () => finish(() => reject(new Error('The page was left.')));
+
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
+    video.src = url;
+    video.load();
+  });
+}
+
+/** Only ever reached for an image whose `thumbUrl` came back empty — normally an image falls back
+ *  to itself and there is nothing to make. */
+function imageThumb(url: string, signal: AbortSignal): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const img = new window.Image();
+    const cross = crossOriginFor(url);
+    if (cross) img.crossOrigin = cross;
+    let settled = false;
+    const finish = (act: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      act();
+    };
+    const onAbort = () => finish(() => reject(new Error('The page was left.')));
+    img.onload = () => {
+      try {
+        const shot = drawToThumb(img, img.naturalWidth, img.naturalHeight);
+        finish(() => resolve(shot));
+      } catch (err) {
+        finish(() => reject(err instanceof Error ? err : new Error(String(err))));
+      }
+    };
+    img.onerror = () => finish(() => reject(new Error('That image would not load.')));
+    signal.addEventListener('abort', onAbort, { once: true });
+    img.src = url;
+  });
+}
+
+/** Give a decode a deadline, and a way out when the page is left. */
+function withDeadline<T>(work: Promise<T>, ms: number, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('That preview took too long.')), ms);
+    const onAbort = () => reject(new Error('The page was left.'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => {
+      window.clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+    });
+  });
+}
+
+// ── WHAT THE DEDICATED VIEWER IS HANDED ─────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-16: "a user should be able to open and view the document/picture/video/audio file.
+// Please make sure we can open the dedicated file viewer for the files."
+//
+// The dedicated viewer is `app/admin/components/files/FileViewer.tsx` — the ONE viewer every file
+// surface in this admin uses — and the only thing it takes is a `ViewerCollection`
+// (lib/files/viewer-model.ts). It reads a file's kind off the name and MIME itself, so neither
+// mapper below has to tell it what it is looking at.
+
+/** A file in the panel → a file in the viewer. */
+function viewerFileFor(file: LibraryFile): ViewerFile {
+  const on = file.assignedTo;
+  return {
+    id: file.id,
+    name: file.name,
+    mime: file.mimeType,
+    size: file.sizeBytes,
+    url: file.url,
+    createdAt: file.uploadedAt,
+    meta: [
+      { label: 'Kind', value: KIND_ONE[file.kind] },
+      // The panel's whole question — "where did this one end up?" — answered inside the viewer too,
+      // so the answer does not require closing it. A file held by a point on ANOTHER map of the
+      // same job has no ordinal here, which is why the title carries the sentence when it is 0.
+      ...(on
+        ? [{ label: 'Placed on', value: on.ordinal > 0 ? `Point ${on.ordinal} · ${on.title}` : (on.title || 'A point on another map of this job') }]
+        : []),
+    ],
+  };
+}
+
+/** An attachment on a point → a file in the viewer. */
+function viewerFileForMedia(media: PointMedia, where: string): ViewerFile {
+  return {
+    id: media.id,
+    name: media.caption || media.name,
+    mime: media.mimeType,
+    size: media.sizeBytes,
+    url: media.url,
+    meta: [
+      { label: 'Kind', value: KIND_ONE[media.kind] },
+      { label: 'Placed on', value: where },
+    ],
+  };
+}
+
 /** A drag has to travel this far, in screen pixels, before it counts as a drag rather than a click.
  *  Below it, placing a cone is a plain click and gets the phone-camera defaults. */
 const DRAG_SLOP = 6;
+
+// ── ZOOM AND PAN ────────────────────────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-16: "we need to be able to zoom in on the image and zoom out with the scroll
+// wheel. Please make this a reality."
+//
+// ── THE ONE DECISION EVERYTHING ELSE FOLLOWS FROM ──────────────────────────────────────────────
+//
+// THE TRANSFORM IS ON THE FRAME, AND NOTHING SUBTRACTS IT BACK OUT. `.pmap__frame` gets a
+// `translate(…) scale(…)`, and `relativeFromClick()` goes on measuring that frame's
+// `getBoundingClientRect()` — which already reflects the transform, because that is what a bounding
+// rect IS. So a click at 6× lands on exactly the fraction of the picture that is under the cursor,
+// with no zoom arithmetic anywhere near the placement path. Every attempt to "correct" a click for
+// the current zoom is a bug waiting for the day the two copies of the maths disagree.
+//
+// The maths that IS here — where a wheel notch leaves the picture — deliberately never reads a
+// transformed rect either. It reads `offsetLeft` and `offsetWidth`, which are layout and do not see
+// a transform, so the current pan can be added to them rather than having to be teased out of them.
+//
+// Constant on screen at every zoom, and how:
+//   · shape strokes — `vector-effect: non-scaling-stroke`, which was already there for big scans.
+//   · handles, vertices, bends — `unit` has the zoom folded into it, so `HANDLE_R * unit` is still
+//     nine screen pixels at 8×. Not one call site changed.
+//   · pins and the hover preview — counter-scaled in CSS by `--pmap-unzoom`.
+
+/** Fit, and eight times it. Past 8× an aerial is mush: the limit is the scan's resolution, not the
+ *  viewer's. Below 1× is the fit, and there is nothing under the picture worth showing. */
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 8;
+
+/** One wheel notch (deltaY ≈ 100) is about 16%. Multiplicative, so every notch feels the same size
+ *  whether you are at 1× or at 6× — which additive steps famously do not. */
+const ZOOM_RATE = 1.0015;
+
+/** A trackpad fling arrives as ONE event with an enormous deltaY. Clamped per event so a flick
+ *  travels a notch or two rather than the whole range in a single frame. */
+const WHEEL_MAX_DELTA = 120;
+
+/** What the +/− buttons, the keyboard and a double-click move by. */
+const ZOOM_STEP = 1.5;
+
+function clampZoomLevel(z: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+}
+
+/** How the aerial is being looked at: the scale, and the translation in the stage's own pixels.
+ *  `transform-origin` is the frame's top-left, so `x`/`y` are simply where that corner has moved. */
+interface View {
+  zoom: number;
+  x: number;
+  y: number;
+}
+
+const FIT_VIEW: View = { zoom: 1, x: 0, y: 0 };
+
+/** The frame's box WITHOUT its transform, in client coordinates, beside the stage that clips it.
+ *  `offsetLeft`/`offsetWidth` are layout: a transform is invisible to them, which is exactly why
+ *  the zoom maths uses them and never a bounding rect. Requires the stage to be the frame's
+ *  offset parent — `.pmap__stage { position: relative }` — which is asserted in the stylesheet. */
+interface Boxes {
+  stageLeft: number;
+  stageTop: number;
+  stageWidth: number;
+  stageHeight: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function readBoxes(stage: HTMLElement, frame: HTMLElement): Boxes {
+  const s = stage.getBoundingClientRect();
+  // `offsetLeft` is measured from the offset parent's PADDING edge, and `getBoundingClientRect`
+  // from its BORDER edge. `clientLeft` is the border between them. Left out, the fit view comes
+  // back one pixel — the stage's border width — off centre, which is small enough to ship and
+  // exactly the kind of thing that is never found again. The stage's client box is used for the
+  // clamping too, so both sides of every comparison are the same box.
+  const stageLeft = s.left + stage.clientLeft;
+  const stageTop = s.top + stage.clientTop;
+  return {
+    stageLeft,
+    stageTop,
+    stageWidth: stage.clientWidth,
+    stageHeight: stage.clientHeight,
+    left: stageLeft + frame.offsetLeft,
+    top: stageTop + frame.offsetTop,
+    width: frame.offsetWidth,
+    height: frame.offsetHeight,
+  };
+}
+
+/** Keep the picture where it can be seen.
+ *
+ *  Bigger than the stage: neither edge may come inside it, so there is never a band of empty
+ *  background beside a zoomed-in aerial. Smaller than the stage (which is every zoom at or near the
+ *  fit): it is simply centred, which is also what re-centres it the moment somebody zooms back
+ *  out of a corner. */
+function clampView(box: Boxes, next: View): View {
+  const w = box.width * next.zoom;
+  const h = box.height * next.zoom;
+  const fl = box.left - box.stageLeft;
+  const ft = box.top - box.stageTop;
+  const x = w <= box.stageWidth
+    ? (box.stageWidth - w) / 2 - fl
+    : Math.min(-fl, Math.max(box.stageWidth - w - fl, next.x));
+  const y = h <= box.stageHeight
+    ? (box.stageHeight - h) / 2 - ft
+    : Math.min(-ft, Math.max(box.stageHeight - h - ft, next.y));
+  return { zoom: next.zoom, x, y };
+}
+
+/** THE ONE PIECE OF ZOOM ARITHMETIC. Whatever was under `from` on the screen ends up under `to`,
+ *  at the new scale.
+ *
+ *  A local coordinate `u` in the untransformed frame is drawn at `box.left + x + zoom * u`. Read
+ *  that backwards to find what `from` was pointing at, then forwards to find the `x` that puts it
+ *  under `to`. Both gestures are this function: a wheel passes the same point twice (nothing under
+ *  the cursor moves), a pinch passes the old finger midpoint and the new one (so two fingers that
+ *  travel together pan, and two that spread also zoom, in one gesture and one calculation). */
+function anchorTo(box: Boxes, from: View, zoom: number, fromX: number, fromY: number, toX: number, toY: number): View {
+  const u = (fromX - box.left - from.x) / from.zoom;
+  const v = (fromY - box.top - from.y) / from.zoom;
+  return clampView(box, { zoom, x: toX - box.left - zoom * u, y: toY - box.top - zoom * v });
+}
+
+/** Zoom about a point on the screen, so whatever is under the cursor stays under the cursor. That
+ *  is the whole difference between a map and a slideshow. */
+function zoomAbout(box: Boxes, cur: View, factor: number, clientX: number, clientY: number): View {
+  const zoom = clampZoomLevel(cur.zoom * factor);
+  if (zoom === cur.zoom) return cur;
+  return anchorTo(box, cur, zoom, clientX, clientY, clientX, clientY);
+}
 
 /** Handle sizes, in SCREEN pixels. The overlay's coordinates are the aerial's own pixels — a 4000px
  *  wide image drawn 800px wide — so every one of these is divided by that scale before it is used,
@@ -322,8 +746,20 @@ export default function JobPropertyMapPage() {
   const [search, setSearch] = useState('');
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
 
-  const [viewing, setViewing] = useState<MediaItem | null>(null);
+  /** The dedicated viewer: WHICH list its arrows are walking, and which file it is showing. One
+   *  piece of state rather than two, because "open on the point's attachments" and "open on the
+   *  panel" are the same viewer pointed at different collections, and an id from one list means
+   *  nothing in the other. */
+  const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
   const [frame, setFrame] = useState({ width: 0, height: 0 });
+
+  /** How the aerial is being looked at. One piece of state for the scale and both offsets, because
+   *  every gesture that changes one has to re-clamp the others in the same breath. */
+  const [view, setView] = useState<View>(FIT_VIEW);
+  /** Space held down: the universal "pan instead of whatever this drag normally means". */
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  /** Panning right now, purely so the cursor can say so. */
+  const [panning, setPanning] = useState(false);
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmPoint, setConfirmPoint] = useState<string | null>(null);
   const [confirmMedia, setConfirmMedia] = useState<string | null>(null);
@@ -349,6 +785,18 @@ export default function JobPropertyMapPage() {
   const [confirmUnassign, setConfirmUnassign] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [flashFileId, setFlashFileId] = useState<string | null>(null);
+  /** How many previews are still to be made, for the quiet line in the panel's header. Zero while
+   *  nothing is happening, which is most of the time — the second visit to a job has none left. */
+  const [thumbLeft, setThumbLeft] = useState(0);
+
+  /** Every file this browser has already had a go at, this session. A library refresh happens after
+   *  every single assignment; without this, each one would re-queue everything still in flight. */
+  const thumbTriedRef = useRef<Set<string>>(new Set());
+  const thumbQueueRef = useRef<ThumbJob[]>([]);
+  /** How many worker loops are alive. Each one holds exactly one job while it is alive, so this is
+   *  also the number in flight — which is what makes `queue.length + workers` the count to show. */
+  const thumbWorkersRef = useRef(0);
+  const thumbAbortRef = useRef<AbortController | null>(null);
 
   const filesScrollRef = useRef<HTMLDivElement | null>(null);
   /** Where the panel was scrolled to when a refresh started. A reload that jumps the panel back to
@@ -371,6 +819,35 @@ export default function JobPropertyMapPage() {
   const [vertexSel, setVertexSel] = useState<{ pointId: string; index: number } | null>(null);
 
   const frameRef = useRef<HTMLDivElement | null>(null);
+  /** The viewport the frame is transformed inside, and the surface every zoom gesture is read on. */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  /** The same element, in state as well as in a ref — and the reason is a bug this had.
+   *
+   *  While the map is loading this component returns a skeleton, so the stage is NOT in the DOM on
+   *  the first render. The effect that attaches the wheel listener ran then, found `stageRef.current`
+   *  null, and returned; its only dependency was a stable `useCallback`, so it never ran again once
+   *  the stage appeared. Every other use of the ref reads it inside a handler — by the time somebody
+   *  clicks, the element is there — which is why the buttons zoomed and the wheel did nothing, and
+   *  why it took a real browser to notice. A callback ref that sets state re-runs the effect at the
+   *  moment the element exists. */
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const attachStage = useCallback((el: HTMLDivElement | null) => {
+    stageRef.current = el;
+    setStageEl(el);
+  }, []);
+  /** The view as the DOM currently has it. A wheel handler attached outside React sees this rather
+   *  than a closure captured at the last render, which is what stops fast scrolling stuttering. */
+  const viewRef = useRef<View>(FIT_VIEW);
+  /** Space, mirrored for the handlers that run outside React's event system. */
+  const spaceRef = useRef(false);
+  /** The pan in progress: the pointer that owns it and where the view was when it started. */
+  const panRef = useRef<{ pointerId: number; x: number; y: number; from: View } | null>(null);
+  /** Every touch currently down on the stage, so a second finger can turn a pan into a pinch. */
+  const touchRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  /** The pinch in progress: the finger spread and the view it started from. */
+  const pinchRef = useRef<{ dist: number; cx: number; cy: number; from: View } | null>(null);
+  /** A pan or a pinch that actually moved must not also read as a click that places a point. */
+  const panMovedRef = useRef(false);
   const listRef = useRef<HTMLUListElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
   const attachRef = useRef<HTMLInputElement | null>(null);
@@ -397,8 +874,14 @@ export default function JobPropertyMapPage() {
   ), [map?.imageWidth, map?.imageHeight]);
 
   /** Image pixels per screen pixel. Handle radii are written in screen pixels and divided by this,
-   *  so a handle is the same size to a finger whatever the aerial's resolution. */
-  const unit = frame.width > 0 ? box.width / frame.width : 1;
+   *  so a handle is the same size to a finger whatever the aerial's resolution.
+   *
+   *  THE ZOOM IS FOLDED IN HERE, deliberately, and nowhere else. The overlay is drawn in the
+   *  image's own coordinates inside a frame the browser is scaling, so a circle of radius r comes
+   *  out `r * zoom` screen pixels across. Dividing by the zoom once, at the single place the
+   *  conversion is defined, keeps all seven radius expressions below exactly as they were — and
+   *  keeps a drag handle nine pixels wide at 8× instead of seventy-two. */
+  const unit = frame.width > 0 ? box.width / (frame.width * view.zoom) : 1;
 
   // ── LOADING: ONE REQUEST, EVERYTHING SIGNED ───────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -469,14 +952,129 @@ export default function JobPropertyMapPage() {
   // seeing what is still unplaced is useful while reviewing too, which is why it exists in view mode.
   useEffect(() => { setPanelOpen(editing); }, [editing]);
 
+  // ── MAKING THE PREVIEWS THAT DO NOT EXIST YET ─────────────────────────────────────────────────
+  // The long argument is at the top of the file. What follows is the mechanism: one job, one worker
+  // loop, one enqueue, one stop.
+
+  /** One file, start to finish: decode it here, post the result, swap that one tile in place.
+   *
+   *  A FAILURE IS A RESULT. Every way this can go wrong — pdf.js refusing the document, a codec the
+   *  browser has not got, a canvas tainted by a URL that answered without CORS headers, the
+   *  fifteen-second deadline — ends in the same POST of `{ state: 'failed' }`, which is what stops
+   *  the next panel, and everybody else's, spending those seconds on it again. The tile keeps its
+   *  icon, which was always a perfectly good answer for a file with no picture in it. */
+  const runThumbJob = useCallback(async (job: ThumbJob, signal: AbortSignal) => {
+    let dataUrl: string | null = null;
+    try {
+      const work = job.kind === 'video' ? videoThumb(job.url, signal)
+        : job.isPdf ? pdfThumb(job.url, signal)
+          : imageThumb(job.url, signal);
+      dataUrl = await withDeadline(work, THUMB_TIMEOUT_MS, signal);
+    } catch {
+      dataUrl = null;
+    }
+    if (signal.aborted) return;
+
+    // `silent` on purpose: a preview that could not be stored is not a page error anybody should be
+    // shown a banner about. The file keeps its icon and the panel carries on.
+    const saved = await safeFetch<{ ok: boolean; thumb_state: ThumbState }>(
+      `/api/admin/jobs/${jobId}/property-map/thumbnail`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataUrl ? { job_file_id: job.id, data_url: dataUrl } : { job_file_id: job.id, state: 'failed' }),
+        signal,
+        silent: true,
+      },
+    );
+    if (signal.aborted) return;
+
+    // The tile is updated IN PLACE rather than by reloading the library. A reload would reorder and
+    // rescroll a panel somebody may have a file half-dragged out of, to show a picture — and the
+    // picture is already in hand, so there is nothing to fetch back anyway.
+    // The state comes from the SERVER, never from having made a picture: a preview that was made
+    // and then refused (over the size cap, a bucket that would not take it) is not `ok`, and
+    // claiming it is would be this browser telling itself a file is done when the next visit will
+    // find it still pending. The picture is shown either way — it is in hand and it is correct.
+    const state: ThumbState = saved?.thumb_state ?? 'failed';
+    setLibrary((cur) => cur.map((f) => (f.id === job.id
+      ? { ...f, thumbUrl: dataUrl ?? f.thumbUrl, thumbState: state }
+      : f)));
+  }, [jobId, safeFetch]);
+
+  /** Top the worker loops up to THUMB_WORKERS. Each loop takes jobs until the queue is empty and
+   *  then exits, so "how many are running" needs no scheduler — only this call after an enqueue. */
+  const startThumbWorkers = useCallback(() => {
+    const controller = thumbAbortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    const { signal } = controller;
+    const sync = () => {
+      if (!signal.aborted) setThumbLeft(thumbQueueRef.current.length + thumbWorkersRef.current);
+    };
+    while (thumbWorkersRef.current < THUMB_WORKERS && thumbQueueRef.current.length > 0) {
+      thumbWorkersRef.current += 1;
+      void (async () => {
+        try {
+          for (;;) {
+            if (signal.aborted) return;
+            const job = thumbQueueRef.current.shift();
+            if (!job) return;
+            sync();
+            await runThumbJob(job, signal);
+          }
+        } finally {
+          thumbWorkersRef.current -= 1;
+          sync();
+        }
+      })();
+    }
+    sync();
+  }, [runThumbJob]);
+
+  // Queue whatever the library says still needs one — but ONLY while the panel is open. In view
+  // mode with the panel shut, nobody is looking at a tile, and a page that quietly decodes two
+  // hundred videos for a map somebody is only reading is a page that costs a field crew their data
+  // allowance for nothing.
+  useEffect(() => {
+    if (!panelOpen || library.length === 0) return;
+    if (!thumbAbortRef.current || thumbAbortRef.current.signal.aborted) {
+      thumbAbortRef.current = new AbortController();
+    }
+    let queued = 0;
+    for (const f of library) {
+      if (!f.url) continue;
+      if (thumbTriedRef.current.has(f.id)) continue;
+      if (!needsThumb(f.thumbState, f.kind, f.mimeType, f.name)) continue;
+      // An image already falls back to itself, so there is nothing to make and nothing to store.
+      if (f.kind === 'image' && f.thumbUrl) continue;
+      thumbTriedRef.current.add(f.id);
+      thumbQueueRef.current.push({ id: f.id, url: f.url, kind: f.kind, isPdf: isPdfFile(f) });
+      queued += 1;
+    }
+    if (queued > 0) startThumbWorkers();
+  }, [library, panelOpen, startThumbWorkers]);
+
+  // Leaving the page stops it dead. The tried set is cleared too: under React's development
+  // double-mount the first pass is aborted, and a set that survived it would mean a freshly mounted
+  // panel that never queues anything at all.
+  useEffect(() => () => {
+    thumbAbortRef.current?.abort();
+    thumbAbortRef.current = null;
+    thumbQueueRef.current = [];
+    thumbTriedRef.current.clear();
+  }, []);
+
   useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
 
   // ── THE FRAME'S SIZE, WHICH THE POPUP AND THE HANDLES ARE SCALED AGAINST ──────────────────────
+  // `offsetWidth`, not a bounding rect: this is the frame's LAYOUT size, which the zoom transform
+  // does not touch. Keeping it zoom-free is what lets the popup go on being positioned in the
+  // frame's own coordinates and `unit` go on being one honest conversion with the zoom applied to
+  // it once, rather than two measurements that drift apart at 3×.
   const measure = useCallback(() => {
     const el = frameRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setFrame({ width: rect.width, height: rect.height });
+    setFrame({ width: el.offsetWidth, height: el.offsetHeight });
   }, []);
 
   useEffect(() => {
@@ -484,6 +1082,188 @@ export default function JobPropertyMapPage() {
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [measure, payload?.imageUrl]);
+
+  // ── ZOOM AND PAN ─────────────────────────────────────────────────────────────────────────────
+  useEffect(() => { viewRef.current = view; }, [view]);
+
+  /** Apply a change to the view, clamped. Everything below goes through this. */
+  const applyView = useCallback((next: (cur: View, box: Boxes) => View) => {
+    const stage = stageRef.current;
+    const el = frameRef.current;
+    if (!stage || !el) return;
+    const box = readBoxes(stage, el);
+    const after = clampView(box, next(viewRef.current, box));
+    viewRef.current = after;
+    setView(after);
+  }, []);
+
+  /** Zoom by a factor about a point on the screen. */
+  const zoomAt = useCallback((factor: number, clientX: number, clientY: number) => {
+    applyView((cur, box) => zoomAbout(box, cur, factor, clientX, clientY));
+  }, [applyView]);
+
+  /** Zoom about the middle of what is on screen — what the buttons and the keyboard do, because
+   *  neither of them has a cursor to zoom about. */
+  const zoomByStep = useCallback((factor: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const r = stage.getBoundingClientRect();
+    zoomAt(factor, r.left + r.width / 2, r.top + r.height / 2);
+  }, [zoomAt]);
+
+  const fitView = useCallback(() => {
+    applyView(() => FIT_VIEW);
+  }, [applyView]);
+
+  /** A window that changed size, or a panel that opened beside the map, moves the stage under a
+   *  view that was clamped against the old one. Re-clamped rather than reset: losing your place
+   *  because a sidebar opened is worse than a few pixels of drift. */
+  useEffect(() => {
+    applyView((cur) => cur);
+  }, [applyView, frame.width, frame.height, panelOpen]);
+
+  // THE WHEEL LISTENER IS ATTACHED BY HAND, and this is not a style preference: React's `onWheel`
+  // goes through a listener React registers as PASSIVE on the root in several paths, and a passive
+  // listener cannot call `preventDefault()`. Without the preventDefault the page scrolls out from
+  // under the map while the map zooms, which is the worst of both. So: the real element, the real
+  // option, and a real cleanup.
+  useEffect(() => {
+    const stage = stageEl;
+    if (!stage) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // deltaMode 1 is lines and 2 is pages; Firefox still sends lines for a mouse wheel.
+      const raw = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      const dy = Math.max(-WHEEL_MAX_DELTA, Math.min(WHEEL_MAX_DELTA, raw));
+      if (dy === 0) return;
+      zoomAt(ZOOM_RATE ** -dy, e.clientX, e.clientY);
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, [stageEl, zoomAt]);
+
+  // Space held = pan, whatever the drag would otherwise have meant. Held rather than toggled, so
+  // there is no mode to get stuck in, and released on blur because a window that loses focus
+  // mid-hold never sends the keyup.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable || el.tagName === 'BUTTON')) return;
+      e.preventDefault();
+      spaceRef.current = true;
+      setSpaceHeld(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      spaceRef.current = false;
+      setSpaceHeld(false);
+    };
+    const clear = () => { spaceRef.current = false; setSpaceHeld(false); };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
+
+  /** Whether this press is a pan rather than a placement, a pin drag or a shape click.
+   *
+   *  A drag on the aerial ALREADY means two things in edit mode — move that pin, add that corner —
+   *  and a third meaning on the same gesture would be a coin toss. So: in VIEW mode, where a drag
+   *  means nothing yet, a plain drag pans. In EDIT mode it takes a deliberate modifier — the middle
+   *  button, or the space bar — and two fingers on a touch screen, which is handled separately.
+   *  Never from a pin, a handle, a shape or a control: those own their own drags. */
+  const panGesture = useCallback((e: React.PointerEvent): boolean => {
+    if (e.pointerType === 'touch') return false;
+    const el = e.target as Element | null;
+    if (el?.closest?.('.pmap__pin, .pmap__shape, .pmap__handles, .pmap__zoom, .pmap__popup')) return false;
+    if (e.button === 1) return true;
+    if (e.button !== 0) return false;
+    if (spaceRef.current) return true;
+    return !editing && viewRef.current.zoom > ZOOM_MIN;
+  }, [editing]);
+
+  const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Cleared at the START of every new press, not at the end of the last one. A pan that captured
+    // the pointer on this stage often has its trailing `click` retargeted here rather than to the
+    // frame — so the flag can outlive the gesture it was set by, and the click it would then
+    // swallow is somebody's next point. A new press is unambiguously a new gesture.
+    panMovedRef.current = false;
+    if (e.pointerType === 'touch') {
+      touchRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // Two fingers: pinch to zoom AND drag to pan, in both modes. It is the one gesture on a touch
+      // screen that cannot be confused with placing or drawing anything, which is why it is allowed
+      // to work while a shape is half-drawn.
+      if (touchRef.current.size === 2) {
+        const [a, b] = Array.from(touchRef.current.values());
+        pinchRef.current = {
+          dist: Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1,
+          cx: (a!.x + b!.x) / 2,
+          cy: (a!.y + b!.y) / 2,
+          from: viewRef.current,
+        };
+        panRef.current = null;
+        setPanning(true);
+      }
+      return;
+    }
+    if (!panGesture(e)) return;
+    // Middle-click otherwise starts the browser's own auto-scroll.
+    e.preventDefault();
+    panRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, from: viewRef.current };
+    panMovedRef.current = false;
+    setPanning(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      if (!touchRef.current.has(e.pointerId)) return;
+      touchRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pinch = pinchRef.current;
+      if (!pinch || touchRef.current.size !== 2) return;
+      const [a, b] = Array.from(touchRef.current.values());
+      const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1;
+      // The midpoint of the two fingers is the cursor for the same "stays under the pointer" rule —
+      // and because the OLD midpoint is anchored to the NEW one, two fingers travelling together
+      // pan the picture without having to be a separate gesture.
+      const cx = (a!.x + b!.x) / 2;
+      const cy = (a!.y + b!.y) / 2;
+      panMovedRef.current = true;
+      applyView((_cur, box) => anchorTo(
+        box,
+        pinch.from,
+        clampZoomLevel(pinch.from.zoom * (dist / pinch.dist)),
+        pinch.cx, pinch.cy, cx, cy,
+      ));
+      return;
+    }
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== e.pointerId) return;
+    const dx = e.clientX - pan.x;
+    const dy = e.clientY - pan.y;
+    if (!panMovedRef.current && Math.hypot(dx, dy) < DRAG_SLOP) return;
+    panMovedRef.current = true;
+    applyView(() => ({ zoom: pan.from.zoom, x: pan.from.x + dx, y: pan.from.y + dy }));
+  };
+
+  const onStagePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      touchRef.current.delete(e.pointerId);
+      if (touchRef.current.size < 2) { pinchRef.current = null; setPanning(false); }
+      return;
+    }
+    if (panRef.current?.pointerId !== e.pointerId) return;
+    panRef.current = null;
+    setPanning(false);
+  };
+
+  /** Panning is available right now — which is the only reason to show a grab cursor. */
+  const canPan = view.zoom > ZOOM_MIN && (spaceHeld || !editing);
 
   // ── SELECTION ────────────────────────────────────────────────────────────────────────────────
   const selected = useMemo(() => points.find((p) => p.id === selectedId) ?? null, [points, selectedId]);
@@ -653,6 +1433,9 @@ export default function JobPropertyMapPage() {
   }, [draw, createPoint]);
 
   const onFrameClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // A pan that actually travelled ends in a click on this frame, and a click on this frame places
+    // a point. Swallowed exactly once, here, rather than guarded for in four places.
+    if (panMovedRef.current) { panMovedRef.current = false; return; }
     if (!editing || !draw || !map) return;
     const at = atFrame(e.clientX, e.clientY);
     if (!at) return;
@@ -696,9 +1479,16 @@ export default function JobPropertyMapPage() {
     void finishDraw();
   };
 
-  const onFrameDoubleClick = () => {
-    if (!draw?.anchor || !geometryOf(draw.geometry).multiClick) return;
-    if (isDrawable(draw.geometry, draw.vertices.length)) void finishDraw();
+  const onFrameDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // While a path or an area is being drawn, a double-click already MEANS something — "that is the
+    // last corner" — and it has to go on meaning it. Zooming is what a double-click means every
+    // other time.
+    if (draw?.anchor && geometryOf(draw.geometry).multiClick) {
+      if (isDrawable(draw.geometry, draw.vertices.length)) void finishDraw();
+      return;
+    }
+    if (draw) return;
+    zoomAt(ZOOM_STEP, e.clientX, e.clientY);
   };
 
   const undoVertex = useCallback(() => {
@@ -836,7 +1626,8 @@ export default function JobPropertyMapPage() {
       );
 
       if (e.key === 'Escape') {
-        if (viewing) return;
+        // The dedicated viewer binds its own Escape and owns the topmost layer while it is up.
+        if (viewerOn) return;
         // An armed tile is the newest thing on screen, so it is the first thing Escape takes back.
         if (armedFileId) { e.preventDefault(); disarm(); return; }
         if (conflict) { e.preventDefault(); setConflict(null); return; }
@@ -846,6 +1637,12 @@ export default function JobPropertyMapPage() {
         return;
       }
       if (typing) return;
+
+      // Zoom, from the keyboard. `=` because that is the unshifted key `+` lives on, and `-` on the
+      // numeric pad arrives as its own code.
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomByStep(ZOOM_STEP); return; }
+      if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomByStep(1 / ZOOM_STEP); return; }
+      if (e.key === '0') { e.preventDefault(); fitView(); return; }
 
       if (draw?.anchor) {
         if (e.key === 'Enter') {
@@ -864,8 +1661,8 @@ export default function JobPropertyMapPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    viewing, selectedId, editing, draw, vertexSel, armedFileId, conflict,
-    cancelDraw, finishDraw, undoVertex, removeVertex, disarm,
+    viewerOn, selectedId, editing, draw, vertexSel, armedFileId, conflict,
+    cancelDraw, finishDraw, undoVertex, removeVertex, disarm, zoomByStep, fitView,
   ]);
 
   const onPinDown = (e: React.PointerEvent<HTMLButtonElement>, p: MapPoint) => {
@@ -1223,15 +2020,20 @@ export default function JobPropertyMapPage() {
     const at = drag?.id === p.id ? clampToImage({ x: drag.x, y: drag.y }) : { x: p.x, y: p.y };
     const cx = at.x * frame.width;
     const cy = at.y * frame.height;
-    const maxLeft = Math.max(4, frame.width - POPUP_WIDTH - 4);
+    // The popup is counter-scaled in CSS so it stays legible at 6×, which means it covers
+    // `POPUP_WIDTH / zoom` of the frame's own coordinates — and the clamp, and the gap under the
+    // pin, are worked out in those coordinates.
+    const unzoom = 1 / view.zoom;
+    const width = POPUP_WIDTH * unzoom;
+    const maxLeft = Math.max(4, frame.width - width - 4);
     const above = cy > frame.height * 0.55;
     return {
       point: p,
-      left: Math.min(Math.max(cx - POPUP_WIDTH / 2, 4), maxLeft),
-      top: above ? cy - 22 : cy + 22,
+      left: Math.min(Math.max(cx - width / 2, 4), maxLeft),
+      top: above ? cy - 22 * unzoom : cy + 22 * unzoom,
       above,
     };
-  }, [hoverId, points, frame, drag]);
+  }, [hoverId, points, frame, drag, view.zoom]);
 
   // ── THE PANEL'S OWN DERIVED STATE ────────────────────────────────────────────────────────────
   /** "22 files · 14 unplaced" — the progress bar of the whole exercise. */
@@ -1265,6 +2067,58 @@ export default function JobPropertyMapPage() {
     () => library.find((f) => f.id === armedFileId) ?? null,
     [library, armedFileId],
   );
+
+  // ── THE DEDICATED VIEWER'S TWO COLLECTIONS ───────────────────────────────────────────────────
+  //
+  // The panel's collection is `visibleFiles` — the CURRENT, FILTERED list, in the order it is on
+  // screen. That is the point of building it from the filtered list rather than from the whole
+  // library: filter to "Video · unplaced only", open one, and the arrows step through exactly the
+  // unplaced videos, which is the review somebody was already doing when they opened it.
+  //
+  // Neither collection is given a capability. This is a read-and-look surface; renaming, moving and
+  // deleting a job's files stay in the Files tab, where the folder, the confirmations and the audit
+  // trail are. A viewer with no `delete` simply has no delete button.
+  const libraryCollection = useMemo<ViewerCollection>(() => ({
+    id: map?.id ?? jobId,
+    title: map?.title ? `${map.title} — job files` : 'Job files',
+    files: visibleFiles.filter((f) => f.url).map(viewerFileFor),
+  }), [visibleFiles, map?.id, map?.title, jobId]);
+
+  /** A point's own attachments, audio and video included — so the arrows walk what is pinned to
+   *  THIS point rather than the whole job. */
+  const pointCollection = useMemo<ViewerCollection | null>(() => {
+    if (!selected) return null;
+    const where = pointLabel(selected);
+    return {
+      id: selected.id,
+      title: where,
+      files: sortMedia(selected.media).filter((m) => m.url).map((m) => viewerFileForMedia(m, where)),
+    };
+  }, [selected]);
+
+  const viewerCollection = viewerOn?.source === 'point' ? pointCollection : libraryCollection;
+  /** Only open on a file the chosen collection still contains: a filter typed while the viewer is
+   *  up, or an attachment detached under it, must close it rather than show an empty stage. */
+  const viewerFileId = viewerOn && viewerCollection?.files.some((f) => f.id === viewerOn.fileId)
+    ? viewerOn.fileId
+    : null;
+
+  /** The viewer's arrows moved it. Followed here so closing and reopening lands where it was left. */
+  const onViewerStep = useCallback((fileId: string) => {
+    setViewerOn((cur) => (cur && cur.fileId !== fileId ? { ...cur, fileId } : cur));
+  }, []);
+
+  /** Open a panel tile in the dedicated viewer. */
+  const openLibraryFile = useCallback((file: LibraryFile) => {
+    if (!file.url) { addToast(`${file.name} has nothing to show yet.`, 'info', 2400); return; }
+    setViewerOn({ source: 'library', fileId: file.id });
+  }, [addToast]);
+
+  /** Open one of a point's attachments in the dedicated viewer. */
+  const openPointMedia = useCallback((media: PointMedia) => {
+    if (!media.url) { addToast(`${media.name} has nothing to show yet.`, 'info', 2400); return; }
+    setViewerOn({ source: 'point', fileId: media.id });
+  }, [addToast]);
 
   /** Every pin, shape and row is a landing place right now — which is what the highlight is for. */
   const assigning = Boolean(dragFileId || armedFileId);
@@ -1486,6 +2340,12 @@ export default function JobPropertyMapPage() {
       )}
 
       {/* ── THE HOW-TO BAR ───────────────────────────────────────────────────────────────────── */}
+      {/* It is rendered into a slot that is ALWAYS in the layout, and the reason is a defect found
+          by driving the real page: the bar used to appear when a tool was armed, which pushed the
+          aerial down by about sixty-six pixels — at the exact moment somebody is aiming at a fence
+          corner and about to click. The picture moved under the cursor between deciding where to
+          click and clicking. Reserving the space costs nothing and the aerial never moves. */}
+      <div className={`pmap__howto-slot${editing && draw ? ' pmap__howto-slot--on' : ''}`} data-testid="pmap-howto-slot" aria-live="polite">
       {editing && draw && (
         <div className="pmap__howto" role="status" data-testid="pmap-howto">
           <span className="pmap__howto-text">
@@ -1529,6 +2389,7 @@ export default function JobPropertyMapPage() {
           )}
         </div>
       )}
+      </div>
 
       <div className="pmap__toolbar">
         <button
@@ -1659,10 +2520,35 @@ export default function JobPropertyMapPage() {
 
       <div className={`pmap__body${panelOpen ? ' pmap__body--files' : ''}`}>
         <div className="pmap__main">
-          <div className="pmap__stage">
+          {/* ── THE STAGE IS THE VIEWPORT ─────────────────────────────────────────────────────
+              It clips, and it is what every zoom gesture is read against. The frame inside it is
+              what moves. Keeping the two jobs in two elements is what lets the frame's bounding
+              rect go on being the honest answer to "where is the picture", which is the one thing
+              placement depends on. */}
+          <div
+            ref={attachStage}
+            className={[
+              'pmap__stage',
+              canPan ? 'pmap__stage--pannable' : '',
+              panning ? 'pmap__stage--panning' : '',
+            ].filter(Boolean).join(' ')}
+            data-testid="pmap-stage"
+            onPointerDown={onStagePointerDown}
+            onPointerMove={onStagePointerMove}
+            onPointerUp={onStagePointerUp}
+            onPointerCancel={onStagePointerUp}
+            // The browser's auto-scroll on a middle click, which would fight the pan.
+            onAuxClick={(e) => { if (e.button === 1) e.preventDefault(); }}
+          >
             <div
               ref={frameRef}
               className={`pmap__frame${editing && draw ? ' pmap__frame--drawing' : ''}`}
+              style={{
+                transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
+                // Read by the pins and the hover preview, which counter-scale themselves so they
+                // stay the size a finger and an eye expect at every zoom.
+                '--pmap-unzoom': 1 / view.zoom,
+              } as CSSProperties}
               onClick={onFrameClick}
               onDoubleClick={onFrameDoubleClick}
               onPointerDown={onFrameDown}
@@ -1974,7 +2860,61 @@ export default function JobPropertyMapPage() {
                 </div>
               )}
             </div>
+
+            {/* ── THE ZOOM CONTROLS ─────────────────────────────────────────────────────────────
+                A wheel is not the only way in, and on a laptop trackpad it is not even the obvious
+                one. Fixed to the stage rather than the frame, so they do not sail off with the
+                picture, and they carry the current percentage because "am I at 2× or 5×?" is the
+                question somebody asks right before they give up and reload the page. */}
+            {payload?.imageUrl && (
+              <div className="pmap__zoom" role="group" aria-label="Zoom the aerial" data-testid="pmap-zoom">
+                <button
+                  className="pmap__zoom-btn"
+                  type="button"
+                  disabled={view.zoom <= ZOOM_MIN}
+                  aria-label="Zoom out"
+                  title="Zoom out (−)"
+                  data-testid="pmap-zoom-out"
+                  onClick={() => zoomByStep(1 / ZOOM_STEP)}
+                >
+                  <Minus size={13} aria-hidden />
+                </button>
+                <span className="pmap__zoom-read" data-testid="pmap-zoom-level" aria-live="polite">
+                  {Math.round(view.zoom * 100)}%
+                </span>
+                <button
+                  className="pmap__zoom-btn"
+                  type="button"
+                  disabled={view.zoom >= ZOOM_MAX}
+                  aria-label="Zoom in"
+                  title="Zoom in (+)"
+                  data-testid="pmap-zoom-in"
+                  onClick={() => zoomByStep(ZOOM_STEP)}
+                >
+                  <Plus size={13} aria-hidden />
+                </button>
+                <button
+                  className="pmap__zoom-btn pmap__zoom-btn--fit"
+                  type="button"
+                  disabled={view.zoom <= ZOOM_MIN}
+                  aria-label="Fit the whole aerial"
+                  title="Fit the whole aerial (0)"
+                  data-testid="pmap-zoom-fit"
+                  onClick={fitView}
+                >
+                  <Maximize2 size={12} aria-hidden /> Fit
+                </button>
+              </div>
+            )}
           </div>
+
+          {payload?.imageUrl && (
+            <p className="pmap__zoom-hint" data-testid="pmap-zoom-hint">
+              Scroll to zoom, or pinch. {editing
+                ? 'Hold space — or the middle mouse button — to drag the picture around.'
+                : 'Drag the picture to move around it.'} Press 0 to fit.
+            </p>
+          )}
         </div>
 
         {/* ── THE FILE PANEL ──────────────────────────────────────────────────────────────────── */}
@@ -1994,6 +2934,14 @@ export default function JobPropertyMapPage() {
               <span className="pmap__files-count" data-testid="pmap-files-count">
                 {library.length} {library.length === 1 ? 'file' : 'files'} · {unplacedCount} unplaced
               </span>
+              {/* Quiet on purpose. It is a background job nobody asked for, and the only reason to
+                  mention it at all is so a panel of icons that fills in over the next minute reads
+                  as working rather than broken. */}
+              {thumbLeft > 0 && (
+                <span className="pmap__files-making" data-testid="pmap-files-thumbs" aria-live="polite">
+                  Making {thumbLeft} {thumbLeft === 1 ? 'preview' : 'previews'}…
+                </span>
+              )}
               <button
                 className="pmap__btn pmap__btn--ghost"
                 type="button"
@@ -2091,9 +3039,7 @@ export default function JobPropertyMapPage() {
                           onArm={() => armTile(file)}
                           onDragStart={(e) => onTileDragStart(e, file)}
                           onDragEnd={onTileDragEnd}
-                          onOpen={() => {
-                            if (file.url) setViewing({ url: file.url, name: file.name, type: file.mimeType ?? undefined });
-                          }}
+                          onOpen={() => openLibraryFile(file)}
                           onShowPoint={() => showFilePoint(file)}
                           onAskUnassign={() => setConfirmUnassign(file.id)}
                           onCancelUnassign={() => setConfirmUnassign(null)}
@@ -2450,7 +3396,7 @@ export default function JobPropertyMapPage() {
                       media={m}
                       editing={editing}
                       confirming={confirmMedia === m.id}
-                      onOpen={() => m.url && setViewing({ url: m.url, name: m.name, type: m.mimeType ?? undefined })}
+                      onOpen={() => openPointMedia(m)}
                       onAskDetach={() => setConfirmMedia(m.id)}
                       onCancelDetach={() => setConfirmMedia(null)}
                       onDetach={() => void detachMedia(selected.id, m.id)}
@@ -2521,7 +3467,17 @@ export default function JobPropertyMapPage() {
         )}
       </aside>
 
-      <MediaViewer media={viewing} onClose={() => setViewing(null)} />
+      {/* THE dedicated viewer — the same component the File Explorer, the job's Files tab and the
+          research documents open. Nothing about a file is viewed anywhere else, which is the whole
+          reason there is only one of them. */}
+      {viewerCollection && viewerFileId && (
+        <SharedFileViewer
+          collection={viewerCollection}
+          fileId={viewerFileId}
+          onClose={() => setViewerOn(null)}
+          onCurrentChange={onViewerStep}
+        />
+      )}
     </div>
   );
 }
@@ -2547,7 +3503,26 @@ function MediaTile({
     return (
       <div className="pmap__audio" data-testid={`pmap-audio-${media.id}`}>
         <span className="pmap__audio-name">
-          <span><Mic size={12} aria-hidden /> {media.caption || media.name}</span>
+          <Tooltip text={media.name}>
+            <span><Mic size={12} aria-hidden /> {media.caption || media.name}</span>
+          </Tooltip>
+          {/* THE ONE CASE THAT KEEPS ITS OWN PLAYER (2026-09-16). Every other attachment opens in
+              the dedicated viewer; a voice note plays right here as well, because the reason to
+              press play on a fifteen-second "this corner was under a brush pile" is to hear it
+              WHILE reading the point's notes — and a full-screen viewer covers the notes. The Open
+              button is beside it for the case that is not that one: stepping through everything on
+              the point, where the audio has to be one of the stops or the arrows lie. */}
+          {media.url && (
+            <button
+              className="pmap__tile-open"
+              type="button"
+              data-testid={`pmap-audio-open-${media.id}`}
+              aria-label={`Open ${media.name} in the file viewer`}
+              onClick={onOpen}
+            >
+              <Eye size={11} aria-hidden /> Open
+            </button>
+          )}
           {editing && (
             confirming ? (
               <span>
@@ -2584,7 +3559,9 @@ function MediaTile({
         ) : (
           <span className="pmap__tile-blank"><Kind size={22} aria-hidden /></span>
         )}
-        <span className="pmap__tile-name">{media.caption || media.name}</span>
+        <Tooltip text={media.name}>
+          <span className="pmap__tile-name">{media.caption || media.name}</span>
+        </Tooltip>
       </button>
       <span className="pmap__tile-kind"><Kind size={10} aria-hidden /> {media.kind}</span>
       {editing && (
@@ -2643,6 +3620,8 @@ function FileTile({
   // An assigned file cannot go anywhere else, so it cannot be dragged anywhere else. Refusing the
   // drag is kinder than accepting it and answering with a 409.
   const canDrag = editing && !assigned && !placing;
+  /** No signed URL means there is nothing for the viewer to show — a row whose bytes went missing. */
+  const canOpen = Boolean(file.url);
 
   return (
     <div
@@ -2661,61 +3640,80 @@ function FileTile({
       data-file-id={file.id}
       data-testid={`pmap-file-${file.id}`}
     >
-      {/* Draggable on the BUTTON as well as on the tile around it. Firefox will not start a drag
-          from inside a form control just because an ancestor is draggable, and the thumbnail — the
-          thing the owner asked to be able to "grab" — is inside this button. `dragstart` bubbles,
-          so the handler above still gets it either way. */}
+      {/* ── THE THUMBNAIL IS THE OPEN BUTTON ───────────────────────────────────────────────────
+          Owner, 2026-09-16: "a user should be able to open and view the document/picture/video/
+          audio file." The picture is the thing a hand goes to, so clicking it — or pressing Enter
+          on it — opens the dedicated viewer on this file, with the panel's current list behind the
+          arrows. Assigning got its own control below, so the two are never one ambiguous click.
+
+          Still draggable, on the BUTTON as well as on the tile around it: Firefox will not start a
+          drag from inside a form control just because an ancestor is draggable, and the thumbnail
+          is the thing the owner asked to be able to "grab". A drag does not fire a click, so
+          grabbing the picture and clicking it remain different gestures on the same pixel.
+          `dragstart` bubbles, so the tile's handler still gets it either way. */}
       <button
-        className="pmap__file-pick"
+        className="pmap__file-shot"
         type="button"
         draggable={canDrag}
-        aria-pressed={armed}
-        data-testid={`pmap-file-pick-${file.id}`}
-        title={file.name}
+        disabled={!canOpen}
+        data-testid={`pmap-file-open-${file.id}`}
         aria-label={[
-          file.name,
+          canOpen ? `Open ${file.name}` : file.name,
           KIND_ONE[file.kind],
           formatBytes(file.sizeBytes),
           assigned ? `already on ${where}` : 'not placed yet',
-          editing && !assigned ? 'Press Enter to assign it to a point.' : '',
         ].filter(Boolean).join(', ')}
-        onClick={onArm}
+        onClick={onOpen}
       >
-        <span className="pmap__file-shot">
-          {file.thumbUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className="pmap__file-img"
-              src={file.thumbUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-            />
-          ) : (
-            <span className="pmap__file-icon"><Kind size={20} aria-hidden /></span>
-          )}
-          {placing && <span className="pmap__file-veil" data-testid={`pmap-file-placing-${file.id}`}>Placing…</span>}
-          {armed && <span className="pmap__file-veil" data-testid={`pmap-file-armed-${file.id}`}>Assign to…</span>}
-        </span>
-        <span className="pmap__file-name" title={file.name}>{file.name}</span>
-        <span className="pmap__file-meta">{KIND_ONE[file.kind]} · {formatBytes(file.sizeBytes)}</span>
+        {file.thumbUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="pmap__file-img"
+            src={file.thumbUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
+        ) : (
+          <span className="pmap__file-icon"><Kind size={20} aria-hidden /></span>
+        )}
+        {canOpen && <span className="pmap__file-eye" aria-hidden><Eye size={11} /></span>}
+        {placing && <span className="pmap__file-veil" data-testid={`pmap-file-placing-${file.id}`}>Placing…</span>}
+        {armed && <span className="pmap__file-veil" data-testid={`pmap-file-armed-${file.id}`}>Assign to…</span>}
       </button>
 
-      <span className="pmap__file-tools">
-        {file.url && (
-          <button
-            className="pmap__file-tool"
-            type="button"
-            aria-label={`Open ${file.name}`}
-            title={`Open ${file.name}`}
-            data-testid={`pmap-file-open-${file.id}`}
-            onClick={onOpen}
-          >
-            <Eye size={11} aria-hidden />
-          </button>
-        )}
-      </span>
+      {/* ── THE TITLE, AND THE WHOLE TITLE ─────────────────────────────────────────────────────
+          Owner: "Each item should have the title of the file below it and if the user hovers over
+          the item then a tooltip displays the full title." Two lines clamped — one is not enough
+          for "2026-09-14 NE corner iron rod found.jpg", and three turns the grid into a wall of
+          text — and the hover gives the rest. The shared tooltip, so it behaves like every other
+          tooltip in this admin: 300 ms, and gone the instant the pointer is. */}
+      <Tooltip text={file.name}>
+        <span className="pmap__file-name" data-testid={`pmap-file-name-${file.id}`}>{file.name}</span>
+      </Tooltip>
+      <span className="pmap__file-meta">{KIND_ONE[file.kind]} · {formatBytes(file.sizeBytes)}</span>
+
+      {/* ── THE ASSIGN CONTROL ─────────────────────────────────────────────────────────────────
+          The touch and keyboard half of the drag, and now a control of its own rather than "click
+          anywhere on the tile": with the thumbnail opening the viewer, arming had to become
+          something you can see and aim at. It is still exactly one piece of state — `armed` — so
+          the finger path and the keyboard path cannot drift apart. */}
+      {editing && !assigned && (
+        <button
+          className={`pmap__file-assign${armed ? ' pmap__file-assign--on' : ''}`}
+          type="button"
+          draggable={canDrag}
+          aria-pressed={armed}
+          data-testid={`pmap-file-pick-${file.id}`}
+          aria-label={armed
+            ? `${file.name} is picked up. Choose the point to put it on, or press Escape.`
+            : `Assign ${file.name} to a point. You can also drag it onto one.`}
+          onClick={onArm}
+        >
+          <GripVertical size={11} aria-hidden /> {armed ? 'Pick a point…' : 'Assign'}
+        </button>
+      )}
 
       {assigned && (
         <button

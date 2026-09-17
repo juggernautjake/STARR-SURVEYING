@@ -385,6 +385,40 @@ preview. PDF first-page thumbnails (and video poster frames) are the thumbnail p
 panel is the reason it matters — a grid of identical document icons is a filing cabinet, not a
 to-do list.
 
+## Phase 3c — Previews for the things that are not photographs
+
+> "we need to make it so that we can see the first page thumbnail and poster frames for videos. Each
+> item should have the title of the file below it and if the user hovers over the item then a tooltip
+> displays the full title. Also, a user should be able to open and view the
+> document/picture/video/audio file. Please make sure we can open the dedicated file viewer."
+
+**The browser makes these, the server only keeps them.** A PDF's first page needs a PDF renderer and
+a video's poster needs a video decoder; this platform runs on serverless functions with neither, and
+adding ffmpeg and poppler to the deployment to save a browser 200 ms is a bad trade. Every browser
+that opens this panel already has both — pdf.js is loaded by the file viewer, and a `<video>` seeked
+a little way in and painted onto a `<canvas>` is four lines. So the first browser to need a preview
+makes it and posts it; everyone after that is handed a signed URL.
+
+`thumb_state` is what stops that becoming a loop: a scan pdf.js cannot open or a codec the browser
+will not decode is recorded as `failed`, and never queued again, by anybody.
+
+**The poster is never frame zero.** The first frame of a phone video is usually the lens adjusting,
+a black frame, or somebody's boot — `posterTime()` takes 10% in, capped at 1.5 s, and half-way
+through a clip shorter than a second.
+
+- [x] `seeds/644_job_file_thumbnails.sql` — `thumb_path`, `thumb_bucket`, `thumb_state`,
+      `thumb_updated_at` on `job_files`, with a partial index on the panel's actual question.
+- [x] `lib/jobs/file-thumbnails.ts` — what can have a preview, what one may be, where it goes, and
+      when to stop asking. 14 tests, most of them about the untrusted edge: SVG refused outright, the
+      size capped from the base64 length before anything is decoded into memory.
+- [x] `POST …/property-map/thumbnail` — stores a generated preview, or records the failure.
+- [x] The library signs and returns generated previews, and reports what still needs one.
+- [ ] The browser-side queue: pdf.js page one, video poster frames, two at a time, never blocking
+      the panel.
+- [ ] The file name under every tile, clamped to two lines, with the full name on hover.
+- [ ] Clicking a tile opens the real `FileViewer`, stepping through the panel's current filter.
+- [ ] The same viewer from a point's attachments.
+
 ## Phase 4 — The interaction the request is really about
 
 - [x] Hover a pin: enlarge (`transform: scale`), a soft glow, the title on a label, and a **preview
@@ -399,8 +433,20 @@ to-do list.
       focus ring; `prefers-reduced-motion` turns the animations off.
 - [x] Responsive: at ≤ 700 px the list becomes a collapsible drawer under the map and the detail
       panel becomes a sheet; the map still fills the width; nothing scrolls sideways.
-- [ ] Pan and zoom the aerial (wheel + pinch + drag), with pins scaling inversely so they stay a
-      constant size on screen.
+- [ ] Pan and zoom the aerial, with pins, handles and strokes scaling inversely so they stay a
+      constant size on screen. Owner, 2026-09-16: "we need to be able to zoom in on the image and
+      zoom out with the scroll wheel." Specifics that matter:
+      · the wheel zooms **centred on the cursor** — the thing under the pointer stays under it,
+        which is the difference between a map and a slideshow;
+      · the wheel listener must be non-passive (`{ passive: false }`) or the page scrolls behind
+        the map;
+      · panning cannot be plain drag in edit mode, where drag already moves a pin and draws a
+        shape — middle-drag, space-drag, or two fingers;
+      · double-click zooms, EXCEPT while a path or area is being drawn, where double-click already
+        means finish;
+      · placement must stay exact at every zoom: `relativeFromClick()` measures the transformed
+        image's own rect, so the fractions come out right without unwinding the transform by hand —
+        but it has to be checked, at 1× and at 4×, deliberately.
 - [ ] Tests: hover/selection reducer, clamping of the popup, reduced-motion CSS present.
 
 **Done when:** it feels good on a desktop and on a phone, and the whole thing works without a mouse.

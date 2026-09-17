@@ -22,6 +22,7 @@
 // file rather than an expired token.
 import { supabaseAdmin } from '@/lib/supabase';
 import { bucketOf, displayName, mimeOf, sizeOf, type JobFileRow } from './file-storage';
+import { initialThumbState, type ThumbState } from './file-thumbnails';
 import {
   mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE, clampToImage,
   type MapPoint, type PointMedia, type PropertyMap, type Georeference, type RelativePoint, type MediaKind,
@@ -236,6 +237,9 @@ export interface LibraryFile {
   section: string | null;
   url: string | null;
   thumbUrl: string | null;
+  /** Whether a generated preview exists, is still to be made, or never will be (seeds/644). The
+   *  panel uses this to decide what to queue — a browser makes the ones marked `pending`. */
+  thumbState: ThumbState;
   /** Null when the file is free. Otherwise the point that has it, so the panel can say "on 4". */
   assignedTo: { pointId: string; mediaId: string; ordinal: number; title: string } | null;
 }
@@ -265,6 +269,8 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
   const toSign: Array<{ bucket: string; path: string }> = [];
   for (const f of files) {
     if (f.storage_path) toSign.push({ bucket: bucketOf(f), path: String(f.storage_path) });
+    const t = f as { thumb_path?: string | null; thumb_bucket?: string | null };
+    if (t.thumb_path && t.thumb_bucket) toSign.push({ bucket: t.thumb_bucket, path: t.thumb_path });
   }
   const signed = await signAll(toSign);
 
@@ -273,6 +279,15 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
     const url = f.storage_path ? signed.get(`${bucketOf(f)}:${String(f.storage_path)}`) ?? null : null;
     const a = assigned.get(String(f.id));
     const point = a ? points.get(a.point_id) : undefined;
+    const t = f as { thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null };
+    const generated = t.thumb_path && t.thumb_bucket ? signed.get(`${t.thumb_bucket}:${t.thumb_path}`) ?? null : null;
+    // A file whose kind can never have a preview is reported as such, so the panel's queue skips it
+    // instead of asking every browser that ever opens this job to try again.
+    const thumbState: ThumbState = generated
+      ? 'ok'
+      : (['pending', 'ok', 'failed', 'unsupported'].includes(t.thumb_state ?? '')
+          ? (t.thumb_state as ThumbState)
+          : initialThumbState(kind, mimeOf(f), displayName(f)));
     return {
       id: String(f.id),
       name: displayName(f),
@@ -282,9 +297,10 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
       uploadedAt: (f as { uploaded_at?: string | null }).uploaded_at ?? null,
       section: (f as { section?: string | null }).section ?? null,
       url,
-      // No generated thumbnails yet (that is a later phase), so an image previews from itself and
-      // everything else shows its icon. Declared here so the panel never has to know the difference.
-      thumbUrl: kind === 'image' ? url : null,
+      // The generated preview when there is one; an image falls back to itself, which is correct and
+      // costs nothing since it is signed either way.
+      thumbUrl: generated ?? (kind === 'image' ? url : null),
+      thumbState: generated ? 'ok' : (kind === 'image' && url ? 'ok' : thumbState),
       assignedTo: a
         ? { pointId: a.point_id, mediaId: a.id, ordinal: point?.ordinal ?? 0, title: point?.title ?? 'another point' }
         : null,
