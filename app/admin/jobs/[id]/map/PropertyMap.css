@@ -333,14 +333,36 @@
 /* ── THE AERIAL, AND THE FRAME THE PINS LIVE IN ──────────────────────────────────────────────── */
 /* The frame shrink-wraps the RENDERED image, so a pin at x = 0.5 is at the middle of the picture
  * and not the middle of a letterboxed box. That is the whole reason the image is not a background. */
+/* ── THE STAGE IS THE VIEWPORT THE ZOOM HAPPENS INSIDE ───────────────────────────────────────── */
+/* `position: relative` is LOAD-BEARING and not decoration: it makes the stage the frame's offset
+ * parent, which is what lets the zoom maths read `frame.offsetLeft` — a layout number a transform
+ * cannot touch — instead of trying to subtract the current transform back out of a bounding rect.
+ *
+ * `overflow: hidden` is what a zoomed picture is clipped by. It also clips a pin label that used to
+ * be allowed to hang past the edge of the picture; that is the price of the aerial being able to be
+ * six times the size of its box, and the label comes back the moment the pin is panned inward.
+ *
+ * `touch-action: none` because every touch gesture over the aerial belongs to the map: one finger
+ * places or pans, two pinch. A browser that keeps the page scroll for itself takes the pinch with
+ * it. */
 .pmap__stage {
+  position: relative;
   display: flex;
   justify-content: center;
   padding: 0.5rem;
   border: 1px solid var(--theme-border, rgb(229 231 235));
   border-radius: 12px;
   background: var(--theme-bg-elevated, rgb(243 244 246));
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
+
+/* The cursor is the whole of the discoverability: a hand means this can be dragged, and it appears
+ * exactly when it can be. */
+.pmap__stage--pannable { cursor: grab; }
+.pmap__stage--panning,
+.pmap__stage--panning .pmap__frame { cursor: grabbing; }
 
 .pmap__frame {
   position: relative;
@@ -349,6 +371,10 @@
   max-width: 100%;
   border-radius: 8px;
   overflow: visible;
+  /* The zoom and the pan, both. The origin is the frame's own top-left so that `x` and `y` are
+   * simply where that corner has moved to — which is the form the clamping maths is written in. */
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 /* While a shape is being drawn the frame IS the drawing surface: a crosshair, no browser panning
@@ -366,6 +392,73 @@
   border-radius: 8px;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* ── THE ZOOM CONTROLS ───────────────────────────────────────────────────────────────────────── */
+/* Owner, 2026-09-16: "we need to be able to zoom in on the image and zoom out with the scroll
+ * wheel." The wheel is the fast path; these are the discoverable one, and the readout is what makes
+ * the whole thing legible — a picture that is bigger than it was, with no number anywhere, is a
+ * page somebody reloads to get back. Pinned to the stage, not the frame, so they never sail off. */
+.pmap__zoom {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  border-radius: 9px;
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  box-shadow: 0 2px 10px var(--pmap-shade);
+}
+
+.pmap__zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pmap__zoom-btn:hover:not(:disabled) {
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+.pmap__zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pmap__zoom-btn:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
+}
+
+.pmap__zoom-read {
+  min-width: 2.6rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+}
+
+.pmap__zoom-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
 /* A map whose aerial was deleted, or one created before the image landed. The frame still needs a
@@ -390,9 +483,13 @@
  * lands the dot exactly on the fraction it was placed at whether labels are on or off. A label in
  * the flow would shift the dot sideways by half the title's width, which is a pin that moves when
  * you rename it. */
+/* `--pmap-unzoom` is 1/zoom, set on the frame. A pin is inside the element the browser is scaling,
+ * so without it a dot that is a comfortable 26px at the fit becomes a 200px dinner plate at 8× —
+ * and the aerial you zoomed in to read disappears behind the pins you zoomed in to place. Scaling
+ * about the pin's own centre is what keeps the dot on the exact fraction it was placed at. */
 .pmap__pin {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(var(--pmap-unzoom, 1));
   display: inline-flex;
   align-items: center;
   padding: 0;
@@ -459,7 +556,7 @@
 .pmap__pin:hover,
 .pmap__pin:focus-visible,
 .pmap__pin--active {
-  transform: translate(-50%, -50%) scale(1.22);
+  transform: translate(-50%, -50%) scale(calc(var(--pmap-unzoom, 1) * 1.22));
   z-index: 5;
 }
 
@@ -681,6 +778,22 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 /* Owner: "make them easy to learn and use in the interactive map." This is that, literally: the
  * geometry's own `howTo` string, on screen for as long as the shape is being drawn, beside the
  * buttons for the keys it names. */
+/* ── THE SLOT THE HOW-TO BAR LIVES IN ────────────────────────────────────────────────────────
+   Always in the layout, whether or not a tool is armed. Found by driving the real page: the bar
+   used to appear on arming and push the aerial down about sixty-six pixels — the picture moving
+   under the cursor at the exact moment somebody is aiming at a fence corner. The height is the
+   bar's own (one line of 0.8rem text plus its padding and border); it holds the space open so
+   nothing below it ever moves. On a narrow screen the bar wraps to two lines, so the slot is a
+   minimum rather than a fixed height. */
+.pmap__howto-slot {
+  min-height: calc(0.8rem * 1.45 + 1rem + 2px + 0.65rem);
+}
+
+@media (max-width: 700px) {
+  /* Wrapped onto two lines, plus the gap between them. */
+  .pmap__howto-slot { min-height: calc(0.8rem * 2.9 + 1rem + 2px + 0.65rem + 0.6rem); }
+}
+
 .pmap__howto {
   display: flex;
   align-items: center;
@@ -823,9 +936,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 
 /* ── THE HOVER PREVIEW ───────────────────────────────────────────────────────────────────────── */
+/* Counter-scaled like the pins: a hover preview rendered six times over is an unreadable wall.
+ * Origin at its own top-left, so the `left`/`top` the memo works out stay the corner it sits at. */
 .pmap__popup {
   position: absolute;
   z-index: 8;
+  transform: scale(var(--pmap-unzoom, 1));
+  transform-origin: 0 0;
   width: 16rem;
   padding: 0.55rem 0.65rem;
   border-radius: 10px;
@@ -836,7 +953,9 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   line-height: 1.35;
 }
 
-.pmap__popup--above { transform: translateY(-100%); }
+/* Translate FIRST, then scale about the top-left: the popup rises by its own height and lands with
+ * its bottom edge on the anchor, at any zoom. */
+.pmap__popup--above { transform: scale(var(--pmap-unzoom, 1)) translateY(-100%); }
 
 .pmap__popup-title {
   font-size: 0.8rem;
@@ -1148,16 +1267,54 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
+/* Two lines, then the hover tells you the rest. One line truncated at "2026-09-14 NE corn…" names
+ * nothing; three lines turn a grid of pictures into a wall of text. */
 .pmap__tile-name {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   padding: 0.25rem 0.35rem;
   font-size: 0.65rem;
   line-height: 1.3;
   text-align: left;
   color: var(--theme-fg-secondary, rgb(55 65 81));
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+/* The tooltip wrapper is `display: inline-block` globally, which inside a tile would size the name
+ * to its text and stop the clamp measuring against the column. */
+.pmap__tile .research-tip-wrap,
+.pmap__file > .research-tip-wrap {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* "Open" beside a voice note: the audio still plays in the panel, this is the way into the viewer
+ * where the arrows step through everything else on the point. */
+.pmap__tile-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  border-radius: 5px;
+  background: transparent;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pmap__tile-open:hover {
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+.pmap__tile-open:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
 }
 
 .pmap__tile-kind {
@@ -1295,6 +1452,17 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-secondary, rgb(55 65 81));
 }
 
+/* "Making 6 previews…" — background work, said quietly. Deliberately not a spinner and not a
+ * progress bar: nobody is waiting on it, and the only job of the line is to explain why a panel of
+ * icons is filling itself in. */
+.pmap__files-making {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
 .pmap__toggle-count {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1416,10 +1584,29 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .pmap__file--draggable:active { cursor: grabbing; }
 
 /* Assigned: faded, and chipped. Never removed — the owner asked for it to stay in the panel, so the
- * panel remains the job's whole inventory rather than only its leftovers. */
-.pmap__file--assigned { opacity: 0.52; }
-.pmap__file--assigned:hover,
-.pmap__file--assigned:focus-within { opacity: 0.92; }
+ * panel remains the job's whole inventory rather than only its leftovers.
+ *
+ * WHAT FADES CHANGED WHEN THE TITLES ARRIVED (2026-09-16). The whole tile used to sit at 52%
+ * opacity, which was fine when a tile was a picture and a chip. It stopped being fine the moment
+ * every tile carried its NAME: "which one did I put on 4?" is asked of the placed tiles, and the
+ * answer was the half of the panel rendered at half contrast. So the fade moved onto the parts that
+ * carry no words worth reading at a glance — the thumbnail and the size byline — and the name, the
+ * chip and the Unassign control stay at full strength. The tile still reads as placed: it is the
+ * picture that is ghosted, which is what the eye scans by. */
+.pmap__file--assigned {
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+  border-style: dashed;
+}
+
+.pmap__file--assigned .pmap__file-shot,
+.pmap__file--assigned .pmap__file-meta { opacity: 0.5; }
+
+.pmap__file--assigned .pmap__file-name { color: var(--theme-fg-secondary, rgb(55 65 81)); }
+
+.pmap__file--assigned:hover .pmap__file-shot,
+.pmap__file--assigned:hover .pmap__file-meta,
+.pmap__file--assigned:focus-within .pmap__file-shot,
+.pmap__file--assigned:focus-within .pmap__file-meta { opacity: 0.95; }
 
 .pmap__file--dragging { opacity: 0.4; }
 
@@ -1444,23 +1631,48 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   50% { opacity: 0.35; }
 }
 
-.pmap__file-pick {
+/* The thumbnail IS the button that opens the dedicated viewer, so it carries a button's reset and
+ * the tile's own top corners. */
+.pmap__file-shot {
+  position: relative;
   display: block;
   width: 100%;
   padding: 0;
   border: 0;
-  border-radius: 8px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.pmap__file-shot {
-  position: relative;
-  display: block;
   border-radius: 8px 8px 0 0;
   overflow: hidden;
   background: var(--theme-bg-elevated, rgb(243 244 246));
+  cursor: pointer;
+  transition: opacity 0.14s ease;
+}
+
+.pmap__file-shot:disabled { cursor: default; }
+
+/* The one hint that the picture does something. Kept to a corner badge rather than a hover veil:
+ * a veil over the thumbnail is the same gesture as "Assign to…", and two meanings for one wash of
+ * colour is how a panel stops being learnable. */
+.pmap__file-eye {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 5px;
+  background: var(--pmap-shade);
+  color: var(--theme-bg-surface, rgb(255 255 255));
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.pmap__file-shot:hover .pmap__file-eye,
+.pmap__file-shot:focus-visible .pmap__file-eye { opacity: 1; }
+
+/* A finger has no hover, so on a touch screen the badge is simply always there. */
+@media (hover: none) {
+  .pmap__file-eye { opacity: 0.9; }
 }
 
 .pmap__file-img {
@@ -1496,16 +1708,24 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   text-align: center;
 }
 
+/* Owner, 2026-09-16: "Each item should have the title of the file below it and if the user hovers
+ * over the item then a tooltip displays the full title." Two lines, clamped, and the tooltip
+ * carries the rest — `-webkit-line-clamp` is the only clamp every browser in this shop honours, and
+ * `line-clamp` beside it is the standard property arriving. */
 .pmap__file-name {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   padding: 0.25rem 0.35rem 0;
   font-size: 0.66rem;
   line-height: 1.3;
   font-weight: 600;
   color: var(--theme-fg-primary, rgb(17 24 39));
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* A survey file name is one unbroken run of digits and dashes often enough that anywhere is the
+   * only wrap rule that keeps it inside a 6.5rem column. */
+  overflow-wrap: anywhere;
 }
 
 .pmap__file-meta {
@@ -1518,26 +1738,33 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   white-space: nowrap;
 }
 
-.pmap__file-tools {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  display: inline-flex;
-  gap: 0.2rem;
-}
-
-.pmap__file-tool {
-  display: inline-flex;
+/* Arming a tile for touch and for the keyboard. It used to be the whole tile; it became its own
+ * control the day the thumbnail started opening the viewer, because one click cannot mean two
+ * things. Full width so it is a real target on a phone. */
+.pmap__file-assign {
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  padding: 0;
-  border-radius: 5px;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.22rem;
   border: 0;
-  background: var(--pmap-shade);
-  color: var(--theme-bg-surface, rgb(255 255 255));
+  border-top: 1px solid var(--theme-border, rgb(229 231 235));
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  font-size: 0.62rem;
+  font-weight: 700;
   cursor: pointer;
+}
+
+.pmap__file-assign:hover {
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+.pmap__file-assign--on {
+  background: var(--theme-accent, rgb(29 48 149));
+  color: var(--theme-accent-fg, rgb(255 255 255));
 }
 
 /* The chip that says which pin has it — and takes you there. */
@@ -1610,9 +1837,9 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   font-size: 0.62rem;
 }
 
-.pmap__file-pick:focus-visible,
+.pmap__file-shot:focus-visible,
+.pmap__file-assign:focus-visible,
 .pmap__file-on:focus-visible,
-.pmap__file-tool:focus-visible,
 .pmap__file-unassign:focus-visible,
 .pmap__files-kind:focus-visible,
 .pmap__files-only:focus-within {
@@ -1854,10 +2081,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   .pmap__pin-dot,
   .pmap__shape-fill,
   .pmap__shape-line,
+  /* The zoom itself is never tweened — a wheel notch lands where it lands — but the frame is named
+   * here so no future transition on it can creep in and start animating the picture. */
+  .pmap__frame,
   .pmap__detail { transition: none; }
   .pmap__pin:hover,
   .pmap__pin:focus-visible,
-  .pmap__pin--active { transform: translate(-50%, -50%); }
+  .pmap__pin--active { transform: translate(-50%, -50%) scale(var(--pmap-unzoom, 1)); }
   /* The glow STAYS: it is a static state signal, not motion, and it is how a selected cone is told
    * from an unselected one at a glance. Only the tween goes. */
   .pmap__skeleton { animation: none; }
@@ -1865,4 +2095,8 @@ svg.pmap__shapes--inert * { pointer-events: none; }
    * the blinking goes, which is the part that is motion rather than meaning. */
   .pmap__file { transition: none; }
   .pmap__file--flash { animation: none; }
+  /* The fade on a placed tile's picture and the open badge are both state, not motion: they stay,
+   * and only the tween between the two states goes. */
+  .pmap__file-shot,
+  .pmap__file-eye { transition: none; }
 }
