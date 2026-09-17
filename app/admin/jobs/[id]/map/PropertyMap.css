@@ -309,7 +309,12 @@
   grid-template-areas: "files main side";
 }
 
-.pmap__main { grid-area: main; min-width: 0; }
+/* `position: relative` is load-bearing, and its absence was a bug the owner found: "I just don't
+   see any zoom controls". The zoom controls are `position: absolute` and live in here, beside the
+   stage rather than inside it — so without a positioned ancestor here they resolved against
+   whatever was positioned further up the page and landed somewhere off the map entirely. They were
+   in the DOM the whole time, which is why nothing looked broken from the inside. */
+.pmap__main { grid-area: main; min-width: 0; position: relative; }
 
 .pmap__side {
   grid-area: side;
@@ -483,13 +488,21 @@
  * lands the dot exactly on the fraction it was placed at whether labels are on or off. A label in
  * the flow would shift the dot sideways by half the title's width, which is a pin that moves when
  * you rename it. */
-/* `--pmap-unzoom` is 1/zoom, set on the frame. A pin is inside the element the browser is scaling,
- * so without it a dot that is a comfortable 26px at the fit becomes a 200px dinner plate at 8× —
- * and the aerial you zoomed in to read disappears behind the pins you zoomed in to place. Scaling
- * about the pin's own centre is what keeps the dot on the exact fraction it was placed at. */
+/* ── PINS SCALE WITH THE PICTURE ──────────────────────────────────────────────────────────────
+ * Owner, 2026-09-17: "All of the points and shapes and stuff should also zoom with the image."
+ *
+ * They used to be counter-scaled by `--pmap-unzoom` (1/zoom) so a dot stayed the same size on
+ * screen at every zoom. That is the behaviour a slippy map has, and it is wrong here: these marks
+ * are ON the photograph, not floating above it. Zooming into a corner to read a fence line and
+ * finding the pins still the size they were at fit makes them feel like a separate layer that
+ * happens to be nearby.
+ *
+ * `--pmap-pin-scale` is what the pin now multiplies by. It is 1 at every zoom — the pin simply
+ * rides the frame's transform like the picture does — and it stays as a variable so the behaviour
+ * has one place to change if a 400% pin ever turns out to be too much at 8×. */
 .pmap__pin {
   position: absolute;
-  transform: translate(-50%, -50%) scale(var(--pmap-unzoom, 1));
+  transform: translate(-50%, -50%) scale(var(--pmap-pin-scale, 1));
   display: inline-flex;
   align-items: center;
   padding: 0;
@@ -556,7 +569,7 @@
 .pmap__pin:hover,
 .pmap__pin:focus-visible,
 .pmap__pin--active {
-  transform: translate(-50%, -50%) scale(calc(var(--pmap-unzoom, 1) * 1.22));
+  transform: translate(-50%, -50%) scale(calc(var(--pmap-pin-scale, 1) * 1.22));
   z-index: 5;
 }
 
@@ -941,6 +954,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .pmap__popup {
   position: absolute;
   z-index: 8;
+  /* The popup is a reading surface rather than a mark on the picture, so it keeps its size. */
   transform: scale(var(--pmap-unzoom, 1));
   transform-origin: 0 0;
   width: 16rem;
@@ -2087,7 +2101,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   .pmap__detail { transition: none; }
   .pmap__pin:hover,
   .pmap__pin:focus-visible,
-  .pmap__pin--active { transform: translate(-50%, -50%) scale(var(--pmap-unzoom, 1)); }
+  .pmap__pin--active { transform: translate(-50%, -50%) scale(var(--pmap-pin-scale, 1)); }
   /* The glow STAYS: it is a static state signal, not motion, and it is how a selected cone is told
    * from an unselected one at a glance. Only the tween goes. */
   .pmap__skeleton { animation: none; }
