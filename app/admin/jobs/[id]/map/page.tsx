@@ -493,10 +493,12 @@ const DRAG_SLOP = 6;
 //   · shape strokes — `vector-effect: non-scaling-stroke`, which was already there for big scans.
 //   · handles, vertices, bends — `unit` has the zoom folded into it, so `HANDLE_R * unit` is still
 //     nine screen pixels at 8×. Not one call site changed.
-//   · the hover preview — counter-scaled in CSS by `--pmap-unzoom`, because it is a reading
-//     surface rather than a mark on the photograph. The PINS ride the transform like the picture
-//     does (owner, 2026-09-17: "All of the points and shapes and stuff should also zoom with the
-//     image"), which is what makes them feel painted on rather than floating above.
+//   · the hover preview, and the PINS with their numbers and labels — counter-scaled in CSS by
+//     `--pmap-unzoom` and `--pmap-pin-scale`. Position belongs to the picture; SIZE belongs to the
+//     viewer. Owner, 2026-09-17: "the points and their numbers and labels should keep relative size
+//     to the view, not to the level of zoom … they should be getting smaller as we zoom in, but
+//     they will appear to be the same size to the viewer." A dot that grows with the aerial ends up
+//     hiding the very thing it points at.
 
 /** Fit, and eight times it. Past 8× an aerial is mush: the limit is the scan's resolution, not the
  *  viewer's. Below 1× is the fit, and there is nothing under the picture worth showing. */
@@ -2553,7 +2555,12 @@ export default function JobPropertyMapPage() {
                 '--pmap-unzoom': 1 / view.zoom,
                 // 1 at every zoom: the pins scale with the picture. Kept as a variable so the
                 // decision has one place to live if a pin ever needs taming at 8×.
-                '--pmap-pin-scale': 1,
+                // 1/zoom: the pin is drawn four times smaller at 400%, so the two cancel and it
+                // looks the same size to the person reading the map. Owner, 2026-09-17: "if I zoom
+                // in on the image, the points and their numbers and labels should keep relative
+                // size to the view, not to the level of zoom … they should be getting smaller as we
+                // zoom in, but they will appear to be the same size to the viewer."
+                '--pmap-pin-scale': 1 / view.zoom,
               } as CSSProperties}
               onClick={onFrameClick}
               onDoubleClick={onFrameDoubleClick}
