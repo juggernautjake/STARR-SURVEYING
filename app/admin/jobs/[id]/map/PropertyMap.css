@@ -44,11 +44,19 @@
   --pmap-shade: rgb(15 23 42 / 0.55);
   --pmap-skeleton: rgb(148 163 184 / 0.22);
   --pmap-skeleton-sheen: rgb(148 163 184 / 0.38);
+  /* The wash inside the dashed inset while a file is over bare picture. Barely there on purpose:
+   * the aerial underneath it is the thing somebody is aiming at. */
+  --pmap-drop-wash: rgb(29 48 149 / 0.06);
 
   /* A drawn shape is the pin's colour at low opacity, so a cone, a walk and a region read as the
    * same thing as their numbered marker without burying the aerial underneath them. */
   --pmap-shape-fill: 0.16;
   --pmap-shape-fill-hot: 0.3;
+
+  /* How much room the bottom of a panel keeps clear of the app's floating action menu, which is
+   * fixed over the bottom-right corner of every page at a higher z-index than anything here. Its
+   * pill is 56px tall and sits 1.5rem up; this is that plus a thumb's worth of margin. */
+  --pmap-fab-clear: 6.25rem;
 }
 
 /* ── THE SAME FOURTEEN, ON THE FOUR DARK SKINS ───────────────────────────────────────────────── */
@@ -77,6 +85,7 @@
   --pmap-shade: rgb(2 6 23 / 0.72);
   --pmap-skeleton: rgb(148 163 184 / 0.18);
   --pmap-skeleton-sheen: rgb(203 213 225 / 0.28);
+  --pmap-drop-wash: rgb(129 150 245 / 0.12);
 
   /* Lighter pins over a night-time aerial need a touch more fill to be seen at all. */
   --pmap-shape-fill: 0.22;
@@ -382,10 +391,33 @@
   will-change: transform;
 }
 
+/* ── THE MARKS OVERLAY ───────────────────────────────────────────────────────────────────────── */
+/* Everything that is READ rather than looked at: the numbered pins with their labels, the drag
+ * handles, the hover preview. A sibling of the frame, positioned by the page over exactly where
+ * the picture currently is, and — the load-bearing part — CARRYING NO TRANSFORM, so nothing in
+ * here is ever rasterised at the aerial's scale and resampled. That is the whole of the owner's
+ * "the points get fuzzy the more I zoom in".
+ *
+ * NOTHING IN HERE MAY BE TRANSITIONED OR ANIMATED ON POSITION. The overlay and the picture are
+ * driven by the same `view` state and move in the same frame; a transition on either would make the
+ * pins swim along behind the photograph during a pan.
+ *
+ * Inert as a sheet so the picture underneath goes on receiving the clicks that place points; each
+ * mark turns pointer events back on for itself. */
+.pmap__marks {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  transform: none;
+}
+
 /* While a shape is being drawn the frame IS the drawing surface: a crosshair, no browser panning
  * stealing the drag on a phone, and nothing on top of it that could swallow a click. */
 .pmap__frame--drawing { cursor: crosshair; touch-action: none; }
-.pmap__frame--drawing .pmap__pin { pointer-events: none; }
+/* While a shape is being drawn, the pins stop being targets — every click belongs to the drawing.
+ * The class is on the MARKS overlay now rather than on the frame, because that is where the pins
+ * live; the crosshair cursor stays on the frame, which is what the pointer is actually over. */
+.pmap__marks--drawing .pmap__pin { pointer-events: none; }
 
 .pmap__aerial {
   display: block;
@@ -397,6 +429,59 @@
   border-radius: 8px;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* ── WHEN THE PICTURE WILL NOT COME ──────────────────────────────────────────────────────────── */
+/* The defect, 2026-09-17: the aerial's signed URL expires after two hours and people build a map
+ * for longer than that. When it 403s the browser draws a broken glyph, the frame — which shrink-
+ * wraps that image — collapses to nothing, and every pin, positioned as a PERCENTAGE OF THE FRAME,
+ * piles into the top-left corner. The owner photographed it and reasonably concluded the map was
+ * destroyed. Nothing was: the points were exactly where they had been put.
+ *
+ * So the image is taken out of FLOW rather than out of the DOM — an element that is not there can
+ * never load, and it is about to be asked to try again — and this box holds the frame's shape in
+ * its place, at the aerial's own aspect ratio. A frame that keeps its shape keeps every pin on its
+ * fraction, which is the difference between "the picture is reloading" and "everything broke". */
+.pmap__aerial--away {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pmap__aerial-gap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: min(100%, 44rem);
+  aspect-ratio: var(--pmap-aerial-ratio, 4 / 3);
+  max-height: 72vh;
+  padding: 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  text-align: center;
+  line-height: 1.45;
+}
+
+.pmap__aerial-why {
+  max-width: 28rem;
+  font-size: 0.76rem;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+.pmap__aerial-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--pmap-skeleton);
+  border-top-color: var(--theme-accent, rgb(29 48 149));
+  /* `pmap-spin` is declared once, beside the file panel's spinner. */
+  animation: pmap-spin 0.8s linear infinite;
 }
 
 /* ── THE ZOOM CONTROLS ───────────────────────────────────────────────────────────────────────── */
@@ -488,21 +573,28 @@
  * lands the dot exactly on the fraction it was placed at whether labels are on or off. A label in
  * the flow would shift the dot sideways by half the title's width, which is a pin that moves when
  * you rename it. */
-/* ── PINS SCALE WITH THE PICTURE ──────────────────────────────────────────────────────────────
- * Owner, 2026-09-17: "All of the points and shapes and stuff should also zoom with the image."
+/* ── THE PIN IS NEVER SCALED, AND THAT IS WHY IT IS SHARP ─────────────────────────────────────
+ * Owner, 2026-09-17: "they are getting really fuzzy. like, they look clear as I am zooming in, but
+ * as soon as I stop zooming they get fuzzy. they get fuzzier the more I zoom in."
  *
- * They used to be counter-scaled by `--pmap-unzoom` (1/zoom) so a dot stayed the same size on
- * screen at every zoom. That is the behaviour a slippy map has, and it is wrong here: these marks
- * are ON the photograph, not floating above it. Zooming into a corner to read a fence line and
- * finding the pins still the size they were at fit makes them feel like a separate layer that
- * happens to be nearby.
+ * That report killed the previous fix, which was a counter-scale: draw the pin inside a parent
+ * scaled by `zoom`, scale the pin by `1 / zoom`, and the two cancel to the right SIZE. They do —
+ * and the result is still a scale. The compositor rasterises the frame's subtree once at that
+ * layer's resolution and resamples the bitmap, so at 8× a 26-pixel pin is rendered into about
+ * three pixels of texture and blown back up. "Clear while zooming, fuzzy when it stops" is the
+ * signature: live re-rasterisation during the gesture, then the cached layer again.
  *
- * `--pmap-pin-scale` is what the pin now multiplies by. It is 1 at every zoom — the pin simply
- * rides the frame's transform like the picture does — and it stays as a variable so the behaviour
- * has one place to change if a 400% pin ever turns out to be too much at 8×. */
+ * So the pin is not inside the transformed frame at all. It lives in `.pmap__marks`, a sibling with
+ * no transform on it or above it, laid exactly over where the picture currently is. The pin's own
+ * transform is `translate(-50%, -50%)` and nothing else — a half-pixel nudge to centre the dot on
+ * its fraction, never a scale.
+ *
+ * WHICH KEEPS BEING TRUE ONLY IF NOBODY PUTS A SCALE BACK. There is no `--pmap-pin-scale` any more,
+ * deliberately: a variable sitting at 1 is an invitation. */
 .pmap__pin {
   position: absolute;
-  transform: translate(-50%, -50%) scale(var(--pmap-pin-scale, 1));
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   padding: 0;
@@ -511,7 +603,12 @@
   cursor: pointer;
   line-height: 1;
   z-index: 2;
-  transition: transform 0.14s ease;
+  /* NO TRANSITION ON THIS TRANSFORM, and the reason is the counter-scale above. The property now
+   * carries two things at once: a constant that cancels the zoom, and the hover bump. Tweening the
+   * composite tweens the ZOOM — so every wheel notch left the pins 140ms behind the photograph,
+   * sliding and swelling into place after it had stopped. The zoom is never tweened anywhere else
+   * on this page for exactly that reason (see the reduced-motion block, which names the frame so
+   * nobody adds one there either). The hover still animates where it reads best: the dot's glow. */
 }
 
 .pmap__pin--editing { cursor: grab; touch-action: none; }
@@ -569,7 +666,7 @@
 .pmap__pin:hover,
 .pmap__pin:focus-visible,
 .pmap__pin--active {
-  transform: translate(-50%, -50%) scale(calc(var(--pmap-pin-scale, 1) * 1.22));
+  transform: translate(-50%, -50%) scale(1.22);
   z-index: 5;
 }
 
@@ -949,14 +1046,15 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 
 /* ── THE HOVER PREVIEW ───────────────────────────────────────────────────────────────────────── */
-/* Counter-scaled like the pins: a hover preview rendered six times over is an unreadable wall.
- * Origin at its own top-left, so the `left`/`top` the memo works out stay the corner it sits at. */
+/* In the marks overlay with the pins, at its natural size, for the same reason they are: it is a
+ * reading surface, and it used to be counter-scaled inside the frame — which made it the right size
+ * and slightly soft. `left`/`top` from the memo are plain screen pixels now, with nothing to
+ * divide by. The width below and POPUP_WIDTH in page.tsx must agree; that is the one number the
+ * stylesheet and the clamp share. */
 .pmap__popup {
   position: absolute;
   z-index: 8;
-  /* The popup is a reading surface rather than a mark on the picture, so it keeps its size. */
-  transform: scale(var(--pmap-unzoom, 1));
-  transform-origin: 0 0;
+  pointer-events: none;
   width: 16rem;
   padding: 0.55rem 0.65rem;
   border-radius: 10px;
@@ -969,7 +1067,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 
 /* Translate FIRST, then scale about the top-left: the popup rises by its own height and lands with
  * its bottom edge on the anchor, at any zoom. */
-.pmap__popup--above { transform: scale(var(--pmap-unzoom, 1)) translateY(-100%); }
+.pmap__popup--above { transform: translateY(-100%); }
 
 .pmap__popup-title {
   font-size: 0.8rem;
@@ -1141,9 +1239,21 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 /* ── THE DETAIL PANEL ────────────────────────────────────────────────────────────────────────── */
 /* A drawer on the right at desk width, a bottom sheet on a phone. One element, one state, two
  * shapes — so the thing a person opened cannot be in two places depending on the screen. */
+
+/* ── IT STARTS BELOW THE TOPBAR, AND THAT IS THE WHOLE "THERE IS NO CLOSE BUTTON" BUG ─────────
+ * Owner, 2026-09-17: "I don't see a button to close the panel", then "I still cannot see a way to
+ * close the side panel". There always was one. It was UNDERNEATH `.admin-topbar`, which is
+ * `position: fixed; top: 0; height: 64px; z-index: 200` (AdminLayout.css) — this panel was also at
+ * `top: 0` with `z-index: 60`, so the bar covered its first sixty-four pixels: the point's number,
+ * its title, and the ×. Rendered, painted, and invisible.
+ *
+ * The fix is to start below the bar rather than to race it on z-index. The app's chrome SHOULD
+ * stay on top; this panel simply must not begin underneath it. 64px is not a magic number here —
+ * it is what `.admin-layout__content` already offsets itself by, so the panel now agrees with
+ * every other page in the admin instead of inventing its own answer. */
 .pmap__detail {
   position: fixed;
-  top: 0;
+  top: 64px;
   right: 0;
   bottom: 0;
   width: min(25rem, 100vw);
@@ -1159,13 +1269,55 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 
 .pmap__detail--open { transform: translateX(0); }
 
+/* Sticky as well as out of the scrolling body, and the two are not the same belt: the panel is a
+ * flex column, so the head does not scroll on the drawer — but on a phone it is a bottom SHEET
+ * whose height is content-driven, and `sticky` is what keeps the × in view there too. The × is the
+ * only way out for somebody who does not know about Escape, so it is visible at every scroll
+ * position of every form length on every screen, or it does not count as existing. */
 .pmap__detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  flex: 0 0 auto;
+}
+
+.pmap__detail-heading { min-width: 0; }
+
+/* ── A CLOSE THAT IS BIG ENOUGH TO HIT ───────────────────────────────────────────────────────── */
+/* 2.25rem square — 36px — because the ghost button it replaced was sized by its 16px glyph plus
+ * padding, which is a target a thumb misses. Used by every close on this page, so the panel, the
+ * file panel and the new-point dialogue cannot drift apart on the one control they share. */
+.pmap__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.pmap__icon-btn:hover {
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+  border-color: var(--theme-border, rgb(229 231 235));
+}
+
+.pmap__icon-btn:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
 }
 
 .pmap__detail-title {
@@ -1181,18 +1333,52 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
+/* `min-height: 0` is what actually lets this scroll: a flex child's default `min-height: auto`
+ * refuses to shrink below its content, so the column grows past the panel and the overflow never
+ * engages — which is how the drop zone ended up running off the bottom of the screen.
+ *
+ * The bottom padding is for the app's floating action menu, which is `position: fixed; bottom:
+ * 1.5rem; right: 1.5rem; z-index: 90` — above this panel, over its bottom-right corner, and not
+ * going anywhere. Reserving the room is the honest fix: the last control in the panel is reachable
+ * instead of being underneath a green pill. */
 .pmap__detail-body {
-  padding: 0.85rem;
+  padding: 0.85rem 0.85rem var(--pmap-fab-clear);
   overflow-y: auto;
-  flex: 1;
+  overscroll-behavior: contain;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
+/* ── THE PANEL IS TWO PARTS ──────────────────────────────────────────────────────────────────── */
+/* What this point IS, then what is ON it. A rule and a gap between them, and nothing else — the
+ * complaint was that seven headings all looked equally important, not that there were headings. */
+.pmap__part { margin: 0 0 1.1rem; }
+
+.pmap__part + .pmap__part {
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--theme-border, rgb(229 231 235));
+}
+
+.pmap__part:last-child { margin-bottom: 0; }
+
 .pmap__section-title {
-  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.55rem;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+/* "2 photos, 1 file" beside the heading: the count is the thing people actually look for here. */
+.pmap__section-count {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
@@ -1237,11 +1423,14 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
+/* No bottom margin: it is the last thing in its own part, and the rule under that part is what
+ * separates it from the attachments. It used to carry a margin that made it look like the end of
+ * the panel, with a section of attachments somehow arriving after the end. */
 .pmap__row-actions {
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
-  margin: 0.6rem 0 1rem;
+  margin: 0.85rem 0 0;
 }
 
 /* ── MEDIA ───────────────────────────────────────────────────────────────────────────────────── */
@@ -1251,7 +1440,19 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   gap: 0.5rem;
 }
 
-.pmap__tile-wrap { position: relative; }
+/* ── ONE ATTACHMENT: A STACK, LIKE THE LIBRARY TILES BESIDE IT ───────────────────────────────── */
+/* The kind chip and the Detach button used to be absolutely positioned over the two top corners of
+ * a tile about a hundred pixels wide. At any real file name they collided with each other and
+ * covered the thumbnail — the owner's screenshot reads "docu… ✕ Detach". Neither of them needed to
+ * be an overlay. Picture, name, what it is, what you can do to it: four rows that cannot overlap
+ * because they are not on top of one another, and the same order the file panel already uses so the
+ * two grids read as one product. */
+.pmap__tile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
 
 .pmap__tile {
   display: block;
@@ -1262,6 +1463,11 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   background: var(--theme-bg-elevated, rgb(243 244 246));
   overflow: hidden;
   cursor: pointer;
+}
+
+.pmap__tile:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
 }
 
 .pmap__tile-img {
@@ -1288,7 +1494,6 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  padding: 0.25rem 0.35rem;
   font-size: 0.65rem;
   line-height: 1.3;
   text-align: left;
@@ -1299,6 +1504,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 
 /* The tooltip wrapper is `display: inline-block` globally, which inside a tile would size the name
  * to its text and stop the clamp measuring against the column. */
+.pmap__tile-wrap > .research-tip-wrap,
 .pmap__tile .research-tip-wrap,
 .pmap__file > .research-tip-wrap {
   display: block;
@@ -1331,36 +1537,60 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   outline-offset: 2px;
 }
 
+/* In the flow now, under the name, reading "Photo · 2.4 MB" exactly as the library tile does. */
 .pmap__tile-kind {
-  position: absolute;
-  top: 0.3rem;
-  left: 0.3rem;
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  padding: 0.1rem 0.32rem;
-  border-radius: 5px;
-  background: var(--pmap-shade);
-  color: var(--theme-bg-surface, rgb(255 255 255));
+  min-width: 0;
+  color: var(--theme-fg-muted, rgb(107 114 128));
   font-size: 0.6rem;
-  font-weight: 700;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pmap__tile-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.05rem;
 }
 
 .pmap__tile-detach {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.2rem;
-  padding: 0.12rem 0.35rem;
-  border-radius: 5px;
-  border: 1px solid var(--theme-danger, rgb(185 28 28));
+  flex: 1 1 auto;
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
   background: var(--theme-bg-surface, rgb(255 255 255));
-  color: var(--theme-danger, rgb(185 28 28));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
   font-size: 0.62rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Quiet until it is aimed at, loud once the confirm is up: a detach on a tile is one click from a
+ * point losing its photograph, and the red belongs on the click that does it, not on the one that
+ * asks. */
+.pmap__tile-detach:hover {
+  border-color: var(--theme-danger, rgb(185 28 28));
+  color: var(--theme-danger, rgb(185 28 28));
+}
+
+.pmap__tile-detach:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
+}
+
+.pmap__tile-detach--go {
+  border-color: var(--theme-danger, rgb(185 28 28));
+  background: var(--theme-danger, rgb(185 28 28));
+  color: var(--theme-danger-fg, rgb(255 255 255));
 }
 
 .pmap__audio {
@@ -1386,10 +1616,24 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 
 .pmap__audio audio { width: 100%; }
 
+/* The voice note's row is a line of controls, not a column of stacked tiles: its detach sits beside
+ * the name and must not stretch across the row the way the grid tile's does. */
+.pmap__audio-name .pmap__tile-detach { flex: 0 0 auto; }
+
 /* ── ATTACHING ───────────────────────────────────────────────────────────────────────────────── */
+/* Owner, 2026-09-17: "the drop box area for dropping files and stuff should be a bit taller". A
+ * drop target has to look like somewhere a thing can land; at three lines of text it looked like a
+ * caption. A real minimum height, and its contents centred in it, so the dashed rectangle reads as
+ * a place rather than as a border round a paragraph. */
 .pmap__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 8.25rem;
   margin-top: 0.75rem;
-  padding: 0.75rem;
+  padding: 1rem 0.75rem;
   border: 2px dashed var(--theme-border, rgb(229 231 235));
   border-radius: 10px;
   text-align: center;
@@ -1954,6 +2198,62 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .pmap--assigning .pmap__legend,
 .pmap--assigning .pmap__toolbar { opacity: 0.5; }
 
+/* ── AND THE EMPTY PICTURE IS A TARGET TOO ───────────────────────────────────────────────────── */
+/* Owner, 2026-09-17: "if I drop a file randomly on the page where there is no point, it will create
+ * a new one". So while something is in flight there are TWO kinds of destination on screen, and a
+ * person has to be able to tell them apart before they let go — "this will make a new point" from
+ * "this will go on point 4".
+ *
+ * A dashed inset over the whole stage says the first. It is deliberately quiet: the pins are the
+ * more specific answer and must keep winning the eye, so this is the ground they sit on rather than
+ * a second thing shouting. It appears only while the cursor is actually over bare picture — the
+ * moment it crosses a pin, the pin's ring takes over and this goes out. */
+.pmap__stage::after {
+  content: '';
+  position: absolute;
+  inset: 0.5rem;
+  border: 2px dashed transparent;
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  z-index: 3;
+}
+
+.pmap__stage--dropping::after {
+  border-color: var(--theme-accent, rgb(29 48 149));
+  background: var(--pmap-drop-wash);
+  opacity: 1;
+}
+
+.pmap__stage--dropping .pmap__new-here {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The sentence, because a dashed rectangle is a convention and not everybody has met it. */
+.pmap__new-here {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translate(-50%, 0.4rem);
+  /* Above the marks overlay (4): it is a one-line instruction and must not end up behind a pin. */
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: var(--theme-accent, rgb(29 48 149));
+  color: var(--theme-accent-fg, rgb(255 255 255));
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
 .pmap__pin--target .pmap__pin-dot {
   box-shadow: 0 0 0 3px var(--theme-bg-surface, rgb(255 255 255)), 0 0 0 5px var(--theme-accent, rgb(29 48 149));
 }
@@ -2068,6 +2368,176 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   100% { background-position: 0 50%; }
 }
 
+/* ── THE NEW-POINT DIALOGUE ──────────────────────────────────────────────────────────────────── */
+/* Owner, 2026-09-17: dropping a file on bare map "should have a dialogue about what kind of point
+ * it should be and that kind of thing".
+ *
+ * Above the detail panel (60) and above the app's floating menu (90), because it is modal and the
+ * only thing on screen that matters while it is up. Below nothing, for the same reason. */
+.pmap__new {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* A button rather than a div: clicking the ground is an ACTION — it keeps the point — and an
+ * action that only a mouse can reach is half an action. It is out of the tab order because the
+ * card's own "Keep as Point 4" is the same act, said in words. */
+.pmap__new-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--pmap-shade);
+  cursor: pointer;
+}
+
+.pmap__new-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(34rem, 100%);
+  max-height: min(42rem, calc(100vh - 2rem));
+  border-radius: 14px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  box-shadow: 0 18px 48px var(--pmap-shade);
+  overflow: hidden;
+}
+
+.pmap__new-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid var(--theme-border, rgb(229 231 235));
+}
+
+.pmap__new-heading { min-width: 0; }
+
+.pmap__new-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+}
+
+/* The reassurance, first thing and in the affirmative: the file is ON the point already, before a
+ * single control below has been touched. */
+.pmap__new-sub {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+.pmap__new-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.9rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pmap__new-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 0.75rem 0.9rem;
+  border-top: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+/* Said out loud, next to the buttons, because "Cancel" beside a photograph somebody has just
+ * dragged onto a fence corner reads as "throw it away" — and that fear is the only thing that
+ * would stop them using the gesture again. */
+.pmap__new-safe {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
+/* ── THE FOURTEEN KINDS, AS THEMSELVES ───────────────────────────────────────────────────────── */
+/* A <select> of fourteen labels loses the colour and the hint, which between them ARE the choice.
+ * Two columns at panel width, one on a phone. */
+.pmap__types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.pmap__type {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  text-align: left;
+  cursor: pointer;
+}
+
+.pmap__type:hover { background: var(--theme-bg-elevated, rgb(243 244 246)); }
+
+.pmap__type:focus-visible {
+  outline: 2px solid var(--theme-accent, rgb(29 48 149));
+  outline-offset: 2px;
+}
+
+.pmap__type--on {
+  border-color: var(--theme-accent, rgb(29 48 149));
+  box-shadow: inset 0 0 0 1px var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-bg-elevated, rgb(243 244 246));
+}
+
+.pmap__type-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+}
+
+/* The type's own colour, carrying its own icon — the same dot the pin will wear, so the choice is
+ * made against the thing it produces. Colour is never the only signal: the label and the icon say
+ * it too. */
+.pmap__type-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--pmap-swatch, var(--map-pin-generic));
+  color: var(--pmap-pin-ink);
+}
+
+.pmap__type-hint {
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}
+
 /* ── RESPONSIVE, DOWN TO ~400px ──────────────────────────────────────────────────────────────── */
 /* Not enough room for three columns: the file panel drops under the map and runs full width, which
  * is a better grid for tiles anyway. */
@@ -2093,13 +2563,17 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 @media (max-width: 700px) {
   .pmap { padding: 0.75rem 0.75rem 6rem; }
   .pmap__aerial { max-height: 55vh; }
+  .pmap__aerial-gap { max-height: 55vh; }
+  /* A bottom sheet, so it starts at the bottom and the topbar is not in the argument — but its
+   * HEIGHT still has to leave the bar alone, or a tall point's form scrolls up underneath it. The
+   * sticky header inside then keeps the × in view for the whole of that scroll. */
   .pmap__detail {
     top: auto;
     left: 0;
     right: 0;
     bottom: 0;
     width: auto;
-    max-height: 82vh;
+    max-height: min(82vh, calc(100vh - 64px - 0.5rem));
     border-left: 0;
     border-top: 1px solid var(--theme-border, rgb(229 231 235));
     border-radius: 14px 14px 0 0;
@@ -2129,6 +2603,22 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   .pmap__assign-bar { align-items: stretch; flex-direction: column; }
   .pmap__assign-name { max-width: 100%; }
   .pmap__files-head { flex-wrap: wrap; }
+  /* One kind per row: two columns of "Monument found / An existing pin, rod, pipe or axle located
+   * on the ground" at 400px is two columns of nothing readable. */
+  .pmap__types { grid-template-columns: minmax(0, 1fr); }
+  .pmap__new { padding: 0.5rem; }
+  .pmap__new-foot { align-items: stretch; flex-direction: column; }
+  .pmap__new-foot .pmap__btn { justify-content: center; }
+  /* The drop zone and the sticky header both cost vertical space on a sheet that is already short.
+   * The zone keeps enough height to read as a target and gives the rest back. */
+  .pmap__drop { min-height: 7rem; }
+  .pmap__new-here { font-size: 0.68rem; bottom: 0.7rem; }
+}
+
+/* The topbar is 56px tall on a phone rather than 64. The sheet's ceiling follows it, so the panel
+ * never begins — or ends up scrolling — underneath the app's own chrome. */
+@media (max-width: 599px) {
+  .pmap__detail { max-height: min(82vh, calc(100vh - 56px - 0.5rem)); }
 }
 
 /* ── MOTION ──────────────────────────────────────────────────────────────────────────────────── */
@@ -2141,9 +2631,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
    * here so no future transition on it can creep in and start animating the picture. */
   .pmap__frame,
   .pmap__detail { transition: none; }
+  /* The hover ENLARGEMENT goes with reduced motion — it is a size change, not a state — and the
+   * pin falls back to its plain counter-scale, which must keep the var or the pin stops holding
+   * its size at zoom for exactly the people who asked for less movement. The glow below stays: it
+   * is the state signal, and it is what says "this one" when the growth is gone. */
   .pmap__pin:hover,
   .pmap__pin:focus-visible,
-  .pmap__pin--active { transform: translate(-50%, -50%) scale(var(--pmap-pin-scale, 1)); }
+  .pmap__pin--active { transform: translate(-50%, -50%); }
   /* The glow STAYS: it is a static state signal, not motion, and it is how a selected cone is told
    * from an unselected one at a glance. Only the tween goes. */
   .pmap__skeleton { animation: none; }
@@ -2155,4 +2649,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
    * and only the tween between the two states goes. */
   .pmap__file-shot,
   .pmap__file-eye { transition: none; }
+  /* The dashed drop inset and its label are STATE — "let go here and you get a new point" — so
+   * they stay; only the fade and the rise go, and the label arrives already in place. */
+  .pmap__stage::after,
+  .pmap__new-here { transition: none; }
+  .pmap__new-here { transform: translate(-50%, 0); }
+  .pmap__icon-btn { transition: none; }
+  /* The aerial's own spinner keeps its meaning without turning: the sentence beside it is what
+   * says "wait", which is why it is a sentence and not just a disc. */
+  .pmap__aerial-spinner { animation: none; }
 }
