@@ -65,12 +65,14 @@ import {
 } from '@/lib/jobs/file-thumbnails';
 import type { LibraryFile } from '@/lib/jobs/property-map-server';
 import {
-  POINT_STATUSES, POINT_TYPES, clampToImage, filterPoints, mapsHref, mediaKindFor, mediaSummary,
+  DEFAULT_POINT_TYPE, POINT_STATUSES, POINT_TYPES, clampToImage, filterPoints, mapsHref,
+  mediaKindFor, mediaSummary,
   pinStyle, pointLabel, pointType, relativeFromClick, sortMedia, typesInUse,
   type MapPoint, type MediaKind, type PointMedia, type PointStatus, type PointTypeId,
   type PropertyMap, type RelativePoint,
 } from '@/lib/jobs/property-map';
 import {
+  DEFAULT_GEOMETRY,
   FOV_DEFAULT_DEG, FOV_DEFAULT_RADIUS, FOV_MAX_DEG, FOV_MIN_DEG, FOV_PRESETS, POINT_GEOMETRIES,
   SQUARE, appendVertex, bearingBetween, bearingLabel, clampBearing, clampFovDeg, clampFovRadius,
   fovAimHandle, fovDegFromHandle, fovPath, fovWidthHandle, geometryOf, isDrawable, radiusBetween,
@@ -489,16 +491,44 @@ const DRAG_SLOP = 6;
 // transformed rect either. It reads `offsetLeft` and `offsetWidth`, which are layout and do not see
 // a transform, so the current pan can be added to them rather than having to be teased out of them.
 //
-// Constant on screen at every zoom, and how:
-//   · shape strokes — `vector-effect: non-scaling-stroke`, which was already there for big scans.
-//   · handles, vertices, bends — `unit` has the zoom folded into it, so `HANDLE_R * unit` is still
-//     nine screen pixels at 8×. Not one call site changed.
-//   · the hover preview, and the PINS with their numbers and labels — counter-scaled in CSS by
-//     `--pmap-unzoom` and `--pmap-pin-scale`. Position belongs to the picture; SIZE belongs to the
-//     viewer. Owner, 2026-09-17: "the points and their numbers and labels should keep relative size
-//     to the view, not to the level of zoom … they should be getting smaller as we zoom in, but
-//     they will appear to be the same size to the viewer." A dot that grows with the aerial ends up
-//     hiding the very thing it points at.
+// ── THE PICTURE TRANSFORMS. THE MARKS DO NOT. ──────────────────────────────────────────────────
+//
+// This is the rule the whole overlay is built on, and it was arrived at the hard way, through three
+// owner reports in one afternoon:
+//
+//   1. "All of the points and shapes and stuff should also zoom with the image" — so the pins were
+//      put inside the transformed frame and left to ride it.
+//   2. "when I zoom in, the points start to appear really big, which is not what I want … they
+//      should be getting smaller as we zoom in, but they will appear to be the same size to the
+//      viewer" — POSITION was what they meant, not size. So the pins were counter-scaled:
+//      `scale(1 / zoom)` inside a parent scaled by `zoom`, which cancels to the right size.
+//   3. "they are getting really fuzzy. like, they look clear as I am zooming in, but as soon as I
+//      stop zooming they get fuzzy. they get fuzzier the more I zoom in."
+//
+// The third report is what makes the second fix wrong, and no amount of `will-change`,
+// `translateZ(0)` or backface tricks would have saved it. A counter-scale is still a scale: the
+// compositor rasterises the frame's subtree ONCE, at the layer's own resolution, and resamples that
+// bitmap. At 8× a 26-pixel pin is drawn into about three pixels of texture and blown back up. The
+// "clear while zooming, fuzzy when it stops" is exactly the signature of it — the layer is
+// re-rasterised live during the gesture and then settles back onto the cached one.
+//
+// So the marks are not scaled at all. They are laid out in SCREEN space, at their natural size, in
+// `.pmap__marks` — a sibling of the frame with NO transform on it or on any ancestor up to the
+// stage — and positioned from `marks`, which is the frame's layout box with the zoom and the pan
+// applied to it arithmetically. This is what every mapping library does, for this reason.
+//
+// WHAT LIVES WHERE, and the test is always "is this drawn ON the property, or ABOUT it?":
+//   · in the frame, scaling: the aerial, and the shape GEOMETRY — the polyline of a walk, the
+//     polygon of an area, the cone's wedge. A cone that kept its screen size would stop describing
+//     the ground the camera saw. Their strokes hold steady via `vector-effect: non-scaling-stroke`,
+//     which is the same principle applied inside SVG.
+//   · in the marks overlay, not scaling: the numbered pins with their numbers and labels, every
+//     drag handle, and the hover preview. A grab target that doubles at 2× is as wrong as one that
+//     halves, and a label is for reading.
+//
+// `unit` needs no change for any of this, and the reason is worth keeping: the handles' SVG used to
+// be `frame.width` wide inside a frame scaled by `zoom`, and is now `frame.width * zoom` wide with
+// no transform. Same pixels per viewBox unit, both ways.
 
 /** Fit, and eight times it. Past 8× an aerial is mush: the limit is the scan's resolution, not the
  *  viewer's. Below 1× is the fit, and there is nothing under the picture worth showing. */
@@ -731,6 +761,100 @@ function fileTypeFor(kind: MediaKind, name: string): string {
   return detectJobFileType(name);
 }
 
+// ── A MAP LEFT OPEN ALL AFTERNOON HAS TO STILL WORK ─────────────────────────────────────────────
+//
+// The defect this exists for, 2026-09-17: the owner placed a second point and "everything broke" —
+// a broken-image glyph where the aerial was, both pins piled into the top-left corner, the layout
+// in ruins. Nothing was corrupted. The points were at sensible, distinct fractions and the aerial's
+// row was intact. What had happened is that `loadPropertyMap` signs every URL for two hours, and
+// somebody building a map sits on this page for longer than that. The moment the signature expired
+// the `<img>` 403'd; the frame shrink-wraps that image, so it collapsed to nothing; and every pin
+// positioned as a PERCENTAGE OF THAT FRAME landed on top of the others in the corner. A sleeping
+// laptop, a deploy mid-session and a dropped connection all produce the identical picture.
+//
+// Three defences, in order of how much they cost:
+//
+//   1. DO NOT GET STALE. Every mutation already answers with the whole map, freshly signed, so
+//      ordinary editing keeps the URLs young by itself — `applyPayload` is the one place state is
+//      replaced and it resets the clock. On top of that: a refresh when the tab comes back after
+//      twenty minutes away, and a timer at forty-five, comfortably inside the two-hour window and
+//      asleep while the tab is hidden. No socket, no poll running for nobody.
+//   2. HEAL, DO NOT SHOW A BROKEN GLYPH. The aerial's `onError` re-fetches the payload (which
+//      re-signs everything) and tries again, twice, with a short backoff — and says "Reloading the
+//      picture…" while it does, because that is the truth. Only after that does it show a message
+//      and a Reload button. Thumbnails get one library refresh between them, not one each.
+//   3. NEVER PLACE INTO A COLLAPSED FRAME. `relativeFromClick` answers the CENTRE for a zero-sized
+//      box, by design — which, on a frame that has collapsed, means silently stacking every new
+//      point at 0.5/0.5 on top of nothing. `atFrame` is the single place the frame's box is read,
+//      so that is where placement, dragging and drawing are refused instead.
+
+/** A payload older than this, when the tab comes back, is refreshed before it is trusted. */
+const STALE_MS = 20 * 60 * 1000;
+/** And on a timer, well inside the two hours a signed URL lasts. */
+const REFRESH_MS = 45 * 60 * 1000;
+/** How many times the aerial re-signs itself before giving up and asking a person. */
+const AERIAL_TRIES = 2;
+
+// ── DROPPING A FILE ON EMPTY MAP MAKES A POINT ──────────────────────────────────────────────────
+//
+// Owner, 2026-09-17: "I want to be able to just drag and drop a file or image or whatever anywhere
+// on the map to create a new point. If I do this, then it should have a dialogue about what kind of
+// point it should be … if I drop it on an existing point then it will be added to that existing
+// points files."
+//
+// Two gestures that look identical and mean different things, told apart by one thing only: what is
+// under the cursor when the file lands. The pins and the shapes already own their own drops and
+// stop them from travelling further, so ANYTHING that reaches the picture's own handler is, by
+// construction, a drop on empty aerial. `overWhat` is the one exception to that: the drag handles
+// do not stop a drop, and a vertex handle is somewhere to grab rather than somewhere to put a
+// photo; and in VIEW mode a pin does not accept a drop at all, so the event arrives here with the
+// pin as its target and has to be routed back to it rather than making a second point on top of it.
+
+/** What is under a pointer or a drag over the picture. `inert` is the furniture a drop must simply
+ *  bounce off; `pointId` is a pin or a shape that owns the drop instead. */
+function overWhat(target: EventTarget | null): { pointId: string | null; inert: boolean } {
+  const el = target instanceof Element ? target : null;
+  if (!el) return { pointId: null, inert: false };
+  if (el.closest('.pmap__handles, .pmap__zoom, .pmap__popup')) return { pointId: null, inert: true };
+  return { pointId: el.closest('[data-point-id]')?.getAttribute('data-point-id') ?? null, inert: false };
+}
+
+/** Is there anything in this drag worth catching — a tile from the panel, or files from the
+ *  desktop? Read from `types`, because `getData` is deliberately blank until the drop itself. */
+function dragCarriesFile(e: React.DragEvent): boolean {
+  const types = Array.from(e.dataTransfer?.types ?? []);
+  return types.includes(FILE_DRAG_TYPE) || types.includes('Files');
+}
+
+/** The title a dropped file SUGGESTS. A photo dropped on a fence corner is usually called something
+ *  like the photo, so the dialogue opens with the file's own name — without the extension, and with
+ *  the underscores a camera puts in turned back into spaces. Offered, never imposed: the field is
+ *  focused and its text selected, so typing over it is one keystroke. */
+function titleFromFileName(name: string | null | undefined): string {
+  const stem = (name ?? '')
+    .replace(/\.[a-z0-9]{1,8}$/i, '')
+    .replace(/_+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return stem.slice(0, 160) || 'Point of interest';
+}
+
+/** The point a drop just made, held while the person says what it is. The point ALREADY EXISTS and
+ *  the file is ALREADY ON IT — this is an edit waiting to be applied, not a form waiting to create
+ *  something. Which is why Cancel keeps it: somebody who dragged a photo onto a fence corner meant
+ *  to put it there, and losing the file because they closed a dialogue would be the worst outcome
+ *  in the whole feature. */
+interface NewPointDraft {
+  pointId: string;
+  ordinal: number;
+  title: string;
+  notes: string;
+  pointType: PointTypeId;
+  geometry: GeometryId;
+  /** What landed on it, named — so the dialogue and the "keep it" toast can both say so. */
+  fileNames: string[];
+}
+
 export default function JobPropertyMapPage() {
   const params = useParams();
   const jobId = String((params as Record<string, string | string[]> | null)?.id ?? '');
@@ -756,7 +880,9 @@ export default function JobPropertyMapPage() {
    *  panel" are the same viewer pointed at different collections, and an id from one list means
    *  nothing in the other. */
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
-  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  /** The frame's LAYOUT box inside the stage — where the picture would be at 1× with no pan, and
+   *  how big it would be. The zoom and the pan are applied to it in `marks` below, in one place. */
+  const [frame, setFrame] = useState({ width: 0, height: 0, left: 0, top: 0 });
 
   /** How the aerial is being looked at. One piece of state for the scale and both offsets, because
    *  every gesture that changes one has to re-clamp the others in the same breath. */
@@ -769,6 +895,18 @@ export default function JobPropertyMapPage() {
   const [confirmPoint, setConfirmPoint] = useState<string | null>(null);
   const [confirmMedia, setConfirmMedia] = useState<string | null>(null);
   const [dropOver, setDropOver] = useState(false);
+  /** A drag carrying a file is somewhere over the stage. Lights the whole map up as a target, for
+   *  a desktop file exactly as an armed tile already does. */
+  const [fileOver, setFileOver] = useState(false);
+  /** …and is over EMPTY aerial right this second, so the dashed inset can say "this will make a new
+   *  point" while a pin under the cursor goes on saying "this will go on point 4". */
+  const [dropOnMap, setDropOnMap] = useState(false);
+  /** The point a drop just made, waiting on the new-point dialogue. */
+  const [newPoint, setNewPoint] = useState<NewPointDraft | null>(null);
+  /** When the payload — and therefore every signed URL in it — was last fetched. */
+  const [fetchedAt, setFetchedAt] = useState(0);
+  /** Whether the aerial is on screen, on its way back, or beaten. */
+  const [aerialState, setAerialState] = useState<'ok' | 'retrying' | 'failed'>('ok');
   const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
   const [draft, setDraft] = useState<{ title: string; notes: string } | null>(null);
 
@@ -855,6 +993,25 @@ export default function JobPropertyMapPage() {
   const panMovedRef = useRef(false);
   const listRef = useRef<HTMLUListElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
+  /** How many times the aerial has re-signed itself for the CURRENT failure. Zeroed on every
+   *  successful load, so a picture that fails again in an hour gets its two tries again. */
+  const aerialTriesRef = useRef(0);
+  const fetchedAtRef = useRef(0);
+  /** A refresh that came due mid-gesture, waiting for the gesture to end. */
+  const wantRefreshRef = useRef(false);
+  /** True while something is being dragged, drawn or uploaded. A refresh here replaces the point
+   *  under the finger with a fresh copy of itself, which reads as the drag being dropped. */
+  const gestureRef = useRef(false);
+  /** One library refresh for a grid of expired thumbnails, not one per tile. */
+  const thumbHealRef = useRef(0);
+  /** The last time the "nothing can be placed yet" toast was shown. A pointer move fires the guard
+   *  sixty times a second and a toast per move is worse than the defect. */
+  const warnedRef = useRef(0);
+  /** The new-point dialogue's own title box, focused and selected the moment it opens. */
+  const newTitleRef = useRef<HTMLInputElement | null>(null);
+  /** Whatever had the focus when a panel or a dialogue took it, so closing gives it back rather
+   *  than dumping a keyboard user at the top of the document. */
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const attachRef = useRef<HTMLInputElement | null>(null);
   const aerialRef = useRef<HTMLInputElement | null>(null);
   /** A drag that actually moved must not also read as a click. */
@@ -888,12 +1045,39 @@ export default function JobPropertyMapPage() {
    *  keeps a drag handle nine pixels wide at 8× instead of seventy-two. */
   const unit = frame.width > 0 ? box.width / (frame.width * view.zoom) : 1;
 
+  /** WHERE THE PICTURE ACTUALLY IS ON SCREEN, in the stage's own coordinates — the frame's layout
+   *  box with the zoom and the pan done to it by hand.
+   *
+   *  This is the arithmetic the frame's `transform: translate(x, y) scale(z)` performs, written out
+   *  once, because `transform-origin` is the frame's top-left: the corner moves to (x, y) and the
+   *  box grows from there. The marks overlay is given exactly this box, so a pin at `left: 30%` of
+   *  it lands on the same place on the photograph as a pin at `left: 30%` of the frame did — with
+   *  no transform anywhere above it, which is the whole point.
+   *
+   *  Not a `getBoundingClientRect`: that would be measuring the answer we are computing, once per
+   *  render, and it would be a frame behind during a pan. */
+  const marks = useMemo(() => ({
+    left: frame.left + view.x,
+    top: frame.top + view.y,
+    width: frame.width * view.zoom,
+    height: frame.height * view.zoom,
+  }), [frame, view]);
+
   // ── LOADING: ONE REQUEST, EVERYTHING SIGNED ───────────────────────────────────────────────────
+  /** THE ONE PLACE THE MAP'S STATE IS REPLACED. Every mutating call answers with the whole map,
+   *  freshly signed, so going through here means ordinary editing keeps the signatures young by
+   *  itself and the staleness timer below rarely has anything to do. */
+  const applyPayload = useCallback((next: MapPayload) => {
+    setPayload(next);
+    setFetchedAt(Date.now());
+    fetchedAtRef.current = Date.now();
+  }, []);
+
   const load = useCallback(async () => {
     const data = await safeFetch<MapPayload>(`/api/admin/jobs/${jobId}/property-map`);
-    if (data) setPayload(data);
+    if (data) applyPayload(data);
     setLoading(false);
-  }, [jobId, safeFetch]);
+  }, [jobId, safeFetch, applyPayload]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -911,16 +1095,54 @@ export default function JobPropertyMapPage() {
    *  a half-finished gesture — is bound long before the assignment code below runs. */
   const disarm = useCallback(() => { setArmedFileId(null); setOverPointId(null); }, []);
 
+  /** Close the file panel, and put the focus back on the toggle that opens it — so a keyboard user
+   *  is left on the control they will press next rather than at the top of the document. */
+  const closeFiles = useCallback(() => {
+    setPanelOpen(false);
+    window.setTimeout(
+      () => document.querySelector<HTMLElement>('[data-testid="pmap-files-toggle"]')?.focus(),
+      0,
+    );
+  }, []);
+
+  /** Close the point panel and give the focus back to whatever opened it. Declared up here for the
+   *  same reason `disarm` is: Escape is bound long before the panel's markup exists. */
+  const closeDetail = useCallback(() => {
+    setSelectedId((cur) => {
+      if (cur) {
+        const pin = document.querySelector<HTMLElement>(`.pmap__pin[data-point-id="${cur}"]`);
+        window.setTimeout(() => (pin ?? returnFocusRef.current)?.focus?.(), 0);
+      }
+      return null;
+    });
+  }, []);
+
+  /** Cancel the new-point dialogue. It KEEPS the point and everything on it — the whole reason the
+   *  dialogue is an edit rather than a form — and says so BY NAME, so nobody goes looking in the
+   *  files panel for a photo they think they lost by pressing Escape. */
+  const keepNewPoint = useCallback(() => {
+    if (!newPoint) return;
+    const point = pointsRef.current.find((p) => p.id === newPoint.pointId);
+    addToast(
+      `Kept as ${pointLabel(point ?? { ordinal: newPoint.ordinal, title: 'Point of interest' })}. `
+      + `${newPoint.fileNames.length === 1 ? 'The file is' : 'The files are'} on it.`,
+      'info',
+      3200,
+    );
+    setNewPoint(null);
+    window.setTimeout(() => returnFocusRef.current?.focus?.(), 0);
+  }, [newPoint, addToast]);
+
   /** Every mutating call answers with the whole map, so this is the only place state is replaced. */
   const mutate = useCallback(async (what: string, url: string, init: RequestInit, done?: string) => {
     setBusy(true);
     const res = await safeFetch<MapPayload>(url, init);
     setBusy(false);
     if (!res) { addToast(`Could not ${what}.`, 'error'); return null; }
-    setPayload(res);
+    applyPayload(res);
     if (done) addToast(done, 'success');
     return res;
-  }, [safeFetch, addToast]);
+  }, [safeFetch, addToast, applyPayload]);
 
   // ── THE LIBRARY: ONE REQUEST, EVERY FILE, ALREADY SIGNED ──────────────────────────────────────
   // Deliberately its own call and not folded into the map's. Uploading changes the library, drawing
@@ -956,6 +1178,112 @@ export default function JobPropertyMapPage() {
   // Edit mode is when files get placed, so that is when the panel opens itself. It stays a toggle:
   // seeing what is still unplaced is useful while reviewing too, which is why it exists in view mode.
   useEffect(() => { setPanelOpen(editing); }, [editing]);
+
+  // ── STAYING FRESH: THE SIGNED URLS LAST TWO HOURS, AND PEOPLE SIT HERE LONGER ─────────────────
+  // The account of the defect is at the top of the file. What follows is the mechanism.
+
+  /** Something is being dragged, drawn, aimed or uploaded right now. Mirrored into a ref because
+   *  the listeners below are bound once and would otherwise read a stale copy of it. */
+  const gestureBusy = Boolean(
+    drag || draw || panning || upload || dragFileId || vertexDrag || coneHandle || newPoint || busy,
+  );
+  useEffect(() => { gestureRef.current = gestureBusy; }, [gestureBusy]);
+
+  /** Re-fetch the map AND the library, quietly. Nothing here touches the zoom, the pan, the
+   *  selection, the open panel, the half-typed title in it, the armed tile or the panel's scroll
+   *  position: those are separate state and a refresh that snapped any of them back would be worse
+   *  than the stale URL it fixed. `refreshLibrary` even puts the scroll back where it was. */
+  const refreshNow = useCallback(() => {
+    const mapId = map?.id ?? null;
+    if (!mapId) return;
+    // A refresh mid-drag hands the drag a fresh copy of the point under the finger, which reads as
+    // the drag being dropped. It waits — the effect below fires it the moment the hand comes off.
+    if (gestureRef.current) { wantRefreshRef.current = true; return; }
+    wantRefreshRef.current = false;
+    void load();
+    refreshLibrary(mapId);
+  }, [map?.id, load, refreshLibrary]);
+
+  /** The queued refresh, let go of when the gesture ends. */
+  useEffect(() => {
+    if (gestureBusy || !wantRefreshRef.current) return;
+    refreshNow();
+  }, [gestureBusy, refreshNow]);
+
+  /** Back at the tab after a while away — the commonest way a page goes stale, and the one moment
+   *  a person is guaranteed not to be mid-gesture. */
+  useEffect(() => {
+    const maybe = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - fetchedAtRef.current < STALE_MS) return;
+      refreshNow();
+    };
+    window.addEventListener('focus', maybe);
+    document.addEventListener('visibilitychange', maybe);
+    return () => {
+      window.removeEventListener('focus', maybe);
+      document.removeEventListener('visibilitychange', maybe);
+    };
+  }, [refreshNow]);
+
+  /** And a timer, for the map left open on a second monitor all afternoon. It does nothing while
+   *  the tab is hidden: this is a re-signing, not a live feed, and there is no reason to poll for
+   *  somebody who is not looking. */
+  useEffect(() => {
+    if (!map?.id) return undefined;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      refreshNow();
+    }, REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [map?.id, refreshNow]);
+
+  // ── THE AERIAL HEALS ITSELF ──────────────────────────────────────────────────────────────────
+  /** Ask for the picture again. The payload comes back with every URL re-signed, so the `<img>`
+   *  gets a genuinely different `src` and the browser really does try again. */
+  const retryAerial = useCallback(() => {
+    setAerialState('retrying');
+    void load();
+  }, [load]);
+
+  const onAerialError = useCallback(() => {
+    if (aerialTriesRef.current >= AERIAL_TRIES) { setAerialState('failed'); return; }
+    const attempt = aerialTriesRef.current + 1;
+    aerialTriesRef.current = attempt;
+    setAerialState('retrying');
+    // A short, growing wait: the commonest cause is an expired signature, which a re-fetch fixes
+    // instantly, and the second commonest is a connection that came back a moment ago.
+    window.setTimeout(() => { void load(); }, 400 * attempt);
+  }, [load]);
+
+  /** The picture arrived. `measure()` is called beside this in the markup rather than from in here,
+   *  because it is declared further down and this callback is built during render. */
+  const onAerialOk = useCallback(() => {
+    aerialTriesRef.current = 0;
+    setAerialState('ok');
+  }, []);
+
+  /** A watchdog on "Reloading the picture…", because the one way that state can get stuck is
+   *  silent: if the re-fetch answers with the SAME url — a cached signature, a server that did not
+   *  re-sign — React writes no new `src`, the browser starts no new request, and there is no second
+   *  `error` event to move things along. A spinner that spins forever is a worse lie than the
+   *  broken glyph it replaced, so after eight seconds it says so and offers the button. */
+  useEffect(() => {
+    if (aerialState !== 'retrying') return undefined;
+    const t = window.setTimeout(() => setAerialState('failed'), 8000);
+    return () => window.clearTimeout(t);
+  }, [aerialState, payload?.imageUrl]);
+
+  /** A thumbnail that 403s means the whole library's signatures went with it. One refresh between
+   *  them, at most once a minute, rather than forty tiles each asking for their own. */
+  const healThumbs = useCallback(() => {
+    const mapId = map?.id ?? null;
+    if (!mapId) return;
+    const now = Date.now();
+    if (now - thumbHealRef.current < 60_000) return;
+    thumbHealRef.current = now;
+    refreshLibrary(mapId);
+  }, [map?.id, refreshLibrary]);
 
   // ── MAKING THE PREVIEWS THAT DO NOT EXIST YET ─────────────────────────────────────────────────
   // The long argument is at the top of the file. What follows is the mechanism: one job, one worker
@@ -1071,15 +1399,20 @@ export default function JobPropertyMapPage() {
 
   useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
 
-  // ── THE FRAME'S SIZE, WHICH THE POPUP AND THE HANDLES ARE SCALED AGAINST ──────────────────────
-  // `offsetWidth`, not a bounding rect: this is the frame's LAYOUT size, which the zoom transform
-  // does not touch. Keeping it zoom-free is what lets the popup go on being positioned in the
-  // frame's own coordinates and `unit` go on being one honest conversion with the zoom applied to
-  // it once, rather than two measurements that drift apart at 3×.
+  // ── THE FRAME'S LAYOUT BOX, WHICH EVERY MARK IS PLACED FROM ───────────────────────────────────
+  // `offsetLeft`/`offsetWidth`, never a bounding rect: these are LAYOUT numbers and a transform is
+  // invisible to them. That is what lets the zoom and the pan be applied to them exactly once, in
+  // `marks` below, instead of being measured in and then subtracted back out somewhere else.
   const measure = useCallback(() => {
     const el = frameRef.current;
     if (!el) return;
-    setFrame({ width: el.offsetWidth, height: el.offsetHeight });
+    setFrame((cur) => {
+      const next = { width: el.offsetWidth, height: el.offsetHeight, left: el.offsetLeft, top: el.offsetTop };
+      // Bail when nothing moved. The ResizeObserver below would otherwise re-enter on its own
+      // state update, which is the classic way to write an infinite loop with one.
+      return cur.width === next.width && cur.height === next.height
+        && cur.left === next.left && cur.top === next.top ? cur : next;
+    });
   }, []);
 
   useEffect(() => {
@@ -1087,6 +1420,20 @@ export default function JobPropertyMapPage() {
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [measure, payload?.imageUrl]);
+
+  // A window resize is not the only thing that moves the picture: opening the file panel changes
+  // the grid, which changes the stage's width, which re-CENTRES the frame inside it. The marks
+  // overlay is positioned from that box, so a stale copy of it lands every pin a few pixels off the
+  // thing it is pointing at — silently, and only on the layouts nobody tests.
+  useEffect(() => {
+    const stage = stageEl;
+    const el = frameRef.current;
+    if (!stage || !el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(stage);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [stageEl, measure, payload?.imageUrl]);
 
   // ── ZOOM AND PAN ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => { viewRef.current = view; }, [view]);
@@ -1350,15 +1697,34 @@ export default function JobPropertyMapPage() {
   /** A relative point, in the overlay's coordinates — which are the aerial's own pixels. */
   const px = useCallback((p: RelativePoint) => ({ x: p.x * box.width, y: p.y * box.height }), [box]);
 
+  /** THE ONE PLACE THE FRAME'S BOX IS READ, and therefore the one place to refuse a gesture that
+   *  would be answered with a lie. `relativeFromClick` returns the CENTRE for a zero-sized box —
+   *  correct for it, and a disaster here: a frame that has collapsed because the aerial failed to
+   *  load would silently stack every point at 0.5/0.5 on top of nothing. Callers already handle
+   *  `null` by doing nothing, so every placement, drag and draw inherits the guard for free. */
   const atFrame = useCallback((clientX: number, clientY: number): RelativePoint | null => {
     const el = frameRef.current;
     if (!el) return null;
-    return relativeFromClick(clientX, clientY, el.getBoundingClientRect());
-  }, []);
+    const rect = el.getBoundingClientRect();
+    if (aerialState !== 'ok' || !(rect.width > 0) || !(rect.height > 0)) {
+      // A pointer move fires this sixty times a second; one sentence every few seconds is a
+      // warning, and sixty is a fault of its own.
+      const now = Date.now();
+      if (now - warnedRef.current > 4000) {
+        warnedRef.current = now;
+        addToast('The aerial has not loaded yet — nothing can be placed on it until it has.', 'info', 3200);
+      }
+      return null;
+    }
+    return relativeFromClick(clientX, clientY, rect);
+  }, [aerialState, addToast]);
 
   // ── CREATING AND EDITING ─────────────────────────────────────────────────────────────────────
-  const createPoint = useCallback(async (body: Record<string, unknown>) => {
-    if (!map) return;
+  /** Write a point and hand back the row the server made, which is the only place its NUMBER comes
+   *  from. Two callers now: the shape picker, which then opens the panel on it, and a file dropped
+   *  on empty aerial, which then puts the file on it and asks what it is. */
+  const placePoint = useCallback(async (body: Record<string, unknown>, done?: string): Promise<MapPoint | null> => {
+    if (!map) return null;
     const res = await mutate(
       'place the point',
       `/api/admin/jobs/${jobId}/property-map/points`,
@@ -1367,18 +1733,22 @@ export default function JobPropertyMapPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ map_id: map.id, ...body }),
       },
-      'Point placed.',
+      done,
     );
+    if (!res) return null;
+    // The server assigns the number, so the new point is the highest one that came back.
+    return [...res.points].sort((a, b) => b.ordinal - a.ordinal)[0] ?? null;
+  }, [map, jobId, mutate]);
+
+  const createPoint = useCallback(async (body: Record<string, unknown>) => {
+    const newest = await placePoint(body, 'Point placed.');
     setDraw(null);
     setCursor(null);
-    if (!res) return;
-    // The server assigns the number, so the new point is the highest one that came back.
-    const newest = [...res.points].sort((a, b) => b.ordinal - a.ordinal)[0];
     if (newest) {
       setSelectedId(newest.id);
       window.setTimeout(() => titleRef.current?.focus(), 60);
     }
-  }, [map, jobId, mutate]);
+  }, [placePoint]);
 
   const patchPoint = useCallback(async (pointId: string, body: Record<string, unknown>, done: string) => {
     if (!map) return;
@@ -1441,7 +1811,22 @@ export default function JobPropertyMapPage() {
     // A pan that actually travelled ends in a click on this frame, and a click on this frame places
     // a point. Swallowed exactly once, here, rather than guarded for in four places.
     if (panMovedRef.current) { panMovedRef.current = false; return; }
-    if (!editing || !draw || !map) return;
+    if (!map) return;
+
+    // ── THE TOUCH AND KEYBOARD HALF OF "DROP ON EMPTY MAP" ────────────────────────────────────
+    // A tile is armed and the tap landed on bare picture, so it means the same thing the drop
+    // does: make a point here and put the file on it. A tap on a pin or a shape never reaches
+    // this — the pin stops its click, and the shape's own handler has already assigned — but the
+    // shape does not STOP the event, so its point id is what tells the two apart.
+    if (armedFileId && !draw) {
+      const under = overWhat(e.target);
+      if (under.pointId || under.inert) return;
+      const where = atFrame(e.clientX, e.clientY);
+      if (where) void dropNewPoint(where, armedFileId, []);
+      return;
+    }
+
+    if (!editing || !draw) return;
     const at = atFrame(e.clientX, e.clientY);
     if (!at) return;
     // The cone is drawn with pointer events, not clicks — the whole interaction is one press-drag.
@@ -1633,11 +2018,17 @@ export default function JobPropertyMapPage() {
       if (e.key === 'Escape') {
         // The dedicated viewer binds its own Escape and owns the topmost layer while it is up.
         if (viewerOn) return;
+        // The new-point dialogue is modal, so it owns Escape next — and Escape there KEEPS the
+        // point and its files, exactly as the Cancel button does. Nothing about this feature can
+        // lose a file, including the key people press without reading.
+        if (newPoint) { e.preventDefault(); keepNewPoint(); return; }
         // An armed tile is the newest thing on screen, so it is the first thing Escape takes back.
         if (armedFileId) { e.preventDefault(); disarm(); return; }
         if (conflict) { e.preventDefault(); setConflict(null); return; }
         if (draw) { e.preventDefault(); cancelDraw(); return; }
-        if (selectedId) { setSelectedId(null); return; }
+        if (selectedId) { e.preventDefault(); closeDetail(); return; }
+        // In edit mode the file panel is part of the mode and leaves with it, one line down.
+        if (panelOpen && !editing) { e.preventDefault(); closeFiles(); return; }
         if (editing) setEditing(false);
         return;
       }
@@ -1666,8 +2057,9 @@ export default function JobPropertyMapPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [
-    viewerOn, selectedId, editing, draw, vertexSel, armedFileId, conflict,
+    viewerOn, selectedId, editing, draw, vertexSel, armedFileId, conflict, newPoint, panelOpen,
     cancelDraw, finishDraw, undoVertex, removeVertex, disarm, zoomByStep, fitView,
+    keepNewPoint, closeDetail, closeFiles,
   ]);
 
   const onPinDown = (e: React.PointerEvent<HTMLButtonElement>, p: MapPoint) => {
@@ -1747,7 +2139,7 @@ export default function JobPropertyMapPage() {
 
       if (res.ok) {
         const next = (await res.json()) as MapPayload;
-        setPayload(next);
+        applyPayload(next);
         // Mark the tile placed from the answer we already have, so it does not blink back to
         // "unplaced" for the length of the library's own round trip.
         const landed = next.points.find((p) => p.id === pointId);
@@ -1788,7 +2180,7 @@ export default function JobPropertyMapPage() {
       // so this only ever undoes a drop that failed.
       setPlacing((cur) => cur.filter((id) => id !== fileId));
     }
-  }, [map, jobId, addToast, refreshLibrary, flashTile, reportPageError]);
+  }, [map, jobId, addToast, refreshLibrary, flashTile, reportPageError, applyPayload]);
 
   const unassignFile = useCallback(async (file: LibraryFile) => {
     const at = file.assignedTo;
@@ -1852,6 +2244,10 @@ export default function JobPropertyMapPage() {
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
     setOverPointId(pointId);
+    // A pin wins over the picture underneath it. This handler stops the event travelling, so the
+    // aerial's own dragover never runs while the cursor is here and could not put its own
+    // highlight out by itself — which would leave the map saying "new point" over a pin.
+    setDropOnMap(false);
   }, [editing]);
 
   const onTargetDragLeave = useCallback((pointId: string) => {
@@ -1905,11 +2301,13 @@ export default function JobPropertyMapPage() {
     }
   }, [jobId]);
 
-  const attachFiles = useCallback(async (files: File[]) => {
-    const point = selected;
-    if (!point || files.length === 0) return;
+  /** Upload files from the desktop and hang them on ONE named point. Taking the point as an
+   *  argument rather than reading the selection is what lets a drop on empty aerial attach to the
+   *  point it has just made, in the same breath and down the same path. */
+  const attachFilesTo = useCallback(async (point: Pick<MapPoint, 'id' | 'ordinal' | 'title'>, files: File[]) => {
+    if (files.length === 0) return 0;
+    let attached = 0;
     await safeAction('attaching media to a map point', async () => {
-      let attached = 0;
       for (const file of files) {
         try {
           const { jobFileId } = await uploadIntoJob(file, `Attached to ${pointLabel(point)}`);
@@ -1918,7 +2316,7 @@ export default function JobPropertyMapPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ point_id: point.id, job_file_id: jobFileId }),
           });
-          if (after) { setPayload(after); attached += 1; }
+          if (after) { applyPayload(after); attached += 1; }
         } catch (err) {
           reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'attach media' });
           addToast(err instanceof Error ? err.message : `Could not attach ${file.name}.`, 'error');
@@ -1928,7 +2326,13 @@ export default function JobPropertyMapPage() {
       // A file that just landed in the job belongs in the panel, already marked as placed.
       if (attached > 0) refreshLibrary(map?.id ?? null);
     });
-  }, [selected, jobId, safeAction, safeFetch, reportPageError, addToast, uploadIntoJob, refreshLibrary, map?.id]);
+    return attached;
+  }, [jobId, safeAction, safeFetch, reportPageError, addToast, uploadIntoJob, refreshLibrary, map?.id, applyPayload]);
+
+  const attachFiles = useCallback(async (files: File[]) => {
+    if (!selected) return;
+    await attachFilesTo(selected, files);
+  }, [selected, attachFilesTo]);
 
   const onVoiceNote = useCallback((blob: Blob) => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -1964,6 +2368,168 @@ export default function JobPropertyMapPage() {
     if (files.length) void attachFiles(files);
   }, [editing, selectedId, assignFile, attachFiles]);
 
+  // ── DROPPING ON EMPTY AERIAL: MAKE THE POINT, THEN ASK WHAT IT IS ────────────────────────────
+  // The long argument is at the top of the file. What follows is the mechanism, and its one
+  // invariant: THE FILE IS ATTACHED BEFORE THE DIALOGUE OPENS. The dialogue is an edit on a point
+  // that already exists and already holds the file, so there is no path through it — Cancel,
+  // Escape, a closed laptop — that loses what somebody dragged onto a fence corner.
+
+  /** Put a file on a point that is already there. The view-mode half of an existing-pin drop: the
+   *  pin cannot accept it itself without edit mode, so the picture catches it and turns edit on. */
+  const dropOnPoint = useCallback(async (pointId: string, tileId: string, files: File[]) => {
+    const point = pointsRef.current.find((p) => p.id === pointId);
+    if (!point) return;
+    setEditing(true);
+    setSelectedId(pointId);
+    if (tileId) { await assignFile(pointId, tileId); return; }
+    await attachFilesTo(point, files);
+  }, [assignFile, attachFilesTo]);
+
+  /** A file landed on bare picture. Make a point there, put the file on it, then ask. */
+  const dropNewPoint = useCallback(async (at: RelativePoint, tileId: string, files: File[]) => {
+    if (!map) return;
+    // Owner: dragging a file onto the map is unambiguous intent, so view mode is not a refusal —
+    // it is a mode change, and the banner across the page is what makes the new state obvious.
+    setEditing(true);
+    disarm();
+    // Where the focus was before the dialogue took it — the armed tile's own button, on the
+    // keyboard path — so closing gives it back instead of dumping somebody at the top of the page.
+    const from = document.activeElement;
+    returnFocusRef.current = from instanceof HTMLElement ? from : null;
+
+    const names = tileId
+      ? [library.find((f) => f.id === tileId)?.name ?? 'the file']
+      : files.map((f) => f.name);
+
+    const point = await placePoint({ x: at.x, y: at.y, geometry: DEFAULT_GEOMETRY });
+    if (!point) return;
+    setSelectedId(point.id);
+
+    // ONE point for however many files: "do not scatter a point per file" — a handful of photos of
+    // the same gate is one place, not five.
+    if (tileId) await assignFile(point.id, tileId);
+    else await attachFilesTo(point, files);
+
+    setNewPoint({
+      pointId: point.id,
+      ordinal: point.ordinal,
+      title: titleFromFileName(names[0]),
+      notes: '',
+      pointType: DEFAULT_POINT_TYPE,
+      geometry: DEFAULT_GEOMETRY,
+      fileNames: names,
+    });
+  }, [map, library, placePoint, assignFile, attachFilesTo, disarm]);
+
+  /** The picture's own dragover. Says yes to the drop AND decides which of the two highlights is
+   *  on: the dashed inset that means "a new point here", or a pin's ring that means "on point 4". */
+  /** Is the cursor actually over the photograph, rather than over the grey the stage letterboxes it
+   *  with? A few pixels of slop, for the same reason `relativeFromClick` clamps instead of
+   *  rejecting: somebody aiming at the corner of the picture is aiming at the picture. Without it,
+   *  a file let go in the margin at 1× would make a point clamped onto the edge of the aerial,
+   *  which is not where anybody dropped it. */
+  const overPicture = useCallback((clientX: number, clientY: number) => {
+    const el = frameRef.current;
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0) || !(r.height > 0)) return false;
+    const slop = 4;
+    return clientX >= r.left - slop && clientX <= r.right + slop
+      && clientY >= r.top - slop && clientY <= r.bottom + slop;
+  }, []);
+
+  const onAerialDragOver = useCallback((e: React.DragEvent) => {
+    if (!map || !dragCarriesFile(e)) return;
+    const where = overWhat(e.target);
+    if (where.inert) { setDropOnMap(false); return; }
+    if (!where.pointId && !overPicture(e.clientX, e.clientY)) { setDropOnMap(false); return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setFileOver(true);
+    // A pin the drag is sitting on wins, and the map stops offering to make a new point. In edit
+    // mode the pin's own handler has already claimed this and we never get here at all.
+    setDropOnMap(!where.pointId);
+    setOverPointId(where.pointId);
+  }, [map, overPicture]);
+
+  const onAerialDrop = useCallback((e: React.DragEvent) => {
+    if (!map) return;
+    const where = overWhat(e.target);
+    if (where.inert) return;
+    if (!where.pointId && !overPicture(e.clientX, e.clientY)) return;
+    const tileId = e.dataTransfer.getData(FILE_DRAG_TYPE) || dragFileRef.current || '';
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (!tileId && files.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragFileRef.current = null;
+    setDragFileId(null);
+    setOverPointId(null);
+    setDropOnMap(false);
+    setFileOver(false);
+
+    if (where.pointId) { void dropOnPoint(where.pointId, tileId, files); return; }
+    // `atFrame` reads the frame's own rect, which already has the zoom and the pan in it — that is
+    // what a bounding rect IS — so this is the whole of the placement maths, at 1× and at 8× alike.
+    // It is also where a drop onto a picture that has not loaded is refused.
+    const at = atFrame(e.clientX, e.clientY);
+    if (!at) return;
+    void dropNewPoint(at, tileId, files);
+  }, [map, atFrame, overPicture, dropOnPoint, dropNewPoint]);
+
+  /** Leaving the stage entirely, rather than crossing from the picture onto a pin — which fires a
+   *  `dragleave` too and must not put the highlight out mid-gesture. */
+  const onStageDragLeave = useCallback((e: React.DragEvent) => {
+    const to = e.relatedTarget as Node | null;
+    if (to && e.currentTarget.contains(to)) return;
+    setFileOver(false);
+    setDropOnMap(false);
+  }, []);
+
+  // A drag that ends anywhere else — dropped on the desktop, pressed Escape, left the window —
+  // never reaches the stage, and a map left ringed for a drag that is over is a map that lies.
+  useEffect(() => {
+    const clear = () => { setFileOver(false); setDropOnMap(false); };
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+    };
+  }, []);
+
+  // ── THE NEW-POINT DIALOGUE ───────────────────────────────────────────────────────────────────
+  /** Focused and SELECTED, so the suggested name is one keystroke from gone and one Tab from kept.
+   *  Keyed on the point's id rather than on the draft, or every letter typed would reselect the
+   *  box under the person typing it. */
+  const newPointId = newPoint?.pointId ?? null;
+  useEffect(() => {
+    if (!newPointId) return undefined;
+    const t = window.setTimeout(() => {
+      newTitleRef.current?.focus();
+      newTitleRef.current?.select();
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [newPointId]);
+
+  const saveNewPoint = useCallback(async () => {
+    if (!newPoint) return;
+    const title = newPoint.title.trim() || 'Point of interest';
+    const draftOf = newPoint;
+    setNewPoint(null);
+    await patchPoint(
+      draftOf.pointId,
+      {
+        title,
+        notes: draftOf.notes,
+        point_type: draftOf.pointType,
+        geometry: draftOf.geometry,
+      },
+      `${draftOf.ordinal}. ${title} saved.`,
+    );
+    window.setTimeout(() => titleRef.current?.focus(), 60);
+  }, [newPoint, patchPoint]);
+
   // ── CREATING THE MAP, AND REPLACING ITS AERIAL ───────────────────────────────────────────────
   const createMap = useCallback(async (file: File) => {
     await safeAction('creating the property map', async () => {
@@ -1983,14 +2549,14 @@ export default function JobPropertyMapPage() {
           }),
         });
         if (!created) { addToast('The aerial uploaded, but the map could not be created.', 'error'); return; }
-        setPayload(created);
+        applyPayload(created);
         setEditing(true);
         addToast('Interactive map created. Place your first point.', 'success');
       } catch (err) {
         addToast(err instanceof Error ? err.message : 'Could not create the map.', 'error');
       }
     });
-  }, [jobId, safeAction, safeFetch, addToast, uploadIntoJob]);
+  }, [jobId, safeAction, safeFetch, addToast, uploadIntoJob, applyPayload]);
 
   const replaceAerial = useCallback(async (file: File) => {
     if (!map) return;
@@ -2019,26 +2585,24 @@ export default function JobPropertyMapPage() {
   }, [map, jobId, safeAction, mutate, addToast, uploadIntoJob]);
 
   // ── THE HOVER PREVIEW, CLAMPED SO IT NEVER LEAVES THE PICTURE ────────────────────────────────
+  // It lives in the marks overlay now, at its natural size, so every number below is plain screen
+  // pixels — no counter-scale to divide by, and nothing to keep in step with the stylesheet except
+  // POPUP_WIDTH, which is the one measurement this file and the CSS must agree on.
   const popup = useMemo(() => {
     const p = points.find((x) => x.id === hoverId);
-    if (!p || !frame.width || !frame.height) return null;
+    if (!p || !marks.width || !marks.height) return null;
     const at = drag?.id === p.id ? clampToImage({ x: drag.x, y: drag.y }) : { x: p.x, y: p.y };
-    const cx = at.x * frame.width;
-    const cy = at.y * frame.height;
-    // The popup is counter-scaled in CSS so it stays legible at 6×, which means it covers
-    // `POPUP_WIDTH / zoom` of the frame's own coordinates — and the clamp, and the gap under the
-    // pin, are worked out in those coordinates.
-    const unzoom = 1 / view.zoom;
-    const width = POPUP_WIDTH * unzoom;
-    const maxLeft = Math.max(4, frame.width - width - 4);
-    const above = cy > frame.height * 0.55;
+    const cx = at.x * marks.width;
+    const cy = at.y * marks.height;
+    const maxLeft = Math.max(4, marks.width - POPUP_WIDTH - 4);
+    const above = cy > marks.height * 0.55;
     return {
       point: p,
-      left: Math.min(Math.max(cx - width / 2, 4), maxLeft),
-      top: above ? cy - 22 * unzoom : cy + 22 * unzoom,
+      left: Math.min(Math.max(cx - POPUP_WIDTH / 2, 4), maxLeft),
+      top: above ? cy - 22 : cy + 22,
       above,
     };
-  }, [hoverId, points, frame, drag, view.zoom]);
+  }, [hoverId, points, marks, drag]);
 
   // ── THE PANEL'S OWN DERIVED STATE ────────────────────────────────────────────────────────────
   /** "22 files · 14 unplaced" — the progress bar of the whole exercise. */
@@ -2125,8 +2689,10 @@ export default function JobPropertyMapPage() {
     setViewerOn({ source: 'point', fileId: media.id });
   }, [addToast]);
 
-  /** Every pin, shape and row is a landing place right now — which is what the highlight is for. */
-  const assigning = Boolean(dragFileId || armedFileId);
+  /** Every pin, shape and row is a landing place right now — which is what the highlight is for.
+   *  A file dragged in from the desktop counts too: it has no tile to light up, and the map still
+   *  has to say where it can go. */
+  const assigning = Boolean(dragFileId || armedFileId || fileOver);
 
   const pointOrdinal = useCallback(
     (pointId: string | null | undefined) => points.find((p) => p.id === pointId)?.ordinal ?? null,
@@ -2482,7 +3048,8 @@ export default function JobPropertyMapPage() {
                 <strong>Assign to…</strong>
                 <span className="pmap__assign-name" title={armedFile.name}>{armedFile.name}</span>
                 <span className="pmap__assign-hint">
-                  Tap a pin, a shape or a row in the list. Escape cancels.
+                  Tap a pin, a shape or a row in the list to put it there — or tap anywhere else on
+                  the aerial to make a new point for it. Escape cancels.
                 </span>
               </span>
               <button
@@ -2536,8 +3103,19 @@ export default function JobPropertyMapPage() {
               'pmap__stage',
               canPan ? 'pmap__stage--pannable' : '',
               panning ? 'pmap__stage--panning' : '',
+              dropOnMap ? 'pmap__stage--dropping' : '',
             ].filter(Boolean).join(' ')}
             data-testid="pmap-stage"
+            data-dropping={dropOnMap ? 'true' : 'false'}
+            // THE PICTURE IS A DROP TARGET, and the handlers sit HERE rather than on the frame
+            // because the pins no longer live inside the frame — they are in the marks overlay
+            // beside it. The stage is the one element that contains both, so it is the one place a
+            // drop can be sorted into "onto that pin" and "onto bare aerial" by what is under the
+            // cursor. In edit mode a pin claims its own drop and stops it before it gets here.
+            onDragOver={onAerialDragOver}
+            onDragEnter={onAerialDragOver}
+            onDrop={onAerialDrop}
+            onDragLeave={onStageDragLeave}
             onPointerDown={onStagePointerDown}
             onPointerMove={onStagePointerMove}
             onPointerUp={onStagePointerUp}
@@ -2548,20 +3126,10 @@ export default function JobPropertyMapPage() {
             <div
               ref={frameRef}
               className={`pmap__frame${editing && draw ? ' pmap__frame--drawing' : ''}`}
-              style={{
-                transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
-                // Read by the pins and the hover preview, which counter-scale themselves so they
-                // stay the size a finger and an eye expect at every zoom.
-                '--pmap-unzoom': 1 / view.zoom,
-                // 1 at every zoom: the pins scale with the picture. Kept as a variable so the
-                // decision has one place to live if a pin ever needs taming at 8×.
-                // 1/zoom: the pin is drawn four times smaller at 400%, so the two cancel and it
-                // looks the same size to the person reading the map. Owner, 2026-09-17: "if I zoom
-                // in on the image, the points and their numbers and labels should keep relative
-                // size to the view, not to the level of zoom … they should be getting smaller as we
-                // zoom in, but they will appear to be the same size to the viewer."
-                '--pmap-pin-scale': 1 / view.zoom,
-              } as CSSProperties}
+              // The ONLY transform on this page, and it applies to the photograph and the shapes
+              // drawn on it — nothing that is read rather than looked at. No custom properties ride
+              // along with it any more: there is nothing left inside here that needs to undo it.
+              style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}
               onClick={onFrameClick}
               onDoubleClick={onFrameDoubleClick}
               onPointerDown={onFrameDown}
@@ -2571,15 +3139,62 @@ export default function JobPropertyMapPage() {
               data-testid="pmap-frame"
             >
               {payload?.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  className="pmap__aerial"
-                  src={payload.imageUrl}
-                  alt={`Aerial view for ${map.title}`}
-                  decoding="async"
-                  onLoad={measure}
-                  draggable={false}
-                />
+                <>
+                  {/* ── THE PICTURE, AND WHAT STANDS IN FOR IT WHEN IT WILL NOT COME ───────────
+                      It is never removed from the DOM while it is retrying — an element that is
+                      not there cannot load — it is taken out of FLOW, and the box below holds the
+                      frame's size in its place. That box is the whole fix for the owner's "every-
+                      thing broke": a frame that keeps its shape keeps every pin on its fraction
+                      instead of piling them into the corner. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className={`pmap__aerial${aerialState === 'ok' ? '' : ' pmap__aerial--away'}`}
+                    src={payload.imageUrl}
+                    alt={`Aerial view for ${map.title}`}
+                    decoding="async"
+                    data-testid="pmap-aerial"
+                    onLoad={() => { onAerialOk(); measure(); }}
+                    onError={onAerialError}
+                    draggable={false}
+                  />
+                  {aerialState !== 'ok' && (
+                    <div
+                      className="pmap__aerial-gap"
+                      style={{ '--pmap-aerial-ratio': `${box.width} / ${box.height}` } as CSSProperties}
+                      data-testid="pmap-aerial-gap"
+                      role="status"
+                    >
+                      {aerialState === 'retrying' ? (
+                        <>
+                          <span className="pmap__aerial-spinner" aria-hidden />
+                          <strong>Reloading the picture…</strong>
+                          <span className="pmap__aerial-why">
+                            The link to it had expired. Your points are safe — they are stored as
+                            positions on the picture, not on the link.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={20} aria-hidden />
+                          <strong>The aerial would not load.</strong>
+                          <span className="pmap__aerial-why">
+                            Nothing is lost: every point is still here and still where you put it.
+                            The picture&apos;s link went stale, which usually means this page has
+                            been open a long while.
+                          </span>
+                          <button
+                            className="pmap__btn pmap__btn--primary"
+                            type="button"
+                            data-testid="pmap-aerial-retry"
+                            onClick={retryAerial}
+                          >
+                            <Undo2 size={14} aria-hidden /> Reload the picture
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="pmap__no-aerial" data-testid="pmap-no-aerial">
                   This map has no aerial yet. Use <strong>Edit map → Replace aerial</strong> to add one.
@@ -2679,7 +3294,29 @@ export default function JobPropertyMapPage() {
                   </g>
                 )}
               </svg>
+            </div>
 
+            {/* ── THE MARKS: EVERYTHING THAT IS READ RATHER THAN LOOKED AT ────────────────────
+                A sibling of the frame, not a child, and that is the whole crispness fix. It has no
+                transform and no transformed ancestor, so a pin is rasterised at its real size at
+                every zoom instead of being drawn into a scaled-down texture and blown back up.
+
+                It is laid over exactly where the picture currently is — `marks` is the frame's
+                layout box with the zoom and the pan done to it arithmetically — so a pin at
+                `left: 30%` of this box is on the same square foot of ground it always was.
+
+                Inert as a sheet; each mark opts back in. Otherwise this would swallow every click
+                meant for the picture underneath it, which is where points are placed. */}
+            <div
+              className={`pmap__marks${editing && draw ? ' pmap__marks--drawing' : ''}`}
+              style={{
+                left: `${marks.left}px`,
+                top: `${marks.top}px`,
+                width: `${marks.width}px`,
+                height: `${marks.height}px`,
+              }}
+              data-testid="pmap-marks"
+            >
               {onMap.map((p) => {
                 const type = pointType(p.pointType);
                 const Icon = ICON_BY_NAME[type.icon] ?? MapPin;
@@ -2874,6 +3511,15 @@ export default function JobPropertyMapPage() {
               )}
             </div>
 
+            {/* What the dashed inset means, said in words — a dashed rectangle is a convention,
+                and the difference between "a new point here" and "onto point 4" is exactly the
+                thing somebody needs to know BEFORE they let go. */}
+            {dropOnMap && (
+              <span className="pmap__new-here" role="status" data-testid="pmap-drop-hint">
+                <Plus size={13} aria-hidden /> Drop here to make a new point
+              </span>
+            )}
+
             {/* ── THE ZOOM CONTROLS ─────────────────────────────────────────────────────────────
                 A wheel is not the only way in, and on a laptop trackpad it is not even the obvious
                 one. Fixed to the stage rather than the frame, so they do not sail off with the
@@ -2956,13 +3602,14 @@ export default function JobPropertyMapPage() {
                 </span>
               )}
               <button
-                className="pmap__btn pmap__btn--ghost"
+                className="pmap__icon-btn"
                 type="button"
                 aria-label="Hide the file panel"
+                title={editing ? 'Hide the file panel' : 'Hide the file panel (Escape)'}
                 data-testid="pmap-files-close"
-                onClick={() => setPanelOpen(false)}
+                onClick={closeFiles}
               >
-                <X size={14} aria-hidden />
+                <X size={16} aria-hidden />
               </button>
             </div>
 
@@ -3057,6 +3704,7 @@ export default function JobPropertyMapPage() {
                           onAskUnassign={() => setConfirmUnassign(file.id)}
                           onCancelUnassign={() => setConfirmUnassign(null)}
                           onUnassign={() => void unassignFile(file)}
+                          onThumbError={healThumbs}
                         />
                       ))}
                     </div>
@@ -3153,7 +3801,7 @@ export default function JobPropertyMapPage() {
         {selected && (
           <>
             <div className="pmap__detail-head">
-              <div>
+              <div className="pmap__detail-heading">
                 <h2 className="pmap__detail-title">{pointLabel(selected)}</h2>
                 <p className="pmap__detail-sub">
                   {pointType(selected.pointType).label} · {mediaSummary(selected.media)}
@@ -3166,20 +3814,34 @@ export default function JobPropertyMapPage() {
                   {' '}{shapeSummary(selected, map.georeference)}
                 </p>
               </div>
+              {/* Owner, 2026-09-17: "I don't see a button to close the panel." It was always
+                  rendered — it was UNDERNEATH the admin's fixed topbar, which starts at the same
+                  `top: 0` and outranks this panel 200 to 60. The stylesheet now starts the panel
+                  below the bar, and this header is sticky so the × is reachable at every scroll
+                  position rather than only at the top of a long form. */}
               <button
-                className="pmap__btn pmap__btn--ghost"
+                className="pmap__icon-btn"
                 type="button"
                 aria-label="Close point details"
+                title="Close (Escape)"
                 data-testid="pmap-detail-close"
-                onClick={() => setSelectedId(null)}
+                onClick={closeDetail}
               >
                 <X size={16} aria-hidden />
               </button>
             </div>
 
+            {/* ── TWO PARTS, NOT SEVEN EQUAL ONES ──────────────────────────────────────────────
+                Owner, 2026-09-17: the panel "read as one long undifferentiated column". It is two
+                different jobs and now looks like two: what this point IS — the things you set —
+                and what is ON it. The save and delete row belongs to the first of those and is
+                inside it, so it no longer reads as the end of the whole panel with a section of
+                attachments somehow after it. */}
             <div className="pmap__detail-body">
+              <section className="pmap__part" data-testid="pmap-part-about">
               {editing ? (
                 <>
+                  <h3 className="pmap__section-title">What this point is</h3>
                   <div className="pmap__field">
                     <label className="pmap__label" htmlFor="pmap-title">Title</label>
                     <input
@@ -3397,8 +4059,13 @@ export default function JobPropertyMapPage() {
                   </a>
                 </p>
               )}
+              </section>
 
-              <h3 className="pmap__section-title">Attachments</h3>
+              <section className="pmap__part" data-testid="pmap-part-files">
+              <h3 className="pmap__section-title">
+                Attachments
+                <span className="pmap__section-count">{mediaSummary(selected.media)}</span>
+              </h3>
               {selected.media.length === 0 ? (
                 <p className="pmap__hint">Nothing attached to this point yet.</p>
               ) : (
@@ -3475,10 +4142,186 @@ export default function JobPropertyMapPage() {
                   {upload && <p className="pmap__progress">Uploading {upload.name} — {upload.pct}%</p>}
                 </div>
               )}
+              </section>
             </div>
           </>
         )}
       </aside>
+
+      {/* ── THE NEW-POINT DIALOGUE ──────────────────────────────────────────────────────────────
+          Owner: "it should have a dialogue about what kind of point it should be and that kind of
+          thing."
+
+          A MODAL, and not a "new point" state of the detail panel, for three reasons. The panel
+          slides open on every selection already, so a person who has just dropped a photo would
+          see the thing they see whenever they click anything — which reads as "nothing happened"
+          rather than as the deliberate step the owner asked for. The panel is also the editor for a
+          point that exists, thirteen controls deep; bending it into a second mode would put a
+          conditional through every one of them. And on a phone it is a bottom sheet under the file
+          panel, where a "Keep as Point 4" affordance has nowhere to live that anybody would find.
+
+          The point behind this dialogue ALREADY EXISTS and the file is ALREADY ON IT. Everything
+          here is an edit, which is what makes Cancel safe. */}
+      {newPoint && (
+        <div className="pmap__new" role="presentation" data-testid="pmap-new-point">
+          {/* Clicking the dark ground is the same act as Cancel — and, like Cancel, it keeps. */}
+          <button
+            className="pmap__new-scrim"
+            type="button"
+            tabIndex={-1}
+            aria-label={`Close this and keep point ${newPoint.ordinal}`}
+            data-testid="pmap-new-scrim"
+            onClick={keepNewPoint}
+          />
+          <div
+            className="pmap__new-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pmap-new-title"
+            data-testid="pmap-new-card"
+          >
+            <div className="pmap__new-head">
+              <div className="pmap__new-heading">
+                <h2 className="pmap__new-title" id="pmap-new-title">New point {newPoint.ordinal}</h2>
+                <p className="pmap__new-sub" data-testid="pmap-new-files">
+                  <Check size={12} aria-hidden />
+                  {newPoint.fileNames.length === 1
+                    ? `${newPoint.fileNames[0]} is already on it.`
+                    : `${newPoint.fileNames.length} files are already on it.`}
+                  {' '}Say what it is, or keep it as it stands.
+                </p>
+              </div>
+              <button
+                className="pmap__icon-btn"
+                type="button"
+                aria-label={`Close this and keep point ${newPoint.ordinal}`}
+                title={`Keep point ${newPoint.ordinal} as it is`}
+                data-testid="pmap-new-close"
+                onClick={keepNewPoint}
+              >
+                <X size={16} aria-hidden />
+              </button>
+            </div>
+
+            <div className="pmap__new-body">
+              <div className="pmap__field">
+                <label className="pmap__label" htmlFor="pmap-new-name">Title</label>
+                <input
+                  id="pmap-new-name"
+                  ref={newTitleRef}
+                  className="pmap__input"
+                  value={newPoint.title}
+                  maxLength={160}
+                  data-testid="pmap-new-title-input"
+                  onChange={(e) => setNewPoint((d) => (d ? { ...d, title: e.target.value } : d))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveNewPoint(); } }}
+                />
+                <p className="pmap__hint">Suggested from the file&apos;s name. Type over it.</p>
+              </div>
+
+              {/* ── WHAT KIND OF POINT IT IS ────────────────────────────────────────────────── */}
+              {/* The owner's "what kind of point it should be", as the fourteen themselves rather
+                  than a dropdown: the colour and the one-line hint are the whole of the decision,
+                  and neither survives being folded into an <option>. */}
+              <div className="pmap__field">
+                <span className="pmap__label" id="pmap-new-type-label">What kind of point</span>
+                <div className="pmap__types" role="radiogroup" aria-labelledby="pmap-new-type-label" data-testid="pmap-new-types">
+                  {POINT_TYPES.map((t) => {
+                    const Icon = ICON_BY_NAME[t.icon] ?? MapPin;
+                    const on = newPoint.pointType === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        className={`pmap__type${on ? ' pmap__type--on' : ''}`}
+                        style={swatchVars(t.token)}
+                        data-testid={`pmap-new-type-${t.id}`}
+                        onClick={() => setNewPoint((d) => (d ? { ...d, pointType: t.id } : d))}
+                      >
+                        <span className="pmap__type-head">
+                          <span className="pmap__type-swatch" aria-hidden><Icon size={11} strokeWidth={2.5} /></span>
+                          {t.label}
+                        </span>
+                        <span className="pmap__type-hint">{t.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── AND WHAT SHAPE ──────────────────────────────────────────────────────────── */}
+              {/* So a dropped photo can become a photo-direction cone here rather than being
+                  placed again from scratch. The cone is aimed on the map afterwards, with the
+                  handles the panel already explains. */}
+              <div className="pmap__field">
+                <span className="pmap__label" id="pmap-new-shape-label">Shape</span>
+                <div className="pmap__switch" role="group" aria-labelledby="pmap-new-shape-label">
+                  {POINT_GEOMETRIES.map((g) => {
+                    const Icon = ICON_BY_NAME[g.icon] ?? MapPin;
+                    const on = newPoint.geometry === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        className={`pmap__switch-btn${on ? ' pmap__switch-btn--on' : ''}`}
+                        aria-pressed={on}
+                        title={g.hint}
+                        data-testid={`pmap-new-shape-${g.id}`}
+                        onClick={() => setNewPoint((d) => (d ? { ...d, geometry: g.id } : d))}
+                      >
+                        <Icon size={13} aria-hidden /> {g.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="pmap__hint">{geometryOf(newPoint.geometry).hint}</p>
+              </div>
+
+              <div className="pmap__field">
+                <label className="pmap__label" htmlFor="pmap-new-notes">Notes (optional)</label>
+                <textarea
+                  id="pmap-new-notes"
+                  className="pmap__textarea"
+                  value={newPoint.notes}
+                  placeholder="What is here, and why it matters."
+                  data-testid="pmap-new-notes-input"
+                  onChange={(e) => setNewPoint((d) => (d ? { ...d, notes: e.target.value } : d))}
+                />
+              </div>
+            </div>
+
+            {/* ── THE TWO WAYS OUT, AND NEITHER LOSES THE FILE ────────────────────────────────
+                The cancel says what it does instead of saying "Cancel", because "Cancel" next to a
+                photo somebody just dragged onto a fence corner reads as "throw it away" — and the
+                one thing this feature must never do is make that a reasonable fear. */}
+            <div className="pmap__new-foot">
+              <button
+                className="pmap__btn pmap__btn--primary"
+                type="button"
+                disabled={busy}
+                data-testid="pmap-new-save"
+                onClick={() => void saveNewPoint()}
+              >
+                <Check size={14} aria-hidden /> Save this point
+              </button>
+              <button
+                className="pmap__btn"
+                type="button"
+                data-testid="pmap-new-keep"
+                onClick={keepNewPoint}
+              >
+                Keep as Point {newPoint.ordinal}
+              </button>
+              <span className="pmap__new-safe">
+                Either way the point stays and{' '}
+                {newPoint.fileNames.length === 1 ? 'the file stays' : 'the files stay'} on it.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* THE dedicated viewer — the same component the File Explorer, the job's Files tab and the
           research documents open. Nothing about a file is viewed anywhere else, which is the whole
@@ -3555,9 +4398,22 @@ function MediaTile({
     );
   }
 
+  // ── THE TILE IS A STACK, NOT A PILE ─────────────────────────────────────────────────────────
+  // Owner, 2026-09-17, with a screenshot: the kind chip and the Detach button were both absolutely
+  // positioned over the top corners of a tile about a hundred pixels wide, so at any real file name
+  // they overlapped each other AND the thumbnail — it read "docu… ✕ Detach". Nothing about that
+  // needed to be an overlay. It is now the same stack the library tiles beside it already use:
+  // picture, then name, then what it is, then what you can do to it, each on its own line, so
+  // neither the panel's grid nor a long name can ever make two of them collide.
   return (
-    <div className="pmap__tile-wrap">
-      <button className="pmap__tile" type="button" onClick={onOpen} data-testid={`pmap-media-${media.id}`}>
+    <div className="pmap__tile-wrap" data-testid={`pmap-media-tile-${media.id}`}>
+      <button
+        className="pmap__tile"
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${media.name}`}
+        data-testid={`pmap-media-${media.id}`}
+      >
         {media.thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -3572,20 +4428,36 @@ function MediaTile({
         ) : (
           <span className="pmap__tile-blank"><Kind size={22} aria-hidden /></span>
         )}
-        <Tooltip text={media.name}>
-          <span className="pmap__tile-name">{media.caption || media.name}</span>
-        </Tooltip>
       </button>
-      <span className="pmap__tile-kind"><Kind size={10} aria-hidden /> {media.kind}</span>
+      <Tooltip text={media.name}>
+        <span className="pmap__tile-name">{media.caption || media.name}</span>
+      </Tooltip>
+      <span className="pmap__tile-kind">
+        <Kind size={10} aria-hidden /> {KIND_ONE[media.kind]}
+        {media.sizeBytes ? ` · ${formatBytes(media.sizeBytes)}` : ''}
+      </span>
       {editing && (
         confirming ? (
-          <button className="pmap__tile-detach" type="button" onClick={onDetach} data-testid={`pmap-detach-confirm-${media.id}`}>
-            Really detach
-          </button>
+          <span className="pmap__tile-acts" role="group" data-testid={`pmap-tile-confirm-${media.id}`}>
+            <button className="pmap__tile-detach pmap__tile-detach--go" type="button" onClick={onDetach} data-testid={`pmap-detach-confirm-${media.id}`}>
+              Really detach
+            </button>
+            <button className="pmap__tile-detach" type="button" onClick={onCancelDetach} data-testid={`pmap-detach-cancel-${media.id}`}>
+              Keep
+            </button>
+          </span>
         ) : (
-          <button className="pmap__tile-detach" type="button" onClick={onAskDetach} data-testid={`pmap-detach-${media.id}`}>
-            <X size={10} aria-hidden /> Detach
-          </button>
+          <span className="pmap__tile-acts">
+            <button
+              className="pmap__tile-detach"
+              type="button"
+              aria-label={`Detach ${media.name} from this point`}
+              onClick={onAskDetach}
+              data-testid={`pmap-detach-${media.id}`}
+            >
+              <X size={10} aria-hidden /> Detach
+            </button>
+          </span>
         )
       )}
     </div>
@@ -3608,7 +4480,7 @@ function MediaTile({
  *  somebody is working down, and cannot say which point in the same breath. */
 function FileTile({
   file, editing, armed, dragging, placing, flashing, confirming,
-  onArm, onDragStart, onDragEnd, onOpen, onShowPoint, onAskUnassign, onCancelUnassign, onUnassign,
+  onArm, onDragStart, onDragEnd, onOpen, onShowPoint, onAskUnassign, onCancelUnassign, onUnassign, onThumbError,
 }: {
   file: LibraryFile;
   editing: boolean;
@@ -3625,6 +4497,8 @@ function FileTile({
   onAskUnassign: () => void;
   onCancelUnassign: () => void;
   onUnassign: () => void;
+  /** An expired thumbnail URL. The page turns one of these into ONE library refresh. */
+  onThumbError: () => void;
 }) {
   const Kind = KIND_ICON[file.kind];
   const assigned = Boolean(file.assignedTo);
@@ -3696,7 +4570,10 @@ function FileTile({
             decoding="async"
             draggable={false}
             onLoad={() => setImgState('ok')}
-            onError={() => setImgState('failed')}
+            // A thumbnail that will not load is very rarely a bad thumbnail — it is a signature
+            // that expired while this page sat open. Say so upwards; the page turns however many
+            // of these arrive into one library refresh, which re-signs the lot.
+            onError={() => { setImgState('failed'); onThumbError(); }}
           />
         )}
         {imgState === 'loading' && (
