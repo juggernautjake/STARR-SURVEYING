@@ -14,7 +14,10 @@ export interface FieldOption {
 export interface FormField {
   id: string;
   label: string;
-  type: 'select' | 'number' | 'text' | 'textarea';
+  // 'county' is a text input backed by the <datalist> of all 254 Texas counties
+  // (lib/geo/texas-counties.ts): type-to-filter AND a dropdown, from one field type, so
+  // no form has to special-case the county question. See PROPERTY_COUNTY_FIELD below.
+  type: 'select' | 'number' | 'text' | 'textarea' | 'county';
   required: boolean;
   options?: FieldOption[];
   placeholder?: string;
@@ -75,34 +78,24 @@ export const PROPERTY_ADDRESS_FIELD: FormField = {
   helpText: 'Provide the most specific location information you have',
 };
 
+// Every county in Texas, not a shortlist.
+//
+// This was a REQUIRED <select> of eleven counties plus "Other (specify below)", which
+// revealed a second required text field. In September 2026 a customer near Canyon Lake
+// (Comal County) hit that wall, decided the form did not cover them, and phoned instead.
+// A required field whose list does not contain the customer's answer is a bounce, and
+// the "Other" path was not a kindness — it was a second obstacle in front of someone who
+// had already been told they did not belong here.
+//
+// Now: type-ahead over all 254 counties with a native dropdown, no options list here, no
+// conditional follow-up field. The names live in exactly one place — lib/geo/texas-counties.ts.
 export const PROPERTY_COUNTY_FIELD: FormField = {
   id: 'propertyCounty',
   label: 'County',
-  type: 'select',
+  type: 'county',
   required: true,
-  options: [
-    { value: 'bell', label: 'Bell County' },
-    { value: 'brazos', label: 'Brazos County' },
-    { value: 'coryell', label: 'Coryell County' },
-    { value: 'falls', label: 'Falls County' },
-    { value: 'leon', label: 'Leon County' },
-    { value: 'madison', label: 'Madison County' },
-    { value: 'mclennan', label: 'McLennan County' },
-    { value: 'milam', label: 'Milam County' },
-    { value: 'robertson', label: 'Robertson County' },
-    { value: 'travis', label: 'Travis County' },
-    { value: 'williamson', label: 'Williamson County' },
-    { value: 'other', label: 'Other (specify below)' },
-  ],
-};
-
-export const OTHER_COUNTY_FIELD: FormField = {
-  id: 'otherCounty',
-  label: 'County Name',
-  type: 'text',
-  required: true,
-  placeholder: 'Enter county name',
-  showWhen: { field: 'propertyCounty', value: 'other' },
+  placeholder: 'Start typing, or pick from the list',
+  helpText: 'Every Texas county is listed. If yours is outside our usual area, tell us anyway — we travel for larger jobs and the office will confirm coverage.',
 };
 
 export const TRAVEL_DISTANCE_FIELD: FormField = {

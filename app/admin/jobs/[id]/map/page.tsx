@@ -2120,8 +2120,18 @@ export default function JobPropertyMapPage() {
    *  ("That file is already on point 4, Pipe at NE corner…"), and `safeFetch` returns null. */
   const assignFile = useCallback(async (pointId: string, fileId: string) => {
     if (!map || !fileId) return;
-    const point = pointsRef.current.find((p) => p.id === pointId);
-    if (!point) return;
+    // ── WHY THIS DOES NOT BAIL WHEN THE POINT IS NOT IN THE REF ──────────────────────────────
+    // It used to `return` when the point was missing from `pointsRef.current`, and that silently
+    // broke drop-a-file-on-bare-map: that flow creates a point and then attaches the file to it in
+    // the same tick. `pointsRef.current` is assigned during RENDER, so between the create
+    // resolving and React re-rendering it still holds the points from before — the brand-new point
+    // is not in it, the guard fired, and the point appeared with nothing on it. Exactly what the
+    // owner reported: "the point is created, but the file is not assigned to it like it should be."
+    //
+    // The lookup only ever fed the optimistic label on the tile. The server is the authority on
+    // whether the point exists — it answers 404 when it is not on this job — and its response
+    // carries the point back as `landed`, which is better information than the ref ever had.
+    const point = pointsRef.current.find((p) => p.id === pointId) ?? null;
 
     setArmedFileId(null);
     setOverPointId(null);
@@ -2150,12 +2160,13 @@ export default function JobPropertyMapPage() {
             assignedTo: {
               pointId,
               mediaId: row?.id ?? '',
-              ordinal: landed?.ordinal ?? point.ordinal,
-              title: landed?.title ?? point.title,
+              ordinal: landed?.ordinal ?? point?.ordinal ?? 0,
+              title: landed?.title ?? point?.title ?? 'that point',
             },
           }
           : f)));
-        addToast(`Added to ${pointLabel(landed ?? point)}.`, 'success', 1800);
+        const onto = landed ?? point;
+        addToast(onto ? `Added to ${pointLabel(onto)}.` : 'Added to the point.', 'success', 1800);
         refreshLibrary(map.id);
         return;
       }

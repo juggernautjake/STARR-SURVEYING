@@ -9,6 +9,8 @@ import { trackConversion } from './utils/gtag';
 import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 import { honeypotValuesFrom } from '@/lib/leads/honeypot';
 import HoneypotFields from '@/app/components/HoneypotFields';
+import TexasCountyDatalist from '@/app/components/TexasCountyDatalist';
+import { canonicalizeCountyInput, TEXAS_COUNTY_DATALIST_ID } from '@/lib/geo/texas-counties';
 import {
   QUOTE_ATTACHMENT_ACCEPT,
   QUOTE_ATTACHMENT_MAX_FILES,
@@ -171,6 +173,14 @@ export default function HomePage(): React.ReactElement {
     }));
   };
 
+  // Settle the county on blur: "comal county", "COMAL" and " Comal " all become "Comal", so the
+  // lead record carries one spelling. Anything we do not recognise is kept as typed rather than
+  // cleared — losing what someone wrote is worse than storing a typo.
+  const handleCountyBlur = (e: React.FocusEvent<HTMLInputElement>): void => {
+    const canonical = canonicalizeCountyInput(e.target.value);
+    setFormData((prev) => (prev.propertyCounty === canonical ? prev : { ...prev, propertyCounty: canonical }));
+  };
+
   const handleAttachmentChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const incoming = Array.from(e.target.files || []);
     if (incoming.length === 0) return;
@@ -214,10 +224,14 @@ export default function HomePage(): React.ReactElement {
     try {
       // G1-2 — attribution captured on the visitor's first page, sent with the form.
       const attribution = { ...attributionFormFields(readAttribution()), ...honeypotValuesFrom(e.currentTarget) };
+      // Canonicalise here as well as on blur: submitting with Enter from inside the county field
+      // does not always fire a blur first, and the office should never receive two spellings of
+      // the same county depending on how the form was sent.
+      const payload: ContactFormData = { ...formData, propertyCounty: canonicalizeCountyInput(formData.propertyCounty) };
       let response: Response;
       if (attachments.length > 0) {
         const body = new FormData();
-        for (const [key, value] of Object.entries(formData)) {
+        for (const [key, value] of Object.entries(payload)) {
           body.append(key, value);
         }
         for (const [key, value] of Object.entries(attribution)) {
@@ -231,7 +245,7 @@ export default function HomePage(): React.ReactElement {
         response = await fetch('/api/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, ...attribution }),
+          body: JSON.stringify({ ...payload, ...attribution }),
         });
       }
 
@@ -605,7 +619,10 @@ export default function HomePage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property County - Required */}
+                {/* Property County — Required, and every one of the 254 is offered. The browser
+                    filters as they type and the caret opens the whole list; `onBlur` stores the
+                    canonical spelling. An unfamiliar county is never rejected — the office decides
+                    what it travels for, not this field. */}
                 <div className="home-contact__form-group">
                   <label htmlFor="propertyCounty" className="home-contact__label home-contact__label--required">
                     County
@@ -614,12 +631,20 @@ export default function HomePage(): React.ReactElement {
                     type="text"
                     id="propertyCounty"
                     name="propertyCounty"
+                    list={TEXAS_COUNTY_DATALIST_ID}
+                    autoComplete="off"
                     value={formData.propertyCounty}
                     onChange={handleInputChange}
+                    onBlur={handleCountyBlur}
                     className="home-contact__input"
-                    placeholder="Bell"
+                    placeholder="Start typing, or pick from the list"
                     required
                   />
+                  <TexasCountyDatalist />
+                  <p style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                    All 254 Texas counties. Outside our usual area? Send it anyway &mdash; we travel
+                    for larger jobs and we&apos;ll confirm coverage when we call.
+                  </p>
                 </div>
 
                 {/* Property ID — OPTIONAL. The county parcel number, which most customers have to

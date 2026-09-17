@@ -2,7 +2,7 @@ import {
   SurveyTypeConfig, FieldOption,
   FIELD_HOURLY_RATE, TRAVEL_COST_PER_MILE, PREP_HOURLY_RATE,
   MARKER_HOURS_PER_PIN, ATV_FEE_SMALL, ATV_FEE_LARGE, ATV_ACREAGE_THRESHOLD,
-  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
   TRAVEL_DISTANCE_FIELD,
   PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS,
   BOUNDARY_ACREAGE, BOUNDARY_CORNERS, BOUNDARY_PREVIOUS_SURVEY,
@@ -64,7 +64,6 @@ const boundarySurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    OTHER_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: BOUNDARY_ACREAGE },
     { id: 'corners', label: 'Number of Property Corners', type: 'select', required: true, options: BOUNDARY_CORNERS,
@@ -245,7 +244,7 @@ const altaSurvey: SurveyTypeConfig = {
   basePrice: 2000,
   minPrice: 2000,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: ALTA_PROPERTY_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: ALTA_ACREAGE },
     { id: 'buildings', label: 'Number of Buildings', type: 'select', required: true, options: ALTA_BUILDINGS },
@@ -318,7 +317,7 @@ const topoSurvey: SurveyTypeConfig = {
   basePrice: 500,
   minPrice: 500,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: TOPO_PURPOSE },
     { id: 'acreage', label: 'Area to Survey', type: 'select', required: true, options: TOPO_ACREAGE },
     { id: 'contourInterval', label: 'Contour Interval', type: 'select', required: true, helpText: 'Smaller = more detail', options: TOPO_CONTOUR },
@@ -391,7 +390,7 @@ const elevationCert: SurveyTypeConfig = {
   basePrice: 350,
   minPrice: 350,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'buildingType', label: 'Building Type', type: 'select', required: true, options: ELEV_BUILDING },
     { id: 'floodZone', label: 'Flood Zone', type: 'select', required: true, helpText: 'Check policy or FEMA map', options: ELEV_ZONE },
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: ELEV_PURPOSE },
@@ -457,7 +456,7 @@ const constructionStaking: SurveyTypeConfig = {
   basePrice: 300,
   minPrice: 300,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'projectType', label: 'Project Type', type: 'select', required: true, options: CS_PROJECT },
     { id: 'stakingType', label: 'Staking Type', type: 'select', required: true, options: CS_STAKING },
     { id: 'points', label: 'Number of Points', type: 'select', required: true, options: CS_POINTS },
@@ -530,7 +529,7 @@ const subdivisionPlat: SurveyTypeConfig = {
   basePrice: 2500,
   minPrice: 2500,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'acreage', label: 'Total Tract Size', type: 'select', required: true, options: SUB_ACREAGE },
     { id: 'lots', label: 'Number of Lots', type: 'select', required: true, options: SUB_LOTS },
     { id: 'roads', label: 'Road Layout', type: 'select', required: true, options: SUB_ROADS },
@@ -592,7 +591,7 @@ const asBuiltSurvey: SurveyTypeConfig = {
   basePrice: 400,
   minPrice: 400,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'structureType', label: 'Structure Type', type: 'select', required: true, options: AB_STRUCTURE },
     { id: 'complexity', label: 'Complexity', type: 'select', required: true, options: AB_COMPLEXITY },
     { id: 'features', label: 'Features to Document', type: 'select', required: true, options: AB_FEATURES },
@@ -632,7 +631,7 @@ const mortgageSurvey: SurveyTypeConfig = {
   basePrice: 350,
   minPrice: 350,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: MORT_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
     { id: 'corners', label: 'Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS },
@@ -707,7 +706,7 @@ const easementSurvey: SurveyTypeConfig = {
   fields: [
     { id: 'startLocation', label: 'Starting Point', type: 'text', required: true, placeholder: 'Address or description' },
     { id: 'endLocation', label: 'Ending Point', type: 'text', required: true, placeholder: 'Address or description' },
-    PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_COUNTY_FIELD,
     { id: 'easementType', label: 'Easement Type', type: 'select', required: true, options: EASE_TYPE },
     { id: 'length', label: 'Route Length', type: 'select', required: true, options: EASE_LENGTH },
     { id: 'parcels', label: 'Properties Crossed', type: 'select', required: true, options: EASE_PARCELS },
@@ -757,7 +756,7 @@ const legalDescription: SurveyTypeConfig = {
   basePrice: 250,
   minPrice: 250,
   fields: [
-    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
+    PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
     { id: 'type', label: 'Description Type', type: 'select', required: true, options: LD_TYPE },
     { id: 'fieldWork', label: 'Field Work Needed', type: 'select', required: true, options: LD_FIELDWORK },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE,
