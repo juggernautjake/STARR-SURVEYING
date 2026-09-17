@@ -798,6 +798,17 @@
   color: var(--text-muted);
 }
 
+/* A line of reassurance under a field — used by the county field to say that all 254 counties
+   are listed and that an unfamiliar one is still welcome. It exists because the opposite
+   message, an eleven-item dropdown with no way out, cost the firm a customer near Canyon Lake. */
+.home-contact__hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
 .home-contact__input,
 .home-contact__select,
 .home-contact__textarea {

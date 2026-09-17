@@ -641,7 +641,7 @@ export default function HomePage(): React.ReactElement {
                     required
                   />
                   <TexasCountyDatalist />
-                  <p style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                  <p className="home-contact__hint">
                     All 254 Texas counties. Outside our usual area? Send it anyway &mdash; we travel
                     for larger jobs and we&apos;ll confirm coverage when we call.
                   </p>

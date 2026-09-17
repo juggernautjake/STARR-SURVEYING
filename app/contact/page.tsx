@@ -524,7 +524,7 @@ export default function ContactPage(): React.ReactElement {
                     required
                   />
                   <TexasCountyDatalist />
-                  <p className="contact-form__hint" style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                  <p className="contact-form__hint">
                     All 254 Texas counties. Outside our usual area? Send it anyway — we travel for
                     larger jobs and we&apos;ll confirm coverage when we call.
                   </p>
