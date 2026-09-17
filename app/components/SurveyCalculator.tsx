@@ -16,6 +16,8 @@ import {
   isAdditionalResidence
 } from './surveyCalculatorTypes';
 import { trackConversion } from '../utils/gtag';
+import TexasCountyDatalist from './TexasCountyDatalist';
+import { canonicalizeCountyInput, TEXAS_COUNTY_DATALIST_ID } from '@/lib/geo/texas-counties';
 import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 import { honeypotValuesFrom, honeypotInputProps, HONEYPOT_TIME_FIELD } from '@/lib/leads/honeypot';
 
@@ -145,10 +147,6 @@ export default function SurveyCalculator() {
   const handleFieldChange = (fieldId: string, value: unknown): void => {
     setFormValues((prev: Record<string, unknown>) => {
       const newValues = { ...prev, [fieldId]: value };
-      
-      if (fieldId === 'propertyCounty' && value !== 'other') {
-        delete newValues.otherCounty;
-      }
       
       if (fieldId === 'propertyType') {
         if (!['residential_urban', 'residential_rural'].includes(value as string)) {
@@ -304,6 +302,10 @@ export default function SurveyCalculator() {
           phone: contactInfo.phone,
           propertyStreet: contactInfo.propertyStreet,
           propertyCity: contactInfo.propertyCity,
+          // The county the customer picked, as a canonical Texas county name. It used to reach
+          // the office only as a line buried in `message`; sending it as a field means the lead
+          // row carries it and the office can route on it.
+          propertyCounty: canonicalizeCountyInput(formValues.propertyCounty as string),
           propertyNumber: contactInfo.propertyNumber,
           subject: `Survey Estimate Request - ${currentSurveyType.name}`,
           message: emailBody,
@@ -373,11 +375,10 @@ export default function SurveyCalculator() {
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null;
 
-    const isFullWidth = field.type === 'textarea' || 
-      field.id === 'propertyAddress' || 
-      field.id === 'startLocation' || 
-      field.id === 'endLocation' ||
-      field.id === 'otherCounty';
+    const isFullWidth = field.type === 'textarea' ||
+      field.id === 'propertyAddress' ||
+      field.id === 'startLocation' ||
+      field.id === 'endLocation';
 
     return (
       <div
@@ -409,6 +410,26 @@ export default function SurveyCalculator() {
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}
           />
+        )}
+
+        {/* All 254 Texas counties: the browser filters as you type and the caret opens the
+            whole list. `onBlur` canonicalises, so "comal county" is stored as "Comal" — it
+            never rejects, because an unrecognised spelling is a typo for the office to read,
+            not a reason to turn a customer away. */}
+        {field.type === 'county' && (
+          <>
+            <input
+              type="text"
+              className="pricing-calculator__input"
+              list={TEXAS_COUNTY_DATALIST_ID}
+              autoComplete="off"
+              value={(formValues[field.id] as string) || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              onBlur={(e) => handleFieldChange(field.id, canonicalizeCountyInput(e.target.value))}
+              placeholder={field.placeholder || 'Start typing, or pick from the list'}
+            />
+            <TexasCountyDatalist />
+          </>
         )}
 
         {field.type === 'number' && (
