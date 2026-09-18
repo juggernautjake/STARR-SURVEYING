@@ -25,7 +25,9 @@ import { bucketOf, displayName, mimeOf, sizeOf, type JobFileRow } from './file-s
 import { initialThumbState, type ThumbState } from './file-thumbnails';
 import {
   mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE, clampToImage,
+  sortLayers, DEFAULT_LAYER_NAME,
   type MapPoint, type PointMedia, type PropertyMap, type Georeference, type RelativePoint, type MediaKind,
+  type MapLayer,
 } from './property-map';
 import { isKnownGeometry, DEFAULT_GEOMETRY } from './property-map-shapes';
 
@@ -52,9 +54,14 @@ interface MapRow {
   image_width: number | null; image_height: number | null; georeference: Georeference | null;
   created_by: string | null; created_at: string; updated_at: string;
 }
+interface LayerRow {
+  id: string; map_id: string; name: string; ordinal: number;
+  is_visible: boolean; is_default: boolean;
+}
 interface PointRow {
   id: string; map_id: string; ordinal: number; title: string; notes: string | null;
   x: number; y: number; point_type: string; status: string; lat: number | null; lng: number | null;
+  layer_id: string | null;
   created_by: string | null; created_at: string; updated_at: string;
   // seeds/642: how the point is drawn, and what each shape needs.
   geometry: string | null; vertices: unknown; bearing_deg: number | null;
@@ -68,8 +75,61 @@ interface MediaRow {
 export interface LoadedMap {
   map: PropertyMap;
   points: MapPoint[];
+  /** The map's sheets, default first. Always at least one — see `ensureDefaultLayer`. */
+  layers: MapLayer[];
   /** The aerial itself, signed and ready for an <img>. */
   imageUrl: string | null;
+}
+
+function toLayer(r: LayerRow): MapLayer {
+  return {
+    id: r.id, mapId: r.map_id, name: r.name, ordinal: r.ordinal,
+    isVisible: r.is_visible, isDefault: r.is_default,
+  };
+}
+
+/**
+ * Every map has a default sheet, created the first time it is actually read.
+ *
+ * seeds/645 left `job_map_points.layer_id` nullable and NULL meaning "the default layer", precisely
+ * so that migration did not have to invent a layer for every map that already existed and then
+ * backfill every point. This is where that promise is kept: the row appears the first time somebody
+ * opens the map, and the points already on it are adopted in the same breath.
+ *
+ * Two people opening the same map at the same moment are two calls to this at the same moment. The
+ * partial unique index `uq_job_map_layers_one_default` is what decides between them — the loser gets
+ * a unique violation, which is not an error here, it is the answer: re-read and use the row the
+ * winner made. That is why the insert failing falls through to a SELECT rather than throwing.
+ */
+async function ensureDefaultLayer(mapId: string, email?: string | null): Promise<LayerRow[]> {
+  const { data: existing } = await supabaseAdmin
+    .from('job_map_layers').select('*').eq('map_id', mapId).is('deleted_at', null).order('ordinal');
+  const rows = (existing ?? []) as LayerRow[];
+  if (rows.some((l) => l.is_default)) return rows;
+
+  const { data: made } = await supabaseAdmin.from('job_map_layers').insert({
+    map_id: mapId,
+    name: DEFAULT_LAYER_NAME,
+    ordinal: 1,
+    is_default: true,
+    created_by: email ?? null,
+  }).select().maybeSingle();
+
+  if (!made) {
+    // Lost the race (or could not write). Whatever is there now is the truth.
+    const { data: after } = await supabaseAdmin
+      .from('job_map_layers').select('*').eq('map_id', mapId).is('deleted_at', null).order('ordinal');
+    return (after ?? []) as LayerRow[];
+  }
+
+  const base = made as LayerRow;
+  // Adopt the points that predate layers. Only the ones still on no sheet — a point somebody has
+  // already moved is left where they put it.
+  await supabaseAdmin.from('job_map_points')
+    .update({ layer_id: base.id })
+    .eq('map_id', mapId).is('layer_id', null).is('deleted_at', null);
+
+  return [...rows, base];
 }
 
 function toMap(r: MapRow): PropertyMap {
@@ -107,13 +167,17 @@ async function signAll(paths: Array<{ bucket: string; path: string }>): Promise<
 }
 
 /** Everything the viewer needs, in one call. Returns null when the job has no map yet. */
-export async function loadPropertyMap(jobId: string, mapId?: string | null): Promise<LoadedMap | null> {
+export async function loadPropertyMap(jobId: string, mapId?: string | null, email?: string | null): Promise<LoadedMap | null> {
   let q = supabaseAdmin.from('job_property_maps').select('*').eq('job_id', jobId).is('deleted_at', null);
   q = mapId ? q.eq('id', mapId) : q.order('created_at', { ascending: true });
   const { data: maps, error } = await q.limit(1);
   if (error) throw new Error(error.message);
   const mapRow = (maps ?? [])[0] as MapRow | undefined;
   if (!mapRow) return null;
+
+  // Before the points are read, so a point loaded here already carries the layer it was adopted into
+  // rather than a null that the browser would have to resolve a second time.
+  const layerRows = await ensureDefaultLayer(mapRow.id, email);
 
   const [{ data: pointRows }, { data: fileRow }] = await Promise.all([
     supabaseAdmin.from('job_map_points').select('*').eq('map_id', mapRow.id).is('deleted_at', null).order('ordinal'),
@@ -172,8 +236,11 @@ export async function loadPropertyMap(jobId: string, mapId?: string | null): Pro
     mediaByPoint.set(m.point_id, [...(mediaByPoint.get(m.point_id) ?? []), entry]);
   }
 
+  const defaultLayerId = layerRows.find((l) => l.is_default)?.id ?? null;
+
   return {
     map: toMap(mapRow),
+    layers: sortLayers(layerRows.map(toLayer)),
     imageUrl: aerial?.storage_path ? urlFor(bucketOf(aerial), String(aerial.storage_path)) : null,
     points: sortPoints(points.map((p) => ({
       id: p.id,
@@ -185,6 +252,10 @@ export async function loadPropertyMap(jobId: string, mapId?: string | null): Pro
       y: p.y,
       pointType: isKnownPointType(p.point_type) ? p.point_type : DEFAULT_POINT_TYPE,
       status: pointStatus(p.status),
+      // Resolved here rather than left null for the browser: a point adopted into the default sheet
+      // a moment ago in `ensureDefaultLayer` was read before that update landed, so it still says
+      // null in this row while the database says otherwise.
+      layerId: p.layer_id ?? defaultLayerId,
       geometry: isKnownGeometry(p.geometry) ? p.geometry : DEFAULT_GEOMETRY,
       vertices: readVertices(p.vertices),
       bearingDeg: typeof p.bearing_deg === 'number' ? p.bearing_deg : null,
@@ -240,8 +311,16 @@ export interface LibraryFile {
   /** Whether a generated preview exists, is still to be made, or never will be (seeds/644). The
    *  panel uses this to decide what to queue — a browser makes the ones marked `pending`. */
   thumbState: ThumbState;
-  /** Null when the file is free. Otherwise the point that has it, so the panel can say "on 4". */
-  assignedTo: { pointId: string; mediaId: string; ordinal: number; title: string } | null;
+  /**
+   * Every point holding this file — empty when it is still free.
+   *
+   * An ARRAY since 2026-09-18, when the owner asked to "be able to assign files and pictures and
+   * videos to multiple different points". It was a single value under seeds/643, which forbade the
+   * second assignment outright; seeds/646 reverses that and this is the shape that follows. The
+   * panel's question is unchanged — a file with any assignments at all is "placed" and fades — it
+   * just now names all of them instead of the one.
+   */
+  assignedTo: Array<{ pointId: string; mediaId: string; ordinal: number; title: string }>;
 }
 
 /** Every file on the job, with thumbnails and assignment state, for the panel beside the map. */
@@ -263,8 +342,13 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
   const { data: assignedRows } = await supabaseAdmin
     .from('job_map_point_media').select('id, point_id, job_file_id')
     .in('job_file_id', files.map((f) => String(f.id))).is('deleted_at', null);
-  const assigned = new Map(((assignedRows ?? []) as Array<{ id: string; point_id: string; job_file_id: string }>)
-    .map((a) => [a.job_file_id, a]));
+  // Many per file now, not one. Rows belonging to another map's points are dropped rather than
+  // listed with ordinal 0: "on point 0" is not a thing this panel can usefully say.
+  const assigned = new Map<string, Array<{ id: string; point_id: string; job_file_id: string }>>();
+  for (const a of (assignedRows ?? []) as Array<{ id: string; point_id: string; job_file_id: string }>) {
+    if (mapId && !points.has(a.point_id)) continue;
+    assigned.set(a.job_file_id, [...(assigned.get(a.job_file_id) ?? []), a]);
+  }
 
   const toSign: Array<{ bucket: string; path: string }> = [];
   for (const f of files) {
@@ -277,8 +361,7 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
   return files.map((f) => {
     const kind = mediaKindFor(mimeOf(f), displayName(f));
     const url = f.storage_path ? signed.get(`${bucketOf(f)}:${String(f.storage_path)}`) ?? null : null;
-    const a = assigned.get(String(f.id));
-    const point = a ? points.get(a.point_id) : undefined;
+    const held = assigned.get(String(f.id)) ?? [];
     const t = f as { thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null };
     const generated = t.thumb_path && t.thumb_bucket ? signed.get(`${t.thumb_bucket}:${t.thumb_path}`) ?? null : null;
     // A file whose kind can never have a preview is reported as such, so the panel's queue skips it
@@ -301,9 +384,13 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
       // costs nothing since it is signed either way.
       thumbUrl: generated ?? (kind === 'image' ? url : null),
       thumbState: generated ? 'ok' : (kind === 'image' && url ? 'ok' : thumbState),
-      assignedTo: a
-        ? { pointId: a.point_id, mediaId: a.id, ordinal: point?.ordinal ?? 0, title: point?.title ?? 'another point' }
-        : null,
+      // In point order, so the chips read "on 2, 7" rather than in whatever order the rows came back.
+      assignedTo: held
+        .map((a) => {
+          const point = points.get(a.point_id);
+          return { pointId: a.point_id, mediaId: a.id, ordinal: point?.ordinal ?? 0, title: point?.title ?? 'another point' };
+        })
+        .sort((x, y) => x.ordinal - y.ordinal),
     };
   });
 }

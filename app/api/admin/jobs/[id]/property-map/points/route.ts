@@ -75,12 +75,28 @@ async function livePoints(mapId: string): Promise<Array<{ id: string; ordinal: n
   return (data ?? []) as Array<{ id: string; ordinal: number }>;
 }
 
+/**
+ * A layer the caller may put a point on: one of THIS map's, or null for "the default sheet".
+ *
+ * Checked rather than trusted for the same reason `mapOfJob` exists — a layer_id in the body is
+ * otherwise an open door to filing this job's points under another job's sheet, where the person
+ * who owns that map would find points they cannot explain.
+ */
+async function layerOfMap(mapId: string, layerId: unknown): Promise<{ ok: true; value: string | null } | { ok: false }> {
+  if (layerId === null || layerId === undefined) return { ok: true, value: null };
+  if (typeof layerId !== 'string' || !layerId) return { ok: false };
+  const { data } = await supabaseAdmin.from('job_map_layers')
+    .select('id').eq('id', layerId).eq('map_id', mapId).is('deleted_at', null).maybeSingle();
+  return data ? { ok: true, value: layerId } : { ok: false };
+}
+
 export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: Ctx) => {
   const g = await gate();
   if (g.error) return g.error;
   const body = (await req.json().catch(() => ({}))) as {
     map_id?: string; x?: number; y?: number; title?: string; notes?: string; point_type?: string; status?: string;
     geometry?: string; vertices?: unknown; bearing_deg?: number; fov_deg?: number; fov_radius?: number;
+    layer_id?: string | null;
   };
   if (!body.map_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
@@ -92,8 +108,12 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
   const at = clampToImage({ x: body.x, y: body.y });
   const geometry: GeometryId = isKnownGeometry(body.geometry) ? body.geometry : DEFAULT_GEOMETRY;
   const vertices = geometry === 'path' || geometry === 'area' ? cleanVertices(body.vertices) : [];
+  // Which sheet it lands on. Null is fine and means the default one — `loadPropertyMap` resolves it.
+  const layer = await layerOfMap(body.map_id, body.layer_id);
+  if (!layer.ok) return NextResponse.json({ error: 'That layer is not on this map.' }, { status: 400 });
   const { error } = await supabaseAdmin.from('job_map_points').insert({
     map_id: body.map_id,
+    layer_id: layer.value,
     ordinal: nextOrdinal(await livePoints(body.map_id)),
     title: (body.title ?? '').trim().slice(0, 160) || 'Point of interest',
     notes: (body.notes ?? '').trim() || null,
@@ -118,6 +138,8 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
     map_id?: string; point_id?: string; title?: string; notes?: string | null;
     x?: number; y?: number; point_type?: string; status?: string; lat?: number | null; lng?: number | null;
     geometry?: string; vertices?: unknown; bearing_deg?: number; fov_deg?: number; fov_radius?: number;
+    /** Moving the point to another sheet. Null means the default one. */
+    layer_id?: string | null;
   };
   if (!body.map_id || !body.point_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
@@ -147,6 +169,14 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
   }
   if (body.lat !== undefined) patch.lat = body.lat;
   if (body.lng !== undefined) patch.lng = body.lng;
+
+  // Moving a point between sheets. `'layer_id' in body` rather than a truthiness check, because null
+  // is meaningful — it is "put this back on the default layer".
+  if ('layer_id' in body) {
+    const layer = await layerOfMap(body.map_id, body.layer_id);
+    if (!layer.ok) return NextResponse.json({ error: 'That layer is not on this map.' }, { status: 400 });
+    patch.layer_id = layer.value;
+  }
 
   // ── CHANGING WHAT SHAPE A POINT IS ──────────────────────────────────────────────────────────
   // Switching a cone back to a plain dot has to clear the cone, or the row keeps a bearing nothing

@@ -28,7 +28,7 @@ const media = (over: Partial<PointMedia> = {}): PointMedia => ({
 
 const point = (over: Partial<MapPoint> = {}): MapPoint => ({
   id: 'p1', mapId: 'map1', ordinal: 1, title: 'Pipe found', notes: null, x: 0.5, y: 0.5,
-  pointType: 'monument_found', status: 'open', geometry: 'point', vertices: [],
+  pointType: 'monument_found', status: 'open', layerId: null, geometry: 'point', vertices: [],
   bearingDeg: null, fovDeg: null, fovRadius: null, lat: null, lng: null, media: [],
   createdBy: null, createdAt: '2026-09-16T00:00:00Z', updatedAt: '2026-09-16T00:00:00Z', ...over,
 });
@@ -245,51 +245,70 @@ describe('real-world coordinates, when somebody bothers to tie the map down', ()
   });
 });
 
-describe('the file panel beside the map, and one file one point', () => {
+describe('the file panel beside the map, and one file on as many points as it belongs', () => {
   // Owner, 2026-09-16: "we need all of the job files, photos, videos, audio files, etc to be
-  // available to us to see in a panel next to the map … once a file has been assigned to a point,
-  // it cannot be assigned to another point … There will be an option to unassign it which will
-  // require confirmation."
-  const seed = read('seeds/643_job_map_media_one_point.sql');
+  // available to us to see in a panel next to the map … There will be an option to unassign it which
+  // will require confirmation."
+  //
+  // Owner, 2026-09-18, REVERSING the one-file-one-point rule of two days earlier: "We also need to
+  // be able to assign files and pictures and videos to multiple different points if we want to."
+  // seeds/643 made it a database rule; seeds/646 takes it back out. One photograph down a fence line
+  // genuinely shows the corner post AND the gate AND the encroachment.
+  const old = read('seeds/643_job_map_media_one_point.sql');
+  const seed = read('seeds/646_job_map_media_many_points.sql');
   const media = read('app/api/admin/jobs/[id]/property-map/media/route.ts');
   const server = read('lib/jobs/property-map-server.ts');
 
-  it('the database is what enforces one point per file, not the route', () => {
-    // Two fast drags are two requests in flight; a check-then-insert passes both.
-    expect(seed).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_job_map_point_media_one_point');
-    expect(seed).toContain('ON public.job_map_point_media (job_file_id) WHERE deleted_at IS NULL');
-    expect(seed, 'the old per-point index is dropped, not left to mislead').toContain('DROP INDEX IF EXISTS public.uq_job_map_point_media_file');
+  it('the one-point rule is gone from the database, not just from the route', () => {
+    expect(seed).toContain('DROP INDEX IF EXISTS public.uq_job_map_point_media_one_point');
+    expect(old, 'and 643 is what it is undoing').toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_job_map_point_media_one_point');
   });
 
-  it('a file that is somehow on two points loses the older assignment, newest wins', () => {
-    expect(seed).toContain('row_number() OVER (PARTITION BY job_file_id ORDER BY created_at DESC');
-  });
-
-  it('being refused says WHICH point has the file, because that is what you need to hear', () => {
-    expect(media).toMatch(/already on \$\{where\}/);
-    expect(media).toContain('Unassign it there first');
-    expect(media).toContain("code: 'already_assigned'");
-    expect(media, 'and the same sentence when the index wins the race').toContain('That file was just assigned to another point.');
-  });
-
-  it('dragging a file onto the point that already has it is told so plainly', () => {
+  it('the same file on the SAME point is still refused — that is a double-click', () => {
+    expect(seed).toContain('CREATE UNIQUE INDEX IF NOT EXISTS uq_job_map_point_media_file');
+    expect(seed).toContain('ON public.job_map_point_media (point_id, job_file_id) WHERE deleted_at IS NULL');
     expect(media).toContain("'That file is already on this point.'");
+    expect(media).toContain("code: 'already_on_point'");
+  });
+
+  it('the duplicate check asks about THIS point, not about any point', () => {
+    // The trap: asking "is this file on any point" with .maybeSingle() stops returning a row the
+    // moment a file legitimately hangs on two, so the check silently passes and the only thing left
+    // refusing a genuine double-click is a raw "duplicate key" nobody can read.
+    expect(media).toContain(".eq('job_file_id', body.job_file_id).eq('point_id', point.id)");
+    expect(media, 'the old job-wide refusal is gone').not.toContain("code: 'already_assigned'");
   });
 
   it('unassigning frees the file at once — that is what the confirmation promises', () => {
-    // A soft delete, and the unique index only counts live rows, so the file is immediately free.
+    // A soft delete, and the unique index only counts live rows.
     expect(media).toContain("deleted_at: new Date().toISOString()");
-    expect(seed).toMatch(/frees the file immediately|instantly\s+free/);
   });
 
-  it('the panel gets every file with its thumbnail and who has it, in one request', () => {
+  it('the panel gets every file with its thumbnail and every point that has it, in one request', () => {
     expect(server).toContain('export async function loadMapLibrary');
     expect(server, 'signed in bulk like the map itself').toMatch(/signAll\(toSign\)/);
     expect(server, 'assignment arrives as a property of the file').toContain('assignedTo');
-    expect(server, 'and it names the point, so the tile can say "on 4"').toContain('ordinal: point?.ordinal ?? 0');
+    expect(server, 'and it names each point, so the tile can say "On 2, 7"').toContain('ordinal: point?.ordinal ?? 0');
+    expect(server, 'many per file now, in point order').toContain('.sort((x, y) => x.ordinal - y.ordinal)');
     const route = read('app/api/admin/jobs/[id]/property-map/library/route.ts');
     expect(route).toContain('loadMapLibrary(params.id, mapId)');
     expect(route, 'admin only, like everything else on a job').toContain('isAdmin(session.user.roles)');
+  });
+
+  it('the panel still answers "what have I not placed yet?"', () => {
+    // 643's argument for one-file-one-point was that the greyed-out state is a lie once a file can
+    // hang on three pins. The answer that survives: a file with ANY assignment is placed.
+    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    expect(page).toContain('library.filter((f) => f.assignedTo.length === 0).length');
+    expect(page).toContain('if (unplacedOnly && f.assignedTo.length > 0) return false;');
+  });
+
+  it('an assigned file can be dragged again, and taking it off has to say off WHICH point', () => {
+    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    // The drag used to be refused outright for an assigned file.
+    expect(page).toContain('if (!editing) { e.preventDefault(); return; }');
+    expect(page).toContain("at: LibraryFile['assignedTo'][number]");
+    expect(page, 'the confirm becomes the list when there is more than one').toContain("'Take it off which point?'");
   });
 
   it('is its own endpoint, so assigning one photo does not reload the aerial', () => {

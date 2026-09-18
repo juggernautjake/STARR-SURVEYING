@@ -276,6 +276,158 @@
   margin-bottom: 0.7rem;
 }
 
+/* ── THE LAYERS PANEL (owner, 2026-09-18) ──────────────────────────────────────────────────────
+ * "create and name layers and have layer management and move points between layers … hide and
+ * unhide the different layers."
+ *
+ * A list of rows rather than a row of chips, which is what the type legend beside it is. The
+ * difference is deliberate and it is about what each one DOES: a legend chip has one state to
+ * toggle, so a chip is enough; a layer row carries four separate controls — hide, rename, count,
+ * delete — and four controls crammed into a pill is how you get the overlap that had to be pulled
+ * apart on the media tiles. Rows also give the names room: a sheet called "For the title company"
+ * is a normal thing to type and must not truncate to "For the tit…".
+ *
+ * Grid rather than flex so every row's eye, name, count and bin line up down the panel even when
+ * one name wraps to two lines — ragged controls read as a bug in a panel this small. */
+.pmap__layers {
+  margin-bottom: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--theme-border, rgb(229 231 235));
+  border-radius: 0.6rem;
+  background: var(--theme-bg-surface, rgb(255 255 255));
+}
+
+.pmap__layers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.pmap__layers-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+}
+
+.pmap__layer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+
+.pmap__layer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.2rem;
+  border-radius: 0.4rem;
+}
+.pmap__layer:hover { background: var(--theme-bg-subtle, rgb(243 244 246)); }
+
+/* A hidden sheet is dimmed, but its NAME stays at full contrast — the row is still a control you
+ * have to be able to read and click, and fading the whole thing is how a hidden layer becomes a
+ * layer nobody can find to turn back on. */
+.pmap__layer--off .pmap__layer-count { opacity: 0.55; }
+.pmap__layer--off .pmap__layer-name { color: var(--theme-fg-muted, rgb(107 114 128)); }
+
+.pmap__layer-eye {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--theme-fg-secondary, rgb(55 65 81));
+  cursor: pointer;
+}
+.pmap__layer-eye:hover { background: var(--theme-brand-tint, rgb(238 242 255)); color: var(--theme-accent, rgb(29 48 149)); }
+.pmap__layer--off .pmap__layer-eye { color: var(--theme-fg-muted, rgb(107 114 128)); }
+
+.pmap__layer-namerow { display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
+.pmap__layer-namerow > :first-child { min-width: 0; flex: 1 1 auto; }
+
+.pmap__layer-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  overflow-wrap: anywhere;
+}
+
+.pmap__layer-badge {
+  padding: 0.02rem 0.3rem;
+  border-radius: 999px;
+  background: var(--theme-bg-subtle, rgb(243 244 246));
+  color: var(--theme-fg-muted, rgb(107 114 128));
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pmap__layer-count {
+  font-size: 0.68rem;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pmap__layer-rename {
+  width: 100%;
+  padding: 0.15rem 0.35rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  background: var(--theme-bg-elevated, rgb(255 255 255));
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  border-radius: 0.3rem;
+}
+
+.pmap__layer-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast, 120ms) ease, color var(--motion-fast, 120ms) ease;
+}
+.pmap__layer:hover .pmap__layer-del,
+.pmap__layer:focus-within .pmap__layer-del,
+.pmap__layer-del:focus-visible { opacity: 1; }
+.pmap__layer-del:hover { color: var(--theme-danger-fg, rgb(185 28 28)); background: var(--theme-danger-bg, rgb(254 226 226)); }
+@media (hover: none) { .pmap__layer-del { opacity: 1; } }
+
+/* The confirm takes the whole row's width so the sentence explaining where the points go has
+ * somewhere to live — "its 6 points move to Base layer" is the part that makes this safe to press. */
+.pmap__layer-confirm {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0.1rem 0.1rem;
+}
+.pmap__layer-confirm-ask { flex: 1 1 12rem; font-size: 0.72rem; color: var(--theme-fg-secondary, rgb(55 65 81)); }
+
+.pmap__btn--small { min-height: 26px; padding: 0 0.5rem; font-size: 0.72rem; }
+
+.pmap__layers-hint { margin: 0.35rem 0 0; font-size: 0.7rem; color: var(--theme-fg-muted, rgb(107 114 128)); }
+
 .pmap__legend-chip {
   display: inline-flex;
   align-items: center;

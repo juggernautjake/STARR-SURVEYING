@@ -45,7 +45,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, ChevronUp, Compass, Crosshair, DoorOpen,
-  ExternalLink, Eye, Fence, FileText, Folder, GripVertical, Hash, Hexagon, Home, MapPin, Maximize2,
+  ExternalLink, Eye, EyeOff, Fence, FileText, Folder, GripVertical, Hash, Hexagon, Home, Layers,
+  MapPin, Maximize2,
   Mic, Minus, Music, Pencil, Plus, Route, Search, ShieldAlert, Spline, Tag, Target, Trash2, Trees,
   Undo2, Upload, Video, Waves, X, Zap, type LucideIcon,
 } from 'lucide-react';
@@ -69,8 +70,9 @@ import {
   DEFAULT_POINT_TYPE, POINT_STATUSES, POINT_TYPES, clampToImage, filterPoints, mapsHref,
   mediaKindFor, mediaSummary,
   pinStyle, pointLabel, pointType, relativeFromClick, sortMedia, typesInUse,
+  hiddenLayerIds, pointsPerLayer, nextLayerName, layerOf,
   type MapPoint, type MediaKind, type PointMedia, type PointStatus, type PointTypeId,
-  type PropertyMap, type RelativePoint,
+  type PropertyMap, type RelativePoint, type MapLayer,
 } from '@/lib/jobs/property-map';
 import {
   DEFAULT_GEOMETRY,
@@ -88,6 +90,8 @@ import './PropertyMap.css';
 interface MapPayload {
   map: PropertyMap | null;
   points: MapPoint[];
+  /** The map's sheets, default first. Always at least one — the server makes it on first read. */
+  layers: MapLayer[];
   imageUrl: string | null;
 }
 
@@ -165,19 +169,27 @@ interface Conflict {
   pointId: string | null;
 }
 
-/** What the "On 4" chip says. A file held by a point on ANOTHER map of the same job comes back with
- *  an ordinal of 0 — the constraint is job-wide, the numbering is not — and "On 0" is a lie, so
- *  that case says so plainly instead. */
+/** What the "On 4" chip says.
+ *
+ *  A file can hang on several points since 2026-09-18, so this lists them: "On 2, 7". A file held by
+ *  a point on ANOTHER map of the same job comes back with an ordinal of 0 — the numbering is
+ *  per-map — and "On 0" is a lie, so that case says so plainly instead.
+ *
+ *  Capped at three numbers: the chip sits under a 6.5rem tile, and a photograph of a whole fence
+ *  line can legitimately be on eight points. "On 2, 7, 9 +5" still answers "where did this end up?"
+ *  without the tile growing a second row. */
 function assignedChip(file: LibraryFile): string {
-  const ord = file.assignedTo?.ordinal ?? 0;
-  return ord > 0 ? `On ${ord}` : 'Assigned';
+  const ords = file.assignedTo.map((a) => a.ordinal).filter((n) => n > 0).sort((a, b) => a - b);
+  if (!ords.length) return file.assignedTo.length ? 'Assigned' : '';
+  const shown = ords.slice(0, 3).join(', ');
+  return ords.length > 3 ? `On ${shown} +${ords.length - 3}` : `On ${shown}`;
 }
 
 /** Unplaced first, then newest first — the panel is a to-do list, and the thing most likely to be
  *  wanted next is the photograph that came off the camera last. */
 function sortLibrary(files: LibraryFile[]): LibraryFile[] {
   return [...files].sort((a, b) => {
-    const placed = Number(Boolean(a.assignedTo)) - Number(Boolean(b.assignedTo));
+    const placed = Number(a.assignedTo.length > 0) - Number(b.assignedTo.length > 0);
     if (placed !== 0) return placed;
     return String(b.uploadedAt ?? '').localeCompare(String(a.uploadedAt ?? ''));
   });
@@ -446,10 +458,17 @@ function viewerFileFor(file: LibraryFile): ViewerFile {
     meta: [
       { label: 'Kind', value: KIND_ONE[file.kind] },
       // The panel's whole question — "where did this one end up?" — answered inside the viewer too,
-      // so the answer does not require closing it. A file held by a point on ANOTHER map of the
-      // same job has no ordinal here, which is why the title carries the sentence when it is 0.
-      ...(on
-        ? [{ label: 'Placed on', value: on.ordinal > 0 ? `Point ${on.ordinal} · ${on.title}` : (on.title || 'A point on another map of this job') }]
+      // so the answer does not require closing it. Every point holding it, not just the first: a
+      // photograph can be on several since 2026-09-18, and naming one of them would be a worse
+      // answer than naming none. A file held by a point on ANOTHER map of the same job has no
+      // ordinal here, which is why that case carries the sentence instead of a number.
+      ...(on.length
+        ? [{
+          label: on.length === 1 ? 'Placed on' : `Placed on ${on.length} points`,
+          value: on
+            .map((a) => (a.ordinal > 0 ? `Point ${a.ordinal} · ${a.title}` : (a.title || 'A point on another map of this job')))
+            .join('  ·  '),
+        }]
         : []),
     ],
   };
@@ -928,6 +947,10 @@ export default function JobPropertyMapPage() {
   const [placing, setPlacing] = useState<string[]>([]);
   const [confirmUnassign, setConfirmUnassign] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  /** The layer whose name box is open, and the one being asked about before deleting. */
+  const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
+  const [confirmLayer, setConfirmLayer] = useState<string | null>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [flashFileId, setFlashFileId] = useState<string | null>(null);
   /** How many previews are still to be made, for the quiet line in the panel's header. Zero while
    *  nothing is happening, which is most of the time — the second visit to a job has none left. */
@@ -1649,13 +1672,29 @@ export default function JobPropertyMapPage() {
     [legend, prefs.hiddenTypes],
   );
 
-  /** The pins AND the shapes the map draws: the type filter, and nothing else. Text search narrows
-   *  the LIST — a search that also emptied the map would hide the thing being searched for. */
+  // ── LAYERS ───────────────────────────────────────────────────────────────────────────────────
+  // Two filters now, and they are different in kind. A TYPE is a classification from a fixed
+  // vocabulary and its switch is a per-browser preference, kept in localStorage. A LAYER is a sheet
+  // somebody made, and `is_visible` is saved on the row — the other person looking at the same job
+  // sees the same sheet turned off, which is the whole point of naming it. See seeds/645.
+  const layers = useMemo(() => payload?.layers ?? [], [payload]);
+  const hiddenLayers = useMemo(() => hiddenLayerIds(layers), [layers]);
+  const layerCounts = useMemo(() => pointsPerLayer(points, layers), [points, layers]);
+  const defaultLayer = useMemo(() => layers.find((l) => l.isDefault) ?? null, [layers]);
+
+  /** The pins AND the shapes the map draws: the type and layer filters, and nothing else. Text
+   *  search narrows the LIST — a search that also emptied the map would hide the thing being
+   *  searched for. */
   const onMap = useMemo(() => {
-    if (shownTypes.length === legend.length) return points;
+    const allTypes = shownTypes.length === legend.length;
+    if (allTypes && hiddenLayers.length === 0) return points;
     if (shownTypes.length === 0) return [];
-    return filterPoints(points, { types: shownTypes });
-  }, [points, shownTypes, legend.length]);
+    return filterPoints(points, {
+      ...(allTypes ? {} : { types: shownTypes }),
+      hiddenLayerIds: hiddenLayers,
+      layers,
+    });
+  }, [points, shownTypes, legend.length, hiddenLayers, layers]);
 
   const listed = useMemo(() => filterPoints(onMap, { text: search }), [onMap, search]);
 
@@ -1726,20 +1765,30 @@ export default function JobPropertyMapPage() {
    *  on empty aerial, which then puts the file on it and asks what it is. */
   const placePoint = useCallback(async (body: Record<string, unknown>, done?: string): Promise<MapPoint | null> => {
     if (!map) return null;
+    // ── A NEW POINT LANDS SOMEWHERE YOU CAN SEE IT ────────────────────────────────────────────
+    // The default sheet, unless it is hidden — in which case the first sheet that is showing.
+    // Without this, placing a point while the default layer is switched off puts a pin on the map
+    // that immediately vanishes, which reads as the click not having worked rather than as the
+    // layer filter doing its job. Explicit `layer_id` only when a layer is actually chosen; the
+    // server resolves an absent one to the default anyway.
+    const landing = layers.find((l) => l.isDefault && l.isVisible)
+      ?? layers.find((l) => l.isVisible)
+      ?? layers.find((l) => l.isDefault)
+      ?? null;
     const res = await mutate(
       'place the point',
       `/api/admin/jobs/${jobId}/property-map/points`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ map_id: map.id, ...body }),
+        body: JSON.stringify({ map_id: map.id, ...(landing ? { layer_id: landing.id } : {}), ...body }),
       },
       done,
     );
     if (!res) return null;
     // The server assigns the number, so the new point is the highest one that came back.
     return [...res.points].sort((a, b) => b.ordinal - a.ordinal)[0] ?? null;
-  }, [map, jobId, mutate]);
+  }, [map, jobId, mutate, layers]);
 
   const createPoint = useCallback(async (body: Record<string, unknown>) => {
     const newest = await placePoint(body, 'Point placed.');
@@ -2157,17 +2206,22 @@ export default function JobPropertyMapPage() {
         // "unplaced" for the length of the library's own round trip.
         const landed = next.points.find((p) => p.id === pointId);
         const row = landed?.media.find((m) => m.jobFileId === fileId);
-        setLibrary((cur) => cur.map((f) => (f.id === fileId
-          ? {
+        setLibrary((cur) => cur.map((f) => {
+          if (f.id !== fileId) return f;
+          // Appended, not replaced: the file may already be on other points, and dropping those
+          // would make the chip read "On 7" the instant after it correctly read "On 2, 7".
+          const already = f.assignedTo.some((a) => a.pointId === pointId);
+          if (already) return f;
+          return {
             ...f,
-            assignedTo: {
+            assignedTo: [...f.assignedTo, {
               pointId,
               mediaId: row?.id ?? '',
               ordinal: landed?.ordinal ?? point?.ordinal ?? 0,
               title: landed?.title ?? point?.title ?? 'that point',
-            },
-          }
-          : f)));
+            }].sort((x, y) => x.ordinal - y.ordinal),
+          };
+        }));
         const onto = landed ?? point;
         addToast(onto ? `Added to ${pointLabel(onto)}.` : 'Added to the point.', 'success', 1800);
         refreshLibrary(map.id);
@@ -2180,7 +2234,10 @@ export default function JobPropertyMapPage() {
       // The server's words, not ours: it knows which pin has the file and says so by name.
       const message = body.error ?? 'That file could not be added to this point.';
       addToast(message, 'error');
-      if (body.code === 'already_assigned') {
+      // `already_on_point` since 2026-09-18 — the only assignment now refused is the same file onto
+      // the same pin twice, which is a double-click. The old `already_assigned` is still read so a
+      // browser left open across the deploy gets the bar rather than silence.
+      if (body.code === 'already_on_point' || body.code === 'already_assigned') {
         setConflict({ fileId, message, pointId: body.assigned_point_id ?? null });
         refreshLibrary(map.id);
       }
@@ -2196,8 +2253,12 @@ export default function JobPropertyMapPage() {
     }
   }, [map, jobId, addToast, refreshLibrary, flashTile, reportPageError, applyPayload]);
 
-  const unassignFile = useCallback(async (file: LibraryFile) => {
-    const at = file.assignedTo;
+  /** Take a file off ONE point.
+   *
+   *  Which point has to be said now that a file can be on several: "unassign" used to be unambiguous
+   *  because there was only ever one place it could be. Passing the whole file and detaching
+   *  "its" point would silently pick the first of eight. */
+  const unassignFile = useCallback(async (file: LibraryFile, at: LibraryFile['assignedTo'][number]) => {
     if (!at || !map) return;
     setConfirmUnassign(null);
     setPlacing((cur) => (cur.includes(file.id) ? cur : [...cur, file.id]));
@@ -2205,11 +2266,13 @@ export default function JobPropertyMapPage() {
       'unassign that file',
       `/api/admin/jobs/${jobId}/property-map/media?point_id=${encodeURIComponent(at.pointId)}&media_id=${encodeURIComponent(at.mediaId)}`,
       { method: 'DELETE' },
-      'Unassigned. The file is free to go on another point.',
+      at.ordinal > 0 ? `Taken off point ${at.ordinal}.` : 'Unassigned.',
     );
     setPlacing((cur) => cur.filter((id) => id !== file.id));
     if (!res) return;
-    setLibrary((cur) => cur.map((f) => (f.id === file.id ? { ...f, assignedTo: null } : f)));
+    setLibrary((cur) => cur.map((f) => (f.id === file.id
+      ? { ...f, assignedTo: f.assignedTo.filter((a) => a.pointId !== at.pointId) }
+      : f)));
     if (conflict?.fileId === file.id) setConflict(null);
     refreshLibrary(map.id);
   }, [map, jobId, mutate, refreshLibrary, conflict?.fileId]);
@@ -2253,6 +2316,66 @@ export default function JobPropertyMapPage() {
     refreshLibrary(map?.id ?? null);
   }, [addToast, refreshLibrary, map?.id]);
 
+  // ── LAYER MANAGEMENT ──────────────────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-18: "create and name layers and have layer management and move points between
+  // layers … name and rename layers … hide and unhide the different layers."
+  //
+  // All four go through the one route, and all four get the whole map back, so the panel, the pins
+  // and the counts can never disagree about which sheet a point is on.
+  const layerFetch = useCallback(async (what: string, init: RequestInit, done?: string, qs = '') => (
+    mutate(what, `/api/admin/jobs/${jobId}/property-map/layers${qs}`, init, done)
+  ), [mutate, jobId]);
+
+  const addLayer = useCallback(async () => {
+    if (!map) return;
+    const name = nextLayerName(layers);
+    const res = await layerFetch('add a layer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ map_id: map.id, name }),
+    }, `“${name}” added.`);
+    // Straight into renaming it: a sheet called "Layer 2" is a placeholder, and the reason somebody
+    // pressed the button was to call it something.
+    if (res) setRenamingLayerId(res.layers?.find((l) => l.name === name)?.id ?? null);
+  }, [map, layers, layerFetch]);
+
+  const renameLayer = useCallback(async (layerId: string, name: string) => {
+    if (!map) return;
+    const res = await layerFetch('rename the layer', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ map_id: map.id, layer_id: layerId, name }),
+    }, 'Layer renamed.');
+    if (!res) throw new Error('rename failed');
+    setRenamingLayerId(null);
+  }, [map, layerFetch]);
+
+  const toggleLayer = useCallback(async (layerId: string, visible: boolean) => {
+    if (!map) return;
+    await layerFetch('change the layer', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ map_id: map.id, layer_id: layerId, is_visible: visible }),
+    });
+  }, [map, layerFetch]);
+
+  const deleteLayer = useCallback(async (layerId: string) => {
+    if (!map) return;
+    setConfirmLayer(null);
+    await layerFetch(
+      'delete the layer',
+      { method: 'DELETE' },
+      'Layer deleted. Its points moved to the default layer.',
+      `?map_id=${encodeURIComponent(map.id)}&layer_id=${encodeURIComponent(layerId)}`,
+    );
+  }, [map, layerFetch]);
+
+  /** Move one point to another sheet. A point edit, so it goes through the points route. */
+  const movePointToLayer = useCallback(async (pointId: string, layerId: string | null) => {
+    await patchPoint(pointId, { layer_id: layerId }, 'Point moved.');
+  }, [patchPoint]);
+
   /** Rename a point that already has a name.
    *
    *  The same PATCH the Title box under it sends. The draft is moved along too: it is seeded from
@@ -2291,9 +2414,12 @@ export default function JobPropertyMapPage() {
     setConflict(null);
   }, [conflict, flashTile]);
 
-  /** The "On 4" chip. Clicking it selects that point, on the map and in the list at once. */
+  /** The "On 2, 7" chip. Clicking it selects a point the file is on, on the map and in the list at
+   *  once. The lowest-numbered one when there are several — the chip reads left to right and the
+   *  first number is the one a finger is aiming at. */
   const showFilePoint = useCallback((file: LibraryFile) => {
-    if (file.assignedTo) setSelectedId(file.assignedTo.pointId);
+    const first = [...file.assignedTo].sort((a, b) => a.ordinal - b.ordinal)[0];
+    if (first) setSelectedId(first.pointId);
   }, []);
 
   /** True when the click was spent assigning, so the caller does not ALSO change the selection.
@@ -2306,7 +2432,9 @@ export default function JobPropertyMapPage() {
 
   // ── THE DRAG ITSELF ──────────────────────────────────────────────────────────────────────────
   const onTileDragStart = useCallback((e: React.DragEvent, file: LibraryFile) => {
-    if (!editing || file.assignedTo) { e.preventDefault(); return; }
+    // An assigned file used to refuse the drag, because there was nowhere else it could legally go.
+    // It can now go on another point, so the only thing left to refuse is a drag while not editing.
+    if (!editing) { e.preventDefault(); return; }
     e.dataTransfer.setData(FILE_DRAG_TYPE, file.id);
     e.dataTransfer.setData('text/plain', file.name);
     e.dataTransfer.effectAllowed = 'copy';
@@ -2689,7 +2817,7 @@ export default function JobPropertyMapPage() {
 
   // ── THE PANEL'S OWN DERIVED STATE ────────────────────────────────────────────────────────────
   /** "22 files · 14 unplaced" — the progress bar of the whole exercise. */
-  const unplacedCount = useMemo(() => library.filter((f) => !f.assignedTo).length, [library]);
+  const unplacedCount = useMemo(() => library.filter((f) => f.assignedTo.length === 0).length, [library]);
 
   const kindCounts = useMemo(() => {
     const out: Record<MediaKind, number> = { image: 0, video: 0, audio: 0, document: 0 };
@@ -2701,7 +2829,7 @@ export default function JobPropertyMapPage() {
     const needle = fileSearch.trim().toLowerCase();
     return sortLibrary(library.filter((f) => {
       if (kindFilter !== 'all' && f.kind !== kindFilter) return false;
-      if (unplacedOnly && f.assignedTo) return false;
+      if (unplacedOnly && f.assignedTo.length > 0) return false;
       if (needle && !f.name.toLowerCase().includes(needle)) return false;
       return true;
     }));
@@ -2807,10 +2935,11 @@ export default function JobPropertyMapPage() {
       addToast('Turn on Edit map to place files on points.', 'info', 2600);
       return;
     }
-    if (file.assignedTo) {
-      addToast(`${file.name} is already on ${assignedChip(file).toLowerCase()}. Unassign it first.`, 'info', 2600);
-      flashTile(file.id);
-      return;
+    // No longer a refusal. A file already on a point can go on another one too (owner, 2026-09-18),
+    // so arming it is allowed — it is just worth saying where it already is, because arming the
+    // wrong tile and putting a photo on a ninth pin is the mistake this replaces.
+    if (file.assignedTo.length > 0) {
+      addToast(`${file.name} is ${assignedChip(file).toLowerCase()}. It can go on another point too.`, 'info', 2200);
     }
     setConflict(null);
     setArmedFileId((cur) => (cur === file.id ? null : file.id));
@@ -3113,6 +3242,22 @@ export default function JobPropertyMapPage() {
           </span>
           {panelOpen ? <ChevronUp size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
         </button>
+        {/* Beside the Files toggle rather than inside the panel: layers govern what the MAP shows,
+            and a control for that belongs where the map is, not inside a drawer about files. */}
+        <button
+          className={`pmap__toggle${layersOpen ? ' pmap__toggle--on' : ''}`}
+          type="button"
+          aria-pressed={layersOpen}
+          aria-controls="pmap-layers-panel"
+          data-testid="pmap-layers-toggle"
+          onClick={() => setLayersOpen((cur) => !cur)}
+        >
+          <Layers size={12} aria-hidden /> Layers
+          <span className="pmap__toggle-count" data-testid="pmap-layers-toggle-count">
+            {hiddenLayers.length ? `${layers.length} · ${hiddenLayers.length} hidden` : `${layers.length}`}
+          </span>
+          {layersOpen ? <ChevronUp size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
+        </button>
         <span className="pmap__search">
           <Search size={13} aria-hidden />
           <input
@@ -3126,6 +3271,125 @@ export default function JobPropertyMapPage() {
           />
         </span>
       </div>
+
+      {/* ── THE LAYERS PANEL ──────────────────────────────────────────────────────────────────────
+          Owner, 2026-09-18: "create and name layers and have layer management and move points
+          between layers … name and rename layers … hide and unhide the different layers."
+
+          One row per sheet, and the row IS the management: the eye hides it, the name is the rename
+          (the same inline control files and points use), the count says what is on it, and the bin
+          throws it away. Nothing is behind a menu, because every one of these is a thing somebody
+          does while looking at the map rather than a setting they visit.
+
+          The eye is first and always enabled, including on the default sheet — hiding everything to
+          look at the bare aerial is a real thing to want. The bin is absent on the default sheet
+          rather than disabled: there is no state in which it would work, and a dead control invites
+          the click that teaches you it is dead. */}
+      {layersOpen && (
+        <div className="pmap__layers" id="pmap-layers-panel" data-testid="pmap-layers">
+          <div className="pmap__layers-head">
+            <span className="pmap__layers-title"><Layers size={13} aria-hidden /> Layers</span>
+            {editing && (
+              <button
+                className="pmap__btn pmap__btn--small"
+                type="button"
+                data-testid="pmap-layer-add"
+                onClick={() => void addLayer()}
+              >
+                <Plus size={12} aria-hidden /> New layer
+              </button>
+            )}
+          </div>
+
+          <ul className="pmap__layer-list">
+            {layers.map((l) => {
+              const count = layerCounts.get(l.id) ?? 0;
+              return (
+                <li
+                  key={l.id}
+                  className={`pmap__layer${l.isVisible ? '' : ' pmap__layer--off'}`}
+                  data-testid={`pmap-layer-${l.id}`}
+                >
+                  <button
+                    className="pmap__layer-eye"
+                    type="button"
+                    aria-pressed={l.isVisible}
+                    title={l.isVisible ? `Hide ${l.name}` : `Show ${l.name}`}
+                    aria-label={l.isVisible ? `Hide the layer ${l.name}` : `Show the layer ${l.name}`}
+                    data-testid={`pmap-layer-eye-${l.id}`}
+                    onClick={() => void toggleLayer(l.id, !l.isVisible)}
+                  >
+                    {l.isVisible ? <Eye size={13} aria-hidden /> : <EyeOff size={13} aria-hidden />}
+                  </button>
+
+                  <InlineRename
+                    name={l.name}
+                    onRename={(next) => renameLayer(l.id, next)}
+                    canRename={editing}
+                    preserveExtension={false}
+                    className="pmap__layer-namerow"
+                    inputClassName="pmap__layer-rename"
+                    buttonClassName="pmap__file-pencil"
+                    testId={`pmap-layer-name-${l.id}`}
+                  >
+                    <span className="pmap__layer-name">
+                      {l.name}
+                      {l.isDefault && <span className="pmap__layer-badge" title="Every point lands here unless you move it">default</span>}
+                    </span>
+                  </InlineRename>
+
+                  <span className="pmap__layer-count" data-testid={`pmap-layer-count-${l.id}`}>
+                    {count} {count === 1 ? 'point' : 'points'}
+                  </span>
+
+                  {editing && !l.isDefault && (
+                    confirmLayer === l.id ? (
+                      <span className="pmap__layer-confirm" role="group" data-testid={`pmap-layer-confirm-${l.id}`}>
+                        <span className="pmap__layer-confirm-ask">
+                          {count > 0
+                            ? `Delete it? Its ${count} ${count === 1 ? 'point moves' : 'points move'} to ${defaultLayer?.name ?? 'the default layer'}.`
+                            : 'Delete this layer?'}
+                        </span>
+                        <button
+                          className="pmap__btn pmap__btn--danger pmap__btn--small"
+                          type="button"
+                          data-testid={`pmap-layer-delete-yes-${l.id}`}
+                          onClick={() => void deleteLayer(l.id)}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          className="pmap__btn pmap__btn--small"
+                          type="button"
+                          data-testid={`pmap-layer-delete-no-${l.id}`}
+                          onClick={() => setConfirmLayer(null)}
+                        >
+                          Keep
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="pmap__layer-del"
+                        type="button"
+                        title={`Delete ${l.name}`}
+                        aria-label={`Delete the layer ${l.name}`}
+                        data-testid={`pmap-layer-delete-${l.id}`}
+                        onClick={() => setConfirmLayer(l.id)}
+                      >
+                        <Trash2 size={12} aria-hidden />
+                      </button>
+                    )
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {!editing && (
+            <p className="pmap__layers-hint">Turn on <strong>Edit map</strong> to add, rename or delete layers.</p>
+          )}
+        </div>
+      )}
 
       {legend.length > 0 && (
         <div className="pmap__legend" data-testid="pmap-legend">
@@ -3819,7 +4083,7 @@ export default function JobPropertyMapPage() {
                           onShowPoint={() => showFilePoint(file)}
                           onAskUnassign={() => setConfirmUnassign(file.id)}
                           onCancelUnassign={() => setConfirmUnassign(null)}
-                          onUnassign={() => void unassignFile(file)}
+                          onUnassign={(at) => void unassignFile(file, at)}
                           onThumbError={healThumbs}
                           onRename={(next) => renameFile(file.id, next)}
                         />
@@ -4139,6 +4403,34 @@ export default function JobPropertyMapPage() {
                     >
                       {POINT_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                     </select>
+                  </div>
+
+                  {/* Moving a point between sheets (owner, 2026-09-18). Beside Type and Status
+                      because it is the same kind of question — which bucket is this in — and a point
+                      being on the wrong sheet is discovered while looking at the point, not while
+                      looking at the layers panel. `layerOf` resolves a null layerId to the default
+                      sheet, so this never shows an empty select on a point that predates layers. */}
+                  <div className="pmap__field">
+                    <label className="pmap__label" htmlFor="pmap-layer">Layer</label>
+                    <select
+                      id="pmap-layer"
+                      className="pmap__select"
+                      value={layerOf(selected, layers)?.id ?? ''}
+                      data-testid="pmap-layer-select"
+                      onChange={(e) => void movePointToLayer(selected.id, e.target.value || null)}
+                    >
+                      {layers.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}{l.isVisible ? '' : ' (hidden)'}
+                        </option>
+                      ))}
+                    </select>
+                    {(() => {
+                      const on = layerOf(selected, layers);
+                      return on && !on.isVisible
+                        ? <p className="pmap__hint">This layer is hidden, so this point is not on the map right now.</p>
+                        : null;
+                    })()}
                   </div>
 
                   <div className="pmap__row-actions">
@@ -4648,14 +4940,15 @@ function FileTile({
   onShowPoint: () => void;
   onAskUnassign: () => void;
   onCancelUnassign: () => void;
-  onUnassign: () => void;
+  /** Takes the file off ONE point — which one has to be said now that it can be on several. */
+  onUnassign: (at: LibraryFile['assignedTo'][number]) => void;
   /** An expired thumbnail URL. The page turns one of these into ONE library refresh. */
   onThumbError: () => void;
   /** Writes `job_files.label`, so the new name follows the file out of this panel. */
   onRename: (next: string) => Promise<void>;
 }) {
   const Kind = KIND_ICON[file.kind];
-  const assigned = Boolean(file.assignedTo);
+  const assigned = file.assignedTo.length > 0;
   const chip = assignedChip(file);
   // ── NEVER SHOW A BROKEN IMAGE (owner, 2026-09-17) ─────────────────────────────────────────
   // The owner reported the PDF previews as broken. They were not — they were still arriving, and
@@ -4665,10 +4958,15 @@ function FileTile({
   // then the tile wears its kind icon, and if the image genuinely fails it keeps it for good.
   const [imgState, setImgState] = useState<'loading' | 'ok' | 'failed'>(file.thumbUrl ? 'loading' : 'failed');
   useEffect(() => { setImgState(file.thumbUrl ? 'loading' : 'failed'); }, [file.thumbUrl]);
-  const where = file.assignedTo?.ordinal ? `point ${file.assignedTo.ordinal}` : 'that point';
-  // An assigned file cannot go anywhere else, so it cannot be dragged anywhere else. Refusing the
-  // drag is kinder than accepting it and answering with a 409.
-  const canDrag = editing && !assigned && !placing;
+  const where = assigned
+    ? (file.assignedTo.length === 1 && file.assignedTo[0].ordinal > 0
+      ? `point ${file.assignedTo[0].ordinal}`
+      : `${file.assignedTo.length} points`)
+    : 'that point';
+  // An assigned file used to be undraggable, because there was nowhere legal for it to go. It can
+  // now go on another point as well, so the only thing that stops a drag is not being in edit mode
+  // or the tile already being in flight.
+  const canDrag = editing && !placing;
   /** No signed URL means there is nothing for the viewer to show — a row whose bytes went missing. */
   const canOpen = Boolean(file.url);
 
@@ -4771,7 +5069,8 @@ function FileTile({
           anywhere on the tile": with the thumbnail opening the viewer, arming had to become
           something you can see and aim at. It is still exactly one piece of state — `armed` — so
           the finger path and the keyboard path cannot drift apart. */}
-      {editing && !assigned && (
+      {/* No longer hidden once the file is placed: it can go on another point too. */}
+      {editing && (
         <button
           className={`pmap__file-assign${armed ? ' pmap__file-assign--on' : ''}`}
           type="button"
@@ -4800,19 +5099,34 @@ function FileTile({
         </button>
       )}
 
+      {/* ── TAKING IT OFF — BUT OFF WHICH ONE? ─────────────────────────────────────────────────
+          With one point this is the confirmation it always was. With several it has to ASK, because
+          "Unassign" has stopped being unambiguous: a file on points 2, 7 and 9 has three different
+          things that button could mean, and picking one silently is how somebody loses the wrong
+          attachment. So the confirm becomes the list, one button per point, each saying its number.
+          Still inline rather than window.confirm — a modal takes the focus out of a panel somebody
+          is working down, and cannot name the point in the same breath. */}
       {assigned && editing && (
         confirming ? (
           <div className="pmap__file-confirm" role="group" data-testid={`pmap-file-confirm-${file.id}`}>
-            <span className="pmap__file-confirm-ask">Take this off {where}?</span>
+            <span className="pmap__file-confirm-ask">
+              {file.assignedTo.length === 1 ? `Take this off ${where}?` : 'Take it off which point?'}
+            </span>
             <span className="pmap__file-confirm-acts">
-              <button
-                className="pmap__btn pmap__btn--danger"
-                type="button"
-                data-testid={`pmap-file-unassign-yes-${file.id}`}
-                onClick={onUnassign}
-              >
-                Unassign
-              </button>
+              {file.assignedTo.map((at) => (
+                <button
+                  key={at.pointId}
+                  className="pmap__btn pmap__btn--danger"
+                  type="button"
+                  title={at.title}
+                  data-testid={`pmap-file-unassign-yes-${file.id}-${at.pointId}`}
+                  onClick={() => onUnassign(at)}
+                >
+                  {file.assignedTo.length === 1
+                    ? 'Unassign'
+                    : (at.ordinal > 0 ? `Off ${at.ordinal}` : 'Off it')}
+                </button>
+              ))}
               <button
                 className="pmap__btn"
                 type="button"

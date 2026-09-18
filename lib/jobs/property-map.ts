@@ -50,6 +50,8 @@ export interface MapPoint {
   y: number;
   pointType: PointTypeId;
   status: PointStatus;
+  /** Which sheet this point is on. NULL reads as the map's default layer — see `layerOf`. */
+  layerId: string | null;
   /** How this one is drawn. See POINT_GEOMETRIES. */
   geometry: GeometryId;
   /** The bends after (x, y), for `path` and `area`. Empty for the other two. */
@@ -274,6 +276,11 @@ export interface PointFilter {
   types?: PointTypeId[];
   statuses?: PointStatus[];
   withMediaOnly?: boolean;
+  /** Layers switched off in the panel. A point on one of these is filtered out of the list and the
+   *  map — it is hidden, not deleted, and turning the sheet back on brings it straight back. */
+  hiddenLayerIds?: string[];
+  /** Needed to resolve a null `layerId` to the default sheet, so hiding the base layer works. */
+  layers?: Array<{ id: string; isDefault: boolean; isVisible: boolean }>;
 }
 
 /** The side list's search and filter. Text matches the title, the notes, the type's label and any
@@ -285,10 +292,17 @@ export interface PointFilter {
  *  half the map. It falls back to a normal text search when no point wears that number. */
 export function filterPoints(points: MapPoint[], filter: PointFilter): MapPoint[] {
   const text = (filter.text ?? '').trim().toLowerCase();
+  const hidden = new Set(filter.hiddenLayerIds ?? []);
   const byType = points.filter((p) => {
     if (filter.types?.length && !filter.types.includes(p.pointType)) return false;
     if (filter.statuses?.length && !filter.statuses.includes(p.status)) return false;
     if (filter.withMediaOnly && p.media.length === 0) return false;
+    // Resolved through `layerOf` rather than compared directly, so a point with a null layerId is
+    // hidden when the DEFAULT sheet is switched off — which is the sheet it is actually on.
+    if (hidden.size) {
+      const layer = filter.layers ? layerOf(p, filter.layers) : null;
+      if (layer ? hidden.has(layer.id) : (p.layerId && hidden.has(p.layerId))) return false;
+    }
     return true;
   });
   if (!text) return byType;
@@ -308,6 +322,116 @@ export function filterPoints(points: MapPoint[], filter: PointFilter): MapPoint[
 export function typesInUse(points: Pick<MapPoint, 'pointType'>[]): PointType[] {
   const present = new Set(points.map((p) => p.pointType));
   return POINT_TYPES.filter((t) => present.has(t.id));
+}
+
+// ── LAYERS ──────────────────────────────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-18: "I want it where we can create different layers for points … that might make
+// things get cramped a little … We can still put all of the points on one layer, but we can also
+// create and name layers and have layer management and move points between layers … We need to be
+// able to hide and unhide the different layers too."
+//
+// A layer is a SHEET somebody made and named; `pointType` is a CLASSIFICATION from a fixed
+// vocabulary. They are different questions and both filter at once — see seeds/645 for the argument.
+
+export const DEFAULT_LAYER_NAME = 'Base layer';
+export const MAX_LAYER_NAME = 120;
+
+export interface MapLayer {
+  id: string;
+  mapId: string;
+  name: string;
+  ordinal: number;
+  /** Saved, not per-browser: the other person looking at the same job sees the same sheet turned off. */
+  isVisible: boolean;
+  /** The sheet a point lands on when nobody chose. Exactly one per map; renameable, not deletable. */
+  isDefault: boolean;
+}
+
+export interface LayerNameCheck {
+  ok: boolean;
+  value?: string;
+  error?: string;
+}
+
+/** Validate a layer's name. Same shape as `checkLabel` for files, and the same reasoning: control
+ *  characters would render as a one-line name with invisible holes in it. Blank is an ERROR here
+ *  rather than a clear, because a layer always has to be called something to be pickable in a list. */
+export function checkLayerName(raw: unknown): LayerNameCheck {
+  if (typeof raw !== 'string') return { ok: false, error: 'A layer needs a name.' };
+  const cleaned = raw.replace(new RegExp('[\\u0000-\\u001F\\u007F]', 'g'), ' ').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return { ok: false, error: 'A layer needs a name.' };
+  if (cleaned.length > MAX_LAYER_NAME) {
+    return { ok: false, error: `A layer name must be ${MAX_LAYER_NAME} characters or fewer.` };
+  }
+  return { ok: true, value: cleaned };
+}
+
+/** Panel order: by ordinal, and the default sheet first whatever its ordinal, because it is the one
+ *  every map has and the one points fall back to. */
+export function sortLayers<T extends { ordinal: number; isDefault: boolean; name: string }>(layers: T[]): T[] {
+  return [...layers].sort((a, b) => {
+    if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+    if (a.ordinal !== b.ordinal) return a.ordinal - b.ordinal;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** The layer a point is on. A null `layerId` — every point that predates seeds/645, and any point
+ *  whose layer was deleted — reads as the default sheet, so a point is never on no layer at all. */
+export function layerOf<T extends { id: string; isDefault: boolean }>(
+  point: { layerId: string | null },
+  layers: T[],
+): T | null {
+  if (point.layerId) {
+    const found = layers.find((l) => l.id === point.layerId);
+    if (found) return found;
+  }
+  // A layerId pointing at a layer that is not in the list (deleted, or another map's) falls back
+  // rather than hiding the point: a point nobody can see is worse than a point on the wrong sheet.
+  return layers.find((l) => l.isDefault) ?? null;
+}
+
+/** The ids of the layers that are switched off, for the filter. */
+export function hiddenLayerIds<T extends { id: string; isVisible: boolean }>(layers: T[]): string[] {
+  return layers.filter((l) => !l.isVisible).map((l) => l.id);
+}
+
+/** Is this point on a sheet that is currently showing?
+ *
+ *  Hiding is a VIEW rule, not a delete: the point is still on the map, still numbered, and turning
+ *  the sheet back on brings it straight back. */
+export function isPointVisible<T extends { id: string; isDefault: boolean; isVisible: boolean }>(
+  point: { layerId: string | null },
+  layers: T[],
+): boolean {
+  const layer = layerOf(point, layers);
+  return layer ? layer.isVisible : true;
+}
+
+/** How many live points sit on each layer — the count beside each name in the panel, and what the
+ *  delete confirmation needs so it can say what is about to move. */
+export function pointsPerLayer<T extends { id: string; isDefault: boolean }>(
+  points: Array<{ layerId: string | null }>,
+  layers: T[],
+): Map<string, number> {
+  const out = new Map<string, number>(layers.map((l) => [l.id, 0]));
+  for (const p of points) {
+    const l = layerOf(p, layers);
+    if (l) out.set(l.id, (out.get(l.id) ?? 0) + 1);
+  }
+  return out;
+}
+
+/** A name for a new sheet that does not collide with one already there: "Layer 2", "Layer 3", … */
+export function nextLayerName(layers: Array<{ name: string }>, base = 'Layer'): string {
+  const taken = new Set(layers.map((l) => l.name.trim().toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; n < 500; n++) {
+    const candidate = `${base} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${base} ${Date.now()}`;
 }
 
 // ── REAL-WORLD COORDINATES (Phase 7; pure, so it is built and tested once) ──────────────────────

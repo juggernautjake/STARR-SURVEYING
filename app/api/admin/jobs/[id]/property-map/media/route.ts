@@ -61,26 +61,29 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     return NextResponse.json({ error: 'That file does not belong to this job.' }, { status: 404 });
   }
 
-  // ── ONE FILE, ONE POINT (owner, 2026-09-16) ─────────────────────────────────────────────────
-  // "once a file has been assigned to a point, it cannot be assigned to another point … There will
-  // be an option to unassign it which will require confirmation."
+  // ── ONE FILE, AS MANY POINTS AS IT BELONGS ON (owner, 2026-09-18) ───────────────────────────
+  // "We also need to be able to assign files and pictures and videos to multiple different points."
   //
-  // The database enforces this (seeds/643) because two fast drags are two requests in flight and a
-  // check here cannot see the other one. This check exists for the SENTENCE: the constraint can only
-  // say "duplicate key", and what somebody dragging a photo needs to hear is which pin already has
-  // it, so they can go and take it off that one.
+  // This deliberately reverses the rule of 2026-09-16, which forbade the second assignment outright
+  // (seeds/643, now reversed by seeds/646 — the argument is written out there). One photograph down a
+  // fence line genuinely shows the corner post AND the gate AND the encroachment.
+  //
+  // What is still refused is the SAME file on the SAME point, which is a double-click rather than an
+  // intention, and is what `uq_job_map_point_media_file` enforces.
+  //
+  // Scoped `.eq('point_id', point.id)` — and that scope is the whole fix. This query used to ask
+  // "is this file on ANY point" with `.maybeSingle()`, which the moment a file legitimately hangs on
+  // two points stops returning a row at all and starts returning an error nobody reads: the check
+  // would silently pass and the only thing left refusing a genuine double-click would be a raw
+  // "duplicate key" from the index.
   const { data: taken } = await supabaseAdmin.from('job_map_point_media')
-    .select('point_id, job_map_points!inner(ordinal, title)')
-    .eq('job_file_id', body.job_file_id).is('deleted_at', null).maybeSingle();
+    .select('id')
+    .eq('job_file_id', body.job_file_id).eq('point_id', point.id).is('deleted_at', null).maybeSingle();
   if (taken) {
-    const on = (taken as { point_id: string; job_map_points?: { ordinal: number; title: string } }).job_map_points;
-    const where = on ? `point ${on.ordinal}, ${on.title}` : 'another point';
     return NextResponse.json({
-      error: (taken as { point_id: string }).point_id === point.id
-        ? 'That file is already on this point.'
-        : `That file is already on ${where}. Unassign it there first, then it can go here.`,
-      code: 'already_assigned',
-      assigned_point_id: (taken as { point_id: string }).point_id,
+      error: 'That file is already on this point.',
+      code: 'already_on_point',
+      assigned_point_id: point.id,
     }, { status: 409 });
   }
 
@@ -98,11 +101,12 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     ordinal: nextOrdinal + 1,
     created_by: g.email,
   });
-  // The index is the authority, and it wins a race the check above cannot see. A second drag that
-  // lands a millisecond later is told the same thing, in the same words.
+  // The index is the authority, and it wins the race the check above cannot see: two drags of the
+  // same file onto the SAME point, a millisecond apart, are two requests that both pass the check.
+  // Told the same thing, in the same words.
   if (error) {
     if (/duplicate key|unique/i.test(error.message)) {
-      return NextResponse.json({ error: 'That file was just assigned to another point. Unassign it there first.', code: 'already_assigned' }, { status: 409 });
+      return NextResponse.json({ error: 'That file is already on this point.', code: 'already_on_point', assigned_point_id: point.id }, { status: 409 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
