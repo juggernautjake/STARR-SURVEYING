@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
+import { JOB_FILES_BUCKET, type JobFileRow } from '@/lib/jobs/file-storage';
 import { decodeThumbDataUrl, thumbStoragePath, THUMB_MIME } from '@/lib/jobs/file-thumbnails';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +60,14 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
   const decoded = decodeThumbDataUrl(body.data_url);
   if ('error' in decoded) return NextResponse.json({ error: decoded.error }, { status: 400 });
 
-  const bucket = bucketOf(file);
+  // A preview always goes in the files bucket, never in the bucket the file itself lives in.
+  //
+  // 2026-09-17: a video's poster frame used to be written to the row's own bucket, which for a
+  // video is `starr-field-videos` — whose MIME allowlist is video types only. Storage refused
+  // every poster with "mime type image/webp is not supported", so video tiles could never get one,
+  // while PDFs and images (which land in `starr-field-files`, no allowlist) worked fine. Measured
+  // against live storage, not inferred. `starr-field-files` takes any type and is the same 500 MB.
+  const bucket = JOB_FILES_BUCKET;
   const path = thumbStoragePath(String(file.id));
   const { error: uploadError } = await supabaseAdmin.storage.from(bucket).upload(path, decoded.bytes, {
     contentType: decoded.contentType || THUMB_MIME,

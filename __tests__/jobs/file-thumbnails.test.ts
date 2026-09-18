@@ -115,6 +115,15 @@ describe('the route and the library agree with the module', () => {
     expect(route, 'checking lives in the tested module, not inline').toContain('decodeThumbDataUrl(body.data_url)');
   });
 
+  it('stores the preview in the files bucket, never the video bucket', () => {
+    // `starr-field-videos` allows video MIME types only, so a WebP poster posted there is refused
+    // with "mime type image/webp is not supported" — which is exactly what stopped video tiles ever
+    // getting a poster frame. Verified against live storage on 2026-09-17.
+    const route = read('app/api/admin/jobs/[id]/property-map/thumbnail/route.ts');
+    expect(route).toContain('const bucket = JOB_FILES_BUCKET;');
+    expect(route, 'the file’s own bucket is the bug').not.toContain('bucketOf(file)');
+  });
+
   it('the library hands back the generated preview, and says what still needs one', () => {
     const server = read('lib/jobs/property-map-server.ts');
     expect(server).toContain('thumbState');
