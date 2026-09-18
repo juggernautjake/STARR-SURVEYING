@@ -63,7 +63,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
 
   const { data: existing } = await supabaseAdmin
     .from('job_files')
-    .select('id, job_id, project_id, file_name, label, tags, is_deleted')
+    .select('id, job_id, project_id, file_name, name, label, tags, is_deleted')
     .eq('id', ctx.params.id)
     .maybeSingle();
 
@@ -80,6 +80,13 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
     const check = checkLabel(body.label);
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
     patch.label = check.value;
+    // ── AND THE MOBILE APP'S COPY OF THE NAME ───────────────────────────────────────────────────
+    // `name` is the column seed 226 created for the mobile app, and `mobile/lib/jobFiles.ts` reads
+    // it directly — it knows nothing about `label`. Until today a rename in the admin was invisible
+    // on a phone, which is not a rename. `label` stays the source of truth that `displayName()`
+    // prefers; this keeps the mobile column saying the same thing. Clearing the rename puts the
+    // uploaded name back, never an empty string — `job_files_name_chk` requires a non-blank name.
+    patch.name = check.value ?? existing.file_name ?? existing.name ?? 'File';
   }
 
   if ('tags' in body) {

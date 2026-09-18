@@ -68,6 +68,23 @@ export function checkLabel(raw: unknown): LabelCheck {
 }
 
 /**
+ * Trim a name to the length the server will accept, keeping the extension.
+ *
+ * `applyRename` re-attaches the extension of the old name, so a person who fills a 120-character box
+ * and presses Enter can end up sending 124 characters and getting "A name must be 120 characters or
+ * fewer" for text they cannot see. The stem is shortened instead — losing the tail of a name nobody
+ * could finish typing anyway is better than refusing the edit. An extension longer than the whole
+ * budget (not a real extension, a name ending in a very long dotted run) is cut bodily.
+ */
+export function fitLabel(name: string, max = MAX_LABEL_LENGTH): string {
+  if (name.length <= max) return name;
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot) : '';
+  if (!ext || ext.length >= max) return name.slice(0, max);
+  return name.slice(0, max - ext.length).trimEnd() + ext;
+}
+
+/**
  * Fold one tag to its canonical form, or `null` if nothing survives.
  *
  * Lower-cased because "Monument", "monument" and "MONUMENT" are one tag to everybody except a

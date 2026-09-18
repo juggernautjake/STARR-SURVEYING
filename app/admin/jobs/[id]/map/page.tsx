@@ -53,13 +53,14 @@ import {
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
 import SharedFileViewer from '@/app/admin/components/files/FileViewer';
+import InlineRename from '@/app/admin/components/files/InlineRename';
 import Tooltip from '@/app/admin/research/components/Tooltip';
 import AudioRecorder from '@/app/admin/components/fieldbook/AudioRecorder';
 import { usePageTitle } from '@/lib/admin/page-title';
 import { formatBytes } from '@/app/admin/components/files/format';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import { detectJobFileType } from '@/lib/files/job-folders';
-import type { ViewerCollection, ViewerFile } from '@/lib/files/viewer-model';
+import type { ViewerCapabilities, ViewerCollection, ViewerFile } from '@/lib/files/viewer-model';
 import {
   THUMB_MIME, THUMB_QUALITY, needsThumb, posterTime, thumbSize, type ThumbState,
 } from '@/lib/jobs/file-thumbnails';
@@ -1751,8 +1752,10 @@ export default function JobPropertyMapPage() {
   }, [placePoint]);
 
   const patchPoint = useCallback(async (pointId: string, body: Record<string, unknown>, done: string) => {
-    if (!map) return;
-    await mutate(
+    if (!map) return null;
+    // Returned rather than swallowed so a caller that has to know — the inline rename, which puts
+    // the old name back if the save did not land — can tell success from failure.
+    return mutate(
       'save the point',
       `/api/admin/jobs/${jobId}/property-map/points`,
       {
@@ -2210,6 +2213,75 @@ export default function JobPropertyMapPage() {
     if (conflict?.fileId === file.id) setConflict(null);
     refreshLibrary(map.id);
   }, [map, jobId, mutate, refreshLibrary, conflict?.fileId]);
+
+  // ── RENAMING A FILE, FROM THE MAP ─────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-18: "make sure that we can fully rename pictures/videos/files inside of
+  // projects/jobs and in the interactive map editor too."
+  //
+  // The map is where files off a phone actually get triaged, so it is where naming forty files
+  // called IMG_5685.jpg has to be possible — and until today it was the one file surface that could
+  // not rename at all.
+  //
+  // ONE NAME, NOT A MAP-LOCAL ONE. This writes `job_files.label`, the same field the job's Files tab
+  // and the shared viewer write, so a file renamed on the map is renamed in the job, in the File
+  // Explorer and on the phone. A point media row has its own `caption`, and it was tempting to edit
+  // that instead — but then the same photograph would answer to two different names depending on
+  // where you were standing, which is what "fully rename" is asking not to happen.
+  const renameFile = useCallback(async (jobFileId: string, next: string) => {
+    const res = await fetch(`/api/admin/jobs/files/${jobFileId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: next }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      addToast(body.error ?? 'That file could not be renamed.', 'error');
+      throw new Error(body.error ?? 'rename failed');
+    }
+    // Paint the new name immediately — in the panel AND on any point holding the file, because the
+    // same rename shows in both and a tile that lagged would read as the edit not having taken.
+    setLibrary((cur) => cur.map((f) => (f.id === jobFileId ? { ...f, name: next } : f)));
+    setPayload((cur) => (cur ? {
+      ...cur,
+      points: cur.points.map((p) => ({
+        ...p,
+        media: p.media.map((m) => (m.jobFileId === jobFileId ? { ...m, name: next } : m)),
+      })),
+    } : cur));
+    addToast('Renamed.', 'success', 1600);
+    refreshLibrary(map?.id ?? null);
+  }, [addToast, refreshLibrary, map?.id]);
+
+  /** Rename a point that already has a name.
+   *
+   *  The same PATCH the Title box under it sends. The draft is moved along too: it is seeded from
+   *  the point when the SELECTION changes, so without this the box below would keep showing the old
+   *  name until you clicked away and back, and pressing Save there would put it straight back. */
+  const renamePoint = useCallback(async (pointId: string, next: string) => {
+    const title = next.trim();
+    if (!title) return;
+    const res = await patchPoint(pointId, { title }, 'Point renamed.');
+    if (!res) throw new Error('rename failed');
+    setDraft((d) => (d ? { ...d, title } : d));
+  }, [patchPoint]);
+
+  /** Rename the map itself. A title is not a file name, so no extension is preserved — but it goes
+   *  through the same inline control so renaming is one gesture everywhere on this page. */
+  const renameMap = useCallback(async (next: string) => {
+    if (!map) return;
+    const res = await mutate(
+      'rename the map',
+      `/api/admin/jobs/${jobId}/property-map`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ map_id: map.id, title: next }),
+      },
+      'Map renamed.',
+    );
+    if (!res) throw new Error('rename failed');
+  }, [map, jobId, mutate]);
 
   /** The one-click recovery from a 409: go and look at the pin that already has the file. */
   const showConflictPoint = useCallback(() => {
@@ -2688,6 +2760,26 @@ export default function JobPropertyMapPage() {
     setViewerOn((cur) => (cur && cur.fileId !== fileId ? { ...cur, fileId } : cur));
   }, []);
 
+  // ── THE VIEWER CAN RENAME HERE TOO ────────────────────────────────────────────────────────────
+  //
+  // The shared viewer has had an inline rename in its header all along; this page just never handed
+  // it the capability, so the same file could be renamed from the job's Files tab and not from the
+  // map. Now it can, and it is the same write either way (`job_files.label`).
+  //
+  // The id the viewer holds is not always a job file id: for a point's attachments the collection is
+  // built from media rows, whose ids are the media rows' own. So it is resolved back to the file
+  // before the PATCH, and a row that cannot be resolved refuses rather than renaming the wrong file.
+  const viewerCapabilities = useMemo<ViewerCapabilities>(() => ({
+    rename: async (file, newName) => {
+      const fromLibrary = library.find((f) => f.id === file.id);
+      const media = selected?.media.find((m) => m.id === file.id);
+      const jobFileId = fromLibrary?.id ?? media?.jobFileId;
+      if (!jobFileId) throw new Error('That file is renamed where it lives.');
+      await renameFile(jobFileId, newName);
+      return { ...file, name: newName };
+    },
+  }), [library, selected, renameFile]);
+
   /** Open a panel tile in the dedicated viewer. */
   const openLibraryFile = useCallback((file: LibraryFile) => {
     if (!file.url) { addToast(`${file.name} has nothing to show yet.`, 'info', 2400); return; }
@@ -2825,7 +2917,20 @@ export default function JobPropertyMapPage() {
           <Link className="pmap__back" href={backHref} data-testid="pmap-back">
             <ChevronLeft size={14} aria-hidden /> Back to the job
           </Link>
-          <h1 className="pmap__title">{map.title}</h1>
+          {/* The map's own name. The route has taken a `title` since the map existed; the page just
+              printed it, so the one thing you could never rename here was the map itself. */}
+          <InlineRename
+            name={map.title}
+            onRename={renameMap}
+            canRename={editing}
+            preserveExtension={false}
+            className="pmap__titlerow"
+            inputClassName="pmap__title-rename"
+            buttonClassName="pmap__file-pencil"
+            testId="pmap-map"
+          >
+            <h1 className="pmap__title">{map.title}</h1>
+          </InlineRename>
           <p className="pmap__subtitle">
             {points.length} {points.length === 1 ? 'point' : 'points'}
             {listed.length !== points.length ? ` · ${listed.length} shown` : ''}
@@ -3716,6 +3821,7 @@ export default function JobPropertyMapPage() {
                           onCancelUnassign={() => setConfirmUnassign(null)}
                           onUnassign={() => void unassignFile(file)}
                           onThumbError={healThumbs}
+                          onRename={(next) => renameFile(file.id, next)}
                         />
                       ))}
                     </div>
@@ -3813,7 +3919,27 @@ export default function JobPropertyMapPage() {
           <>
             <div className="pmap__detail-head">
               <div className="pmap__detail-heading">
-                <h2 className="pmap__detail-title">{pointLabel(selected)}</h2>
+                {/* ── RENAMING A POINT AFTER IT IS NAMED (owner, 2026-09-18) ──────────────────
+                    "once I have named a point, I can still go back and rename it."
+                    It was already possible — a Title box further down the panel, behind Save — but
+                    only in edit mode, below the fold, and looking like part of the form you fill in
+                    once when you place a point. Nothing said the name you were reading at the top of
+                    the panel was the same field. Now the heading itself is the edit, the way a file
+                    name is, so renaming looks the same everywhere on this page.
+                    `name` is the bare title; the ordinal in front of it belongs to the map's own
+                    numbering and is deliberately not editable. */}
+                <InlineRename
+                  name={selected.title}
+                  onRename={(next) => renamePoint(selected.id, next)}
+                  canRename={editing}
+                  preserveExtension={false}
+                  className="pmap__titlerow"
+                  inputClassName="pmap__detail-rename"
+                  buttonClassName="pmap__file-pencil"
+                  testId="pmap-point"
+                >
+                  <h2 className="pmap__detail-title">{pointLabel(selected)}</h2>
+                </InlineRename>
                 <p className="pmap__detail-sub">
                   {pointType(selected.pointType).label} · {mediaSummary(selected.media)}
                 </p>
@@ -4091,6 +4217,7 @@ export default function JobPropertyMapPage() {
                       onAskDetach={() => setConfirmMedia(m.id)}
                       onCancelDetach={() => setConfirmMedia(null)}
                       onDetach={() => void detachMedia(selected.id, m.id)}
+                      onRename={(next) => renameFile(m.jobFileId, next)}
                     />
                   ))}
                 </div>
@@ -4343,6 +4470,7 @@ export default function JobPropertyMapPage() {
           fileId={viewerFileId}
           onClose={() => setViewerOn(null)}
           onCurrentChange={onViewerStep}
+          capabilities={editing ? viewerCapabilities : undefined}
         />
       )}
     </div>
@@ -4354,7 +4482,7 @@ export default function JobPropertyMapPage() {
  *  asked for. Audio plays right here — a fifteen-second voice note is not worth a full-screen
  *  player. */
 function MediaTile({
-  media, editing, confirming, onOpen, onAskDetach, onCancelDetach, onDetach,
+  media, editing, confirming, onOpen, onAskDetach, onCancelDetach, onDetach, onRename,
 }: {
   media: PointMedia;
   editing: boolean;
@@ -4363,6 +4491,8 @@ function MediaTile({
   onAskDetach: () => void;
   onCancelDetach: () => void;
   onDetach: () => void;
+  /** Renames the underlying job file, not a caption local to this point — see `renameFile`. */
+  onRename: (next: string) => Promise<void>;
 }) {
   const Kind = KIND_ICON[media.kind];
 
@@ -4440,9 +4570,19 @@ function MediaTile({
           <span className="pmap__tile-blank"><Kind size={22} aria-hidden /></span>
         )}
       </button>
-      <Tooltip text={media.name}>
-        <span className="pmap__tile-name">{media.caption || media.name}</span>
-      </Tooltip>
+      <InlineRename
+        name={media.caption || media.name}
+        onRename={(next) => onRename(next)}
+        canRename={editing}
+        className="pmap__tile-namerow"
+        inputClassName="pmap__tile-rename"
+        buttonClassName="pmap__file-pencil"
+        testId={`pmap-media-${media.id}`}
+      >
+        <Tooltip text={media.name}>
+          <span className="pmap__tile-name">{media.caption || media.name}</span>
+        </Tooltip>
+      </InlineRename>
       <span className="pmap__tile-kind">
         <Kind size={10} aria-hidden /> {KIND_ONE[media.kind]}
         {media.sizeBytes ? ` · ${formatBytes(media.sizeBytes)}` : ''}
@@ -4492,6 +4632,7 @@ function MediaTile({
 function FileTile({
   file, editing, armed, dragging, placing, flashing, confirming,
   onArm, onDragStart, onDragEnd, onOpen, onShowPoint, onAskUnassign, onCancelUnassign, onUnassign, onThumbError,
+  onRename,
 }: {
   file: LibraryFile;
   editing: boolean;
@@ -4510,6 +4651,8 @@ function FileTile({
   onUnassign: () => void;
   /** An expired thumbnail URL. The page turns one of these into ONE library refresh. */
   onThumbError: () => void;
+  /** Writes `job_files.label`, so the new name follows the file out of this panel. */
+  onRename: (next: string) => Promise<void>;
 }) {
   const Kind = KIND_ICON[file.kind];
   const assigned = Boolean(file.assignedTo);
@@ -4608,9 +4751,19 @@ function FileTile({
           for "2026-09-14 NE corner iron rod found.jpg", and three turns the grid into a wall of
           text — and the hover gives the rest. The shared tooltip, so it behaves like every other
           tooltip in this admin: 300 ms, and gone the instant the pointer is. */}
-      <Tooltip text={file.name}>
-        <span className="pmap__file-name" data-testid={`pmap-file-name-${file.id}`}>{file.name}</span>
-      </Tooltip>
+      <InlineRename
+        name={file.name}
+        onRename={(next) => onRename(next)}
+        canRename={editing}
+        className="pmap__file-namerow"
+        inputClassName="pmap__file-rename"
+        buttonClassName="pmap__file-pencil"
+        testId={`pmap-file-${file.id}`}
+      >
+        <Tooltip text={file.name}>
+          <span className="pmap__file-name" data-testid={`pmap-file-name-${file.id}`}>{file.name}</span>
+        </Tooltip>
+      </InlineRename>
       <span className="pmap__file-meta">{KIND_ONE[file.kind]} · {formatBytes(file.sizeBytes)}</span>
 
       {/* ── THE ASSIGN CONTROL ─────────────────────────────────────────────────────────────────

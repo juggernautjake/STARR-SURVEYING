@@ -38,6 +38,7 @@ import DownloadAllButton from './DownloadAllButton';
 import FileComments from './FileComments';
 import FileExplorerDialog from './FileExplorerDialog';
 import UploadFilesDialog from './UploadFilesDialog';
+import InlineRename from './InlineRename';
 import { formatBytes, formatWhen } from './format';
 import { downloadFile } from '@/lib/files/download';
 import { fileKind } from '@/lib/files/viewer-model';
@@ -264,6 +265,25 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     url: (id) => urls[id] ?? null,
   }), [fileById, load, urls]);
 
+  // ── RENAME WITHOUT OPENING THE FILE (owner, 2026-09-18) ─────────────────────────────────────
+  // "Please make sure that we can fully rename pictures/videos/files inside of projects/jobs."
+  //
+  // The capability already existed — it was just only reachable by opening the file full-screen and
+  // clicking its title, which is a poor fit for the actual job of naming a run of photos off a
+  // phone. This is the SAME capability, called from the row, so there is one rename and not two:
+  // whatever `mountCapabilities` decides (job file → `label`, research doc → `document_label`,
+  // anything else → a refusal that says where it IS renamed) holds here as well.
+  const renameRow = useCallback(async (n: MountNode, next: string) => {
+    const rename = viewerCapabilities.rename;
+    if (!rename) return;
+    try {
+      await rename(mountNodeToViewerFile(n, urls[n.id] ?? null, folderNameOf(n)), next);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : `Could not rename ${n.name}.`);
+      throw err;
+    }
+  }, [viewerCapabilities, urls, folderNameOf]);
+
   // ── open a file: fetch its viewing URL first, the rest of the collection in the background ──
   const openFile = useCallback(async (n: MountNode) => {
     if (n.open_href) { window.location.href = n.open_href; return; }
@@ -428,11 +448,23 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const renderRow = (n: MountNode, i: number) => (
     <li key={n.id} className="fe__row m-stagger" style={{ '--i': i } as React.CSSProperties}>
       <span className="fe__row-icon"><FileIcon node={n} /></span>
-      <button type="button" className="fe__row-name" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
-        <span className="fe__row-text">{n.name}</span>
-        {(n.tags?.length ?? 0) > 0 && <span className="fe__row-tags">{n.tags!.slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}</span>}
-        {n.notes && <span className="fe__row-note">{n.notes}</span>}
-      </button>
+      {/* The pencil is a SIBLING of the name button, never inside it — a button within a button is
+          invalid markup, and the browsers that tolerate it fire both handlers on one click. */}
+      <InlineRename
+        name={n.name}
+        onRename={(next) => renameRow(n, next)}
+        canRename={Boolean(viewerCapabilities.rename) && !n.open_href}
+        className="fe__row-namewrap"
+        inputClassName="fe__row-rename"
+        buttonClassName="fe__icon-btn fe__icon-btn--pencil"
+        testId={`fe-file-${n.id}`}
+      >
+        <button type="button" className="fe__row-name" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
+          <span className="fe__row-text">{n.name}</span>
+          {(n.tags?.length ?? 0) > 0 && <span className="fe__row-tags">{n.tags!.slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}</span>}
+          {n.notes && <span className="fe__row-note">{n.notes}</span>}
+        </button>
+      </InlineRename>
       <span className="fe__row-meta">{formatBytes(n.size_bytes)}</span>
       <span className="fe__row-meta">{formatWhen(n.updated_at)}</span>
       <span className="fe__row-actions">

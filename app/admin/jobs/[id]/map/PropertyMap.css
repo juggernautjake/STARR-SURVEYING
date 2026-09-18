@@ -2028,6 +2028,110 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   overflow-wrap: anywhere;
 }
 
+/* ── RENAMING IN PLACE (owner, 2026-09-18) ─────────────────────────────────────────────────────
+ * "Please make sure that we can fully rename pictures/videos/files inside of projects/jobs and in
+ * the interactive map editor too."
+ *
+ * The pencil sits beside the name rather than over it: these tiles are about 6.5rem wide, and the
+ * last thing absolutely positioned into a tile corner here overlapped the name at any realistic
+ * file name and had to be pulled back out into the stack. So the name row is a flex line — name
+ * takes the space, pencil keeps its own — and the pencil only shows on hover or keyboard focus, so
+ * a panel of forty tiles is not forty pencils. `focus-within` is what keeps it reachable by tab. */
+.pmap__file-namerow,
+.pmap__tile-namerow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.pmap__file-namerow > :first-child,
+.pmap__tile-namerow > :first-child { min-width: 0; flex: 1 1 auto; }
+
+.pmap__file-pencil {
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.pmap__file:hover .pmap__file-pencil,
+.pmap__file:focus-within .pmap__file-pencil,
+.pmap__tile-wrap:hover .pmap__file-pencil,
+.pmap__tile-wrap:focus-within .pmap__file-pencil,
+.pmap__file-pencil:focus-visible { opacity: 1; }
+
+.pmap__file-pencil:hover,
+.pmap__file-pencil:focus-visible {
+  color: var(--theme-accent, rgb(29 48 149));
+  background: var(--theme-bg-subtle, rgb(243 244 246));
+}
+
+/* Coarse pointers have no hover, so there is nothing to reveal — the pencil is simply always there. */
+@media (hover: none) {
+  .pmap__file-pencil { opacity: 1; }
+}
+
+/* The map's own name, edited in the same gesture as a file's. Sized to the heading it replaces so
+ * the header does not jump when the box opens. */
+.pmap__titlerow { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.pmap__titlerow > :first-child { min-width: 0; }
+.pmap__titlerow .pmap__file-pencil { margin-top: 0; }
+.pmap__head:hover .pmap__file-pencil,
+.pmap__head:focus-within .pmap__file-pencil { opacity: 1; }
+
+/* A point's name, edited at the top of its panel. The Title box further down still works and still
+ * saves; this is the same field where the eye already is. */
+.pmap__detail-rename {
+  width: 100%;
+  padding: 0.15rem 0.4rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  background: var(--theme-bg-elevated, rgb(255 255 255));
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  border-radius: 0.35rem;
+}
+.pmap__detail-rename:disabled { opacity: 0.6; }
+
+.pmap__detail-heading:hover .pmap__file-pencil,
+.pmap__detail-heading:focus-within .pmap__file-pencil { opacity: 1; }
+
+.pmap__title-rename {
+  width: min(100%, 26rem);
+  padding: 0.1rem 0.35rem;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  background: var(--theme-bg-elevated, rgb(255 255 255));
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  border-radius: 0.35rem;
+}
+
+.pmap__file-rename,
+.pmap__tile-rename {
+  width: 100%;
+  margin: 0.2rem 0.35rem;
+  padding: 0.15rem 0.25rem;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, rgb(17 24 39));
+  background: var(--theme-bg-elevated, rgb(255 255 255));
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  border-radius: 0.25rem;
+}
+
+.pmap__file-rename:disabled,
+.pmap__tile-rename:disabled { opacity: 0.6; }
+
 .pmap__file-meta {
   display: block;
   padding: 0 0.35rem 0.3rem;
