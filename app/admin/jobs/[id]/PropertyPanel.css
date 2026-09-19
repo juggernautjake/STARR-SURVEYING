@@ -1,0 +1,161 @@
+/* app/admin/jobs/[id]/PropertyPanel.css — where the property is, on the job page.
+ *
+ * Owner, 2026-09-19, with a screenshot: "please make this part of the page look better, and make it
+ * easier and more user friendly to edit things."
+ *
+ * What the screenshot showed: nine identical "Label: value" rows in a single column, each one its
+ * own click-to-edit. Nothing was grouped, nothing was emphasised, and the address — the thing the
+ * whole block is about — sat in the same grey weight as the abstract number.
+ *
+ * So: the address reads as an address, on its own, first. The parts nobody reads aloud — lot,
+ * subdivision, abstract, acreage — go into a quiet grid underneath. And editing is one mode over
+ * the whole block rather than nine separate ones, because filling in a property is one job. */
+
+.prop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFF);
+}
+
+.prop__head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.prop__title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.prop__head-acts { display: flex; gap: 0.35rem; }
+
+/* The address is the headline of this block, so it is set like one. */
+.prop__address {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--theme-fg-primary, #0F172A);
+  overflow-wrap: anywhere;
+}
+.prop__address--empty { font-weight: 400; font-size: 0.9rem; color: var(--theme-fg-muted, #64748B); }
+.prop__county { margin: -0.35rem 0 0; font-size: 0.82rem; color: var(--theme-fg-muted, #64748B); }
+
+.prop__links { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.prop__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--motion-fast, 120ms), background var(--motion-fast, 120ms);
+}
+.prop__btn:hover:not(:disabled) { border-color: var(--theme-accent, #1D3095); }
+.prop__btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.prop__btn--primary {
+  background: var(--theme-accent, #1D3095);
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFF);
+}
+.prop__btn--primary:hover:not(:disabled) { background: var(--theme-brand-hover, #172775); }
+.prop__spin { animation: spin 0.9s linear infinite; }
+
+/* ── the quiet half ──────────────────────────────────────────────────── */
+
+.prop__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem 0.9rem;
+  margin: 0.2rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--theme-border, #F1F5F9);
+}
+.prop__cell--wide { grid-column: span 2; }
+.prop__grid dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.prop__grid dd { margin: 0.1rem 0 0; font-size: 0.88rem; color: var(--theme-fg-primary, #0F172A); overflow-wrap: anywhere; }
+.prop__none { color: var(--theme-fg-muted, #94A3B8); }
+.prop__coords { font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+
+/* Said once, plainly, where the consequence is: the map cannot open on a property it has no
+ * coordinates for, and until today nothing filled them in. */
+.prop__warn {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--theme-warning-fg, #92400E);
+  border-radius: 9px;
+  background: var(--theme-warning-bg, #FEF3C7);
+  color: var(--theme-warning-fg, #92400E);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* ── editing ─────────────────────────────────────────────────────────── */
+
+.prop__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.55rem 0.7rem;
+  align-items: start;
+}
+.prop__field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.prop__field--wide { grid-column: 1 / -1; }
+/* State and ZIP are two and five characters; giving them a full column makes the row read as four
+ * equal things when it is really one address and two stubs. */
+.prop__field--narrow { max-width: 7rem; }
+
+.prop__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #475569);
+}
+
+.prop__input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.88rem;
+}
+.prop__input:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 1px; border-color: var(--theme-accent, #1D3095); }
+
+.prop__hint { margin: 0; font-size: 0.7rem; line-height: 1.4; color: var(--theme-fg-muted, #64748B); }
+
+.prop__coordsrow { padding-top: 0.4rem; border-top: 1px solid var(--theme-border, #F1F5F9); }
+.prop__coordsgrid { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.prop__coordsgrid .prop__input { flex: 1 1 9rem; font-variant-numeric: tabular-nums; }
+
+.prop__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 9px;
+  background: var(--theme-danger-bg, #FEE2E2);
+  color: var(--theme-danger-fg, #B91C1C);
+  font-size: 0.8rem;
+}
+
+/* AddressAutocomplete wraps its input in a div of its own, which is what the suggestion list
+ * positions against. That div is not a grid item, so it does not inherit the stretch the other
+ * fields get — without this the address box came out a third the width of the ones under it, which
+ * is backwards for the longest value on the panel. */
+.prop__field .address-autocomplete { width: 100%; }
+.prop__field .address-autocomplete input { width: 100%; }

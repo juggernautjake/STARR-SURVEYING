@@ -19,6 +19,7 @@ import { usePageTitle } from '@/lib/admin/page-title';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
 // originating lead so the running conversation isn't lost after
 // conversion.
+import PropertyPanel, { type PropertyFields } from './PropertyPanel';
 import JobOriginatingLead from './JobOriginatingLead';
 import JobResearchPacket from './JobResearchPacket';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
@@ -198,6 +199,24 @@ export default function JobDetailPage() {
   // Inline-edit save: PUT the single changed field, then patch local
   // state so the UI reflects it without a full reload. Throws on
   // failure so InlineEditField can surface the message + roll back.
+  /**
+   * Write several fields at once.
+   *
+   * The inline editors each save one field, which is right for one field. A property is not one
+   * field: picking an address fills six of them, and sending six requests is six chances for half
+   * of it to land and for the page to end up describing a property that does not exist.
+   */
+  const saveFields = useCallback(async (patch: Record<string, string | number | null>) => {
+    const res = await fetch('/api/admin/jobs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: jobId, ...patch }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
+    setJob((prev) => (prev ? { ...prev, ...(patch as Record<string, never>) } : prev));
+  }, [jobId]);
+
   const saveField = useCallback(async (field: string, value: string) => {
     // Coerce types the API expects.
     let payloadValue: string | number | boolean | null = value;
@@ -756,33 +775,21 @@ export default function JobDetailPage() {
                   </p>
                 </div>
 
-                {/* Property Details — click to edit */}
-                <div className="job-detail__section">
-                  <h3>Property Details</h3>
-                  {hasJobLocation(job) && (
-                    <a
-                      href={jobMapsUrl(job)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn tiny"
-                      title="Open this property in your navigation app"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, textDecoration: 'none' }}
-                    >
-                      🧭 Navigate to property
-                    </a>
-                  )}
-                  <div className="job-detail__props">
-                    <div className="job-detail__prop"><strong>Address:</strong> <InlineEditField value={job.address} ariaLabel="address" emptyLabel="Add address" onSave={(v) => saveField('address', v)} /></div>
-                    <div className="job-detail__prop"><strong>City:</strong> <InlineEditField value={job.city} ariaLabel="city" emptyLabel="Add city" onSave={(v) => saveField('city', v)} /></div>
-                    <div className="job-detail__prop"><strong>State:</strong> <InlineEditField value={job.state} ariaLabel="state" emptyLabel="Add state" onSave={(v) => saveField('state', v)} /></div>
-                    <div className="job-detail__prop"><strong>ZIP:</strong> <InlineEditField value={job.zip} ariaLabel="zip" emptyLabel="Add ZIP" onSave={(v) => saveField('zip', v)} /></div>
-                    <div className="job-detail__prop"><strong>County:</strong> <InlineEditField value={job.county} ariaLabel="county" emptyLabel="Add county" onSave={(v) => saveField('county', v)} /></div>
-                    <div className="job-detail__prop"><strong>Lot:</strong> <InlineEditField value={job.lot_number} ariaLabel="lot" emptyLabel="Add lot" onSave={(v) => saveField('lot_number', v)} /></div>
-                    <div className="job-detail__prop"><strong>Subdivision:</strong> <InlineEditField value={job.subdivision} ariaLabel="subdivision" emptyLabel="Add subdivision" onSave={(v) => saveField('subdivision', v)} /></div>
-                    <div className="job-detail__prop"><strong>Abstract:</strong> <InlineEditField value={job.abstract_number} ariaLabel="abstract" emptyLabel="Add abstract" onSave={(v) => saveField('abstract_number', v)} /></div>
-                    <div className="job-detail__prop"><strong>Acreage:</strong> <InlineEditField value={job.acreage} type="number" ariaLabel="acreage" emptyLabel="Add acreage" onSave={(v) => saveField('acreage', v)} /></div>
-                  </div>
-                </div>
+                {/* ── WHERE THE PROPERTY IS ────────────────────────────────────────────────
+                    Owner, 2026-09-19, with a screenshot: "please make this part of the page look
+                    better, and make it easier and more user friendly to edit things."
+
+                    Nine identical click-to-edit rows became one panel with one Edit. The address
+                    box is Google-backed, so picking a suggestion fills the city, state, ZIP, county
+                    AND the coordinates in a single save — and the coordinates are what the
+                    interactive map has been unable to open on, because nothing was ever writing
+                    them. Anything typed by hand is still kept exactly as typed. */}
+                <PropertyPanel
+                  jobId={jobId}
+                  job={job as unknown as PropertyFields}
+                  mapsUrl={hasJobLocation(job) ? jobMapsUrl(job) : null}
+                  onSave={saveFields}
+                />
 
                 {/* Client — click to edit */}
                 <div className="job-detail__section">
