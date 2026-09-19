@@ -300,6 +300,65 @@ export const PIN_TIP_PX = Math.round((PIN_SIZE_PX * Math.SQRT2) / 2 * 10) / 10;
 /** How tall the wrapper has to be so its bottom-centre IS the tip. */
 export const PIN_BOX_HEIGHT_PX = Math.round((PIN_SIZE_PX / 2 + PIN_TIP_PX) * 10) / 10;
 
+// ── WHAT A PIN LOOKS LIKE RIGHT NOW ─────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-19: "whenever I hover over one point, all of the points on that layer light up. I
+// just want the one point that I am hovering over to light up. If I hover over the layer in the
+// layer list, then all of the points and elements in that layer should light up."
+//
+// These were one piece of state, and that was the whole bug: a pin's mouseenter set the LAYER
+// hover, so pointing at one pin lit every pin on its sheet. They are two different questions and
+// they deserve two different answers:
+//
+//   hovering a LAYER ROW asks "what is on this sheet?"  → light all of it, and dim everything else
+//   hovering a PIN asks "what is this one?"             → light that pin, and leave the rest alone
+//
+// Only the layer hover dims. Dimming the whole map to point at one pin answers a question nobody
+// asked, and makes the pin being read the only thing that moved.
+//
+// This lives here rather than inline in the component because it is a RULE, and the bug it replaces
+// was a rule written in the wrong place — where nothing could check it.
+
+export interface HighlightState {
+  /** The layer whose row is under the cursor, or null. Set by the layers panel only. */
+  hoverLayer: string | null;
+  /** The pin under the cursor, or null. Set by the map only. */
+  hoverPoint: string | null;
+  /** The point whose panel is open. */
+  selectedId: string | null;
+}
+
+export interface Highlight {
+  /** Drawn brighter: this is what you are pointing at. */
+  lit: boolean;
+  /** Faded back: you are pointing at a different sheet. */
+  dim: boolean;
+  /** The open point, which stays marked whatever the cursor is doing. */
+  on: boolean;
+}
+
+export function pinHighlight(
+  point: { id: string; layerId: string | null },
+  state: HighlightState,
+): Highlight {
+  const onHoveredLayer = state.hoverLayer !== null && point.layerId === state.hoverLayer;
+  return {
+    lit: onHoveredLayer || point.id === state.hoverPoint,
+    dim: state.hoverLayer !== null && !onHoveredLayer,
+    on: point.id === state.selectedId,
+  };
+}
+
+/** Should a layer's ROW be highlighted? Its own hover, or a pin on it being hovered — the relation
+ *  reads from both ends, which is the half of this that was right all along. */
+export function layerRowLit(
+  layerId: string,
+  state: HighlightState,
+  layerOfHoveredPoint: string | null,
+): boolean {
+  return state.hoverLayer === layerId || layerOfHoveredPoint === layerId;
+}
+
 /** Should the map be asking the server for points at all? */
 export function shouldLoadPoints(zoom: number): boolean {
   return zoom >= MIN_POINT_ZOOM;

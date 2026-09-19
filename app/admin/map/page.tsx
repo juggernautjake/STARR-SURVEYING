@@ -50,6 +50,7 @@ import {
 } from '@/lib/jobs/property-map';
 import {
   clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng, parseLatLng,
+  pinHighlight, layerRowLit,
   DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM,
   type Bounds, type LatLng,
 } from '@/lib/jobs/map-world';
@@ -177,8 +178,22 @@ export default function GlobalPropertyMapPage() {
   const [confirmMedia, setConfirmMedia] = useState<string | null>(null);
   const [confirmPoint, setConfirmPoint] = useState<string | null>(null);
   const [confirmLayer, setConfirmLayer] = useState<string | null>(null);
-  /** The layer being pointed at, from either end: a row in the panel, or a pin on the map. */
+  // ── TWO HOVERS, NOT ONE ───────────────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-19: "whenever I hover over one point, all of the points on that layer light up.
+  // I just want the one point that I am hovering over to light up. If I hover over the layer in the
+  // layer list, then all of the points and elements in that layer should light up."
+  //
+  // These were one piece of state, and that was the bug: a pin's mouseenter set the LAYER hover, so
+  // pointing at one pin lit every pin on its sheet. They are two different questions —
+  //
+  //   hovering a LAYER ROW asks "what is on this sheet?"   → light all of it, dim the rest
+  //   hovering a PIN asks "what is this one?"              → light that pin, and nothing else
+  //
+  // The pin still lights its layer's ROW, because "which sheet is this on" is worth answering and
+  // costs nothing. What it must not do is act as though the row itself were hovered.
   const [hoverLayer, setHoverLayer] = useState<string | null>(null);
+  const [hoverPoint, setHoverPoint] = useState<string | null>(null);
   const [colourFor, setColourFor] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; notes: string } | null>(null);
   /** Which shape the next click starts, and the shape being drawn right now. */
@@ -615,6 +630,16 @@ export default function GlobalPropertyMapPage() {
 
   const clusters = useMemo(() => clusterPoints(drawable, zoom), [drawable, zoom]);
 
+  /** The sheet the pin under the cursor sits on, so its row lights without the sheet lighting. */
+  const hoveredPointLayer = useMemo(() => {
+    if (!hoverPoint) return null;
+    const p = points.find((x) => x.id === hoverPoint);
+    return p ? layerOf(p, layers)?.id ?? null : null;
+  }, [hoverPoint, points, layers]);
+
+  /** A drawable carries its layer already; a MapPoint has to be resolved through `layerOf`. */
+  const layerIdOf = useCallback((p: { layerId: string | null }) => layerOf(p, layers)?.id ?? null, [layers]);
+
   const legend = useMemo(() => {
     const present = new Set((workMode ? points : world).map((p) => p.pointType));
     return POINT_TYPES.filter((t) => present.has(t.id));
@@ -711,12 +736,11 @@ export default function GlobalPropertyMapPage() {
           if (fileId && workModeRef.current) void assignFileRef.current(p.id, fileId);
         });
 
-        // Hovering a pin lights its layer's row in the panel — the other half of the relation.
-        if (p.layerId) {
-          const layerId = p.layerId;
-          el.addEventListener('mouseenter', () => setHoverLayer(layerId));
-          el.addEventListener('mouseleave', () => setHoverLayer((cur) => (cur === layerId ? null : cur)));
-        }
+        // Hovering a pin lights THAT PIN, and the row of the layer it is on. It deliberately does
+        // not set `hoverLayer`: that is the layer panel's own state, and setting it from here is
+        // what used to light every pin on the sheet.
+        el.addEventListener('mouseenter', () => setHoverPoint(p.id));
+        el.addEventListener('mouseleave', () => setHoverPoint((cur) => (cur === p.id ? null : cur)));
       } else {
         el.className = 'gmap__marker gmap__marker--cluster';
         const dot = document.createElement('div');
@@ -756,16 +780,18 @@ export default function GlobalPropertyMapPage() {
     for (const entry of markersRef.current.values()) {
       const p = entry.cluster.items.length === 1 ? entry.cluster.items[0] : null;
       if (!p || !entry.pin) continue;
-      const related = hoverLayer !== null && p.layerId === hoverLayer;
-      entry.pin.classList.toggle('gmap__pin--on', p.id === selectedId);
+      // The rule itself lives in lib/jobs/map-world.ts, where a test can reach it — the bug this
+      // replaces was a rule written inline, where nothing could check it.
+      const h = pinHighlight({ id: p.id, layerId: layerIdOf(p) }, { hoverLayer, hoverPoint, selectedId });
+      entry.pin.classList.toggle('gmap__pin--on', h.on);
       entry.pin.classList.toggle('gmap__pin--has-files', p.mediaCount > 0);
-      entry.pin.classList.toggle('gmap__pin--lit', related);
-      entry.pin.classList.toggle('gmap__pin--dim', hoverLayer !== null && !related);
+      entry.pin.classList.toggle('gmap__pin--lit', h.lit);
+      entry.pin.classList.toggle('gmap__pin--dim', h.dim);
       // Renaming a point does not change its cluster's id, so the marker is never rebuilt and the
       // label would otherwise keep the old name until something else forced a rebuild.
       if (entry.label && entry.label.textContent !== p.title) entry.label.textContent = p.title;
     }
-  }, [selectedId, hoverLayer, clusters]);
+  }, [selectedId, hoverLayer, hoverPoint, clusters]);
 
   /** Every marker goes when the page does. */
   useEffect(() => {
@@ -836,12 +862,15 @@ export default function GlobalPropertyMapPage() {
         : undefined);
       if (path.length < 2) return;
 
-      const lit = hoverLayer === null || layerOf(p, layers)?.id === hoverLayer;
+      const lit = hoverLayer === null
+        ? true
+        : layerOf(p, layers)?.id === hoverLayer;
+      const mine = p.id === hoverPoint || p.id === selectedId;
       const common = {
         map,
         strokeColor: colour,
         strokeOpacity: lit ? 0.95 : 0.25,
-        strokeWeight: p.id === selectedId ? 4 : 2.5,
+        strokeWeight: mine ? 4 : 2.5,
         clickable: true,
       };
       const shape = p.geometry === 'path'
@@ -873,7 +902,7 @@ export default function GlobalPropertyMapPage() {
     }
 
     return () => { for (const s of drawn) s.setMap(null); };
-  }, [map, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, selectedId, draw]);
+  }, [map, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, hoverPoint, selectedId, draw]);
 
   const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
@@ -1244,7 +1273,7 @@ export default function GlobalPropertyMapPage() {
               return (
                 <li
                   key={l.id}
-                  className={`pmap__layer${l.isVisible ? '' : ' pmap__layer--off'}${hoverLayer === l.id ? ' pmap__layer--lit' : ''}`}
+                  className={`pmap__layer${l.isVisible ? '' : ' pmap__layer--off'}${layerRowLit(l.id, { hoverLayer, hoverPoint, selectedId }, hoveredPointLayer) ? ' pmap__layer--lit' : ''}`}
                   data-testid={`pmap-layer-${l.id}`}
                   onMouseEnter={() => setHoverLayer(l.id)}
                   onMouseLeave={() => setHoverLayer((cur) => (cur === l.id ? null : cur))}

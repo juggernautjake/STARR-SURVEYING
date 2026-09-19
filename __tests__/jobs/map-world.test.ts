@@ -8,7 +8,7 @@ import {
   isLatLng, roundLatLng, boundsContain, padBounds, boundsOf, padPoint, parseLatLng,
   PIN_SIZE_PX, PIN_TIP_PX, PIN_BOX_HEIGHT_PX,
   distanceFeet, pathLengthFeet, areaSquareFeet, acresFrom, bearingDeg, destination,
-  clusterPoints, shouldLoadPoints, zoomHint,
+  clusterPoints, shouldLoadPoints, zoomHint, pinHighlight, layerRowLit,
   MIN_POINT_ZOOM, CLUSTER_MAX_ZOOM, DEFAULT_CENTER,
 } from '@/lib/jobs/map-world';
 
@@ -280,5 +280,69 @@ describe('a pin points AT its coordinate', () => {
     const css = readFileSync('app/admin/map/PropertyMap.css', 'utf8');
     expect(css).toContain(`height: ${PIN_BOX_HEIGHT_PX}px`);
     expect(css, 'and the scale keeps the tip still').toContain('transform-origin: 0 100%');
+  });
+});
+
+describe('hovering: two questions, two answers', () => {
+  // Owner, 2026-09-19: "whenever I hover over one point, all of the points on that layer light up.
+  // I just want the one point that I am hovering over to light up. If I hover over the layer in the
+  // layer list, then all of the points and elements in that layer should light up."
+  //
+  // These were one piece of state, and that was the bug: a pin's mouseenter set the LAYER hover.
+  const A = { id: 'a', layerId: 'base' };
+  const B = { id: 'b', layerId: 'base' };
+  const C = { id: 'c', layerId: 'utils' };
+  const idle = { hoverLayer: null, hoverPoint: null, selectedId: null };
+
+  it('hovering ONE PIN lights that pin and nothing else', () => {
+    const s = { ...idle, hoverPoint: 'a' };
+    expect(pinHighlight(A, s).lit, 'the one being pointed at').toBe(true);
+    expect(pinHighlight(B, s).lit, 'its neighbour on the same sheet — the bug').toBe(false);
+    expect(pinHighlight(C, s).lit).toBe(false);
+  });
+
+  it('hovering one pin dims nothing — the rest of the map is not the question', () => {
+    const s = { ...idle, hoverPoint: 'a' };
+    expect(pinHighlight(A, s).dim).toBe(false);
+    expect(pinHighlight(B, s).dim).toBe(false);
+    expect(pinHighlight(C, s).dim).toBe(false);
+  });
+
+  it('hovering a LAYER ROW lights everything on it, and dims what is not', () => {
+    const s = { ...idle, hoverLayer: 'base' };
+    expect(pinHighlight(A, s).lit).toBe(true);
+    expect(pinHighlight(B, s).lit).toBe(true);
+    expect(pinHighlight(C, s).lit).toBe(false);
+    expect(pinHighlight(C, s).dim, 'the other sheet steps back').toBe(true);
+    expect(pinHighlight(A, s).dim).toBe(false);
+  });
+
+  it('a point on no sheet is treated as being on none of them', () => {
+    // `layerId` is resolved through layerOf before it gets here, so a null at this point means the
+    // caller could not place it — it must not accidentally match a hovered layer.
+    const orphan = { id: 'x', layerId: null };
+    expect(pinHighlight(orphan, { ...idle, hoverLayer: 'base' }).lit).toBe(false);
+    expect(pinHighlight(orphan, { ...idle, hoverLayer: 'base' }).dim).toBe(true);
+  });
+
+  it('the open point stays marked whatever the cursor is doing', () => {
+    expect(pinHighlight(A, { ...idle, selectedId: 'a' }).on).toBe(true);
+    expect(pinHighlight(A, { hoverLayer: 'utils', hoverPoint: 'c', selectedId: 'a' }).on).toBe(true);
+    expect(pinHighlight(B, { ...idle, selectedId: 'a' }).on).toBe(false);
+  });
+
+  it('nothing is lit or dimmed when the cursor is nowhere near', () => {
+    for (const p of [A, B, C]) {
+      expect(pinHighlight(p, idle)).toEqual({ lit: false, dim: false, on: false });
+    }
+  });
+
+  it('a layer row lights from EITHER end', () => {
+    // Its own hover...
+    expect(layerRowLit('base', { ...idle, hoverLayer: 'base' }, null)).toBe(true);
+    // ...or a pin on it being hovered, which is the half that was right all along.
+    expect(layerRowLit('base', { ...idle, hoverPoint: 'a' }, 'base')).toBe(true);
+    expect(layerRowLit('utils', { ...idle, hoverPoint: 'a' }, 'base')).toBe(false);
+    expect(layerRowLit('base', idle, null)).toBe(false);
   });
 });
