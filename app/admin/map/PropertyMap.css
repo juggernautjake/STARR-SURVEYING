@@ -3366,7 +3366,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 
 .gmap__label { font-size: 0.72rem; font-weight: 700; color: var(--theme-fg-secondary, #475569); }
-.gmap__textarea, .gmap__select {
+.gmap__input, .gmap__textarea, .gmap__select {
   width: 100%;
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--theme-border, #E2E8F0);
@@ -3375,6 +3375,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   font: inherit;
   font-size: 0.82rem;
   color: var(--theme-fg-primary, #0F172A);
+}
+/* The name box is the first thing in the form and reads like the heading it changes, so the
+ * connection between the two is visible rather than something you have to try. */
+.gmap__input { font-weight: 600; }
+.gmap__input:focus, .gmap__textarea:focus, .gmap__select:focus {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
 }
 .gmap__fields { display: flex; flex-direction: column; gap: 0.2rem; }
 .gmap__panel-acts { display: flex; gap: 0.35rem; flex-wrap: wrap; }
@@ -3400,13 +3407,39 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 /* A pin being aimed at, and the one that is open. Both need to read at a glance against satellite
  * imagery, which is busy and dark — hence a white ring rather than a colour change. */
 .gmap__pin--on { box-shadow: 0 0 0 3px var(--theme-accent, #1D3095), 0 2px 6px rgb(0 0 0 / 45%); }
-/* Scaled about the TIP, not the centre: growing a pin about its middle walks the tip off the
- * coordinate for as long as the drag lasts. */
-.gmap__pin--over {
-  transform: rotate(-45deg) scale(1.25);
-  transform-origin: 0 100%;
-  box-shadow: 0 0 0 4px #FFF, 0 2px 8px rgb(0 0 0 / 50%);
+/* ── DRAGGING A FILE ONTO A PIN (owner, 2026-09-19) ────────────────────────────────────────────
+ * "the point gets bigger and kind of moves to the left, making it hard accurately place the
+ * file/photo/video in it."
+ *
+ * Self-inflicted, on 2026-09-19. The highlight used to be `transform: rotate(-45deg) scale(1.25)`
+ * with `transform-origin: 0 100%`, put there to keep the tip still while the pin grew. But a
+ * transform-origin applies to the WHOLE transform, rotation included — so the pin stopped rotating
+ * about its centre and started rotating about its bottom-left corner, which swings it left and
+ * down. It grew AND moved, which is the opposite of what the origin was for.
+ *
+ * The wrapper is the right thing to scale: its bottom-centre is already the tip (see
+ * .gmap__marker), so scaling it from `50% 100%` grows the pin about the exact point it marks, and
+ * the pin's own rotation is left entirely alone. */
+.gmap__marker--over {
+  transform: scale(1.3);
+  transform-origin: 50% 100%;
+  z-index: 3;
 }
+.gmap__marker--over .gmap__pin {
+  box-shadow: 0 0 0 4px #FFF, 0 3px 10px rgb(0 0 0 / 55%);
+}
+
+/* ── AND IT HAS TO BE EASY TO HIT ──────────────────────────────────────────────────────────────
+ * A pin is 26px across. Dropping a photograph onto a 26px target while the map is also willing to
+ * accept the drop is a game, not a tool. While a file is in flight every marker grows an invisible
+ * catch area — nothing moves, nothing is drawn, the target is just three times the size. */
+.gmap__canvas--dragging .gmap__marker::before {
+  content: '';
+  position: absolute;
+  inset: -16px -16px -10px;
+  border-radius: 50%;
+}
+
 .gmap__canvas--assigning .gmap__pin { cursor: copy; }
 
 /* ── LAYER COLOURS AND THE HOVER RELATION (owner, 2026-09-19) ─────────────────────────────────
@@ -3556,3 +3589,48 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   font-variant-numeric: tabular-nums;
 }
 .gmap__where-go:hover { text-decoration: underline; }
+
+/* ── NAMES ON THE MAP (owner, 2026-09-19) ─────────────────────────────────────────────────────
+ * "we need a clear way to show the point names on the map as well."
+ *
+ * Satellite imagery is the hardest possible background for text: dark, busy, and a different
+ * colour every few feet. White with a dark halo is the only thing that reads over all of it — the
+ * halo is four offset shadows rather than -webkit-text-stroke, which thins the glyphs at this size.
+ *
+ * Positioned beside the pin rather than under it: under it, every label in a row of points along a
+ * fence line lands on the next pin down.
+ *
+ * `pointer-events: none` throughout. A label is for reading, and a wide piece of text over a map is
+ * a wide piece of map you can no longer click or drop onto. */
+.gmap__pin-label {
+  position: absolute;
+  left: calc(100% + 4px);
+  bottom: 2px;
+  display: none;
+  max-width: 13rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 35%);
+  color: #FFF;
+  font: 600 0.7rem/1.25 system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 90%),
+    1px 0 2px rgb(0 0 0 / 90%),
+    -1px 0 2px rgb(0 0 0 / 90%),
+    0 -1px 2px rgb(0 0 0 / 90%);
+  pointer-events: none;
+}
+
+.gmap__canvas--labels .gmap__pin-label { display: block; }
+
+/* The open point says so louder than the rest. */
+.gmap__marker--over .gmap__pin-label,
+.gmap__pin--on ~ .gmap__pin-label {
+  background: var(--theme-accent, #1D3095);
+}
+
+/* Dimming a layer takes its labels with it, or the names stay loud over pins that have gone quiet. */
+.gmap__pin--dim ~ .gmap__pin-label { opacity: 0.28; }

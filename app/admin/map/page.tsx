@@ -35,7 +35,7 @@ import { useSearchParams } from 'next/navigation';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
   ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
-  Plus, Search, Target, Trash2, X, ZoomIn,
+  Plus, Search, Tag, Target, Trash2, X, ZoomIn,
 } from 'lucide-react';
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
@@ -107,6 +107,8 @@ interface MarkerEntry {
   el: HTMLDivElement;
   /** The pin inside the wrapper — null for a cluster, which has no per-point appearance. */
   pin: HTMLDivElement | null;
+  /** The name shown beside the pin. Null for a cluster, which has several. */
+  label: HTMLSpanElement | null;
   /** Reassigned in place on every reconcile, so the click handler always reads the current one. */
   cluster: { id: string; lat: number; lng: number; items: DrawablePoint[] };
 }
@@ -166,6 +168,8 @@ export default function GlobalPropertyMapPage() {
   const [editing, setEditing] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [armedFileId, setArmedFileId] = useState<string | null>(null);
+  /** The file currently being dragged, so the pins can widen their targets for it. */
+  const [draggingFileId, setDraggingFileId] = useState<string | null>(null);
   const [confirmUnassign, setConfirmUnassign] = useState<string | null>(null);
   const [confirmMedia, setConfirmMedia] = useState<string | null>(null);
   const [confirmPoint, setConfirmPoint] = useState<string | null>(null);
@@ -191,6 +195,8 @@ export default function GlobalPropertyMapPage() {
   const [kindFilter, setKindFilter] = useState<MediaKind | 'all'>('all');
   const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [hiddenTypes, setHiddenTypes] = useState<PointTypeId[]>([]);
+  /** Names beside the pins. On by default — a numbered dot is not a label. */
+  const [showLabels, setShowLabels] = useState(true);
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
 
   const jobPickRef = useRef<HTMLDivElement | null>(null);
@@ -604,6 +610,7 @@ export default function GlobalPropertyMapPage() {
       // See PIN_BOX_HEIGHT_PX in lib/jobs/map-world.ts for the arithmetic.
       const el = document.createElement('div');
       let pin: HTMLDivElement | null = null;
+      let label: HTMLSpanElement | null = null;
 
       if (c.items.length === 1) {
         const p = c.items[0];
@@ -616,21 +623,34 @@ export default function GlobalPropertyMapPage() {
         num.textContent = String(p.ordinal);
         pin.appendChild(num);
         el.appendChild(pin);
+
+        // ── THE NAME, ON THE MAP ────────────────────────────────────────────────────────────────
+        // Owner, 2026-09-19: "we need a clear way to show the point names on the map as well."
+        //
+        // Rendered always and hidden with CSS rather than added and removed, so the toggle costs a
+        // class on one ancestor instead of rebuilding six hundred markers. `pointer-events: none`
+        // because a label is for reading: a wide piece of text over a map is a wide piece of map
+        // you can no longer click.
+        label = document.createElement('span');
+        label.className = 'gmap__pin-label';
+        label.textContent = p.title;
+        el.appendChild(label);
+
         el.title = p.ordinal + '. ' + p.title + (p.jobNumber ? ' \u00b7 ' + p.jobNumber : '');
 
         // A marker is a DOM node, which is what lets a file be dropped straight onto a pin — the
         // same HTML5 drag the panel already uses, with a real element as the target.
-        const inner = pin;
         el.addEventListener('dragover', (e) => {
           if (!workModeRef.current) return;
           e.preventDefault();
-          inner.classList.add('gmap__pin--over');
+          if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'copy';
+          el.classList.add('gmap__marker--over');
         });
-        el.addEventListener('dragleave', () => inner.classList.remove('gmap__pin--over'));
+        el.addEventListener('dragleave', () => el.classList.remove('gmap__marker--over'));
         el.addEventListener('drop', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          inner.classList.remove('gmap__pin--over');
+          el.classList.remove('gmap__marker--over');
           const fileId = (e as DragEvent).dataTransfer?.getData(FILE_DRAG_TYPE);
           if (fileId && workModeRef.current) void assignFileRef.current(p.id, fileId);
         });
@@ -654,7 +674,7 @@ export default function GlobalPropertyMapPage() {
         map, position: { lat: c.lat, lng: c.lng }, content: el,
       });
 
-      const entry: MarkerEntry = { marker, el, pin, cluster: c };
+      const entry: MarkerEntry = { marker, el, pin, label, cluster: c };
       marker.addListener('gmp-click', () => {
         const cur = entry.cluster;
         if (cur.items.length > 1) {
@@ -685,6 +705,9 @@ export default function GlobalPropertyMapPage() {
       entry.pin.classList.toggle('gmap__pin--has-files', p.mediaCount > 0);
       entry.pin.classList.toggle('gmap__pin--lit', related);
       entry.pin.classList.toggle('gmap__pin--dim', hoverLayer !== null && !related);
+      // Renaming a point does not change its cluster's id, so the marker is never rebuilt and the
+      // label would otherwise keep the old name until something else forced a rebuild.
+      if (entry.label && entry.label.textContent !== p.title) entry.label.textContent = p.title;
     }
   }, [selectedId, hoverLayer, clusters]);
 
@@ -1124,6 +1147,17 @@ export default function GlobalPropertyMapPage() {
           </>
         )}
 
+        <button
+          className={`gmap__btn${showLabels ? ' gmap__btn--on' : ''}`}
+          type="button"
+          aria-pressed={showLabels}
+          title="Show each point's name beside its pin"
+          data-testid="gmap-labels"
+          onClick={() => setShowLabels((c) => !c)}
+        >
+          <Tag size={13} aria-hidden /> Names
+        </button>
+
         {(loading || busy) && <Loader2 className="gmap__spin" size={15} aria-label="Working" />}
       </div>
 
@@ -1251,17 +1285,18 @@ export default function GlobalPropertyMapPage() {
                   file={f}
                   editing={editing}
                   armed={armedFileId === f.id}
-                  dragging={false}
                   placing={false}
                   flashing={false}
                   confirming={confirmUnassign === f.id}
                   onArm={() => setArmedFileId((cur) => (cur === f.id ? null : f.id))}
+                  dragging={draggingFileId === f.id}
                   onDragStart={(e) => {
                     if (!editing) { e.preventDefault(); return; }
                     e.dataTransfer.setData(FILE_DRAG_TYPE, f.id);
                     e.dataTransfer.effectAllowed = 'copy';
+                    setDraggingFileId(f.id);
                   }}
-                  onDragEnd={() => {}}
+                  onDragEnd={() => setDraggingFileId(null)}
                   onOpen={() => { if (f.url) setViewerOn({ source: 'library', fileId: f.id }); }}
                   onShowPoint={() => {
                     const first = [...f.assignedTo].sort((a, b) => a.ordinal - b.ordinal)[0];
@@ -1279,7 +1314,7 @@ export default function GlobalPropertyMapPage() {
         )}
 
         {/* ── the map ────────────────────────────────────────────────────────────────────────── */}
-        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}`}>
+        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}`}>
           <LoadScript googleMapsApiKey={apiKey} libraries={LIBRARIES} loadingElement={<div className="gmap__loading">Loading the map…</div>}>
             <GoogleMap
               mapContainerStyle={CONTAINER}
@@ -1344,7 +1379,7 @@ export default function GlobalPropertyMapPage() {
                 <InlineRename
                   name={selected.title}
                   onRename={async (next) => { const r = await patchPoint(selected.id, { title: next }, 'Point renamed.'); if (!r) throw new Error('rename failed'); }}
-                  canRename={editing}
+                  canRename
                   preserveExtension={false}
                   className="pmap__titlerow"
                   inputClassName="pmap__detail-rename"
@@ -1358,8 +1393,40 @@ export default function GlobalPropertyMapPage() {
               <button className="gmap__icon-btn" type="button" aria-label="Close point details" data-testid="gmap-point-close" onClick={() => setSelectedId(null)}><X size={16} aria-hidden /></button>
             </div>
 
-            {editing && (
+            {/* ── THE PANEL IS WHERE A POINT IS EDITED, FULL STOP ────────────────────────────
+                Owner, 2026-09-19: "If I click on a point and the info panel for that point opens,
+                then it should allow me to change the name."
+
+                This form used to be behind Edit map, which meant clicking a pin showed you its name
+                and refused to let you change it — and nothing on screen explained why. "Edit map"
+                now means what it says: adding, drawing and deleting things ON the map. What a point
+                is CALLED is a property of the point, and the panel you opened is where it lives. */}
+            {(
               <>
+                {/* ── RENAMING A POINT, PLAINLY ────────────────────────────────────────────────
+                    Owner, 2026-09-19: "I need a clear and straight forward way to rename points."
+                    There was a rename — a pencil beside the heading, revealed on hover — and a
+                    control you have to discover by moving the mouse over the right six pixels is
+                    not a way to do anything. The pencil stays, because renaming from the heading is
+                    quick once you know it is there; this is the box you find without being told.
+                    Both write the same draft and are saved by the same button. */}
+                <label className="gmap__label" htmlFor="gmap-name">Name</label>
+                <input
+                  id="gmap-name"
+                  className="gmap__input"
+                  type="text"
+                  value={draft?.title ?? ''}
+                  maxLength={160}
+                  placeholder="What is this point?"
+                  data-testid="gmap-name"
+                  onChange={(e) => setDraft((d) => ({ title: e.target.value, notes: d?.notes ?? '' }))}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    if (draft?.title.trim()) void patchPoint(selected.id, { title: draft.title, notes: draft.notes }, 'Point saved.');
+                  }}
+                />
+
                 <label className="gmap__label" htmlFor="gmap-notes">Notes</label>
                 <textarea id="gmap-notes" className="gmap__textarea" rows={3} value={draft?.notes ?? ''} data-testid="gmap-notes" onChange={(e) => setDraft((d) => ({ title: d?.title ?? selected.title, notes: e.target.value }))} />
 
@@ -1382,7 +1449,7 @@ export default function GlobalPropertyMapPage() {
 
                 <div className="gmap__panel-acts">
                   <button className="gmap__btn gmap__btn--primary" type="button" disabled={!draft?.title.trim()} data-testid="gmap-save" onClick={() => void patchPoint(selected.id, { title: draft?.title, notes: draft?.notes }, 'Point saved.')}>Save</button>
-                  {confirmPoint === selected.id ? (
+                  {!editing ? null : confirmPoint === selected.id ? (
                     <>
                       <button className="gmap__btn gmap__btn--danger" type="button" data-testid="gmap-delete-yes" onClick={() => void deletePoint(selected.id)}>Really delete</button>
                       <button className="gmap__btn" type="button" onClick={() => setConfirmPoint(null)}>Keep</button>
@@ -1393,8 +1460,6 @@ export default function GlobalPropertyMapPage() {
                 </div>
               </>
             )}
-
-            {!editing && selected.notes && <p className="gmap__notes">{selected.notes}</p>}
 
             <p className="gmap__where">
               <button
