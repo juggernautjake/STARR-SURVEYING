@@ -32,6 +32,9 @@ export default function NewJobPage() {
     state: 'TX',
     zip: '',
     county: '',
+    /** Filled from the address picker, so the property map knows where to fly. Null until then. */
+    latitude: null as number | null,
+    longitude: null as number | null,
     acreage: '',
     lot_number: '',
     subdivision: '',
@@ -154,7 +157,10 @@ export default function NewJobPage() {
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  function handleAddressSelect(details: { address: string; city: string; county: string; state: string; zip: string }) {
+  function handleAddressSelect(details: {
+    address: string; city: string; county: string; state: string; zip: string;
+    latitude: number | null; longitude: number | null;
+  }) {
     setForm(prev => ({
       ...prev,
       address: details.address || prev.address,
@@ -162,6 +168,11 @@ export default function NewJobPage() {
       county: details.county || prev.county,
       state: details.state || prev.state,
       zip: details.zip || prev.zip,
+      // Where the property actually is. Google hands this over in the same lookup that fills the
+      // county; it used to be dropped on the floor, which is why `jobs.latitude` has been empty
+      // since the column was added. The map cannot fly anywhere without it.
+      latitude: details.latitude ?? prev.latitude,
+      longitude: details.longitude ?? prev.longitude,
     }));
   }
 

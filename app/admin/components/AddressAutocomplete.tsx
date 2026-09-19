@@ -31,6 +31,19 @@ interface AddressDetails {
   county: string;
   state: string;
   zip: string;
+  /**
+   * Where the place actually is.
+   *
+   * Google returns this in the same lookup that fills the county — it was being fetched and thrown
+   * away, and every job since has had empty `latitude`/`longitude` columns as a result. Keeping it
+   * costs nothing: no extra request, no extra billing, just one more field asked for.
+   *
+   * Null when Google gave no geometry, which is rare but does happen for a rural route with no
+   * rooftop match. The caller must treat it as "unknown", never as 0,0 — the Gulf of Guinea is a
+   * long way from Bell County.
+   */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface AddressAutocompleteProps {
@@ -244,11 +257,17 @@ export default function AddressAutocomplete({
       placesService.current.getDetails(
         {
           placeId: suggestion.placeId,
-          fields: ['address_components', 'formatted_address'],
+          // `geometry` rides along with the components — one lookup, not two.
+          fields: ['address_components', 'formatted_address', 'geometry.location'],
         },
         (place, status) => {
           if (classifyPlacesStatus(status).kind === 'ok' && place?.address_components) {
-            const details = parseAddressComponents(place.address_components);
+            const at = place.geometry?.location;
+            const details = {
+              ...parseAddressComponents(place.address_components),
+              latitude: at ? at.lat() : null,
+              longitude: at ? at.lng() : null,
+            };
             onSelect(details);
             return;
           }
@@ -326,8 +345,13 @@ export default function AddressAutocomplete({
   );
 }
 
-/** Parse Google Place address_components into our structured format */
-function parseAddressComponents(components: google.maps.GeocoderAddressComponent[]): AddressDetails {
+/** Parse Google Place address_components into our structured format.
+ *
+ *  Coordinates are added by the caller, which has the geometry — this stays a pure function of the
+ *  components so it remains testable without a Google object. */
+function parseAddressComponents(
+  components: google.maps.GeocoderAddressComponent[],
+): Omit<AddressDetails, 'latitude' | 'longitude'> {
   let streetNumber = '';
   let route = '';
   let city = '';
