@@ -18,7 +18,7 @@
 //
 // Pure. Tested in __tests__/jobs/map-shapes-world.test.ts.
 import {
-  destination, distanceFeet, pathLengthFeet, areaSquareFeet, acresFrom, bearingDeg,
+  destination, distanceFeet, pathLengthFeet, areaSquareFeet, acresFrom, bearingDeg, roundLatLng,
   type LatLng,
 } from './map-world';
 import type { GeometryId } from './property-map-shapes';
@@ -139,6 +139,25 @@ export function compass(deg: number): string {
 /** Aiming a cone by dragging: where the drag ended becomes the direction and the reach. */
 export function aimFrom(at: LatLng, to: LatLng): { bearing: number; feet: number } {
   return { bearing: bearingDeg(at, to), feet: clampFovFeet(distanceFeet(at, to)) };
+}
+
+/**
+ * Move a whole shape by moving its anchor.
+ *
+ * Owner, 2026-09-19: "I need to be able to grab existing points and move them around."
+ *
+ * A point's vertices are absolute positions, not offsets from the anchor, so dragging the pin of a
+ * walked path would otherwise leave the path exactly where it was with its first corner torn off
+ * and dropped somewhere else. Grabbing a thing and moving it means the thing moves — every vertex
+ * shifts by the same delta the anchor did, and the shape arrives intact.
+ *
+ * A cone needs nothing here: its bearing and reach are relative to the anchor already, so it simply
+ * points the same way from the new place.
+ */
+export function translateShape(from: LatLng, to: LatLng, vertices: LatLng[]): LatLng[] {
+  const dLat = to.lat - from.lat;
+  const dLng = to.lng - from.lng;
+  return vertices.map((v) => roundLatLng({ lat: v.lat + dLat, lng: v.lng + dLng }));
 }
 
 /** The line or ring a shape draws, anchor included, ready to hand to Google. */

@@ -50,13 +50,13 @@ import {
 } from '@/lib/jobs/property-map';
 import {
   clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng, parseLatLng,
-  pinHighlight, layerRowLit,
+  pinHighlight, layerRowLit, roundLatLng,
   DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM,
   type Bounds, type LatLng,
 } from '@/lib/jobs/map-world';
 import { POINT_GEOMETRIES, type GeometryId } from '@/lib/jobs/property-map-shapes';
 import {
-  shapePath, isDrawable, needsMore, measureShape, aimFrom, compass, FOV_DEFAULT_FEET,
+  shapePath, isDrawable, needsMore, measureShape, aimFrom, compass, translateShape, FOV_DEFAULT_FEET,
 } from '@/lib/jobs/map-shapes-world';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import type { LibraryFile } from '@/lib/jobs/property-map-server';
@@ -234,6 +234,8 @@ export default function GlobalPropertyMapPage() {
   /** The job already loaded, so arriving does not fetch it once per render. */
   const loadedJobRef = useRef<string | null>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
+  /** The current points, for handlers attached once and never rebuilt. */
+  const pointsRef = useRef<MapPoint[]>([]);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const placingRef = useRef(false);
   const armedRef = useRef<string | null>(null);
@@ -472,6 +474,43 @@ export default function GlobalPropertyMapPage() {
     }
   }, [job, layers, ensureMap, mutate, addToast]);
 
+  /**
+   * Put a point somewhere else.
+   *
+   * Owner, 2026-09-19: "I need to be able to grab existing points and move them around."
+   *
+   * The whole shape goes with it. A path's or an area's vertices are absolute positions, not
+   * offsets, so moving only the anchor would leave the path where it was with its first corner torn
+   * off — grabbing a thing and moving it has to move the thing. A cone needs nothing extra: its
+   * bearing and reach are relative to the anchor already.
+   *
+   * Google has already drawn the marker in its new place by the time `dragend` fires, so there is
+   * nothing to paint optimistically. What matters is the other direction: if the save fails the pin
+   * is sitting somewhere the database has never heard of, so the map is reloaded to put it back.
+   */
+  const movePoint = useCallback(async (pointId: string, to: LatLng) => {
+    if (!job || !mapId) return;
+    const point = pointsRef.current.find((p) => p.id === pointId);
+    if (!point) return;
+
+    const from = { lat: point.lat as number, lng: point.lng as number };
+    const at = roundLatLng(to);
+    const body: Record<string, unknown> = { map_id: mapId, point_id: pointId, lat: at.lat, lng: at.lng };
+    if (point.vertices.length && isLatLng(from)) {
+      body.vertices = translateShape(from, at, point.vertices);
+    }
+
+    const res = await mutate('move the point', `/api/admin/jobs/${job.jobId}/property-map/points`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res) {
+      // The pin is where the hand left it and the database disagrees. Re-reading is the only honest
+      // way to put it back where it actually is.
+      addToast('That point could not be moved — putting it back.', 'error');
+      void loadJobMap(job.jobId);
+    }
+  }, [job, mapId, mutate, addToast, loadJobMap]);
+
   const assignFile = useCallback(async (pointId: string, fileId: string) => {
     if (!job) return;
     setArmedFileId(null);
@@ -665,6 +704,8 @@ export default function GlobalPropertyMapPage() {
       }));
   }, [workMode, points, world, hiddenTypes, hiddenLayers, layers, job]);
 
+  useEffect(() => { pointsRef.current = points; }, [points]);
+
   const clusters = useMemo(() => clusterPoints(drawable, zoom), [drawable, zoom]);
 
   /** The sheet the pin under the cursor sits on, so its row lights without the sheet lighting. */
@@ -704,9 +745,13 @@ export default function GlobalPropertyMapPage() {
   const workModeRef = useRef(workMode);
   const assignFileRef = useRef(assignFile);
   const worldRef = useRef(world);
+  const movePointRef = useRef(movePoint);
+  const editingRef = useRef(editing);
   useEffect(() => { workModeRef.current = workMode; }, [workMode]);
   useEffect(() => { assignFileRef.current = assignFile; }, [assignFile]);
   useEffect(() => { worldRef.current = world; }, [world]);
+  useEffect(() => { movePointRef.current = movePoint; }, [movePoint]);
+  useEffect(() => { editingRef.current = editing; }, [editing]);
 
   useEffect(() => {
     if (!map || mapDead || typeof google === 'undefined' || !google.maps?.marker) return;
@@ -808,7 +853,22 @@ export default function GlobalPropertyMapPage() {
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
         map: gmap, position: { lat: c.lat, lng: c.lng }, content: el,
+        // Only a single point can be dragged: a cluster is several points in one marker, and
+        // dragging it would have to mean moving all of them to the same spot.
+        gmpDraggable: c.items.length === 1 && editingRef.current,
       });
+
+      const entryPointId = c.items.length === 1 ? c.items[0].id : '';
+      if (c.items.length === 1) {
+        marker.addListener('dragend', (e: { latLng?: google.maps.LatLng | null }) => {
+          const to = e?.latLng ?? (marker.position as google.maps.LatLng | null);
+          if (!to) return;
+          const lat = typeof to.lat === 'function' ? to.lat() : Number((to as unknown as { lat: number }).lat);
+          const lng = typeof to.lng === 'function' ? to.lng() : Number((to as unknown as { lng: number }).lng);
+          if (!isLatLng({ lat, lng })) return;
+          void movePointRef.current(entryPointId, { lat, lng });
+        });
+      }
 
       const entry: MarkerEntry = { marker, el, pin, label, cluster: c };
       marker.addListener('gmp-click', () => {
@@ -830,6 +890,14 @@ export default function GlobalPropertyMapPage() {
     }
     }
   }, [map, mapDead, clusters]);
+
+  /** Draggability follows Edit map. The markers are reconciled rather than rebuilt, so leaving edit
+   *  mode would otherwise leave every pin still draggable until something else changed. */
+  useEffect(() => {
+    for (const entry of markersRef.current.values()) {
+      entry.marker.gmpDraggable = entry.cluster.items.length === 1 && editing;
+    }
+  }, [editing, clusters]);
 
   /** Appearance only — written onto the elements that already exist, so hovering a layer row does
    *  not rebuild six hundred markers while the tiles are trying to paint. */
@@ -1611,7 +1679,7 @@ export default function GlobalPropertyMapPage() {
         )}
 
         {/* ── the map ────────────────────────────────────────────────────────────────────────── */}
-        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}${showNumbers ? ' gmap__canvas--numbers' : ''}`}>
+        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}${showNumbers ? ' gmap__canvas--numbers' : ''}${editing ? ' gmap__canvas--editing' : ''}`}>
           {/* The map, and only the map, lives inside this boundary. Google throws from inside its
               own constructor when it refuses a key, and without this that exception unmounted the
               entire page — files, layers, point panel and all. See MapFrame. */}

@@ -3770,3 +3770,17 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+
+/* ── A POINT YOU CAN PICK UP (owner, 2026-09-19) ──────────────────────────────────────────────
+ * "I need to be able to grab existing points and move them around."
+ *
+ * The grab cursor only appears in Edit map, because that is the only time the pin will actually
+ * move — a cursor that promises a drag on a read-only map is a cursor that lies. Google sets
+ * `gmpDraggable` on the marker rather than on our element, so the class comes from the canvas. */
+.gmap__canvas--editing .gmap__pin { cursor: grab; }
+.gmap__canvas--editing .gmap__pin:active { cursor: grabbing; }
+
+/* Placing, drawing and assigning each own the cursor while they are on, and they outrank the grab:
+ * mid-placement every click belongs to the new point, not to moving an old one. */
+.gmap__canvas--placing .gmap__pin,
+.gmap__canvas--drawing .gmap__pin { cursor: inherit; }

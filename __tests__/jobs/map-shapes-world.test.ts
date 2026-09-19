@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  fovRing, isDrawable, needsMore, measureShape, compass, aimFrom, shapePath,
+  fovRing, isDrawable, needsMore, measureShape, compass, aimFrom, shapePath, translateShape,
   clampFovFeet, FOV_DEFAULT_FEET, FOV_MIN_FEET, FOV_MAX_FEET,
 } from '@/lib/jobs/map-shapes-world';
 import { distanceFeet, bearingDeg } from '@/lib/jobs/map-world';
@@ -211,5 +211,58 @@ describe('the wiring', () => {
     const legacy = read('app/admin/jobs/[id]/map/page.tsx');
     expect(legacy).toContain('redirect(`/admin/map?job=');
     expect(legacy.length, 'it is a redirect, not the old 5,000-line page').toBeLessThan(2000);
+  });
+});
+
+describe('moving a point moves what is attached to it', () => {
+  // Owner, 2026-09-19: "I need to be able to grab existing points and move them around."
+  //
+  // Vertices are absolute positions, not offsets from the anchor. Move only the anchor and a walked
+  // path stays exactly where it was with its first corner torn off and dropped somewhere else.
+  const from = { lat: 30.9, lng: -97.4 };
+  const to = { lat: 30.91, lng: -97.39 };
+
+  it('shifts every vertex by the same delta the anchor moved', () => {
+    const moved = translateShape(from, to, [
+      { lat: 30.901, lng: -97.4 },
+      { lat: 30.902, lng: -97.399 },
+    ]);
+    expect(moved[0].lat).toBeCloseTo(30.911, 6);
+    expect(moved[0].lng).toBeCloseTo(-97.39, 6);
+    expect(moved[1].lat).toBeCloseTo(30.912, 6);
+    expect(moved[1].lng).toBeCloseTo(-97.389, 6);
+  });
+
+  it('keeps the shape the same shape', () => {
+    const shape = [{ lat: 30.901, lng: -97.4 }, { lat: 30.902, lng: -97.399 }];
+    const before = measureShape('path', from, shape)!;
+    const after = measureShape('path', to, translateShape(from, to, shape))!;
+    // A path that changes length when you slide it across the map is not the same path.
+    expect(after.feet).toBe(before.feet);
+  });
+
+  it('keeps an area the same size', () => {
+    const ring = [
+      { lat: 30.901, lng: -97.4 },
+      { lat: 30.901, lng: -97.399 },
+      { lat: 30.9, lng: -97.399 },
+    ];
+    const before = measureShape('area', from, ring)!;
+    const after = measureShape('area', to, translateShape(from, to, ring))!;
+    // Not exactly equal: a degree of longitude is shorter further north, so a hundredth of a degree
+    // of latitude genuinely changes the ground area a little. It must not change MUCH.
+    expect(after.squareFeet! / before.squareFeet!).toBeGreaterThan(0.999);
+    expect(after.squareFeet! / before.squareFeet!).toBeLessThan(1.001);
+  });
+
+  it('has nothing to do for a plain point or a cone', () => {
+    // A cone's bearing and reach are relative to the anchor already, so it simply points the same
+    // way from the new place.
+    expect(translateShape(from, to, [])).toEqual([]);
+  });
+
+  it('a move to where it already is changes nothing', () => {
+    const shape = [{ lat: 30.901, lng: -97.4 }];
+    expect(translateShape(from, from, shape)).toEqual(shape);
   });
 });
