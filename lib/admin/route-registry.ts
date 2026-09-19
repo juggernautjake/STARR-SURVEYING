@@ -186,7 +186,23 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // portal rather than disappearing into a company one.
   //
   // C10's rule checked: /admin/assignments has no child — the directory held one file.
-  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book', 'todo', 'tasks', 'my jobs', 'assigned', 'mine', 'assignments', 'to do', 'roster', 'team', 'field team', 'who is working', 'on the clock'] },
+  //
+  // ── RENAMED 2026-09-19: THE CHORE IS IN THE NAME NOW ──────────────────────────────────────
+  //
+  // Owner: "we need a clear way to review employee hour submissions, but I am not seeing a clear
+  // link in any of the navbar menus or anything."
+  //
+  // Everything he was looking for already existed and was already registered — the approval queue
+  // is this portal's `approvals` tab, and an approver already LANDS on it (see `defaultTab` in
+  // app/admin/hours/page.tsx). What was missing was the word. "Hours & Time" in the personal
+  // workspace reads as "my timesheet", so the one person whose job is approving everybody else's
+  // hours had no reason to think the crew's submissions were behind it.
+  //
+  // Renamed rather than moved, and rather than given a second row. Moving it to `office` would
+  // file a field crew member's own timesheet under company administration; a second row is what
+  // C13a below removed, and the registry's own rule is that two rows for one href is how a menu
+  // comes to show the same destination twice under different names.
+  { href: '/admin/hours', label: 'Hours & Approvals', workspace: 'hub', iconName: 'Clock', description: 'Review and approve the crew’s submitted hours — and your own timesheet, time off and who is available.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book', 'todo', 'tasks', 'my jobs', 'assigned', 'mine', 'assignments', 'to do', 'roster', 'team', 'field team', 'who is working', 'on the clock'] },
   // ── C13a: A NAV LINK TO A REDIRECT ─────────────────────────────────────────────────────────
   //
   // `/admin/schedule/page.tsx` is fifteen lines that `redirect('/admin/calendar')`. It had a rail
@@ -454,6 +470,16 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // the marketing portal's header).
   { href: '/admin/employees',   label: 'Employees',    workspace: 'office', section: 'People', iconName: 'UsersRound',      description: 'Employee records. Absorbed into People; the row remains so /admin/employees/[email] keeps its bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/leads',       label: 'Leads',        workspace: 'work',   iconName: 'Inbox',                              description: 'Lead records. Absorbed into Growth; the row remains so /admin/leads/[id] keeps its bundle gate.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['contacts', 'prospects'] },
+  // ── /admin/map, registered 2026-09-19 ──────────────────────────────────────────────────────
+  //
+  // Built on 2026-09-18 and never added here, which is why the orphan audit has been failing on
+  // exactly one route ever since. It is a real destination, not a redirect: with no `?job=` it
+  // browses every placed point the firm has, and the job map (`/admin/jobs/[id]/map`) now forwards
+  // into it.
+  //
+  // `work`, beside Field Data and Jobs, because that is what it is for — where the crew went and
+  // what they photographed. Its own gate matches Field Data's: the same records, drawn.
+  { href: '/admin/map',         label: 'Property Map',  workspace: 'work',  iconName: 'Map',                                description: 'Every placed point on one satellite map — search an address, open a job, or walk its photographs and paths.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'tech_support'], internalOnly: true, keywords: ['map', 'satellite', 'google earth', 'points', 'parcel', 'property', 'aerial', 'pins', 'location', 'gps', 'lat', 'long', 'coordinates', 'walked path', 'boundary'] },
   { href: '/admin/field-data',  label: 'Field Data',   workspace: 'work',   iconName: 'MapPin',                             description: 'Field data records. Absorbed into Jobs; the row remains so /admin/field-data/[id] keeps its bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['points', 'gnss'] },
   { href: '/admin/projects',    label: 'All Projects', workspace: 'work',   iconName: 'FolderKanban',                       description: 'Project records. Absorbed into Jobs; the row remains so /admin/projects/[id] and its editor keep their bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['project'] },
   { href: '/admin/payroll',     label: 'Payroll',      workspace: 'money',  section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll records. Absorbed into Pay; the row remains so /admin/payroll/[email] keeps its bundle gate.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['paychecks', 'wages'] },
