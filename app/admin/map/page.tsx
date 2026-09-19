@@ -35,7 +35,7 @@ import { useSearchParams } from 'next/navigation';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
   ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
-  Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
+  Hash, Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
 } from 'lucide-react';
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
@@ -61,8 +61,13 @@ import {
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import type { LibraryFile } from '@/lib/jobs/property-map-server';
 import type { ViewerCapabilities, ViewerCollection, ViewerFile } from '@/lib/files/viewer-model';
+import MapFrame from './components/MapFrame';
 import { FileTile, MediaTile } from './components/Tiles';
 import { KIND_ONE, sortLibrary } from './components/kinds';
+import {
+  THUMB_WORKERS, THUMB_TIMEOUT_MS, isPdfFile, pdfThumb, videoThumb, imageThumb, withDeadline,
+  needsThumb, type ThumbJob, type ThumbState,
+} from './components/thumbnails';
 import './PropertyMap.css';
 
 // `hybrid` is satellite with the road and label overlay — the same mode the public service-area map
@@ -153,6 +158,8 @@ export default function GlobalPropertyMapPage() {
 
   // ── map + viewport ────────────────────────────────────────────────────────────────────────────
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  /** Google refused. The panels carry on; only the camera is gone. */
+  const [mapDead, setMapDead] = useState(false);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [loading, setLoading] = useState(false);
@@ -215,6 +222,10 @@ export default function GlobalPropertyMapPage() {
   const [hiddenTypes, setHiddenTypes] = useState<PointTypeId[]>([]);
   /** Names beside the pins. On by default — a numbered dot is not a label. */
   const [showLabels, setShowLabels] = useState(true);
+  /** And the ordinals inside them. Owner, 2026-09-19: "I can hide names of points right now, but I
+   *  also need to be able to hide numbers of points too." Both off leaves a plain coloured dot,
+   *  which is the right map for looking at where things are rather than reading them. */
+  const [showNumbers, setShowNumbers] = useState(true);
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
 
   const jobPickRef = useRef<HTMLDivElement | null>(null);
@@ -258,12 +269,19 @@ export default function GlobalPropertyMapPage() {
   }, [safeFetch]);
 
   /**
-   * Arriving from a job: fly there, load its map, and open for work.
+   * Arriving from a job: load it, and open for work.
    *
-   * Guarded to run ONCE per job. The effect has to depend on `map` — it cannot fly anywhere before
-   * the map exists — and `map` arrives after the first render, so without the guard this ran three
-   * times on every arrival: three lookups of the same job, three map loads, three libraries. All of
-   * it competing with the tiles for the thread, which is the thing this whole change is about.
+   * Deliberately NOT gated on the map object. It used to be — the effect needed `map` in order to
+   * fly there, so it waited for it — and that made the entire work mode, the files panel and the
+   * layers included, depend on Google having initialised. When Google refuses (a referrer it does
+   * not like, a blocked script, an offline moment) the page fell all the way back to "Pick a job"
+   * and nothing on it worked, for reasons that had nothing to do with where the camera was
+   * pointing.
+   *
+   * Loading a job and pointing a camera at it are two things. This is the first.
+   *
+   * Guarded to run once per job: the effect's other dependencies are callbacks that change when the
+   * library reloads, and without the guard arriving re-fetched everything several times.
    */
   useEffect(() => {
     if (!jobParam) {
@@ -271,48 +289,67 @@ export default function GlobalPropertyMapPage() {
       loadedJobRef.current = null;
       return;
     }
-    if (!map) return;
     if (loadedJobRef.current === jobParam) return;
     loadedJobRef.current = jobParam;
-    let alive = true;
     void (async () => {
       const data = await safeFetch<{ job: JobPlace }>(`/api/admin/map/job/${jobParam}`);
-      if (!alive || !data?.job) return;
+      // `alive` is checked, but the job is set REGARDLESS of it. The fetch is idempotent and the
+      // answer is still correct; throwing it away because the effect was torn down is what left
+      // this page stuck on "Pick a job" with a 200 in the network panel — the effect re-ran (its
+      // dependencies are callbacks that change identity), the first run's cleanup fired, and the
+      // response that had already arrived was discarded on arrival.
+      if (!data?.job) { loadedJobRef.current = null; return; }
       setJob(data.job);
       setFilesOpen(true);
       const m = await loadJobMap(jobParam);
-      if (!alive) return;
 
       // ── THE MAP FIRST, THE FILES A MOMENT LATER ─────────────────────────────────────────────
       // The library is every file on the job, each with a signed URL and a thumbnail the browser
-      // then decodes. Awaiting it here held the camera move behind a response that has nothing to
+      // then decodes. Awaiting it here held everything else behind a response that has nothing to
       // do with where the map should be pointing, and its thumbnails then competed with the tiles
-      // for the same main thread. It is no longer awaited: the map goes where it is going, and the
-      // files arrive into a panel that is already on screen.
+      // for the same main thread.
       const whenFree = window.requestIdleCallback
         ? (fn: () => void) => window.requestIdleCallback(fn, { timeout: 1500 })
         : (fn: () => void) => window.setTimeout(fn, 250);
-      whenFree(() => { if (alive) void loadLibrary(jobParam, m?.map?.id ?? data.job.mapId ?? null); });
+      whenFree(() => { void loadLibrary(jobParam, m?.map?.id ?? data.job.mapId ?? null); });
 
-      if (map && data.job.lat !== null && data.job.lng !== null) {
-        // Frame the points if there are any — the property, not the mailing address. Otherwise the
-        // job's own coordinates.
-        const placed = (m?.points ?? []).filter((p) => isLatLng({ lat: p.lat as number, lng: p.lng as number }));
-        const b = placed.length
-          ? boundsOf(placed.map((p) => ({ lat: p.lat as number, lng: p.lng as number })))
-          : null;
-        if (b) {
-          map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 80);
-        } else {
-          map.setCenter({ lat: data.job.lat, lng: data.job.lng });
-          map.setZoom(JOB_ZOOM);
-        }
-      } else if (data.job.lat === null) {
-        addToast(`${data.job.jobNumber ?? 'That job'} has no location yet. Search its address, then place points.`, 'info', 4200);
+      if (data.job.lat === null) {
+        addToast(`${data.job.jobNumber ?? 'That job'} has no location yet. Add one on the job page, or search its address here.`, 'info', 4600);
       }
     })();
-    return () => { alive = false; };
-  }, [jobParam, map, safeFetch, loadJobMap, loadLibrary, addToast]);
+    // Only the job id. The helpers are callbacks whose identity changes whenever the library
+    // reloads, and depending on them made this effect re-run — and cancel itself — mid-flight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobParam]);
+
+  /**
+   * And this is the second: point the camera, once both the map and the job are ready.
+   *
+   * Separate from the load so that a map which never initialises cannot stop a job from opening —
+   * and so that arriving before Google is ready still flies, the moment it is.
+   */
+  const flownToRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!map || !job || !jobParam) return;
+    if (flownToRef.current === jobParam) return;
+    flownToRef.current = jobParam;
+
+    // Frame the points if there are any — the property, not the mailing address.
+    const placed = points.filter((p) => isLatLng({ lat: p.lat as number, lng: p.lng as number }));
+    const b = placed.length
+      ? boundsOf(placed.map((p) => ({ lat: p.lat as number, lng: p.lng as number })))
+      : null;
+    if (b) {
+      map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 80);
+    } else if (job.lat !== null && job.lng !== null) {
+      // The camera move is inline rather than through `flyTo`, which is declared further down with
+      // the other actions. Hoisting this effect above it would put arriving-at-a-job in the middle
+      // of the mutation helpers, which is not where anybody would look for it.
+      const at = { lat: job.lat, lng: job.lng };
+      if (typeof map.moveCamera === 'function') map.moveCamera({ center: at, zoom: JOB_ZOOM });
+      else { map.setCenter(at); map.setZoom(JOB_ZOOM); }
+    }
+  }, [map, job, jobParam, points]);
 
   const fetchWorld = useCallback(async (b: Bounds, z: number) => {
     if (!shouldLoadPoints(z)) { setWorld([]); setCapped(false); return; }
@@ -672,7 +709,26 @@ export default function GlobalPropertyMapPage() {
   useEffect(() => { worldRef.current = world; }, [world]);
 
   useEffect(() => {
-    if (!map || typeof google === 'undefined' || !google.maps?.marker) return;
+    if (!map || mapDead || typeof google === 'undefined' || !google.maps?.marker) return;
+    // ── A HALF-STARTED GOOGLE MUST NOT TAKE THE PAGE WITH IT ────────────────────────────────
+    // When Maps refuses a key it still defines `google.maps.marker`, so the guard above passes —
+    // and then `new AdvancedMarkerElement` throws from inside Google's own code with "Cannot read
+    // properties of undefined (reading 'keys')". This effect runs in the page component, so that
+    // exception reached the admin error boundary and replaced the ENTIRE page — files, layers,
+    // point panel and all — with "Something went wrong".
+    //
+    // Observed on 2026-09-19. Everything else on this page is ordinary DOM over ordinary JSON and
+    // has no business failing because Google is unhappy about a referrer.
+    // Captured, because the narrowing above does not reach inside the function below.
+    const gmap = map;
+    try {
+      reconcileMarkers();
+    } catch (err) {
+      console.error('[property map] markers could not be drawn:', err);
+      setMapDead(true);
+    }
+
+    function reconcileMarkers() {
     const have = markersRef.current;
     const want = new Map(clusters.map((c) => [c.id, c]));
 
@@ -751,7 +807,7 @@ export default function GlobalPropertyMapPage() {
       }
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
-        map, position: { lat: c.lat, lng: c.lng }, content: el,
+        map: gmap, position: { lat: c.lat, lng: c.lng }, content: el,
       });
 
       const entry: MarkerEntry = { marker, el, pin, label, cluster: c };
@@ -759,7 +815,7 @@ export default function GlobalPropertyMapPage() {
         const cur = entry.cluster;
         if (cur.items.length > 1) {
           const b = boundsOf(cur.items) ?? padPoint({ lat: cur.lat, lng: cur.lng });
-          map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 64);
+          gmap.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 64);
           return;
         }
         const p = cur.items[0];
@@ -772,7 +828,8 @@ export default function GlobalPropertyMapPage() {
 
       have.set(id, entry);
     }
-  }, [map, clusters]);
+    }
+  }, [map, mapDead, clusters]);
 
   /** Appearance only — written onto the elements that already exist, so hovering a layer row does
    *  not rebuild six hundred markers while the tiles are trying to paint. */
@@ -851,7 +908,7 @@ export default function GlobalPropertyMapPage() {
   // layer has one — so switching a sheet to orange turns its cones and paths orange too, not just
   // its pins.
   useEffect(() => {
-    if (!map || typeof google === 'undefined' || !google.maps?.Polygon) return;
+    if (!map || mapDead || typeof google === 'undefined' || !google.maps?.Polygon) return;
     const drawn: Array<google.maps.Polygon | google.maps.Polyline> = [];
 
     const add = (p: MapPoint, colour: string) => {
@@ -880,13 +937,18 @@ export default function GlobalPropertyMapPage() {
       drawn.push(shape);
     };
 
-    if (workMode) {
-      for (const p of points) {
-        if (hiddenTypes.includes(p.pointType)) continue;
-        const l = layerOf(p, layers);
-        if (l && hiddenLayers.includes(l.id)) continue;
-        add(p, pointColour(p, layers, swatch));
+    try {
+      if (workMode) {
+        for (const p of points) {
+          if (hiddenTypes.includes(p.pointType)) continue;
+          const l = layerOf(p, layers);
+          if (l && hiddenLayers.includes(l.id)) continue;
+          add(p, pointColour(p, layers, swatch));
+        }
       }
+    } catch (err) {
+      console.error('[property map] shapes could not be drawn:', err);
+      setMapDead(true);
     }
 
     // The shape under construction, drawn as you click so it is not a guess until you finish.
@@ -902,7 +964,7 @@ export default function GlobalPropertyMapPage() {
     }
 
     return () => { for (const s of drawn) s.setMap(null); };
-  }, [map, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, hoverPoint, selectedId, draw]);
+  }, [map, mapDead, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, hoverPoint, selectedId, draw]);
 
   const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
@@ -975,11 +1037,19 @@ export default function GlobalPropertyMapPage() {
   // ── address search ────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!map || !searchRef.current || typeof google === 'undefined' || !google.maps?.places) return;
-    const ac = new google.maps.places.Autocomplete(searchRef.current, {
-      fields: ['geometry', 'formatted_address', 'name'],
-      componentRestrictions: { country: 'us' },
-    });
-    ac.bindTo('bounds', map);
+    let ac: google.maps.places.Autocomplete;
+    try {
+      ac = new google.maps.places.Autocomplete(searchRef.current, {
+        fields: ['geometry', 'formatted_address', 'name'],
+        componentRestrictions: { country: 'us' },
+      });
+      ac.bindTo('bounds', map);
+    } catch (err) {
+      // The box stays; it just falls back to our own geocoding on Enter, which is a worse search
+      // and an infinitely better outcome than the page not existing.
+      console.error('[property map] address suggestions unavailable:', err);
+      return;
+    }
     const listener = ac.addListener('place_changed', () => {
       const place = ac.getPlace();
       const at = place.geometry?.location;
@@ -1040,6 +1110,132 @@ export default function GlobalPropertyMapPage() {
     setConfirmPoint(null);
     setConfirmMedia(null);
   }, [selectedId, points]);
+
+  // ── MAKING THE PREVIEWS THAT DO NOT EXIST YET ─────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-19: "I need to be able to view the files and images and videos that are stored
+  // in the listed files and stuff in the left panel ... We need to make sure their preview
+  // thumbnails load even after searches and stuff."
+  //
+  // This came back from the image map, where it was left behind: the tiles moved across and the
+  // thing that MAKES their pictures did not, so every PDF and every video showed an icon forever.
+  //
+  // The deployment has no PDF renderer and no video decoder. Every browser that opens this panel
+  // has both, so the panel makes the previews that do not exist and posts them — the work happens
+  // once per file for the whole company rather than once per person per visit.
+  //
+  // WHY SEARCHING DOES NOT LOSE THEM. A generated preview is written back onto the library row in
+  // place, not held in a variable beside the filtered list, so narrowing the panel and clearing it
+  // again shows the same pictures rather than starting the decoding over. `triedRef` is the other
+  // half: a file that has already been attempted this session is never queued twice, however many
+  // times the list it appears in is rebuilt.
+  const thumbAbortRef = useRef<AbortController | null>(null);
+  const thumbQueueRef = useRef<ThumbJob[]>([]);
+  const thumbTriedRef = useRef<Set<string>>(new Set());
+  const thumbWorkersRef = useRef(0);
+  const [thumbLeft, setThumbLeft] = useState(0);
+
+  /** One file, start to finish: decode it here, post the result, swap that one tile in place.
+   *
+   *  A FAILURE IS A RESULT. Every way this can go wrong — pdf.js refusing the document, a codec the
+   *  browser has not got, a canvas tainted by a URL that answered without CORS headers, the
+   *  deadline — ends in the same POST of `{ state: 'failed' }`, which is what stops the next panel,
+   *  and everybody else's, spending those seconds on it again. The tile keeps its icon, which was
+   *  always a perfectly good answer for a file with no picture in it. */
+  const runThumbJob = useCallback(async (jobItem: ThumbJob, signal: AbortSignal) => {
+    if (!job) return;
+    let dataUrl: string | null = null;
+    try {
+      const work = jobItem.kind === 'video' ? videoThumb(jobItem.url, signal)
+        : jobItem.isPdf ? pdfThumb(jobItem.url, signal)
+          : imageThumb(jobItem.url, signal);
+      dataUrl = await withDeadline(work, THUMB_TIMEOUT_MS, signal);
+    } catch {
+      dataUrl = null;
+    }
+    if (signal.aborted) return;
+
+    // `silent`: a preview that could not be stored is not a page error anybody should see a banner
+    // about. The file keeps its icon and the panel carries on.
+    const saved = await safeFetch<{ ok: boolean; thumb_state: ThumbState }>(
+      `/api/admin/jobs/${job.jobId}/property-map/thumbnail`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataUrl ? { job_file_id: jobItem.id, data_url: dataUrl } : { job_file_id: jobItem.id, state: 'failed' }),
+        signal,
+        silent: true,
+      },
+    );
+    if (signal.aborted) return;
+
+    // Updated IN PLACE rather than by reloading the library: a reload would reorder and rescroll a
+    // panel somebody may have a file half-dragged out of, in order to show a picture that is
+    // already in hand.
+    const state: ThumbState = saved?.thumb_state ?? 'failed';
+    setLibrary((cur) => cur.map((f) => (f.id === jobItem.id
+      ? { ...f, thumbUrl: dataUrl ?? f.thumbUrl, thumbState: state }
+      : f)));
+  }, [job, safeFetch]);
+
+  /** Top the worker loops up. Each takes jobs until the queue is empty and then exits, so "how many
+   *  are running" needs no scheduler — only this call after an enqueue. */
+  const startThumbWorkers = useCallback(() => {
+    const controller = thumbAbortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    const { signal } = controller;
+    const sync = () => { if (!signal.aborted) setThumbLeft(thumbQueueRef.current.length + thumbWorkersRef.current); };
+    while (thumbWorkersRef.current < THUMB_WORKERS && thumbQueueRef.current.length > 0) {
+      thumbWorkersRef.current += 1;
+      void (async () => {
+        try {
+          for (;;) {
+            if (signal.aborted) return;
+            const next = thumbQueueRef.current.shift();
+            if (!next) return;
+            sync();
+            await runThumbJob(next, signal);
+          }
+        } finally {
+          thumbWorkersRef.current -= 1;
+          sync();
+        }
+      })();
+    }
+    sync();
+  }, [runThumbJob]);
+
+  // Queued from the WHOLE library, never from the filtered view: a search narrows what is on
+  // screen, not what exists, and queueing from the filtered list would mean typing in the search
+  // box quietly cancelled the previews for everything it hid.
+  useEffect(() => {
+    if (!filesOpen || library.length === 0) return;
+    if (!thumbAbortRef.current || thumbAbortRef.current.signal.aborted) {
+      thumbAbortRef.current = new AbortController();
+    }
+    let queued = 0;
+    for (const f of library) {
+      if (!f.url) continue;
+      if (thumbTriedRef.current.has(f.id)) continue;
+      if (!needsThumb(f.thumbState, f.kind, f.mimeType, f.name)) continue;
+      // An image already falls back to itself, so there is nothing to make and nothing to store.
+      if (f.kind === 'image' && f.thumbUrl) continue;
+      thumbTriedRef.current.add(f.id);
+      thumbQueueRef.current.push({ id: f.id, url: f.url, kind: f.kind, isPdf: isPdfFile(f) });
+      queued += 1;
+    }
+    if (queued > 0) startThumbWorkers();
+  }, [library, filesOpen, startThumbWorkers]);
+
+  // Leaving stops it dead. The tried set is cleared too: under React's development double-mount the
+  // first pass is aborted, and a set that survived it would mean a freshly mounted panel that never
+  // queues anything at all.
+  useEffect(() => () => {
+    thumbAbortRef.current?.abort();
+    thumbAbortRef.current = null;
+    thumbQueueRef.current = [];
+    thumbTriedRef.current.clear();
+  }, []);
 
   // ── the files panel ───────────────────────────────────────────────────────────────────────────
   const visibleFiles = useMemo(() => {
@@ -1243,6 +1439,17 @@ export default function GlobalPropertyMapPage() {
           <Tag size={13} aria-hidden /> Names
         </button>
 
+        <button
+          className={`gmap__btn${showNumbers ? ' gmap__btn--on' : ''}`}
+          type="button"
+          aria-pressed={showNumbers}
+          title="Show each point's number inside its pin"
+          data-testid="gmap-numbers"
+          onClick={() => setShowNumbers((c) => !c)}
+        >
+          <Hash size={13} aria-hidden /> Numbers
+        </button>
+
         {(loading || busy) && <Loader2 className="gmap__spin" size={15} aria-label="Working" />}
       </div>
 
@@ -1343,6 +1550,11 @@ export default function GlobalPropertyMapPage() {
             <div className="gmap__files-head">
               <strong>{library.length} {library.length === 1 ? 'file' : 'files'}</strong>
               <span>{unplacedCount} unplaced</span>
+              {thumbLeft > 0 && (
+                <span className="gmap__thumbing" title="Making previews for files that have none yet">
+                  <Loader2 size={11} className="gmap__spin" aria-hidden /> {thumbLeft}
+                </span>
+              )}
               <button className="gmap__icon-btn" type="button" aria-label="Close the files panel" onClick={() => setFilesOpen(false)}><X size={15} aria-hidden /></button>
             </div>
             <input className="gmap__files-search" type="search" placeholder="Search files by name…" aria-label="Search the job's files" value={fileSearch} onChange={(e) => setFileSearch(e.target.value)} data-testid="gmap-file-search" />
@@ -1399,22 +1611,27 @@ export default function GlobalPropertyMapPage() {
         )}
 
         {/* ── the map ────────────────────────────────────────────────────────────────────────── */}
-        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}`}>
-          <LoadScript googleMapsApiKey={apiKey} libraries={LIBRARIES} loadingElement={<div className="gmap__loading">Loading the map…</div>}>
-            <GoogleMap
-              mapContainerStyle={CONTAINER}
-              center={DEFAULT_CENTER}
-              zoom={DEFAULT_ZOOM}
-              options={MAP_OPTIONS}
-              onLoad={(m) => setMap(m)}
-              onUnmount={() => setMap(null)}
-              onIdle={onIdle}
-              onClick={onMapClick}
-            />
-          </LoadScript>
+        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}${showNumbers ? ' gmap__canvas--numbers' : ''}`}>
+          {/* The map, and only the map, lives inside this boundary. Google throws from inside its
+              own constructor when it refuses a key, and without this that exception unmounted the
+              entire page — files, layers, point panel and all. See MapFrame. */}
+          <MapFrame onFailed={() => setMapDead(true)}>
+            <LoadScript googleMapsApiKey={apiKey} libraries={LIBRARIES} loadingElement={<div className="gmap__loading">Loading the map…</div>}>
+              <GoogleMap
+                mapContainerStyle={CONTAINER}
+                center={DEFAULT_CENTER}
+                zoom={DEFAULT_ZOOM}
+                options={MAP_OPTIONS}
+                onLoad={(m) => setMap(m)}
+                onUnmount={() => setMap(null)}
+                onIdle={onIdle}
+                onClick={onMapClick}
+              />
+            </LoadScript>
+          </MapFrame>
 
-          {hint && !workMode && <div className="gmap__hint" role="status" data-testid="gmap-zoom-hint"><ZoomIn size={14} aria-hidden /> {hint}</div>}
-          {capped && !hint && !workMode && <div className="gmap__hint gmap__hint--warn" role="status" data-testid="gmap-capped">Showing the first points in view — zoom in to see them all.</div>}
+          {hint && !workMode && !mapDead && <div className="gmap__hint" role="status" data-testid="gmap-zoom-hint"><ZoomIn size={14} aria-hidden /> {hint}</div>}
+          {capped && !hint && !workMode && !mapDead && <div className="gmap__hint gmap__hint--warn" role="status" data-testid="gmap-capped">Showing the first points in view — zoom in to see them all.</div>}
           {placing && <div className="gmap__hint gmap__hint--go" role="status" data-testid="gmap-placing">Click where the point goes. Escape to stop.</div>}
 
           {/* Drawing: what to do next, what it measures so far, and the way to keep it. Interactive

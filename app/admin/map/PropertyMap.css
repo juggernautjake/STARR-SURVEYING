@@ -3227,6 +3227,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 .gmap__pin-num {
   transform: rotate(45deg);
+  /* `display` is what the Numbers toggle switches, so it is set there and not here. */
   font: 700 0.68rem/1 system-ui, sans-serif;
   color: #FFF;
   font-variant-numeric: tabular-nums;
@@ -3714,4 +3715,58 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .gmap__canvas--dragging ~ .gmap__panel--docked .gmap__drop,
 .gmap__panel--docked:has(~ * .gmap__canvas--dragging) .gmap__drop {
   border-color: var(--theme-accent, #1D3095);
+}
+
+/* ── NUMBERS, SEPARATELY FROM NAMES (owner, 2026-09-19) ───────────────────────────────────────
+ * "I can hide names of points right now, but I also need to be able to hide numbers of points too."
+ *
+ * Two toggles, because they answer different questions: the number is how a point is referred to on
+ * the phone ("go and look at 7"), the name is what it is. With both off the pin is a plain coloured
+ * dot, which is the right map for seeing WHERE things are rather than reading them.
+ *
+ * Hidden with CSS rather than by rebuilding the markers, for the same reason the labels are: a
+ * toggle should cost a class on one ancestor, not six hundred new DOM nodes. */
+.gmap__pin-num { display: none; }
+.gmap__canvas--numbers .gmap__pin-num { display: block; }
+
+/* How many previews are still being made, beside the file count that they belong to. */
+.gmap__thumbing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--theme-accent, #1D3095);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── WHEN THE MAP WILL NOT START ──────────────────────────────────────────────────────────────
+ * Google throws from inside its own constructor when it refuses a key, and that used to unmount
+ * the whole page — files, layers, point panel and all. It is now contained (see MapFrame), and
+ * this is what stands in its place: an explanation naming the two likely causes, both of which are
+ * fixed in the Cloud Console by whoever is reading it. */
+.gmap__dead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 100%;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--theme-fg-secondary, #475569);
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+.gmap__dead strong { font-size: 0.95rem; color: var(--theme-fg-primary, #0F172A); }
+.gmap__dead p { margin: 0; max-width: 34rem; font-size: 0.82rem; line-height: 1.5; }
+.gmap__dead-rest { color: var(--theme-fg-muted, #64748B); }
+.gmap__dead-detail {
+  margin-top: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #FFF);
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: var(--theme-fg-muted, #64748B);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
