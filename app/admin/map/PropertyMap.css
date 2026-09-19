@@ -3119,7 +3119,32 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 /* Placing a point: the cursor says so across the whole canvas, because the thing you are aiming at
  * is the imagery rather than any control on top of it. */
-.gmap__canvas--placing { cursor: crosshair; }
+/* ── THE CURSOR SAYS WHAT YOU ARE ABOUT TO DO (owner, 2026-09-19) ─────────────────────────────
+ * "please make it so that we have a unique cursor whenever we are placing a new point so that it
+ * makes it a bit more obvious that that is what we are doing"
+ *
+ * A crosshair says "pick a spot" and nothing more — it is the same cursor for placing a point,
+ * drawing an area and cropping an image. These say WHICH.
+ *
+ * Two things make them work rather than just look nice:
+ *
+ * THE HOTSPOT IS THE TIP. The numbers after the url() are where the click actually lands, and they
+ * are set to the pin's point — 16 30 — so the cursor is not a picture of a pin near the spot, it IS
+ * the pin, standing where the pin will stand. Get this wrong and every point lands a few pixels
+ * from where it was aimed, which is the same class of bug as the marker anchor.
+ *
+ * DARK OUTSIDE, LIGHT INSIDE. Satellite imagery is dark, busy and a different colour every few
+ * feet. A single-colour cursor disappears over something eventually, so each shape is drawn twice:
+ * a wide near-black stroke underneath, a white one on top. That pair reads over pale caliche and
+ * dark tree canopy alike.
+ *
+ * Every url() falls back to crosshair, which is what a browser that refuses a custom cursor — or a
+ * data URI it does not like — will use instead. */
+.gmap__canvas--placing {
+  cursor:
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M16 30C16 30 6.5 19.6 6.5 13a9.5 9.5 0 1 1 19 0c0 6.6-9.5 17-9.5 17z' fill='none' stroke='%230F172A' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M16 30C16 30 6.5 19.6 6.5 13a9.5 9.5 0 1 1 19 0c0 6.6-9.5 17-9.5 17z' fill='%231D3095' stroke='%23FFFFFF' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M16 8.5v9M11.5 13h9' stroke='%23FFFFFF' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 16 30,
+    crosshair;
+}
 .gmap__canvas--placing :where(.gmap__pin, .gmap__cluster) { pointer-events: none; }
 
 .gmap__loading {
@@ -3440,6 +3465,14 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   border-radius: 50%;
 }
 
+/* Armed with a file and looking for a point to put it on. The cursor carries a document, and its
+ * hotspot is the top-left corner the way a normal pointer's is — you are aiming AT a pin here, not
+ * marking a spot on the ground, so the tip of the arrow is what matters. */
+.gmap__canvas--assigning {
+  cursor:
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M3 2l8.5 20 2.8-7.7 7.7-2.8z' fill='%230F172A' stroke='%230F172A' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M3 2l8.5 20 2.8-7.7 7.7-2.8z' fill='%23FFFFFF' stroke='%23FFFFFF' stroke-width='1' stroke-linejoin='round'/%3E%3Crect x='17' y='16' width='13' height='14' rx='2' fill='%231D3095' stroke='%23FFFFFF' stroke-width='2'/%3E%3Cpath d='M20 20h7M20 23.5h7M20 27h4.5' stroke='%23FFFFFF' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 3 2,
+    copy;
+}
 .gmap__canvas--assigning .gmap__pin { cursor: copy; }
 
 /* ── LAYER COLOURS AND THE HOVER RELATION (owner, 2026-09-19) ─────────────────────────────────
@@ -3542,9 +3575,15 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .gmap__draw-spread { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; }
 .gmap__draw-spread input { width: 7rem; }
 
-/* While a shape is being drawn every click belongs to it, so the crosshair covers the canvas the
- * same way it does while placing a plain point. */
-.gmap__canvas--drawing { cursor: crosshair; }
+/* Drawing is a different job from placing: each click drops a CORNER, not a pin, so the cursor is
+ * a crosshair with a vertex on it and the hotspot is that vertex — dead centre, where a crosshair's
+ * hotspot belongs. */
+.gmap__canvas--drawing {
+  cursor:
+    url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M16 2v9M16 21v9M2 16h9M21 16h9' stroke='%230F172A' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M16 2v9M16 21v9M2 16h9M21 16h9' stroke='%23FFFFFF' stroke-width='2.2' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='4.6' fill='none' stroke='%230F172A' stroke-width='5'/%3E%3Ccircle cx='16' cy='16' r='4.6' fill='%23FACC15' stroke='%23FFFFFF' stroke-width='2'/%3E%3C/svg%3E") 16 16,
+    crosshair;
+}
+.gmap__canvas--drawing :where(.gmap__pin, .gmap__cluster) { pointer-events: none; }
 
 /* ── GOING SOMEWHERE (owner, 2026-09-19) ──────────────────────────────────────────────────────
  * "I want it so that we can click on the address and be homed to its location on the map."
@@ -3634,3 +3673,45 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 
 /* Dimming a layer takes its labels with it, or the names stay loud over pins that have gone quiet. */
 .gmap__pin--dim ~ .gmap__pin-label { opacity: 0.28; }
+
+/* ── THE DROP BOX ON A POINT (owner, 2026-09-19) ──────────────────────────────────────────────
+ * "Please make sure we have a drop box still in the point info panel so that we can drop files and
+ * things directly into it."
+ *
+ * A dashed box that says what it is, because an invisible drop target is one nobody finds. It takes
+ * a file dragged from the panel beside the map AND a file dragged off the desktop — the second is
+ * the one that used to mean leaving this screen, uploading, coming back and hunting for it.
+ *
+ * Sized generously on purpose: this is the easy target that the 26px pin is not. */
+.gmap__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.8rem 0.6rem;
+  border: 2px dashed var(--theme-border, #CBD5E1);
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+  color: var(--theme-fg-muted, #64748B);
+  text-align: center;
+  transition: border-color var(--motion-fast, 120ms), background var(--motion-fast, 120ms);
+}
+.gmap__drop strong { font-size: 0.8rem; color: var(--theme-fg-primary, #0F172A); }
+.gmap__drop span { font-size: 0.7rem; line-height: 1.35; }
+
+/* Hovering it with a file: the whole box answers, not just its border, because a 2px colour change
+ * on a dashed line is not an answer at arm's length. */
+.gmap__drop--over {
+  border-color: var(--theme-accent, #1D3095);
+  border-style: solid;
+  background: var(--theme-brand-tint, #EEF2FF);
+  color: var(--theme-accent, #1D3095);
+}
+.gmap__drop--over strong { color: var(--theme-accent, #1D3095); }
+
+/* While a file is being dragged anywhere, the box says so from across the panel — otherwise you
+ * have to already know it is a target to discover that it is one. */
+.gmap__canvas--dragging ~ .gmap__panel--docked .gmap__drop,
+.gmap__panel--docked:has(~ * .gmap__canvas--dragging) .gmap__drop {
+  border-color: var(--theme-accent, #1D3095);
+}

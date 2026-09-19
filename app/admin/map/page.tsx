@@ -35,7 +35,7 @@ import { useSearchParams } from 'next/navigation';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
   ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
-  Plus, Search, Tag, Target, Trash2, X, ZoomIn,
+  Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
 } from 'lucide-react';
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
@@ -57,6 +57,7 @@ import { POINT_GEOMETRIES, type GeometryId } from '@/lib/jobs/property-map-shape
 import {
   shapePath, isDrawable, needsMore, measureShape, aimFrom, compass, FOV_DEFAULT_FEET,
 } from '@/lib/jobs/map-shapes-world';
+import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import type { LibraryFile } from '@/lib/jobs/property-map-server';
 import type { ViewerCapabilities, ViewerCollection, ViewerFile } from '@/lib/files/viewer-model';
 import { FileTile, MediaTile } from './components/Tiles';
@@ -170,6 +171,8 @@ export default function GlobalPropertyMapPage() {
   const [armedFileId, setArmedFileId] = useState<string | null>(null);
   /** The file currently being dragged, so the pins can widen their targets for it. */
   const [draggingFileId, setDraggingFileId] = useState<string | null>(null);
+  /** Something is hovering the panel's drop box. */
+  const [dropOver, setDropOver] = useState(false);
   const [confirmUnassign, setConfirmUnassign] = useState<string | null>(null);
   const [confirmMedia, setConfirmMedia] = useState<string | null>(null);
   const [confirmPoint, setConfirmPoint] = useState<string | null>(null);
@@ -434,6 +437,59 @@ export default function GlobalPropertyMapPage() {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     addToast(body.error ?? 'That file could not be added.', 'error');
   }, [job, mapId, loadLibrary, addToast]);
+
+  /**
+   * Put files on the open point — from the panel beside the map, or straight off the desktop.
+   *
+   * Owner, 2026-09-19: "Please make it so that dropping and image or file onto a point is more
+   * direct and easier. Please make sure we have a drop box still in the point info panel so that we
+   * can drop files and things directly into it."
+   *
+   * A 26px pin is a poor target, and it is the wrong one anyway once the point is already open: at
+   * that moment the thing on screen that MEANS this point is the panel, not the dot. So the panel
+   * takes drops too, and the pin stays as the way to put a file on a point you have not opened.
+   *
+   * Two kinds of drop, one landing place. A file dragged from the library is already on the job and
+   * only needs attaching. A file dragged from a folder on the desktop has to be uploaded first —
+   * which is the case that used to mean opening another screen, uploading, coming back, and
+   * hunting for it in the panel.
+   */
+  const dropOnPoint = useCallback(async (pointId: string, e: React.DragEvent) => {
+    if (!job) return;
+    setDropOver(false);
+
+    const existing = e.dataTransfer.getData(FILE_DRAG_TYPE);
+    if (existing) { await assignFile(pointId, existing); return; }
+
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (!files.length) return;
+    const id = await ensureMap();
+    if (!id) { addToast('Could not start a map for this job.', 'error'); return; }
+
+    setBusy(true);
+    let added = 0;
+    for (const file of files) {
+      try {
+        const up = await uploadJobFileBytes(job.jobId, file);
+        const fileId = (up as { id?: string; file?: { id?: string } }).id
+          ?? (up as { file?: { id?: string } }).file?.id;
+        if (!fileId) throw new Error('the upload did not come back with a file');
+        const res = await fetch(`/api/admin/jobs/${job.jobId}/property-map/media`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ point_id: pointId, job_file_id: fileId }),
+        });
+        if (res.ok) { setPayload((await res.json()) as MapPayload); added++; }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'drop a file onto a map point' });
+        addToast(`${file.name} could not be added.`, 'error');
+      }
+    }
+    setBusy(false);
+    if (added) {
+      addToast(added === 1 ? 'Added to the point.' : `${added} files added to the point.`, 'success', 1800);
+      void loadLibrary(job.jobId, id);
+    }
+  }, [job, assignFile, ensureMap, addToast, reportPageError, loadLibrary]);
 
   const detachMedia = useCallback(async (pointId: string, mediaId: string) => {
     if (!job) return;
@@ -1475,6 +1531,25 @@ export default function GlobalPropertyMapPage() {
                 Open ↗
               </a>
             </p>
+
+            {/* The drop box sits ABOVE the attachments rather than below them: on a point with
+                fifteen photographs, a box under the grid is a box nobody scrolls to. */}
+            <div
+              className={`gmap__drop${dropOver ? ' gmap__drop--over' : ''}`}
+              data-testid="gmap-drop"
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDropOver(true); }}
+              onDragEnter={(e) => { e.preventDefault(); setDropOver(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropOver(false); }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); void dropOnPoint(selected.id, e); }}
+            >
+              <Upload size={15} aria-hidden />
+              <strong>Drop files here</strong>
+              <span>
+                {armedFileId
+                  ? 'Or click this point on the map to place the file you picked up.'
+                  : 'From the files panel, or straight from a folder on your computer.'}
+              </span>
+            </div>
 
             {selected.media.length > 0 && (
               <div className="gmap__media">
