@@ -142,6 +142,17 @@ interface JobPlace {
   lat: number | null; lng: number | null; mapId: string | null; points: number;
 }
 
+/** The job's property as one line a geocoder will accept.
+ *
+ *  `'TX'` is appended because every one of these is a Texas parcel and a bare street and town is
+ *  ambiguous nationally — "Main St, Florence" is a real place in four states. The country is pinned
+ *  separately, at the call. Empty when the job has no address at all, which is the caller's signal
+ *  that there is nothing to look up rather than a query that will match something arbitrary. */
+function addressLine(j: Pick<JobPlace, 'address' | 'city' | 'county'>): string {
+  if (!j.address && !j.city) return '';
+  return [j.address, j.city, j.county, 'TX'].filter(Boolean).join(', ');
+}
+
 function swatch(type: PointTypeId): string {
   if (typeof window === 'undefined') return '#1D3095';
   const v = getComputedStyle(document.documentElement).getPropertyValue(pointType(type).token).trim();
@@ -313,7 +324,10 @@ export default function GlobalPropertyMapPage() {
         : (fn: () => void) => window.setTimeout(fn, 250);
       whenFree(() => { void loadLibrary(jobParam, m?.map?.id ?? data.job.mapId ?? null); });
 
-      if (data.job.lat === null) {
+      // Only when there is genuinely nothing to go on. A job with an address and no coordinates is
+      // no longer stuck — the camera geocodes the address — so telling somebody it "has no location
+      // yet" while the map flies to its location would be a lie they watch being contradicted.
+      if (data.job.lat === null && !addressLine(data.job)) {
         addToast(`${data.job.jobNumber ?? 'That job'} has no location yet. Add one on the job page, or search its address here.`, 'info', 4600);
       }
     })();
@@ -334,6 +348,14 @@ export default function GlobalPropertyMapPage() {
     if (flownToRef.current === jobParam) return;
     flownToRef.current = jobParam;
 
+    // The camera moves are inline rather than through `flyTo`, which is declared further down with
+    // the other actions. Hoisting this effect above it would put arriving-at-a-job in the middle of
+    // the mutation helpers, which is not where anybody would look for it.
+    const go = (at: LatLng) => {
+      if (typeof map.moveCamera === 'function') map.moveCamera({ center: at, zoom: JOB_ZOOM });
+      else { map.setCenter(at); map.setZoom(JOB_ZOOM); }
+    };
+
     // Frame the points if there are any — the property, not the mailing address.
     const placed = points.filter((p) => isLatLng({ lat: p.lat as number, lng: p.lng as number }));
     const b = placed.length
@@ -341,15 +363,65 @@ export default function GlobalPropertyMapPage() {
       : null;
     if (b) {
       map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 80);
-    } else if (job.lat !== null && job.lng !== null) {
-      // The camera move is inline rather than through `flyTo`, which is declared further down with
-      // the other actions. Hoisting this effect above it would put arriving-at-a-job in the middle
-      // of the mutation helpers, which is not where anybody would look for it.
-      const at = { lat: job.lat, lng: job.lng };
-      if (typeof map.moveCamera === 'function') map.moveCamera({ center: at, zoom: JOB_ZOOM });
-      else { map.setCenter(at); map.setZoom(JOB_ZOOM); }
+      return;
     }
+    if (job.lat !== null && job.lng !== null) { go({ lat: job.lat, lng: job.lng }); return; }
+
+    // ── AN ADDRESS IS A LOCATION TOO (owner, 2026-09-19) ────────────────────────────────────────
+    //
+    // "If I refresh the interactive map page it should still have the property address loaded in
+    // and be zoomed in on it."
+    //
+    // It did not, and the reason was narrower than it looked: the camera only ever moved for a job
+    // that had STORED coordinates. `jobs.latitude`/`longitude` are filled in by the Property panel's
+    // address lookup — but only when somebody picks a suggestion from Google and saves. A job whose
+    // address was typed by hand, or entered before that panel existed, has a perfectly good address
+    // and no coordinates, so the map opened over the office and stayed there on every refresh.
+    //
+    // So the address itself is the last resort: geocode it and go. One round trip, once per arrival,
+    // and only for the jobs that have no coordinates to use instead.
+    //
+    // Deliberately NOT written back to the job. A geocode is Google's best guess at a mailing
+    // address, `jobs.latitude` is a surveyed fact somebody entered on purpose, and quietly promoting
+    // the first to the second during a page load is how a guess becomes a record nobody remembers
+    // making. The Property panel's lookup does the same geocode with a person looking at the result.
+    const line = addressLine(job);
+    if (!line || typeof google === 'undefined' || !google.maps?.Geocoder) return;
+    let live = true;
+    void (async () => {
+      try {
+        const res = await new google.maps.Geocoder().geocode({ address: line, componentRestrictions: { country: 'us' } });
+        const at = res.results?.[0]?.geometry?.location;
+        // `live` matters here in a way it does not for the job fetch: this one MOVES THE CAMERA.
+        // Arriving late, after somebody has already panned somewhere else or opened another job,
+        // it would yank the view out from under them.
+        if (!live || !at) return;
+        go({ lat: at.lat(), lng: at.lng() });
+      } catch {
+        // Google could not place it. The job opens where it is; the address is in the search box for
+        // anybody who wants to try it by hand, and a toast about it would be the third one on load.
+      }
+    })();
+    return () => { live = false; };
   }, [map, job, jobParam, points]);
+
+  /**
+   * The address, in the search box, on arrival.
+   *
+   * The other half of the same report: "it should still have the property address loaded in". The
+   * box is where this page says WHERE IT IS, and after a refresh it said nothing at all.
+   *
+   * Written through the ref rather than held in state because the Places autocomplete widget owns
+   * this input — it writes the chosen suggestion into it directly — and a controlled value fights
+   * that. Only ever filled when it is empty, so a refresh cannot wipe something half-typed.
+   */
+  useEffect(() => {
+    const box = searchRef.current;
+    if (!box || !job) return;
+    if (box.value.trim()) return;
+    const line = [job.address, job.city].filter(Boolean).join(', ');
+    if (line) box.value = line;
+  }, [job]);
 
   const fetchWorld = useCallback(async (b: Bounds, z: number) => {
     if (!shouldLoadPoints(z)) { setWorld([]); setCapped(false); return; }
@@ -505,6 +577,54 @@ export default function GlobalPropertyMapPage() {
       // The pin is where the hand left it and the database disagrees. Re-reading is the only honest
       // way to put it back where it actually is.
       addToast('That point could not be moved — putting it back.', 'error');
+      void loadJobMap(job.jobId);
+    }
+  }, [job, mapId, mutate, addToast, loadJobMap]);
+
+  /**
+   * Reshape: the corners of a path or an area, after somebody dragged one.
+   *
+   * Owner, 2026-09-19: "I also need to be able to edit the nodes of the walked path by grabbing them
+   * and moving them."
+   *
+   * Google's own `editable` does the grabbing — it draws a handle on every corner and a ghost handle
+   * at every midpoint, and dragging a ghost inserts a corner there. That is worth using rather than
+   * reimplementing: it is the gesture people already know from Google Maps, it handles the hit areas
+   * and the cursors, and it is one property instead of a second set of markers to keep in step with
+   * the first.
+   *
+   * What it does NOT do is tell anybody. So this is the other half: read the whole path back and
+   * save it. `shapePath` lays a path out as `[anchor, ...vertices]`, so corner zero is the point's
+   * own position and the rest are its vertices — which is exactly the shape the PATCH already takes,
+   * the same one a drag of the pin itself sends.
+   *
+   * A path needs two corners and an area needs three. Google will happily let you drag the second
+   * corner of a triangle on top of the first; refusing to SAVE that is better than silently keeping
+   * a shape with no length, and re-reading puts the corner back where it was.
+   */
+  const reshapePoint = useCallback(async (pointId: string, corners: LatLng[]) => {
+    if (!job || !mapId) return;
+    const point = pointsRef.current.find((p) => p.id === pointId);
+    if (!point) return;
+
+    const clean = corners.filter(isLatLng).map(roundLatLng);
+    const least = point.geometry === 'area' ? 3 : 2;
+    if (clean.length < least) {
+      addToast(`A ${point.geometry === 'area' ? 'boundary' : 'path'} needs at least ${least} corners.`, 'info', 2600);
+      void loadJobMap(job.jobId);
+      return;
+    }
+
+    const [anchor, ...rest] = clean as [LatLng, ...LatLng[]];
+    const res = await mutate('reshape that', `/api/admin/jobs/${job.jobId}/property-map/points`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ map_id: mapId, point_id: pointId, lat: anchor.lat, lng: anchor.lng, vertices: rest }),
+    });
+    if (!res) {
+      // Same reasoning as a failed move: the shape on screen is one Google drew and the database has
+      // never heard of. Re-reading is the only honest way to put it back.
+      addToast('That shape could not be saved — putting it back.', 'error');
       void loadJobMap(job.jobId);
     }
   }, [job, mapId, mutate, addToast, loadJobMap]);
@@ -745,11 +865,13 @@ export default function GlobalPropertyMapPage() {
   const worldRef = useRef(world);
   const movePointRef = useRef(movePoint);
   const editingRef = useRef(editing);
+  const reshapeRef = useRef(reshapePoint);
   useEffect(() => { workModeRef.current = workMode; }, [workMode]);
   useEffect(() => { assignFileRef.current = assignFile; }, [assignFile]);
   useEffect(() => { worldRef.current = world; }, [world]);
   useEffect(() => { movePointRef.current = movePoint; }, [movePoint]);
   useEffect(() => { editingRef.current = editing; }, [editing]);
+  useEffect(() => { reshapeRef.current = reshapePoint; }, [reshapePoint]);
 
   useEffect(() => {
     if (!map || mapDead || typeof google === 'undefined' || !google.maps?.marker) return;
@@ -960,7 +1082,21 @@ export default function GlobalPropertyMapPage() {
     const res = await mutate('draw that shape', `/api/admin/jobs/${job.jobId}/property-map/points`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }, 'Shape placed.');
+    // ── KEEPING IT PUTS THE TOOL DOWN (owner, 2026-09-19) ──────────────────────────────────────
+    //
+    // "if I click keep it or done when I am done drawing a line for a walked path ... it should no
+    // longer be selecting the walked path tool. Right now ... my next click on the map starts a new
+    // drawn line, but it shouldn't work that way."
+    //
+    // This cleared `draw` — the shape being built — but left `drawKind`, the armed tool. So the
+    // panel closed, the shape was saved, and the map still silently believed the next click was the
+    // first corner of another path. Cancel and Escape both put the tool down already; keeping it was
+    // the one exit that did not, which made it the one exit that surprised people.
+    //
+    // Drawing one shape is the whole intention. Wanting a second is a second press of the button,
+    // which is cheap — and far cheaper than discovering you started a path you did not mean to.
     setDraw(null);
+    setDrawKind(null);
     if (res) {
       const newest = [...res.points].sort((a, b) => b.ordinal - a.ordinal)[0];
       if (newest) setSelectedId(newest.id);
@@ -984,10 +1120,14 @@ export default function GlobalPropertyMapPage() {
   // were missed. Now the geometry is built when the geometry changes, and hovering only calls
   // `setOptions` on objects that already exist — no allocation, no overlay churn, no reset.
   const shapesRef = useRef<Map<string, google.maps.Polygon | google.maps.Polyline>>(new Map());
+  /** Cancels for the coalescing timers below, so a shape torn down mid-gesture cannot fire a save
+   *  for a point that is no longer on the map. */
+  const shapeTimersRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
     if (!map || mapDead || typeof google === 'undefined' || !google.maps?.Polygon) return;
     const drawn = new Map<string, google.maps.Polygon | google.maps.Polyline>();
+    shapeTimersRef.current = [];
 
     const add = (p: MapPoint, colour: string) => {
       const anchor = { lat: p.lat as number, lng: p.lng as number };
@@ -1010,6 +1150,44 @@ export default function GlobalPropertyMapPage() {
         ? new google.maps.Polyline({ ...common, path })
         : new google.maps.Polygon({ ...common, paths: path, fillColor: colour, fillOpacity: 0.18 });
       shape.addListener('click', () => setSelectedId(p.id));
+
+      // ── GRABBING A CORNER (owner, 2026-09-19) ──────────────────────────────────────────────────
+      //
+      // "I also need to be able to edit the nodes of the walked path by grabbing them and moving
+      // them."
+      //
+      // `editable` is switched on and off by the styling effect — only the SELECTED shape, and only
+      // in Edit map. These listeners are attached once, here, because they belong to the shape
+      // rather than to whether it happens to be editable this second.
+      //
+      // Three events, one outcome. Dragging a corner is `set_at`; dragging a midpoint ghost to make
+      // a new corner is `insert_at`; Google's own right-click delete is `remove_at`. Each one is a
+      // finished edit and each one saves the whole path, so there is no partial state to reconcile.
+      //
+      // A FOV cone is left out on purpose: its shape is computed from a bearing and a reach, so
+      // dragging one arc corner would describe something the model cannot store. It is aimed with
+      // its own controls instead.
+      if (p.geometry === 'path' || p.geometry === 'area') {
+        const line = shape.getPath();
+        // Coalesced, because one gesture is not one event: dragging a midpoint ghost inserts the
+        // corner and then reports it moving, so a naive listener sends a PATCH per frame of the
+        // drag. A short wait after the last event turns the whole gesture into one save — and one
+        // undo-able change, rather than forty rows of history for moving a corner six feet.
+        let pending: number | null = null;
+        const save = () => {
+          if (pending !== null) window.clearTimeout(pending);
+          pending = window.setTimeout(() => {
+            pending = null;
+            // Read from `line` rather than from the event: the array IS the shape after the edit,
+            // and the three events carry different arguments between them.
+            const corners = line.getArray().map((c) => ({ lat: c.lat(), lng: c.lng() }));
+            void reshapeRef.current(p.id, corners);
+          }, 260);
+        };
+        for (const ev of ['set_at', 'insert_at', 'remove_at'] as const) line.addListener(ev, save);
+        shapeTimersRef.current.push(() => { if (pending !== null) window.clearTimeout(pending); });
+      }
+
       drawn.set(p.id, shape);
     };
 
@@ -1029,13 +1207,21 @@ export default function GlobalPropertyMapPage() {
 
     shapesRef.current = drawn;
     return () => {
+      for (const cancel of shapeTimersRef.current) cancel();
+      shapeTimersRef.current = [];
       for (const s of drawn.values()) s.setMap(null);
       shapesRef.current = new Map();
     };
   }, [map, mapDead, workMode, points, layers, hiddenTypes, hiddenLayers]);
 
   /** Hover and selection, applied to shapes that already exist. Cheap enough to run on every
-   *  pointer move because it allocates nothing — it is a property write per visible shape. */
+   *  pointer move because it allocates nothing — it is a property write per visible shape.
+   *
+   *  It also takes the shapes OUT of the way while something is being drawn. A saved shape is
+   *  clickable on purpose — that is how you select its point — but Google hands a click to the
+   *  topmost overlay rather than to the map, so drawing a path across an existing area meant the
+   *  clicks that should have placed corners were selecting whatever they landed on instead. While
+   *  `drawKind` is set, the map is the only thing listening. */
   useEffect(() => {
     if (mapDead) return;
     for (const p of points) {
@@ -1045,6 +1231,12 @@ export default function GlobalPropertyMapPage() {
       const mine = p.id === hoverPoint || p.id === selectedId;
       try {
         shape.setOptions({
+          clickable: !drawKind,
+          // Handles on the selected shape only, and only in Edit map. Every shape editable at once
+          // would put a grab handle on every corner of every path on the parcel — the map would be
+          // covered in them, and a click meant for the map would land on one.
+          editable: Boolean(editing) && !drawKind && p.id === selectedId
+            && (p.geometry === 'path' || p.geometry === 'area'),
           strokeOpacity: lit ? 0.95 : 0.25,
           strokeWeight: mine ? 4 : 2.5,
           ...(p.geometry === 'path' ? {} : { fillOpacity: lit ? 0.18 : 0.05 }),
@@ -1053,7 +1245,7 @@ export default function GlobalPropertyMapPage() {
         // A shape Google has already disposed of. Nothing to restyle, and nothing worth saying.
       }
     }
-  }, [mapDead, points, layers, hoverLayer, hoverPoint, selectedId]);
+  }, [mapDead, points, layers, hoverLayer, hoverPoint, selectedId, drawKind, editing]);
 
   /** The shape under construction, drawn as you click so it is not a guess until you finish. Its
    *  own effect because `draw` changes on every click and every FOV nudge, and rebuilding one
@@ -1143,6 +1335,17 @@ export default function GlobalPropertyMapPage() {
           path: [],
           strokeOpacity: 0,
           zIndex: 19,
+          // ── THE BAND MUST NOT EAT THE CLICK (owner, 2026-09-19) ───────────────────────────────
+          //
+          // "I can place the initial point and then I can see the dashed line for where I am placing
+          // the next part of the line segment, but it won't let me actually anchor it."
+          //
+          // `google.maps.Polyline` is CLICKABLE BY DEFAULT, and this particular polyline ends at the
+          // cursor — that is its whole job. So it was always directly under the pointer, and Google
+          // gives the click to the topmost overlay rather than the map: `onMapClick` never fired and
+          // no second corner could ever be placed. The preview shape sets this for the same reason;
+          // the band was added later and did not.
+          clickable: false,
           icons: [{
             icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: '#FACC15', strokeWeight: 3, scale: 3 },
             offset: '0',
@@ -1604,7 +1807,7 @@ export default function GlobalPropertyMapPage() {
                       onClick={() => {
                         setJobPickerOpen(false);
                         if (j.lat !== null && j.lng !== null) flyTo({ lat: j.lat, lng: j.lng });
-                        else void goToQuery([j.address, j.city, j.county, 'TX'].filter(Boolean).join(', '));
+                        else void goToQuery(addressLine(j));
                       }}
                     >
                       {[j.address, j.city].filter(Boolean).join(', ')}
