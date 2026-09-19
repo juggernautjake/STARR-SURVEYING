@@ -22,7 +22,7 @@
 // file rather than an expired token.
 import { supabaseAdmin } from '@/lib/supabase';
 import { bucketOf, displayName, mimeOf, sizeOf, type JobFileRow } from './file-storage';
-import { initialThumbState, type ThumbState } from './file-thumbnails';
+import { imageIsItsOwnThumb, initialThumbState, type ThumbState } from './file-thumbnails';
 import {
   mediaKindFor, sortMedia, sortPoints, isKnownPointType, pointStatus, DEFAULT_POINT_TYPE, clampToImage,
   sortLayers, DEFAULT_LAYER_NAME,
@@ -229,9 +229,10 @@ export async function loadPropertyMap(jobId: string, mapId?: string | null, emai
       caption: m.caption,
       ordinal: m.ordinal,
       url: full,
-      // An image with no generated thumbnail falls back to itself, so a missing preview is a slower
-      // tile rather than an empty one.
-      thumbUrl: urlFor(m.thumb_bucket, m.thumb_path) ?? (kind === 'image' ? full : null),
+      // As in the library above: a small image is its own tile, a big one waits for a real preview
+      // rather than making the point panel download a 12 MB photograph to fill a 104 px square.
+      thumbUrl: urlFor(m.thumb_bucket, m.thumb_path)
+        ?? (imageIsItsOwnThumb(kind, f ? sizeOf(f) : null) ? full : null),
       sizeBytes: f ? sizeOf(f) : null,
       mimeType: f ? mimeOf(f) : null,
     };
@@ -382,10 +383,11 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
       uploadedAt: (f as { uploaded_at?: string | null }).uploaded_at ?? null,
       section: (f as { section?: string | null }).section ?? null,
       url,
-      // The generated preview when there is one; an image falls back to itself, which is correct and
-      // costs nothing since it is signed either way.
-      thumbUrl: generated ?? (kind === 'image' ? url : null),
-      thumbState: generated ? 'ok' : (kind === 'image' && url ? 'ok' : thumbState),
+      // The generated preview when there is one. A SMALL image falls back to itself; a big one does
+      // not, and is left `pending` so the panel's queue makes it a real 400 px WebP — see
+      // `imageIsItsOwnThumb`, which is where the reasoning and the owner's report live.
+      thumbUrl: generated ?? (imageIsItsOwnThumb(kind, sizeOf(f)) ? url : null),
+      thumbState: generated ? 'ok' : (imageIsItsOwnThumb(kind, sizeOf(f)) && url ? 'ok' : thumbState),
       // In point order, so the chips read "on 2, 7" rather than in whatever order the rows came back.
       assignedTo: held
         .map((a) => {

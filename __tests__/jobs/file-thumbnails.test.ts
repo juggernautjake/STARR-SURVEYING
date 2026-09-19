@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import {
   canGenerateThumb, initialThumbState, needsThumb, thumbStoragePath, decodeThumbDataUrl,
   thumbSize, posterTime, THUMB_MAX_BYTES, THUMB_MAX_PX,
+  imageIsItsOwnThumb, IMAGE_OWN_THUMB_MAX_BYTES,
 } from '@/lib/jobs/file-thumbnails';
 
 const read = (p: string) => readFileSync(p, 'utf8');
@@ -127,7 +128,8 @@ describe('the route and the library agree with the module', () => {
   it('the library hands back the generated preview, and says what still needs one', () => {
     const server = read('lib/jobs/property-map-server.ts');
     expect(server).toContain('thumbState');
-    expect(server, 'an image previews from itself').toContain("thumbUrl: generated ?? (kind === 'image' ? url : null)");
+    expect(server, 'only a SMALL image previews from itself').toContain('imageIsItsOwnThumb(kind, sizeOf(f))');
+    expect(server, 'the full-size fallback is the bug, and is gone').not.toContain("(kind === 'image' ? url : null)");
     expect(server, 'signed with everything else, in bulk').toContain('if (t.thumb_path && t.thumb_bucket) toSign.push');
   });
 
@@ -135,5 +137,52 @@ describe('the route and the library agree with the module', () => {
     const seed = read('seeds/644_job_file_thumbnails.sql');
     expect(seed).toContain("CHECK (thumb_state IN ('pending', 'ok', 'failed', 'unsupported'))");
     expect(seed, 'and indexes the panel’s actual question').toContain('idx_job_files_thumb_pending');
+  });
+});
+
+// ── A BIG PHOTOGRAPH IS NOT A THUMBNAIL ─────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-19: "All of the images seem to kind of load in at once, and the whole site is kind
+// of frozen." The panel was handing every tile the signed URL of the original, so a job with two
+// hundred phone photographs pulled and DECODED over a gigabyte to paint 104 px squares.
+describe('when an image may stand in as its own tile', () => {
+  it('a small image is its own thumbnail', () => {
+    expect(imageIsItsOwnThumb('image', 40 * 1024)).toBe(true);
+    expect(imageIsItsOwnThumb('image', IMAGE_OWN_THUMB_MAX_BYTES), 'exactly at the cap is still small').toBe(true);
+  });
+
+  it('a phone photograph is not', () => {
+    expect(imageIsItsOwnThumb('image', IMAGE_OWN_THUMB_MAX_BYTES + 1)).toBe(false);
+    expect(imageIsItsOwnThumb('image', 8 * 1024 * 1024), 'the case that caused the report').toBe(false);
+  });
+
+  it('an unknown size is treated as too big', () => {
+    // Assuming "small" would restore the bug; the cost of being wrong the other way is one
+    // generated preview that did not need making.
+    expect(imageIsItsOwnThumb('image', null)).toBe(false);
+    expect(imageIsItsOwnThumb('image', undefined)).toBe(false);
+    expect(imageIsItsOwnThumb('image', 0)).toBe(false);
+    expect(imageIsItsOwnThumb('image', Number.NaN)).toBe(false);
+    expect(imageIsItsOwnThumb('image', -5), 'a negative size is not a small file').toBe(false);
+  });
+
+  it('nothing else is ever its own thumbnail, however small', () => {
+    // A 30 KB video is still a video: there is no frame to show until one is decoded out of it.
+    expect(imageIsItsOwnThumb('video', 30 * 1024)).toBe(false);
+    expect(imageIsItsOwnThumb('document', 1)).toBe(false);
+    expect(imageIsItsOwnThumb('audio', 1)).toBe(false);
+  });
+
+  it('the threshold sits above what a generated preview costs', () => {
+    // The point of the cap: below it, generating a 20–60 KB WebP saves less than the extra round
+    // trip to fetch it costs. If these ever crossed, the cheap case would be the expensive one.
+    expect(IMAGE_OWN_THUMB_MAX_BYTES).toBeLessThan(THUMB_MAX_BYTES);
+  });
+
+  it('the panel queues a big image instead of skipping every image', () => {
+    const page = read('app/admin/map/page.tsx');
+    expect(page, 'the skip is now conditional on there BEING a thumb url')
+      .toContain("if (f.kind === 'image' && f.thumbUrl) continue;");
+    expect(page).toContain('imageIsItsOwnThumb');
   });
 });

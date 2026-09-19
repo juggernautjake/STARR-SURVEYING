@@ -152,6 +152,10 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const [query, setQuery] = useState('');
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  /** The same map, readable without being a dependency. The prefetch below needs to know what it
+   *  already has, but must not re-run every time it succeeds at getting one. */
+  const urlsRef = useRef(urls);
+  urlsRef.current = urls;
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -293,15 +297,42 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     if (!url) { setNotice(`Could not open ${n.name}.`); return; }
     setUrls((m) => ({ ...m, [n.id]: url }));
     setViewerId(n.id);
-    const others = viewerNodes.filter((x) => x.id !== n.id && !x.open_href && !urls[x.id]);
+  }, [urls]);
+
+  // ── ONLY THE FILES YOU COULD REACH NEXT ───────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-19: "the whole site is kind of forzen."
+  //
+  // Opening one file used to prefetch a signed URL for EVERY OTHER FILE in the folder — and with an
+  // `await` inside the loop, so three hundred files meant fifty sequential rounds of six requests.
+  // Each one is an auth check, an access check and a storage signature, so a single click on a
+  // photograph quietly queued three hundred of those against the same connection the viewer was
+  // trying to use to load the photograph.
+  //
+  // The viewer can only go forwards or backwards, so only the files within reach are worth having
+  // ready. The window follows `viewerId`, which the viewer updates as you step, so holding the arrow
+  // key still never waits — it just stops paying for the nine-tenths of the folder you never reach.
+  const WINDOW = 8;
+  const askedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!viewerId) return;
+    const reachable = viewerNodes.filter((x) => !x.open_href);
+    const at = reachable.findIndex((x) => x.id === viewerId);
+    if (at < 0) return;
+    const near = reachable
+      .slice(Math.max(0, at - WINDOW), at + WINDOW + 1)
+      .filter((x) => x.id !== viewerId && !urlsRef.current[x.id] && !askedRef.current.has(x.id));
+    if (!near.length) return;
+    for (const x of near) askedRef.current.add(x.id);
+
+    let live = true;
     void (async () => {
-      for (let i = 0; i < others.length; i += 6) {
-        const batch = others.slice(i, i + 6);
-        const pairs = await Promise.all(batch.map(async (x) => [x.id, await mountViewUrl(x.id)] as const));
-        setUrls((m) => { const next = { ...m }; for (const [id, u] of pairs) if (u) next[id] = u; return next; });
-      }
+      const pairs = await Promise.all(near.map(async (x) => [x.id, await mountViewUrl(x.id)] as const));
+      if (!live) return;
+      setUrls((m) => { const next = { ...m }; for (const [id, u] of pairs) if (u) next[id] = u; return next; });
     })();
-  }, [urls, viewerNodes]);
+    return () => { live = false; };
+  }, [viewerId, viewerNodes]);
 
   const save = useCallback(async (n: MountNode) => {
     setBusy(`Preparing ${n.name}…`);

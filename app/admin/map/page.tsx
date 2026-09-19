@@ -972,9 +972,22 @@ export default function GlobalPropertyMapPage() {
   // rather than rendered. Everything is drawn in its point's colour, which is the layer's when the
   // layer has one — so switching a sheet to orange turns its cones and paths orange too, not just
   // its pins.
+  //
+  // BUILDING AND STYLING ARE TWO EFFECTS, NOT ONE (owner, 2026-09-19: "the map doesn't refresh and
+  // get clarity quickly"). They used to be one, with `hoverPoint`, `selectedId` and `draw` in the
+  // dependency array — so moving the pointer across a pin destroyed every Polygon and Polyline on
+  // the map and constructed a fresh set. Google reacts to that by re-compositing the overlay pane,
+  // which interrupts the progressive sharpening of the satellite tiles underneath; the imagery was
+  // being knocked back to its blurry first pass every time the mouse crossed a marker.
+  //
+  // The markers were given exactly this treatment earlier and for exactly this reason. The shapes
+  // were missed. Now the geometry is built when the geometry changes, and hovering only calls
+  // `setOptions` on objects that already exist — no allocation, no overlay churn, no reset.
+  const shapesRef = useRef<Map<string, google.maps.Polygon | google.maps.Polyline>>(new Map());
+
   useEffect(() => {
     if (!map || mapDead || typeof google === 'undefined' || !google.maps?.Polygon) return;
-    const drawn: Array<google.maps.Polygon | google.maps.Polyline> = [];
+    const drawn = new Map<string, google.maps.Polygon | google.maps.Polyline>();
 
     const add = (p: MapPoint, colour: string) => {
       const anchor = { lat: p.lat as number, lng: p.lng as number };
@@ -984,22 +997,20 @@ export default function GlobalPropertyMapPage() {
         : undefined);
       if (path.length < 2) return;
 
-      const lit = hoverLayer === null
-        ? true
-        : layerOf(p, layers)?.id === hoverLayer;
-      const mine = p.id === hoverPoint || p.id === selectedId;
+      // Built lit and unemphasised. The styling effect below runs straight after this one and puts
+      // the real hover and selection state on, so there is no frame where the wrong thing is bright.
       const common = {
         map,
         strokeColor: colour,
-        strokeOpacity: lit ? 0.95 : 0.25,
-        strokeWeight: mine ? 4 : 2.5,
+        strokeOpacity: 0.95,
+        strokeWeight: 2.5,
         clickable: true,
       };
       const shape = p.geometry === 'path'
         ? new google.maps.Polyline({ ...common, path })
-        : new google.maps.Polygon({ ...common, paths: path, fillColor: colour, fillOpacity: lit ? 0.18 : 0.05 });
+        : new google.maps.Polygon({ ...common, paths: path, fillColor: colour, fillOpacity: 0.18 });
       shape.addListener('click', () => setSelectedId(p.id));
-      drawn.push(shape);
+      drawn.set(p.id, shape);
     };
 
     try {
@@ -1016,20 +1027,55 @@ export default function GlobalPropertyMapPage() {
       setMapDead(true);
     }
 
-    // The shape under construction, drawn as you click so it is not a guess until you finish.
-    if (draw) {
-      const path = shapePath(draw.geometry, draw.anchor, draw.vertices,
-        draw.geometry === 'fov' ? { bearing: draw.bearing, spreadDeg: draw.spreadDeg, feet: draw.feet } : undefined);
-      if (path.length >= 2) {
-        const common = { map, strokeColor: '#FACC15', strokeOpacity: 1, strokeWeight: 3, clickable: false, zIndex: 9 };
-        drawn.push(draw.geometry === 'path'
-          ? new google.maps.Polyline({ ...common, path })
-          : new google.maps.Polygon({ ...common, paths: path, fillColor: '#FACC15', fillOpacity: 0.2 }));
+    shapesRef.current = drawn;
+    return () => {
+      for (const s of drawn.values()) s.setMap(null);
+      shapesRef.current = new Map();
+    };
+  }, [map, mapDead, workMode, points, layers, hiddenTypes, hiddenLayers]);
+
+  /** Hover and selection, applied to shapes that already exist. Cheap enough to run on every
+   *  pointer move because it allocates nothing — it is a property write per visible shape. */
+  useEffect(() => {
+    if (mapDead) return;
+    for (const p of points) {
+      const shape = shapesRef.current.get(p.id);
+      if (!shape) continue;
+      const lit = hoverLayer === null || layerOf(p, layers)?.id === hoverLayer;
+      const mine = p.id === hoverPoint || p.id === selectedId;
+      try {
+        shape.setOptions({
+          strokeOpacity: lit ? 0.95 : 0.25,
+          strokeWeight: mine ? 4 : 2.5,
+          ...(p.geometry === 'path' ? {} : { fillOpacity: lit ? 0.18 : 0.05 }),
+        });
+      } catch {
+        // A shape Google has already disposed of. Nothing to restyle, and nothing worth saying.
       }
     }
+  }, [mapDead, points, layers, hoverLayer, hoverPoint, selectedId]);
 
-    return () => { for (const s of drawn) s.setMap(null); };
-  }, [map, mapDead, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, hoverPoint, selectedId, draw]);
+  /** The shape under construction, drawn as you click so it is not a guess until you finish. Its
+   *  own effect because `draw` changes on every click and every FOV nudge, and rebuilding one
+   *  in-progress outline is nothing — rebuilding the whole map's worth alongside it was the cost. */
+  useEffect(() => {
+    if (!map || mapDead || !draw || typeof google === 'undefined' || !google.maps?.Polygon) return;
+    const path = shapePath(draw.geometry, draw.anchor, draw.vertices,
+      draw.geometry === 'fov' ? { bearing: draw.bearing, spreadDeg: draw.spreadDeg, feet: draw.feet } : undefined);
+    if (path.length < 2) return;
+
+    const common = { map, strokeColor: '#FACC15', strokeOpacity: 1, strokeWeight: 3, clickable: false, zIndex: 9 };
+    let shape: google.maps.Polygon | google.maps.Polyline;
+    try {
+      shape = draw.geometry === 'path'
+        ? new google.maps.Polyline({ ...common, path })
+        : new google.maps.Polygon({ ...common, paths: path, fillColor: '#FACC15', fillOpacity: 0.2 });
+    } catch (err) {
+      console.error('[property map] the shape being drawn could not be shown:', err);
+      return;
+    }
+    return () => { shape.setMap(null); };
+  }, [map, mapDead, draw]);
 
   // ── DRAWING YOU CAN SEE (owner, 2026-09-19) ───────────────────────────────────────────────────
   //
@@ -1384,7 +1430,9 @@ export default function GlobalPropertyMapPage() {
       if (!f.url) continue;
       if (thumbTriedRef.current.has(f.id)) continue;
       if (!needsThumb(f.thumbState, f.kind, f.mimeType, f.name)) continue;
-      // An image already falls back to itself, so there is nothing to make and nothing to store.
+      // A SMALL image is served as its own tile and already has a `thumbUrl`, so there is nothing to
+      // make. A big one arrives without one and goes through the queue like a PDF — see
+      // `imageIsItsOwnThumb` in lib/jobs/file-thumbnails.ts for why that changed on 2026-09-19.
       if (f.kind === 'image' && f.thumbUrl) continue;
       thumbTriedRef.current.add(f.id);
       thumbQueueRef.current.push({ id: f.id, url: f.url, kind: f.kind, isPdf: isPdfFile(f) });
@@ -1404,15 +1452,41 @@ export default function GlobalPropertyMapPage() {
   }, []);
 
   // ── the files panel ───────────────────────────────────────────────────────────────────────────
+  //
+  // Sorted ONCE, when the library itself changes. Filtering preserves order, so re-sorting after it
+  // is pure waste — and it used to happen on every keystroke in the search box, five hundred items
+  // at a time, on the thread that was also supposed to be drawing the character you just typed.
+  const sortedLibrary = useMemo(() => sortLibrary(library), [library]);
+
   const visibleFiles = useMemo(() => {
     const needle = fileSearch.trim().toLowerCase();
-    return sortLibrary(library.filter((f) => {
+    return sortedLibrary.filter((f) => {
       if (kindFilter !== 'all' && f.kind !== kindFilter) return false;
       if (unplacedOnly && f.assignedTo.length > 0) return false;
       if (needle && !f.name.toLowerCase().includes(needle)) return false;
       return true;
-    }));
-  }, [library, kindFilter, unplacedOnly, fileSearch]);
+    });
+  }, [sortedLibrary, kindFilter, unplacedOnly, fileSearch]);
+
+  // ── HOW MANY TILES EXIST AT ONCE ──────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-19: "the whole site is kind of forzen."
+  //
+  // A job can hold five hundred files and every one of them used to be mounted the moment the panel
+  // opened — each tile an image, an inline rename, a tooltip and four buttons, so several thousand
+  // nodes and as many React elements to reconcile on every state change in this page. The tiles are
+  // lazy about their PICTURES, which is why this was not obvious; they were never lazy about
+  // existing.
+  //
+  // A page size rather than a virtualiser: it is about fifteen lines instead of a dependency, it
+  // keeps the grid a plain CSS grid that reflows at any width, and it leaves find-in-page working on
+  // what is shown. The batch is generous enough that most jobs never see the button at all.
+  const FILE_PAGE = 120;
+  const [shownFiles, setShownFiles] = useState(FILE_PAGE);
+  // Any change to what is being looked FOR starts the count again, so narrowing a search cannot
+  // leave you scrolled past the end of a much shorter list.
+  useEffect(() => { setShownFiles(FILE_PAGE); }, [fileSearch, kindFilter, unplacedOnly]);
+  const shownList = useMemo(() => visibleFiles.slice(0, shownFiles), [visibleFiles, shownFiles]);
 
   const unplacedCount = useMemo(() => library.filter((f) => f.assignedTo.length === 0).length, [library]);
 
@@ -1422,6 +1496,7 @@ export default function GlobalPropertyMapPage() {
     title: job ? `${job.jobNumber ?? 'Job'} — files` : 'Job files',
     files: visibleFiles.filter((f) => f.url).map((f): ViewerFile => ({
       id: f.id, name: f.name, mime: f.mimeType, size: f.sizeBytes, url: f.url, createdAt: f.uploadedAt,
+      posterUrl: f.kind === 'video' ? f.thumbUrl : null,
       meta: [
         { label: 'Kind', value: KIND_ONE[f.kind] },
         ...(f.assignedTo.length
@@ -1438,6 +1513,7 @@ export default function GlobalPropertyMapPage() {
       id: selected.id, title: where,
       files: sortMedia(selected.media).filter((m) => m.url).map((m): ViewerFile => ({
         id: m.id, name: m.caption || m.name, mime: m.mimeType, size: m.sizeBytes, url: m.url,
+        posterUrl: m.kind === 'video' ? m.thumbUrl : null,
         meta: [{ label: 'Kind', value: KIND_ONE[m.kind] }, { label: 'Placed on', value: where }],
       })),
     };
@@ -1731,7 +1807,7 @@ export default function GlobalPropertyMapPage() {
             )}
             <div className="gmap__files-grid">
               {visibleFiles.length === 0 && <p className="gmap__files-empty">No files match.</p>}
-              {visibleFiles.map((f) => (
+              {shownList.map((f) => (
                 <FileTile
                   key={f.id}
                   file={f}
@@ -1762,6 +1838,19 @@ export default function GlobalPropertyMapPage() {
                 />
               ))}
             </div>
+            {visibleFiles.length > shownList.length && (
+              <button
+                className="gmap__files-more"
+                type="button"
+                data-testid="gmap-files-more"
+                onClick={() => setShownFiles((n) => n + FILE_PAGE)}
+              >
+                Show {Math.min(FILE_PAGE, visibleFiles.length - shownList.length)} more
+                <span className="gmap__files-more-rest">
+                  {visibleFiles.length - shownList.length} not shown
+                </span>
+              </button>
+            )}
           </aside>
         )}
 

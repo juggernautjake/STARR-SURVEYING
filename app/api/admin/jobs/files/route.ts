@@ -81,7 +81,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // `lib/jobs/file-storage.ts` now, and is applied once, here.
       const href = downloadHref(f as JobFileRow);
       const shape = shapeOf(f as JobFileRow);
-      const base = { ...f, download_href: href, storage_shape: shape };
+      // ── THE BASE64 IS NOT SENT TWICE (owner, 2026-09-19: "the whole site is kind of forzen") ──
+      //
+      // Legacy rows keep the whole file in `file_url` as a base64 `data:` URI — a 10 MB PDF is ~13
+      // MB of text in the row. `downloadHref` returns that same string for those rows, so the spread
+      // below was putting it in the payload a SECOND time: a job with thirty legacy attachments sent
+      // a third of a gigabyte to render a list of file names, half of which nothing ever read.
+      //
+      // `download_href` is what every consumer uses, so the duplicate goes. A short `file_url` — a
+      // plain `https://` link on a legacy-remote row — is left alone; it costs nothing and dropping
+      // it would be a behaviour change for no gain.
+      const bulky = shape === 'legacy-inline';
+      const base = {
+        ...f,
+        ...(bulky ? { file_url: null } : {}),
+        download_href: href,
+        storage_shape: shape,
+      };
       if (!f.file_node_id) return base;
       const node = nodes[f.file_node_id];
       return {

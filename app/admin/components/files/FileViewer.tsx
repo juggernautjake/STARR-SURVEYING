@@ -559,7 +559,22 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             {kind === 'text' && textBody !== null ? (
               <pre className="fv-text" style={{ transform: `scale(${fit ? 1 : zoom})` }}>{textBody}</pre>
             ) : null}
-            {kind === 'video' && file.url ? <video className="fv-media" src={file.url} controls /> : null}
+            {/* `preload="metadata"` is the whole fix for "videos load slowly" (owner, 2026-09-19).
+                Chrome's default is `auto`: opening a clip started pulling the entire object down
+                immediately, so a 400 MB drone video saturated the connection — which is also why
+                everything ELSE on the page appeared to stall at the same moment. Metadata is the
+                duration and the dimensions, a few hundred kilobytes; the rest arrives by range
+                request once somebody actually presses play. The poster gives it something to show
+                in the meantime instead of a black rectangle. */}
+            {kind === 'video' && file.url ? (
+              <video
+                className="fv-media"
+                src={file.url}
+                poster={file.posterUrl ?? undefined}
+                preload="metadata"
+                controls
+              />
+            ) : null}
             {kind === 'audio' && file.url ? <audio className="fv-media" src={file.url} controls /> : null}
             {(kind === 'other' || !file.url) && !loadError ? (
               <div className="fv-message">

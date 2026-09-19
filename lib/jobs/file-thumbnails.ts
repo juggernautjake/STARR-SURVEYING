@@ -28,6 +28,36 @@ export const THUMB_QUALITY = 0.8;
  *  "preview" at a time. */
 export const THUMB_MAX_BYTES = 400 * 1024;
 
+/** How big an image may be before it stops being allowed to serve as its own tile.
+ *
+ *  Owner, 2026-09-19: "All of the images seem to kind of load in at once, and the whole site is
+ *  kind of frozen."
+ *
+ *  That was this. An image used to be handed to the panel as its own preview — the reasoning was
+ *  that it is signed either way, so pointing the tile at the original "costs nothing". Signing it
+ *  costs nothing. LOADING it costs everything: a tile is 104 px wide, a phone photograph is 4–12 MB
+ *  and 4032 px, and a job with two hundred of them asked the browser to pull and decode well over a
+ *  gigabyte to paint a contact sheet. The decode is the worse half — that happens on the main
+ *  thread, which is the freeze.
+ *
+ *  So an image is its own thumbnail only when it is genuinely small. Past this it goes through the
+ *  same queue as a PDF or a video: two at a time, and the 400 px WebP that comes out is kept for
+ *  everybody afterwards. 200 KB is set where it is because the generated preview it would be
+ *  replaced by is 20–60 KB — below roughly this size, generating one saves less than the round trip
+ *  to fetch it costs, and above it the saving is immediate and large. */
+export const IMAGE_OWN_THUMB_MAX_BYTES = 200 * 1024;
+
+/** May this image stand in as its own tile, or does it need a real preview made?
+ *
+ *  Unknown size is treated as too big. The sizes come from the storage row and a null there means
+ *  nobody recorded one; assuming "small" would restore exactly the bug this exists to fix, and the
+ *  cost of being wrong the other way is one 400 px WebP that did not need to be made. */
+export function imageIsItsOwnThumb(kind: MediaKind, sizeBytes: number | null | undefined): boolean {
+  if (kind !== 'image') return false;
+  const n = Number(sizeBytes);
+  return Number.isFinite(n) && n > 0 && n <= IMAGE_OWN_THUMB_MAX_BYTES;
+}
+
 /** Which kinds a browser can actually make a preview of.
  *
  *  Audio has no frame to grab — a waveform would have to be invented, and an icon that says "voice

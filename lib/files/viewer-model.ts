@@ -21,6 +21,13 @@ export interface ViewerFile {
   /** Where the bytes can be fetched for DOWNLOADING, if different (e.g. a signed URL that carries a
    *  Content-Disposition: attachment). Falls back to `url`. */
   downloadUrl?: string | null;
+  /** A small still to show while a video's first frame is still coming down the wire.
+   *
+   *  Owner, 2026-09-19: "videos load slowly." Part of that was unavoidable — a 400 MB clip is a 400
+   *  MB clip — but the viewer made it look worse than it was by opening on a black rectangle with
+   *  no indication anything was happening. A poster is the generated preview the file panel already
+   *  has, so this costs one field and no extra fetch. */
+  posterUrl?: string | null;
   createdAt?: string | null;
   createdBy?: string | null;
   pageCount?: number | null;
