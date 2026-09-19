@@ -19,6 +19,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { loadPropertyMap } from '@/lib/jobs/property-map-server';
 import { clampToImage, isKnownPointType, nextOrdinal, renumber, DEFAULT_POINT_TYPE, POINT_STATUSES, type RelativePoint } from '@/lib/jobs/property-map';
 import { isLatLng, roundLatLng } from '@/lib/jobs/map-world';
+import { clampFovFeet, FOV_DEFAULT_FEET } from '@/lib/jobs/map-shapes-world';
 import {
   isKnownGeometry, DEFAULT_GEOMETRY, clampBearing, clampFovDeg, clampFovRadius,
   FOV_DEFAULT_DEG, FOV_DEFAULT_RADIUS, type GeometryId,
@@ -28,14 +29,15 @@ import {
  *  numbers is dropped rather than stored: a vertex the renderer cannot draw is a gap in a line
  *  somebody will later mistake for a property feature. Capped, because a drag that fires on every
  *  mouse move can otherwise write ten thousand of them. */
-function cleanVertices(raw: unknown): RelativePoint[] {
+function cleanVertices(raw: unknown): Array<{ lat: number; lng: number }> {
   if (!Array.isArray(raw)) return [];
-  const out: RelativePoint[] = [];
+  const out: Array<{ lat: number; lng: number }> = [];
   for (const v of raw.slice(0, 500)) {
-    const p = v as { x?: unknown; y?: unknown };
-    if (typeof p?.x === 'number' && typeof p?.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-      out.push(clampToImage({ x: p.x, y: p.y }));
-    }
+    // Real coordinates since seeds/647. Anything that is not a place is dropped rather than stored:
+    // a vertex the renderer cannot draw is a gap in a line somebody will later mistake for a
+    // property feature. Capped, because a drag that fires on every mouse move can otherwise write
+    // ten thousand of them.
+    if (isLatLng(v)) out.push(roundLatLng(v as { lat: number; lng: number }));
   }
   return out;
 }
@@ -47,7 +49,8 @@ function fovColumns(geometry: GeometryId, body: { bearing_deg?: unknown; fov_deg
   return {
     bearing_deg: clampBearing(typeof body.bearing_deg === 'number' ? body.bearing_deg : 0),
     fov_deg: clampFovDeg(typeof body.fov_deg === 'number' ? body.fov_deg : FOV_DEFAULT_DEG),
-    fov_radius: clampFovRadius(typeof body.fov_radius === 'number' ? body.fov_radius : FOV_DEFAULT_RADIUS),
+    // FEET since seeds/647, not a fraction of a photograph — see lib/jobs/map-shapes-world.ts.
+    fov_radius: clampFovFeet(typeof body.fov_radius === 'number' ? body.fov_radius : FOV_DEFAULT_FEET),
   };
 }
 
@@ -221,7 +224,7 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
   if (body.geometry === undefined) {
     if (body.bearing_deg !== undefined) patch.bearing_deg = clampBearing(body.bearing_deg);
     if (body.fov_deg !== undefined) patch.fov_deg = clampFovDeg(body.fov_deg);
-    if (body.fov_radius !== undefined) patch.fov_radius = clampFovRadius(body.fov_radius);
+    if (body.fov_radius !== undefined) patch.fov_radius = clampFovFeet(body.fov_radius);
   }
 
   const { error } = await supabaseAdmin.from('job_map_points')

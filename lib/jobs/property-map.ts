@@ -54,8 +54,11 @@ export interface MapPoint {
   layerId: string | null;
   /** How this one is drawn. See POINT_GEOMETRIES. */
   geometry: GeometryId;
-  /** The bends after (x, y), for `path` and `area`. Empty for the other two. */
-  vertices: RelativePoint[];
+  /** The bends after the anchor, for `path` and `area`. Empty for the other two.
+   *
+   *  Real coordinates since seeds/647 — they were fractions of an uploaded image, which is why a
+   *  path had no length and an area had no acreage until the map moved to the earth. */
+  vertices: Array<{ lat: number; lng: number }>;
   /** `fov` only: which way the camera faced, and how wide and far to draw the cone. */
   bearingDeg: number | null;
   fovDeg: number | null;
@@ -346,6 +349,60 @@ export interface MapLayer {
   isVisible: boolean;
   /** The sheet a point lands on when nobody chose. Exactly one per map; renameable, not deletable. */
   isDefault: boolean;
+  /**
+   * What colour this sheet's points are drawn in, as #RRGGBB, or null for "no opinion".
+   *
+   * Null is the important case: those points keep the colour of their point_type, which is how
+   * every map looked before layer colours existed. Colouring a layer is an override somebody chose,
+   * not a default the feature imposes.
+   */
+  colour: string | null;
+}
+
+/**
+ * The palette a layer can be coloured from.
+ *
+ * A fixed set rather than a colour picker, for two reasons that both matter more than choice. These
+ * are drawn on satellite imagery — which is dark, green and brown almost everywhere — so a free
+ * picker reliably produces a layer nobody can see; every colour here has been checked against
+ * aerial photography. And eight distinguishable colours is already past what anybody can hold in
+ * their head, so offering sixteen million invites a map with four shades of blue on it.
+ */
+export const LAYER_COLOURS: readonly { id: string; label: string; hex: string }[] = [
+  { id: 'none', label: 'By point type', hex: '' },
+  { id: 'amber', label: 'Amber', hex: '#F59E0B' },
+  { id: 'rose', label: 'Rose', hex: '#F43F5E' },
+  { id: 'violet', label: 'Violet', hex: '#8B5CF6' },
+  { id: 'cyan', label: 'Cyan', hex: '#06B6D4' },
+  { id: 'lime', label: 'Lime', hex: '#84CC16' },
+  { id: 'orange', label: 'Orange', hex: '#F97316' },
+  { id: 'pink', label: 'Pink', hex: '#EC4899' },
+  { id: 'white', label: 'White', hex: '#F8FAFC' },
+];
+
+/** A colour the database will accept: #RRGGBB, or null to clear it. Anything else is refused rather
+ *  than coerced — a silently-ignored colour is a layer somebody thinks they coloured. */
+export function checkLayerColour(raw: unknown): { ok: boolean; value?: string | null; error?: string } {
+  if (raw === null || raw === undefined || raw === '') return { ok: true, value: null };
+  if (typeof raw !== 'string') return { ok: false, error: 'A colour must be text.' };
+  const v = raw.trim();
+  if (!/^#[0-9A-Fa-f]{6}$/.test(v)) return { ok: false, error: 'A colour must look like #RRGGBB.' };
+  return { ok: true, value: v.toUpperCase() };
+}
+
+/**
+ * What colour a point is actually drawn in.
+ *
+ * The layer wins when it has one, because that is the question somebody asked by colouring it. With
+ * no layer colour the point keeps its type's colour, which is how the map read before this existed.
+ */
+export function pointColour(
+  point: { pointType: PointTypeId; layerId: string | null },
+  layers: Array<{ id: string; isDefault: boolean; colour: string | null }>,
+  typeColour: (t: PointTypeId) => string,
+): string {
+  const layer = layerOf(point, layers);
+  return layer?.colour || typeColour(point.pointType);
 }
 
 export interface LayerNameCheck {

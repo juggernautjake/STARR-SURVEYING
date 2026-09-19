@@ -20,7 +20,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { loadPropertyMap } from '@/lib/jobs/property-map-server';
-import { checkLayerName } from '@/lib/jobs/property-map';
+import { checkLayerName, checkLayerColour } from '@/lib/jobs/property-map';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +90,8 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
   if (g.error) return g.error;
   const body = (await req.json().catch(() => ({}))) as {
     map_id?: string; layer_id?: string; name?: string; is_visible?: boolean; ordinal?: number;
+    /** #RRGGBB, or null for "no opinion" — those points keep their point type's colour. */
+    colour?: string | null;
   };
   if (!body.map_id || !body.layer_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
@@ -107,6 +109,16 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
     patch.name = name.value;
   }
   if (typeof body.is_visible === 'boolean') patch.is_visible = body.is_visible;
+
+  // `'colour' in body` rather than a truthiness check: null is meaningful and means "go back to
+  // colouring these by point type", which a truthiness check would make the one edit nobody could
+  // make. Validated rather than passed through, so a bad value is a sentence and not a 500 from the
+  // CHECK constraint.
+  if ('colour' in body) {
+    const colour = checkLayerColour(body.colour);
+    if (!colour.ok) return NextResponse.json({ error: colour.error }, { status: 400 });
+    patch.colour = colour.value;
+  }
   if (typeof body.ordinal === 'number' && Number.isFinite(body.ordinal)) {
     patch.ordinal = Math.max(1, Math.round(body.ordinal));
   }

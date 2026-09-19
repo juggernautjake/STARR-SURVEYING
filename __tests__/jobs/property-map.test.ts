@@ -298,17 +298,18 @@ describe('the file panel beside the map, and one file on as many points as it be
   it('the panel still answers "what have I not placed yet?"', () => {
     // 643's argument for one-file-one-point was that the greyed-out state is a lie once a file can
     // hang on three pins. The answer that survives: a file with ANY assignment is placed.
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    const page = read('app/admin/map/page.tsx');
     expect(page).toContain('library.filter((f) => f.assignedTo.length === 0).length');
     expect(page).toContain('if (unplacedOnly && f.assignedTo.length > 0) return false;');
   });
 
   it('an assigned file can be dragged again, and taking it off has to say off WHICH point', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    const page = read('app/admin/map/page.tsx');
+    const tiles = read('app/admin/map/components/Tiles.tsx');
     // The drag used to be refused outright for an assigned file.
-    expect(page).toContain('if (!editing) { e.preventDefault(); return; }');
+    expect(page).toContain("if (!editing) { e.preventDefault(); return; }");
     expect(page).toContain("at: LibraryFile['assignedTo'][number]");
-    expect(page, 'the confirm becomes the list when there is more than one').toContain("'Take it off which point?'");
+    expect(tiles, 'the confirm becomes the list when there is more than one').toContain("'Take it off which point?'");
   });
 
   it('is its own endpoint, so assigning one photo does not reload the aerial', () => {

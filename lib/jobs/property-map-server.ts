@@ -30,17 +30,19 @@ import {
   type MapLayer,
 } from './property-map';
 import { isKnownGeometry, DEFAULT_GEOMETRY } from './property-map-shapes';
+import { isLatLng, roundLatLng } from './map-world';
 
 /** jsonb is whatever was written into it. A shape whose vertices are unreadable degrades to its
  *  anchor — a labelled dot where the path started — rather than throwing the whole map away. */
-function readVertices(raw: unknown): RelativePoint[] {
+function readVertices(raw: unknown): Array<{ lat: number; lng: number }> {
   if (!Array.isArray(raw)) return [];
-  const out: RelativePoint[] = [];
+  const out: Array<{ lat: number; lng: number }> = [];
   for (const v of raw) {
-    const p = v as { x?: unknown; y?: unknown };
-    if (typeof p?.x === 'number' && typeof p?.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-      out.push(clampToImage({ x: p.x, y: p.y }));
-    }
+    const p = v as { lat?: unknown; lng?: unknown };
+    // Only real coordinates. A row written before seeds/647 holds {x, y} image fractions, which are
+    // not places — they are dropped rather than drawn somewhere off the coast of Africa, and the
+    // point still renders as its labelled anchor.
+    if (isLatLng(p)) out.push(roundLatLng({ lat: p.lat as number, lng: p.lng as number }));
   }
   return out;
 }
@@ -56,7 +58,7 @@ interface MapRow {
 }
 interface LayerRow {
   id: string; map_id: string; name: string; ordinal: number;
-  is_visible: boolean; is_default: boolean;
+  is_visible: boolean; is_default: boolean; colour: string | null;
 }
 interface PointRow {
   id: string; map_id: string; ordinal: number; title: string; notes: string | null;
@@ -84,7 +86,7 @@ export interface LoadedMap {
 function toLayer(r: LayerRow): MapLayer {
   return {
     id: r.id, mapId: r.map_id, name: r.name, ordinal: r.ordinal,
-    isVisible: r.is_visible, isDefault: r.is_default,
+    isVisible: r.is_visible, isDefault: r.is_default, colour: r.colour ?? null,
   };
 }
 

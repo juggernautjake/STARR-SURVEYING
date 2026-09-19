@@ -58,17 +58,17 @@ describe('one rename, not one per surface', () => {
   });
 
   it('the map writes the file’s label — the same field the Files tab writes', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
-    expect(page).toContain('/api/admin/jobs/files/${jobFileId}`');
+    const page = read('app/admin/map/page.tsx');
+    expect(page).toContain('/api/admin/jobs/files/${fileId}`');
     expect(page, 'the shared field, not a map-local caption').toContain("body: JSON.stringify({ label: next })");
     // A point attachment's id is the media row's, not the file's — renaming by it would rename
     // whatever job file happened to share that uuid, or nothing.
     expect(page).toContain('renameFile(m.jobFileId, next)');
-    expect(page).toContain('renameFile(file.id, next)');
+    expect(page).toContain('renameFile(f.id, next)');
   });
 
   it('the map’s viewer can rename too, and resolves a media id back to its file', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    const page = read('app/admin/map/page.tsx');
     expect(page, 'the gap: the viewer used to be handed no capabilities here').toContain('capabilities={editing ? viewerCapabilities : undefined}');
     expect(page).toContain('const jobFileId = fromLibrary?.id ?? media?.jobFileId;');
     expect(page, 'an unresolvable row refuses rather than renaming the wrong file').toContain("throw new Error('That file is renamed where it lives.')");
@@ -91,34 +91,34 @@ describe('one rename, not one per surface', () => {
     expect(route, 'and the row has to be read to fall back to').toContain('file_name, name, label');
   });
 
-  it('the map itself can be renamed, which it never could', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
-    expect(page).toContain('const renameMap = useCallback');
-    expect(page).toContain('onRename={renameMap}');
+  it('a layer can be renamed from the map, with the same control', () => {
+    // The per-map TITLE is gone rather than broken: the global map is identified by the job it is
+    // showing, so there is no map heading left to rename. Layers took over as the thing on this
+    // page that carries a name somebody chose.
+    const page = read('app/admin/map/page.tsx');
+    expect(page).toContain('const renameLayer = useCallback');
+    expect(page).toContain('onRename={(next) => renameLayer(l.id, next)}');
   });
 });
 
 describe('a point can be renamed after it has been named', () => {
   it('the panel heading is the edit, not just a label', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
-    expect(page).toContain('const renamePoint = useCallback');
-    expect(page).toContain('onRename={(next) => renamePoint(selected.id, next)}');
+    const page = read('app/admin/map/page.tsx');
+    expect(page, 'the heading itself is the edit').toContain("patchPoint(selected.id, { title: next }, 'Point renamed.')");
     // The ordinal in "3. Fence corner" belongs to the map's numbering, so only the title is edited.
     expect(page, 'the bare title, not the numbered label').toContain('name={selected.title}');
   });
 
-  it('moves the Title box below it along, so Save cannot put the old name back', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
-    expect(page).toContain('setDraft((d) => (d ? { ...d, title } : d));');
-    // The draft is seeded when the SELECTION changes, so a rename on the open point has to say so.
-    expect(page).toContain('}, [selectedId]);');
+  it('the draft follows the selection, so an edit is never wiped by a reload', () => {
+    const page = read('app/admin/map/page.tsx');
+    expect(page).toContain('setDraft(p ? { title: p.title, notes: p.notes ?? ');
   });
 
-  it('patchPoint reports whether the save landed', () => {
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
-    // It used to swallow the result, which would have made a failed rename look like it worked.
-    expect(page).toContain("const res = await patchPoint(pointId, { title }, 'Point renamed.');");
-    expect(page).toContain("if (!res) throw new Error('rename failed');");
+  it('a failed rename is not reported as success', () => {
+    // Without this a save that never landed would close the box and leave the new name on screen
+    // until the next reload put the old one back.
+    const page = read('app/admin/map/page.tsx');
+    expect(page).toContain("if (!r) throw new Error('rename failed');");
   });
 
   it('a title is not a file name — no extension is welded onto it', () => {
@@ -126,7 +126,7 @@ describe('a point can be renamed after it has been named', () => {
     // extension is ".5m offset" and appends it to whatever is typed next.
     expect(applyRename('Fence corner 3.5m offset', 'NE pipe'), 'why titles opt out')
       .toBe('NE pipe.5m offset');
-    const page = read('app/admin/jobs/[id]/map/page.tsx');
+    const page = read('app/admin/map/page.tsx');
     const control = read('app/admin/components/files/InlineRename.tsx');
     expect(control).toContain('preserveExtension = true');
     expect(control).toContain('preserveExtension ? applyRename(name, draft) : sanitizeFilename(draft, name)');
