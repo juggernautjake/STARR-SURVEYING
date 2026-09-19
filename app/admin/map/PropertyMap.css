@@ -3855,3 +3855,58 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   text-align: left;
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
+
+/* ── A JOB ON THE MAP (owner, 2026-09-19) ─────────────────────────────────────────────────────
+ * "I wish it were that when we are zoomed out … it showed the job name and the number of points at
+ * that location. I want it so that as we add jobs to the interactive map, we can see on the map
+ * where each job is."
+ *
+ * Centred UNDER the count rather than beside it, unlike a point's own label: a job marker is a
+ * place on a county-wide view and its name is what identifies it, so it reads as a caption to the
+ * dot rather than as an annotation hanging off it. Always visible — the Names toggle governs point
+ * labels, and hiding the job names would leave a map of numbered circles, which is the thing this
+ * replaced. */
+.gmap__cluster-name {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 21px);
+  transform: translateX(-50%);
+  max-width: 11rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 45%);
+  color: #FFF;
+  font: 600 0.68rem/1.25 system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 90%), 1px 0 2px rgb(0 0 0 / 90%), -1px 0 2px rgb(0 0 0 / 90%);
+  pointer-events: none;
+}
+
+/* ── WHICH ONE AM I ABOUT TO CLICK ────────────────────────────────────────────────────────────
+ * "whenever we hover the cursor over a point, it gets a slight glow to show exactly what point we
+ * are targeting … when we get more points they might start to overlap each other and it will be
+ * helpful to know which point we are hovering over before selecting it."
+ *
+ * Two jobs at neighbouring addresses draw two markers that overlap on purpose, so the answer has to
+ * be visible BEFORE the click. A glow rather than a size change: growing the marker moves its edges
+ * under the cursor and can pull a neighbour out from under it, which is how a hover effect starts
+ * fighting the click it is meant to help.
+ *
+ * `z-index` comes with it so the lit one is the one on top — a glow underneath the marker you are
+ * not pointing at would answer the question backwards. */
+.gmap__marker--hot { z-index: 30; }
+.gmap__marker--hot .gmap__cluster,
+.gmap__marker--hot .gmap__pin {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, #FFF 75%, transparent),
+    0 0 14px 4px color-mix(in srgb, var(--theme-accent, #1D3095) 70%, transparent),
+    0 2px 8px rgb(0 0 0 / 45%);
+}
+.gmap__marker--hot .gmap__cluster-name { background: rgb(0 0 0 / 70%); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The glow is a state, not an animation, so it stays — there is nothing here to slow down. */
+  .gmap__marker--hot { z-index: 30; }
+}

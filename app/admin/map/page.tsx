@@ -51,7 +51,7 @@ import {
 import {
   clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng, parseLatLng,
   pinHighlight, layerRowLit, roundLatLng,
-  DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM,
+  DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM, clusterByJob, matchesJobSearch,
   type Bounds, type LatLng,
 } from '@/lib/jobs/map-world';
 import { POINT_GEOMETRIES, type GeometryId } from '@/lib/jobs/property-map-shapes';
@@ -228,6 +228,13 @@ export default function GlobalPropertyMapPage() {
   const [jobPickerOpen, setJobPickerOpen] = useState(false);
   const [jobs, setJobs] = useState<JobPlace[]>([]);
   const [fileSearch, setFileSearch] = useState('');
+  /** What is typed in the map's search box, used to filter the jobs on it (owner, 2026-09-19).
+   *
+   *  The same box still geocodes an address on Enter. One box doing both is the owner's choice and
+   *  it works because the two never collide: filtering happens as you type and costs nothing, and
+   *  the lookup only happens when you ask for it. Text that matches no job simply empties the map
+   *  until you press Enter, which is the honest answer to "no job is called that". */
+  const [jobSearch, setJobSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<MediaKind | 'all'>('all');
   const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [hiddenTypes, setHiddenTypes] = useState<PointTypeId[]>([]);
@@ -811,20 +818,35 @@ export default function GlobalPropertyMapPage() {
           pointType: p.pointType, mediaCount: p.media.length, jobNumber: job?.jobNumber ?? null,
           colour: pointColour(p, layers, swatch),
           layerId: layerOf(p, layers)?.id ?? null,
+          jobId: job?.jobId ?? '', jobName: job?.name ?? null,
         }));
     }
     return world
       .filter((p) => !hiddenTypes.includes(p.pointType))
+      // ── THE SEARCH IS A FILTER (owner, 2026-09-19) ────────────────────────────────────────────
+      // "If a job does not match our string, then its representitive point would disappear."
+      //
+      // Applied HERE, before clustering, so it holds at every zoom: a hidden job is hidden whether
+      // you are looking at the county or standing on the parcel. Filtering the clusters instead
+      // would have made the map quietly repopulate as you zoomed in, which is the behaviour of a
+      // highlight, not of a filter.
+      .filter((p) => matchesJobSearch(p, jobSearch))
       .map((p) => ({
         id: p.id, lat: p.lat, lng: p.lng, ordinal: p.ordinal, title: p.title,
         pointType: p.pointType, mediaCount: p.mediaCount, jobNumber: p.jobNumber,
         colour: swatch(p.pointType), layerId: p.layerId,
+        jobId: p.jobId, jobName: p.jobName,
       }));
-  }, [workMode, points, world, hiddenTypes, hiddenLayers, layers, job]);
+  }, [workMode, points, world, hiddenTypes, hiddenLayers, layers, job, jobSearch]);
 
   useEffect(() => { pointsRef.current = points; }, [points]);
 
-  const clusters = useMemo(() => clusterPoints(drawable, zoom), [drawable, zoom]);
+  // Inside a job, geography is the only useful grouping — every point already belongs to the job
+  // you are looking at. Across jobs it is the wrong one: see `clusterByJob`.
+  const clusters = useMemo(
+    () => (workMode ? clusterPoints(drawable, zoom) : clusterByJob(drawable, zoom)),
+    [drawable, zoom, workMode],
+  );
 
   /** The sheet the pin under the cursor sits on, so its row lights without the sheet lighting. */
   const hoveredPointLayer = useMemo(() => {
@@ -959,15 +981,47 @@ export default function GlobalPropertyMapPage() {
         // Hovering a pin lights THAT PIN, and the row of the layer it is on. It deliberately does
         // not set `hoverLayer`: that is the layer panel's own state, and setting it from here is
         // what used to light every pin on the sheet.
-        el.addEventListener('mouseenter', () => setHoverPoint(p.id));
-        el.addEventListener('mouseleave', () => setHoverPoint((cur) => (cur === p.id ? null : cur)));
+        // `--hot` is the glow, added on the element directly rather than through React: a class on
+        // the node under the cursor costs nothing, where a state change would re-render the page on
+        // every pin the pointer crosses. `hoverPoint` stays because it also lights the layer row.
+        el.addEventListener('mouseenter', () => { el.classList.add('gmap__marker--hot'); setHoverPoint(p.id); });
+        el.addEventListener('mouseleave', () => { el.classList.remove('gmap__marker--hot'); setHoverPoint((cur) => (cur === p.id ? null : cur)); });
       } else {
+        // \u2500\u2500 A CLUSTER SAYS WHOSE IT IS (owner, 2026-09-19) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        //
+        // "I wish it were that when we are zoomed out and it shows the single point with the number
+        // of points at that location, it showed the job name and the number of points at that
+        // location."
+        //
+        // It used to be a bare numeral. "14" says how many things are somewhere without saying what
+        // the somewhere IS, which on a county-wide view is the only question being asked. Inside a
+        // job the number alone is still right \u2014 every point there belongs to the job already open \u2014
+        // so a name is added only when the cluster has one, which is exactly when it came from
+        // `clusterByJob`.
         el.className = 'gmap__marker gmap__marker--cluster';
         const dot = document.createElement('div');
         dot.className = 'gmap__cluster';
         dot.textContent = String(c.items.length);
         el.appendChild(dot);
-        el.title = c.items.length + ' points here \u2014 zoom in to separate them';
+
+        const named = 'jobLabel' in c ? String((c as { jobLabel?: string }).jobLabel ?? '') : '';
+        if (named) {
+          const tag = document.createElement('span');
+          tag.className = 'gmap__cluster-name';
+          tag.textContent = named;
+          el.appendChild(tag);
+          el.title = `${named} \u2014 ${c.items.length} point${c.items.length === 1 ? '' : 's'}. Click to open it.`;
+        } else {
+          el.title = c.items.length + ' points here \u2014 zoom in to separate them';
+        }
+
+        // The same glow a single pin gets. Owner: "whenever we hover the cursor over a point, it
+        // gets a slight glow to show exactly what point we are targeting \u2026 when we get more points
+        // they might start to overlap each other." Two jobs at neighbouring addresses draw two
+        // overlapping markers on purpose, so which one is under the cursor has to be legible before
+        // the click rather than after it.
+        el.addEventListener('mouseenter', () => el.classList.add('gmap__marker--hot'));
+        el.addEventListener('mouseleave', () => el.classList.remove('gmap__marker--hot'));
       }
 
       const marker = new google.maps.marker.AdvancedMarkerElement({
@@ -1771,9 +1825,10 @@ export default function GlobalPropertyMapPage() {
             ref={searchRef}
             className="gmap__search-input"
             type="text"
-            placeholder="Search an address or place…"
-            aria-label="Search for an address and fly there"
+            placeholder={workMode ? 'Search an address or place…' : 'Search a job, an address or a place…'}
+            aria-label={workMode ? 'Search for an address and fly there' : 'Search jobs, or an address to fly there'}
             data-testid="gmap-search"
+            onChange={(e) => setJobSearch(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return;
               e.preventDefault();

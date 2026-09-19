@@ -233,6 +233,99 @@ export function clusterPoints<T extends Clusterable>(points: T[], zoom: number):
   }));
 }
 
+// ── THE MAP OF JOBS (owner, 2026-09-19) ─────────────────────────────────────────────────────────
+//
+// "I wish it were that when we are zoomed out and it shows the single point with the number of
+// points at that location, it showed the job name and the number of points at that location. I want
+// it so that as we add jobs to the interactive map, we can see on the map where each job is."
+//
+// `clusterPoints` above buckets purely by GEOGRAPHY, which is right inside one job and wrong across
+// several: two jobs a quarter-mile apart fall in one cell and become a marker reading "14" that
+// belongs to neither of them. Zoomed out, the useful unit is not "points near here", it is A JOB.
+//
+// So the key is the job AND the cell, not one or the other:
+//
+//   - the job, so a marker always speaks for exactly one job and can be named;
+//   - the cell as well, because a job is not always one place. A survey spanning two parcels a mile
+//     apart would otherwise average to a single marker in the field between them, pointing at
+//     nothing. Keeping the cell gives that job two markers, each with its name and its own count.
+//
+// Two jobs at neighbouring addresses therefore draw two overlapping markers rather than one merged
+// one. That is deliberate and is what the owner asked for next: "when we get more points they might
+// start to overlap each other and it will be helpful to know which point we are hovering over
+// before selecting it to make sure we select the correct job."
+
+export interface JobClusterable extends Clusterable {
+  jobId: string;
+  jobNumber: string | null;
+  jobName: string | null;
+}
+
+export interface JobCluster<T extends JobClusterable> extends Cluster<T> {
+  jobId: string;
+  /** What the marker is called: the job's name, its number, or a plain word — never an empty label. */
+  jobLabel: string;
+}
+
+/** What to call a job on the map. The name if it has one, else the number, else something honest. */
+export function jobLabelOf(p: Pick<JobClusterable, 'jobNumber' | 'jobName'>): string {
+  return (p.jobName ?? '').trim() || (p.jobNumber ?? '').trim() || 'Job';
+}
+
+export function clusterByJob<T extends JobClusterable>(points: T[], zoom: number): JobCluster<T>[] {
+  const usable = points.filter(isLatLng);
+  const cell = zoom >= CLUSTER_MAX_ZOOM
+    // Past the cluster zoom the cell is effectively a point, so every pin stands alone — the same
+    // rule `clusterPoints` uses, kept here rather than special-cased so both agree about when
+    // clustering stops.
+    ? 0
+    : 360 / Math.pow(2, Math.max(1, zoom)) / 4;
+
+  const buckets = new Map<string, T[]>();
+  for (const p of usable) {
+    const key = cell === 0
+      ? `solo:${p.id}`
+      : `${p.jobId}@${Math.floor(p.lat / cell)}:${Math.floor(p.lng / cell)}`;
+    const list = buckets.get(key);
+    if (list) list.push(p);
+    else buckets.set(key, [p]);
+  }
+
+  return [...buckets.entries()].map(([key, items]) => ({
+    id: cell === 0 ? key : `j${zoom}:${key}`,
+    // The centre of the points themselves, not of the cell: a marker drawn at the cell centre sits
+    // in the field beside the property rather than on it.
+    lat: items.reduce((sum, p) => sum + p.lat, 0) / items.length,
+    lng: items.reduce((sum, p) => sum + p.lng, 0) / items.length,
+    items,
+    jobId: items[0]!.jobId,
+    jobLabel: jobLabelOf(items[0]!),
+  }));
+}
+
+/**
+ * Does this job match what is being typed?
+ *
+ * Owner, 2026-09-19: "we can search the jobs, and the points with the job names will filter
+ * dynamically to match what we are typing/searching in the search bar. If a job does not match our
+ * string, then its representitive point would disappear."
+ *
+ * Matches the NAME and the NUMBER, because a job is known by both and which one somebody reaches
+ * for depends on what they are holding. Case and surrounding space are ignored; an empty search
+ * matches everything, so clearing the box brings the whole map back rather than emptying it.
+ *
+ * Deliberately a substring test on each, not a fuzzy one. Typing "143" should find job 26143, and
+ * a fuzzy matcher that also returned 21463 and 14300 would make the filter something to fight.
+ */
+export function matchesJobSearch(
+  p: Pick<JobClusterable, 'jobNumber' | 'jobName'>,
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (p.jobName ?? '').toLowerCase().includes(q) || (p.jobNumber ?? '').toLowerCase().includes(q);
+}
+
 /**
  * Read a coordinate somebody typed or pasted, or null when it is not one.
  *
