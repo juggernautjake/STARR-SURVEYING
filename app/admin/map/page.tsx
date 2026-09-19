@@ -49,7 +49,7 @@ import {
   type PropertyMap,
 } from '@/lib/jobs/property-map';
 import {
-  clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng,
+  clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng, parseLatLng,
   DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM,
   type Bounds, type LatLng,
 } from '@/lib/jobs/map-world';
@@ -168,6 +168,7 @@ export default function GlobalPropertyMapPage() {
   const [hiddenTypes, setHiddenTypes] = useState<PointTypeId[]>([]);
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
 
+  const jobPickRef = useRef<HTMLDivElement | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const placingRef = useRef(false);
@@ -491,40 +492,53 @@ export default function GlobalPropertyMapPage() {
     markersRef.current = [];
 
     for (const c of clusters) {
+      // ── THE WRAPPER IS WHAT MAKES A PIN POINT AT ITS COORDINATE ─────────────────────────────
+      // Google anchors the content element by its bottom-centre. The pin is a rotated square whose
+      // tip hangs below its own box, so without a wrapper of the right height every pin marks a
+      // spot ~5px above the thing it points at — and in screen pixels, so it never scales away.
+      // See PIN_BOX_HEIGHT_PX in lib/jobs/map-world.ts for the arithmetic.
       const el = document.createElement('div');
+      el.className = 'gmap__marker';
       if (c.items.length === 1) {
         const p = c.items[0];
+        const pin = document.createElement('div');
         // `--dim` and `--lit` are the hover relation: hovering a layer row lights its own points and
         // dims everything else, so "what is on this sheet" is answered by looking rather than by
         // counting. Hovering a pin does the reverse through `hoverLayerId` below.
         const related = hoverLayer !== null && p.layerId === hoverLayer;
         const muted = hoverLayer !== null && !related;
-        el.className = [
+        pin.className = [
           'gmap__pin',
           p.id === selectedId ? 'gmap__pin--on' : '',
           p.mediaCount > 0 ? 'gmap__pin--has-files' : '',
           related ? 'gmap__pin--lit' : '',
           muted ? 'gmap__pin--dim' : '',
         ].filter(Boolean).join(' ');
-        el.style.setProperty('--pin', p.colour);
-        el.innerHTML = `<span class="gmap__pin-num"></span>`;
-        (el.firstChild as HTMLElement).textContent = String(p.ordinal);
+        pin.style.setProperty('--pin', p.colour);
+        const num = document.createElement('span');
+        num.className = 'gmap__pin-num';
+        num.textContent = String(p.ordinal);
+        pin.appendChild(num);
+        el.appendChild(pin);
         el.title = `${p.ordinal}. ${p.title}${p.jobNumber ? ` · ${p.jobNumber}` : ''}`;
 
         if (workMode) {
-          el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('gmap__pin--over'); });
-          el.addEventListener('dragleave', () => el.classList.remove('gmap__pin--over'));
+          el.addEventListener('dragover', (e) => { e.preventDefault(); pin.classList.add('gmap__pin--over'); });
+          el.addEventListener('dragleave', () => pin.classList.remove('gmap__pin--over'));
           el.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            el.classList.remove('gmap__pin--over');
+            pin.classList.remove('gmap__pin--over');
             const fileId = (e as DragEvent).dataTransfer?.getData(FILE_DRAG_TYPE);
             if (fileId) void assignFile(p.id, fileId);
           });
         }
       } else {
-        el.className = 'gmap__cluster';
-        el.textContent = String(c.items.length);
+        el.className = 'gmap__marker gmap__marker--cluster';
+        const dot = document.createElement('div');
+        dot.className = 'gmap__cluster';
+        dot.textContent = String(c.items.length);
+        el.appendChild(dot);
         el.title = `${c.items.length} points here — zoom in to separate them`;
       }
 
@@ -676,6 +690,48 @@ export default function GlobalPropertyMapPage() {
     if (placingRef.current) void placePoint(at);
   }, [drawKind, placePoint]);
 
+  // ── GOING SOMEWHERE ───────────────────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-09-19: "I want it so that we can click on the address and be homed to its location
+  // on the map and be zoomed in on it. This should work whether it is an address or lat/long."
+  //
+  // One function, so the search box, a job row and a point's coordinates all mean the same thing by
+  // "go there" — and so there is one place that decides how far in "zoomed in on it" is.
+  const flyTo = useCallback((at: LatLng, z = JOB_ZOOM) => {
+    if (!map) return;
+    map.setCenter(at);
+    map.setZoom(z);
+  }, [map]);
+
+  /**
+   * Take whatever was typed and go there.
+   *
+   * A coordinate is recognised BEFORE Google is asked, because Places is an address lookup and will
+   * not answer "30.9589, -97.5252" — it either fails or, worse, finds somewhere with those digits
+   * in its name. Everything else is geocoded.
+   */
+  const goToQuery = useCallback(async (raw: string) => {
+    const typed = raw.trim();
+    if (!typed) return;
+
+    const coords = parseLatLng(typed);
+    if (coords) { flyTo(coords); addToast(`Moved to ${coords.lat}, ${coords.lng}.`, 'success', 1800); return; }
+
+    if (typeof google === 'undefined' || !google.maps?.Geocoder) return;
+    setLoading(true);
+    try {
+      const geocoder = new google.maps.Geocoder();
+      const res = await geocoder.geocode({ address: typed, componentRestrictions: { country: 'us' } });
+      const at = res.results?.[0]?.geometry?.location;
+      if (!at) { addToast('Nothing found for that address.', 'info', 2600); return; }
+      flyTo({ lat: at.lat(), lng: at.lng() });
+    } catch {
+      addToast('That address could not be found.', 'info', 2600);
+    } finally {
+      setLoading(false);
+    }
+  }, [flyTo, addToast]);
+
   // ── address search ────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!map || !searchRef.current || typeof google === 'undefined' || !google.maps?.places) return;
@@ -685,19 +741,48 @@ export default function GlobalPropertyMapPage() {
     });
     ac.bindTo('bounds', map);
     const listener = ac.addListener('place_changed', () => {
-      const at = ac.getPlace().geometry?.location;
-      if (!at) { addToast('Nothing found for that address.', 'info', 2600); return; }
-      map.setCenter(at);
-      map.setZoom(JOB_ZOOM);
+      const place = ac.getPlace();
+      const at = place.geometry?.location;
+      // No geometry means nothing was chosen from the list — the person typed and pressed Enter, or
+      // pasted a coordinate, which Places has no answer for. Fall through to our own handler.
+      if (!at) { void goToQuery(searchRef.current?.value ?? ''); return; }
+      flyTo({ lat: at.lat(), lng: at.lng() });
     });
     return () => { listener.remove(); };
-  }, [map, addToast]);
+  }, [map, goToQuery, flyTo]);
+
+  // ── A POP-UP CLOSES WHEN YOU CLICK AWAY FROM IT ──────────────────────────────────────────────
+  // Owner, 2026-09-19: "whenever I click on the address button, it opens a list of other
+  // addresses/locations. That drop down menu does not go away if I click somewhere else."
+  //
+  // `mousedown` rather than `click`, and capture rather than bubble: a click on the MAP is consumed
+  // by Google before it ever reaches the document, so a bubble-phase listener never hears about the
+  // one place people most often click to dismiss this. Listening on the way down catches it first.
+  //
+  // The colour palette rides along for the same reason — it is the other thing on this page that
+  // opens over the map and has to be dismissable by looking away from it.
+  useEffect(() => {
+    if (!jobPickerOpen && !colourFor) return;
+    const away = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (jobPickerOpen && jobPickRef.current && t && jobPickRef.current.contains(t)) return;
+      // A palette lives inside its own layer row; anything inside a row is a click on the control.
+      if (colourFor && t instanceof Element && t.closest('.pmap__layer')) return;
+      setJobPickerOpen(false);
+      setColourFor(null);
+    };
+    document.addEventListener('mousedown', away, true);
+    return () => document.removeEventListener('mousedown', away, true);
+  }, [jobPickerOpen, colourFor]);
 
   // Escape unwinds one layer at a time, the way the old map did.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (viewerOn) return;
+      if (colourFor) { setColourFor(null); return; }
+      if (jobPickerOpen) { setJobPickerOpen(false); return; }
+      if (drawKind) { setDraw(null); setDrawKind(null); return; }
       if (armedFileId) { setArmedFileId(null); return; }
       if (placing) { setPlacing(false); return; }
       if (selectedId) { setSelectedId(null); return; }
@@ -705,7 +790,7 @@ export default function GlobalPropertyMapPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewerOn, armedFileId, placing, selectedId, browsePick]);
+  }, [viewerOn, colourFor, jobPickerOpen, drawKind, armedFileId, placing, selectedId, browsePick]);
 
   // The draft follows the SELECTION, so attaching a photo half way through typing a note does not
   // wipe what has been typed.
@@ -801,11 +886,17 @@ export default function GlobalPropertyMapPage() {
             placeholder="Search an address or place…"
             aria-label="Search for an address and fly there"
             data-testid="gmap-search"
-            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              // Places fires `place_changed` when a suggestion is highlighted; when nothing is, this
+              // is the only thing that happens, so a typed address or a pasted coordinate still goes.
+              window.setTimeout(() => { void goToQuery((e.target as HTMLInputElement).value); }, 60);
+            }}
           />
         </span>
 
-        <div className="gmap__jobpick">
+        <div className="gmap__jobpick" ref={jobPickRef}>
           <button className={`gmap__btn${job ? ' gmap__btn--on' : ''}`} type="button" aria-expanded={jobPickerOpen} data-testid="gmap-job-toggle" onClick={() => setJobPickerOpen((c) => !c)}>
             <Target size={13} aria-hidden />
             {job ? `${job.jobNumber ?? 'Job'} · ${job.name ?? ''}`.slice(0, 30) : 'Pick a job'}
@@ -819,11 +910,29 @@ export default function GlobalPropertyMapPage() {
               )}
               {jobs.length === 0 && <p className="gmap__joblist-empty">No jobs have a location yet.</p>}
               {jobs.map((j) => (
-                <a key={j.jobId} className={`gmap__jobrow${job?.jobId === j.jobId ? ' gmap__jobrow--on' : ''}`} href={`/admin/map?job=${j.jobId}`} data-testid={`gmap-job-${j.jobId}`}>
-                  <strong>{j.jobNumber ?? '—'}</strong>
-                  <span>{j.name ?? ''}</span>
-                  <small>{[j.address, j.city].filter(Boolean).join(', ')}</small>
-                </a>
+                <div key={j.jobId} className={`gmap__jobrow${job?.jobId === j.jobId ? ' gmap__jobrow--on' : ''}`} data-testid={`gmap-job-${j.jobId}`}>
+                  <a className="gmap__jobrow-open" href={`/admin/map?job=${j.jobId}`}>
+                    <strong>{j.jobNumber ?? '—'}</strong>
+                    <span>{j.name ?? ''}</span>
+                  </a>
+                  {/* The address itself goes there WITHOUT switching jobs — "show me where that is"
+                      and "work on that job" are different intentions and now have different targets. */}
+                  {(j.address || j.city) && (
+                    <button
+                      className="gmap__jobrow-addr"
+                      type="button"
+                      title="Show me this on the map"
+                      data-testid={`gmap-job-addr-${j.jobId}`}
+                      onClick={() => {
+                        setJobPickerOpen(false);
+                        if (j.lat !== null && j.lng !== null) flyTo({ lat: j.lat, lng: j.lng });
+                        else void goToQuery([j.address, j.city, j.county, 'TX'].filter(Boolean).join(', '));
+                      }}
+                    >
+                      {[j.address, j.city].filter(Boolean).join(', ')}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -1156,8 +1265,17 @@ export default function GlobalPropertyMapPage() {
             {!editing && selected.notes && <p className="gmap__notes">{selected.notes}</p>}
 
             <p className="gmap__where">
-              <a href={`https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`} target="_blank" rel="noopener noreferrer">
+              <button
+                className="gmap__where-go"
+                type="button"
+                title="Centre the map on this point"
+                data-testid="gmap-centre-point"
+                onClick={() => flyTo({ lat: selected.lat as number, lng: selected.lng as number }, Math.max(zoom, JOB_ZOOM))}
+              >
                 <MapPin size={11} aria-hidden /> {Number(selected.lat).toFixed(6)}, {Number(selected.lng).toFixed(6)}
+              </button>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`} target="_blank" rel="noopener noreferrer" title="Open in Google Maps">
+                Open ↗
               </a>
             </p>
 
@@ -1195,7 +1313,11 @@ export default function GlobalPropertyMapPage() {
               <dt>Job</dt>
               <dd><Link href={`/admin/jobs/${browsePick.jobId}`}>{browsePick.jobNumber ?? 'Job'}{browsePick.jobName ? ` · ${browsePick.jobName}` : ''}</Link></dd>
               <dt>Where</dt>
-              <dd><a href={`https://www.google.com/maps/search/?api=1&query=${browsePick.lat},${browsePick.lng}`} target="_blank" rel="noopener noreferrer">{browsePick.lat.toFixed(6)}, {browsePick.lng.toFixed(6)}</a></dd>
+              <dd>
+                <button className="gmap__where-go" type="button" title="Centre the map on this point" data-testid="gmap-centre-browse" onClick={() => flyTo({ lat: browsePick.lat, lng: browsePick.lng }, Math.max(zoom, JOB_ZOOM))}>
+                  {browsePick.lat.toFixed(6)}, {browsePick.lng.toFixed(6)}
+                </button>
+              </dd>
             </dl>
             <a className="gmap__btn gmap__btn--primary" href={`/admin/map?job=${browsePick.jobId}`} data-testid="gmap-open-job">
               <Folder size={13} aria-hidden /> Open this job&apos;s map

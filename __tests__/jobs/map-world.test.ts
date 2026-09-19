@@ -3,8 +3,10 @@
 // Owner, 2026-09-18: "the point loading and rendering would only show up at a certain level of zoom.
 // We wouldn't want a situation where we have 500 points loading all at once."
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
-  isLatLng, roundLatLng, boundsContain, padBounds, boundsOf, padPoint,
+  isLatLng, roundLatLng, boundsContain, padBounds, boundsOf, padPoint, parseLatLng,
+  PIN_SIZE_PX, PIN_TIP_PX, PIN_BOX_HEIGHT_PX,
   distanceFeet, pathLengthFeet, areaSquareFeet, acresFrom, bearingDeg, destination,
   clusterPoints, shouldLoadPoints, zoomHint,
   MIN_POINT_ZOOM, CLUSTER_MAX_ZOOM, DEFAULT_CENTER,
@@ -218,5 +220,65 @@ describe('where the map opens', () => {
     // Same coordinates the public service-area map already uses.
     expect(DEFAULT_CENTER.lat).toBeCloseTo(30.9975, 3);
     expect(DEFAULT_CENTER.lng).toBeCloseTo(-97.4008, 3);
+  });
+});
+
+describe('going to a coordinate somebody typed', () => {
+  // Owner, 2026-09-19: "This should work whether it is an address or lat/long." Google Places is an
+  // address lookup and will not answer a coordinate, so it has to be recognised before Google is
+  // asked — otherwise the search either fails or finds somewhere with those digits in its name.
+  it('reads a plain decimal pair', () => {
+    expect(parseLatLng('30.9589, -97.5252')).toEqual({ lat: 30.9589, lng: -97.5252 });
+    expect(parseLatLng('30.9589 -97.5252')).toEqual({ lat: 30.9589, lng: -97.5252 });
+    expect(parseLatLng('  30.9589,-97.5252  ')).toEqual({ lat: 30.9589, lng: -97.5252 });
+  });
+
+  it('reads the N/S/E/W a GPS or a deed produces', () => {
+    expect(parseLatLng('30.9589N, 97.5252W')).toEqual({ lat: 30.9589, lng: -97.5252 });
+    expect(parseLatLng('30.9589 N 97.5252 W')).toEqual({ lat: 30.9589, lng: -97.5252 });
+  });
+
+  it('reads degrees-minutes-seconds, which is what old survey documents carry', () => {
+    const at = parseLatLng(`30°57'32.1"N 97°31'30.9"W`);
+    expect(at).not.toBeNull();
+    expect(at!.lat).toBeCloseTo(30.9589, 3);
+    expect(at!.lng).toBeCloseTo(-97.5252, 3);
+  });
+
+  it('is not fooled by an address that merely contains numbers', () => {
+    expect(parseLatLng('1512 Chisholm Trail')).toBeNull();
+    expect(parseLatLng('309 West Gibson, Thorndale')).toBeNull();
+    expect(parseLatLng('Salado')).toBeNull();
+    expect(parseLatLng('')).toBeNull();
+  });
+
+  it('refuses a pair that is not on the earth', () => {
+    expect(parseLatLng('91, 0')).toBeNull();
+    expect(parseLatLng('0, 181')).toBeNull();
+    expect(parseLatLng('0, 0'), 'the Gulf of Guinea again').toBeNull();
+  });
+});
+
+describe('a pin points AT its coordinate', () => {
+  // Owner, 2026-09-19: "all of the points should keep their positions relative to the map."
+  //
+  // Google anchors a marker by the bottom-centre of its content box. The pin is a square rotated
+  // 45°, so its tip hangs below that box — and the overhang is in screen pixels, so zooming never
+  // scales it away. The ground slides under a fixed error, which is exactly what a drifting point
+  // looks like.
+  it('the tip is a half-diagonal from the centre', () => {
+    expect(PIN_TIP_PX).toBeCloseTo((PIN_SIZE_PX * Math.SQRT2) / 2, 1);
+  });
+
+  it('the wrapper is tall enough that its bottom edge IS the tip', () => {
+    expect(PIN_BOX_HEIGHT_PX).toBeCloseTo(PIN_SIZE_PX / 2 + PIN_TIP_PX, 1);
+    // The bug this replaces: the un-wrapped box was only 26px, leaving the tip 5.4px below it.
+    expect(PIN_BOX_HEIGHT_PX - PIN_SIZE_PX).toBeCloseTo(5.4, 1);
+  });
+
+  it('the stylesheet uses the same number, or the pin drifts again', () => {
+    const css = readFileSync('app/admin/map/PropertyMap.css', 'utf8');
+    expect(css).toContain(`height: ${PIN_BOX_HEIGHT_PX}px`);
+    expect(css, 'and the scale keeps the tip still').toContain('transform-origin: 0 100%');
   });
 });

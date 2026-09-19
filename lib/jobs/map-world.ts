@@ -233,6 +233,73 @@ export function clusterPoints<T extends Clusterable>(points: T[], zoom: number):
   }));
 }
 
+/**
+ * Read a coordinate somebody typed or pasted, or null when it is not one.
+ *
+ * Owner, 2026-09-19: "I want it so that we can click on the address and be homed to its location on
+ * the map and be zoomed in on it. This should work whether it is an address or lat/long."
+ *
+ * Google Places will not answer "30.9589, -97.5252" — it is an address lookup, and a coordinate is
+ * not an address. So a coordinate has to be recognised before the search box hands anything to
+ * Google, and then the map simply goes there: no lookup, no cost, no chance of it resolving to a
+ * town of the same name.
+ *
+ * Accepts the shapes that actually get pasted: plain decimal pairs, with or without a comma, and
+ * the N/S/E/W suffixes a GPS or a deed produces. Degrees-minutes-seconds too, because that is what
+ * comes off older survey documents.
+ */
+export function parseLatLng(raw: string): LatLng | null {
+  const s = (raw ?? '').trim();
+  if (!s) return null;
+
+  // 30.9589, -97.5252   |   30.9589 -97.5252   |   30.9589N, 97.5252W
+  const dec = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*°?\s*([NSns])?\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*°?\s*([EWew])?\s*$/.exec(s);
+  if (dec) {
+    let lat = Number(dec[1]);
+    let lng = Number(dec[3]);
+    if (dec[2] && /[Ss]/.test(dec[2])) lat = -Math.abs(lat);
+    if (dec[4] && /[Ww]/.test(dec[4])) lng = -Math.abs(lng);
+    const hit = { lat, lng };
+    return isLatLng(hit) ? roundLatLng(hit) : null;
+  }
+
+  // 30°57'32.1"N 97°31'30.9"W
+  const dms = /^\s*(\d{1,3})\s*[°d:\s]\s*(\d{1,2})\s*['m:\s]\s*([\d.]+)\s*["s]?\s*([NSns])\s*[,;\s]+\s*(\d{1,3})\s*[°d:\s]\s*(\d{1,2})\s*['m:\s]\s*([\d.]+)\s*["s]?\s*([EWew])\s*$/.exec(s);
+  if (dms) {
+    const toDeg = (d: string, m: string, sec: string) => Number(d) + Number(m) / 60 + Number(sec) / 3600;
+    let lat = toDeg(dms[1], dms[2], dms[3]);
+    let lng = toDeg(dms[5], dms[6], dms[7]);
+    if (/[Ss]/.test(dms[4])) lat = -lat;
+    if (/[Ww]/.test(dms[8])) lng = -lng;
+    const hit = { lat, lng };
+    return isLatLng(hit) ? roundLatLng(hit) : null;
+  }
+
+  return null;
+}
+
+// ── WHERE A PIN'S POINT ACTUALLY IS ─────────────────────────────────────────────────────────────
+//
+// Owner, 2026-09-19: "please make sure the points we place on the map, whether it is the map or the
+// satellite map, track with the view appropriately. all of the points should keep their positions
+// relative to the map."
+//
+// A Google marker anchors its content element by the BOTTOM-CENTRE of that element's box. The pin
+// is a square rotated 45°, so its visual tip hangs below the box: rotating a 26px square about its
+// centre puts the corner a half-diagonal away — 18.4px — while the box only extends 13px. The tip
+// therefore sits ~5.4px BELOW where Google put the anchor, and every pin marks a spot 5.4px above
+// the thing it is pointing at.
+//
+// That offset is in SCREEN pixels, so it does not scale with zoom: the ground moves under it while
+// the error stays the same size, which is exactly what "the points don't keep their positions"
+// looks like. The fix is to give the pin a wrapper tall enough that the tip lands on the wrapper's
+// bottom edge, and these are the numbers that do it.
+export const PIN_SIZE_PX = 26;
+/** Centre to tip: half the square's diagonal. */
+export const PIN_TIP_PX = Math.round((PIN_SIZE_PX * Math.SQRT2) / 2 * 10) / 10;
+/** How tall the wrapper has to be so its bottom-centre IS the tip. */
+export const PIN_BOX_HEIGHT_PX = Math.round((PIN_SIZE_PX / 2 + PIN_TIP_PX) * 10) / 10;
+
 /** Should the map be asking the server for points at all? */
 export function shouldLoadPoints(zoom: number): boolean {
   return zoom >= MIN_POINT_ZOOM;

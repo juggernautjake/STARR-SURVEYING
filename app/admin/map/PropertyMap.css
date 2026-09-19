@@ -3162,9 +3162,35 @@ svg.pmap__shapes--inert * { pointer-events: none; }
  * Sized in absolute pixels on purpose: a marker must not scale with zoom, or a pin readable at the
  * parcel becomes a blob covering the field at the county.
  */
+/* ── THE MARKER BOX (owner, 2026-09-19) ────────────────────────────────────────────────────────
+ * "all of the points should keep their positions relative to the map."
+ *
+ * Google anchors a marker by the BOTTOM-CENTRE of its content element. The pin below is a square
+ * rotated 45°, and rotating a 26px square about its centre throws the corner 18.4px out while the
+ * box only reaches 13px — so the visual tip hung 5.4px below the anchor, and every pin marked a
+ * spot 5.4px above the thing it pointed at. In screen pixels, so zooming never scaled it away:
+ * the ground slid under a fixed error, which is what "the points don't track" looks like.
+ *
+ * 31.4px = 13 (half the square) + 18.4 (centre to tip). With the pin at top:0 in a box that tall,
+ * the box's bottom-centre IS the tip, and the tip is what Google puts on the coordinate.
+ * The arithmetic is also in lib/jobs/map-world.ts, where it is tested. */
+.gmap__marker {
+  position: relative;
+  width: 26px;
+  height: 31.4px;
+}
+
+/* A cluster is a circle, and a circle belongs ON its point rather than above it — so the box is
+ * half the circle, putting its bottom-centre at the circle's centre. */
+.gmap__marker--cluster { width: 34px; height: 17px; }
+
 .gmap__pin {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   width: 26px;
   height: 26px;
   border-radius: 50% 50% 50% 4px;
@@ -3185,8 +3211,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 .gmap__pin--has-files { box-shadow: 0 0 0 3px color-mix(in srgb, #FFF 65%, transparent), 0 2px 6px rgb(0 0 0 / 45%); }
 
 .gmap__cluster {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   min-width: 34px;
   height: 34px;
   padding: 0 0.3rem;
@@ -3254,6 +3285,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
  * percentages ends up either short of the fold or pushing the panels off it, depending on the
  * screen, and this is a surface people keep open all day on whatever they have. */
 .gmap__body {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.6rem;
@@ -3261,11 +3293,23 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   min-height: 0;
 }
 
+/* ── THE MAP OWNS THE MIDDLE COLUMN, ALWAYS ────────────────────────────────────────────────────
+ * Explicit columns, not implicit placement. Browsing renders neither side panel, so the canvas was
+ * being auto-placed into column 1 — an `auto` track with no intrinsic width — and the map came out
+ * TWO PIXELS wide. Nothing errored; there was simply no map. Pinning each child to its own column
+ * means the middle stays flexible whether or not the panels beside it exist. */
+.gmap__files { grid-column: 1; }
+.gmap__canvas { grid-column: 2; }
+.gmap__panel--docked { grid-column: 3; }
+
 @media (max-width: 1100px) {
   /* Below this the three columns each get too narrow to use. The map keeps the width and the panels
    * stack under it — still reachable, no longer competing for the same 300px. */
   .gmap__body { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+  /* Stacked, so the column pinning above has to be undone or two of them share row one. */
+  .gmap__files, .gmap__canvas, .gmap__panel--docked { grid-column: 1; }
   .gmap__files, .gmap__panel--docked { max-height: 22rem; }
+  .gmap__canvas { min-height: 24rem; }
 }
 
 .gmap__files {
@@ -3356,7 +3400,13 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 /* A pin being aimed at, and the one that is open. Both need to read at a glance against satellite
  * imagery, which is busy and dark — hence a white ring rather than a colour change. */
 .gmap__pin--on { box-shadow: 0 0 0 3px var(--theme-accent, #1D3095), 0 2px 6px rgb(0 0 0 / 45%); }
-.gmap__pin--over { transform: rotate(-45deg) scale(1.25); box-shadow: 0 0 0 4px #FFF, 0 2px 8px rgb(0 0 0 / 50%); }
+/* Scaled about the TIP, not the centre: growing a pin about its middle walks the tip off the
+ * coordinate for as long as the drag lasts. */
+.gmap__pin--over {
+  transform: rotate(-45deg) scale(1.25);
+  transform-origin: 0 100%;
+  box-shadow: 0 0 0 4px #FFF, 0 2px 8px rgb(0 0 0 / 50%);
+}
 .gmap__canvas--assigning .gmap__pin { cursor: copy; }
 
 /* ── LAYER COLOURS AND THE HOVER RELATION (owner, 2026-09-19) ─────────────────────────────────
@@ -3462,3 +3512,47 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 /* While a shape is being drawn every click belongs to it, so the crosshair covers the canvas the
  * same way it does while placing a plain point. */
 .gmap__canvas--drawing { cursor: crosshair; }
+
+/* ── GOING SOMEWHERE (owner, 2026-09-19) ──────────────────────────────────────────────────────
+ * "I want it so that we can click on the address and be homed to its location on the map."
+ *
+ * An address that moves the map is a button, not a link: it does not navigate, and styling it as a
+ * link would promise a new page. It still LOOKS like a link, because that is what says "clickable"
+ * in a list of text. */
+.gmap__jobrow { grid-template-columns: 1fr; gap: 0.1rem; }
+.gmap__jobrow-open { display: grid; grid-template-columns: auto 1fr; gap: 0.45rem; align-items: baseline; color: inherit; text-decoration: none; }
+.gmap__jobrow-open strong { font-size: 0.82rem; }
+.gmap__jobrow-open span { font-size: 0.82rem; color: var(--theme-fg-secondary, #475569); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gmap__jobrow-addr {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--theme-accent, #1D3095);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gmap__jobrow-addr:hover { text-decoration: underline; }
+
+.gmap__where { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.gmap__where-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--theme-accent, #1D3095);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.gmap__where-go:hover { text-decoration: underline; }
