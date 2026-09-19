@@ -3837,3 +3837,21 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
+
+/* A caption on one placement of a file, shown as a note rather than as the name (owner,
+ * 2026-09-19: "if I change a files name one place, it will change everywhere"). It used to BE the
+ * name here, which meant a renamed file went on showing its old caption while the folders and the
+ * library showed the new name. Quieter and smaller than the name above it, so which is which is
+ * obvious without a label. */
+.pmap__tile-caption {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 0.6rem;
+  line-height: 1.3;
+  font-style: italic;
+  text-align: left;
+  color: var(--theme-fg-muted, rgb(107 114 128));
+}

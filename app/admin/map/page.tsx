@@ -1715,9 +1715,16 @@ export default function GlobalPropertyMapPage() {
     return {
       id: selected.id, title: where,
       files: sortMedia(selected.media).filter((m) => m.url).map((m): ViewerFile => ({
-        id: m.id, name: m.caption || m.name, mime: m.mimeType, size: m.sizeBytes, url: m.url,
+        // The file's name, not the caption — see the note in Tiles.tsx. A caption is a note about
+        // this placement and belongs in the details, not in the title bar where it would contradict
+        // the name the same file has in the library and in the job's folders.
+        id: m.id, name: m.name, mime: m.mimeType, size: m.sizeBytes, url: m.url,
         posterUrl: m.kind === 'video' ? m.thumbUrl : null,
-        meta: [{ label: 'Kind', value: KIND_ONE[m.kind] }, { label: 'Placed on', value: where }],
+        meta: [
+          { label: 'Kind', value: KIND_ONE[m.kind] },
+          { label: 'Placed on', value: where },
+          ...(m.caption ? [{ label: 'Caption', value: m.caption }] : []),
+        ],
       })),
     };
   }, [selected]);

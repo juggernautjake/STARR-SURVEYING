@@ -39,7 +39,7 @@ export function MediaTile({
       <div className="pmap__audio" data-testid={`pmap-audio-${media.id}`}>
         <span className="pmap__audio-name">
           <Tooltip text={media.name}>
-            <span><Mic size={12} aria-hidden /> {media.caption || media.name}</span>
+            <span><Mic size={12} aria-hidden /> {media.name}</span>
           </Tooltip>
           {/* THE ONE CASE THAT KEEPS ITS OWN PLAYER (2026-09-16). Every other attachment opens in
               the dedicated viewer; a voice note plays right here as well, because the reason to
@@ -98,7 +98,7 @@ export function MediaTile({
           <img
             className="pmap__tile-img"
             src={media.thumbUrl}
-            alt={media.caption || media.name}
+            alt={media.name}
             loading="lazy"
             decoding="async"
           />
@@ -108,8 +108,19 @@ export function MediaTile({
           <span className="pmap__tile-blank"><Kind size={22} aria-hidden /></span>
         )}
       </button>
+      {/* ── ONE NAME, EVERYWHERE (owner, 2026-09-19) ─────────────────────────────────────────────
+          "if I change a files name one place, it will change everywhere."
+
+          This used to show `caption || name` while the pencil beside it renamed the FILE. With a
+          caption set, the two disagreed permanently: you renamed the file, the folder and the
+          library showed the new name, and this tile went on showing the caption — a rename that
+          looked like it had not worked.
+
+          The file's name is now the name, here as everywhere else. A caption is still shown when
+          there is one, but as its own line and plainly labelled, so it reads as a note about this
+          placement rather than as what the file is called. */}
       <InlineRename
-        name={media.caption || media.name}
+        name={media.name}
         onRename={(next) => onRename(next)}
         canRename={editing}
         className="pmap__tile-namerow"
@@ -118,9 +129,10 @@ export function MediaTile({
         testId={`pmap-media-${media.id}`}
       >
         <Tooltip text={media.name}>
-          <span className="pmap__tile-name">{media.caption || media.name}</span>
+          <span className="pmap__tile-name">{media.name}</span>
         </Tooltip>
       </InlineRename>
+      {media.caption && <span className="pmap__tile-caption" title={media.caption}>{media.caption}</span>}
       <span className="pmap__tile-kind">
         <Kind size={10} aria-hidden /> {KIND_ONE[media.kind]}
         {media.sizeBytes ? ` · ${formatBytes(media.sizeBytes)}` : ''}
