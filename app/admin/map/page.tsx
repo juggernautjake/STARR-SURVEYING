@@ -85,6 +85,31 @@ const MAP_OPTIONS: google.maps.MapOptions = {
 };
 
 const CONTAINER = { width: '100%', height: '100%' };
+
+/** A point reduced to what a marker needs: where it is, what colour, and what it says. Both modes
+ *  produce this shape, so the marker code never has to know which one it is drawing. */
+interface DrawablePoint {
+  id: string;
+  lat: number;
+  lng: number;
+  ordinal: number;
+  title: string;
+  pointType: PointTypeId;
+  mediaCount: number;
+  jobNumber: string | null;
+  colour: string;
+  layerId: string | null;
+}
+
+/** One live marker, kept so the next render can adjust it instead of replacing it. */
+interface MarkerEntry {
+  marker: google.maps.marker.AdvancedMarkerElement;
+  el: HTMLDivElement;
+  /** The pin inside the wrapper — null for a cluster, which has no per-point appearance. */
+  pin: HTMLDivElement | null;
+  /** Reassigned in place on every reconcile, so the click handler always reads the current one. */
+  cluster: { id: string; lat: number; lng: number; items: DrawablePoint[] };
+}
 const FILE_DRAG_TYPE = 'application/x-starr-job-file';
 
 interface MapPayload {
@@ -169,7 +194,11 @@ export default function GlobalPropertyMapPage() {
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
 
   const jobPickRef = useRef<HTMLDivElement | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  /** The backstop timer behind `tilesloaded`, so a map that never paints still loads points. */
+  const tilesWaitRef = useRef<number | null>(null);
+  /** The job already loaded, so arriving does not fetch it once per render. */
+  const loadedJobRef = useRef<string | null>(null);
+  const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const searchRef = useRef<HTMLInputElement | null>(null);
   const placingRef = useRef(false);
   const armedRef = useRef<string | null>(null);
@@ -204,9 +233,23 @@ export default function GlobalPropertyMapPage() {
     return () => { alive = false; };
   }, [safeFetch]);
 
-  /** Arriving from a job: fly there, load its map, and open for work. */
+  /**
+   * Arriving from a job: fly there, load its map, and open for work.
+   *
+   * Guarded to run ONCE per job. The effect has to depend on `map` — it cannot fly anywhere before
+   * the map exists — and `map` arrives after the first render, so without the guard this ran three
+   * times on every arrival: three lookups of the same job, three map loads, three libraries. All of
+   * it competing with the tiles for the thread, which is the thing this whole change is about.
+   */
   useEffect(() => {
-    if (!jobParam) { setJob(null); setPayload(null); setLibrary([]); return; }
+    if (!jobParam) {
+      setJob(null); setPayload(null); setLibrary([]);
+      loadedJobRef.current = null;
+      return;
+    }
+    if (!map) return;
+    if (loadedJobRef.current === jobParam) return;
+    loadedJobRef.current = jobParam;
     let alive = true;
     void (async () => {
       const data = await safeFetch<{ job: JobPlace }>(`/api/admin/map/job/${jobParam}`);
@@ -214,8 +257,19 @@ export default function GlobalPropertyMapPage() {
       setJob(data.job);
       setFilesOpen(true);
       const m = await loadJobMap(jobParam);
-      await loadLibrary(jobParam, m?.map?.id ?? data.job.mapId ?? null);
       if (!alive) return;
+
+      // ── THE MAP FIRST, THE FILES A MOMENT LATER ─────────────────────────────────────────────
+      // The library is every file on the job, each with a signed URL and a thumbnail the browser
+      // then decodes. Awaiting it here held the camera move behind a response that has nothing to
+      // do with where the map should be pointing, and its thumbnails then competed with the tiles
+      // for the same main thread. It is no longer awaited: the map goes where it is going, and the
+      // files arrive into a panel that is already on screen.
+      const whenFree = window.requestIdleCallback
+        ? (fn: () => void) => window.requestIdleCallback(fn, { timeout: 1500 })
+        : (fn: () => void) => window.setTimeout(fn, 250);
+      whenFree(() => { if (alive) void loadLibrary(jobParam, m?.map?.id ?? data.job.mapId ?? null); });
+
       if (map && data.job.lat !== null && data.job.lng !== null) {
         // Frame the points if there are any — the property, not the mailing address. Otherwise the
         // job's own coordinates.
@@ -250,6 +304,20 @@ export default function GlobalPropertyMapPage() {
     setCapped(Boolean(data.capped));
   }, [safeFetch]);
 
+  /**
+   * The map settled. Read the viewport — then get out of the way.
+   *
+   * Owner, 2026-09-19: "can we make it so that the satellite view rendering gets priority over
+   * other things loading like files and stuff."
+   *
+   * `idle` fires when the camera stops, which is BEFORE the tiles for where it stopped have
+   * arrived and painted. Fetching points right then puts a network round trip, a state update, a
+   * re-render and a marker reconcile in front of the thing the person is actually waiting to see.
+   *
+   * So the fetch is deferred until the tiles say they are done — and `tilesloaded` is the event
+   * that says so. The timeout is the honest part: a tile that never loads (no signal, a refused
+   * key) must not mean points never load either, so after a second the work happens anyway.
+   */
   const onIdle = useCallback(() => {
     if (!map) return;
     const b = map.getBounds();
@@ -262,7 +330,18 @@ export default function GlobalPropertyMapPage() {
     setBounds(next);
     // Only browse mode reads the viewport. In work mode the job's own points are already loaded in
     // full, and re-fetching them on every pan would fight with local edits.
-    if (!workMode) void fetchWorld(next, z);
+    if (workMode) return;
+
+    if (tilesWaitRef.current !== null) window.clearTimeout(tilesWaitRef.current);
+    let ran = false;
+    const go = () => {
+      if (ran) return;
+      ran = true;
+      if (tilesWaitRef.current !== null) { window.clearTimeout(tilesWaitRef.current); tilesWaitRef.current = null; }
+      void fetchWorld(next, z);
+    };
+    google.maps.event.addListenerOnce(map, 'tilesloaded', go);
+    tilesWaitRef.current = window.setTimeout(go, 1000);
   }, [map, fetchWorld, workMode]);
 
   const refresh = useCallback(async () => {
@@ -479,59 +558,88 @@ export default function GlobalPropertyMapPage() {
     return POINT_TYPES.filter((t) => present.has(t.id));
   }, [workMode, points, world]);
 
-  // ── markers ───────────────────────────────────────────────────────────────────────────────────
-  // Built imperatively: AdvancedMarkerElement is a DOM node Google owns, and pushing six hundred of
-  // them through React's reconciler on every pan is how a map starts dropping frames. They are torn
-  // down and rebuilt when the cluster set changes, which is the cheapest correct thing at this scale.
+  // ── MARKERS ARE RECONCILED, NOT REBUILT ───────────────────────────────────────────────────────
   //
-  // Being DOM is also what makes a file droppable onto a pin: the same HTML5 drag the old panel used
-  // works unchanged, because the target is a real element rather than a canvas coordinate.
+  // Owner, 2026-09-19: "it takes me to the location but it does not refresh the map so that the
+  // satellite view becomes clear quickly. can we make it so that the satellite view rendering gets
+  // priority over other things loading."
+  //
+  // That diagnosis was right, and this was most of it. Every marker used to be destroyed and
+  // recreated whenever ANY of clusters, selectedId, hoverLayer, world or assignFile changed — and
+  // hoverLayer changes on every mouse move across a layer row, while assignFile is a useCallback
+  // that changes whenever the library reloads. So the whole set was torn down and rebuilt over and
+  // over, on the main thread, which is the same thread the tiles need in order to decode and paint.
+  // The satellite stayed soft because it was never given a moment to sharpen.
+  //
+  // Now markers are keyed by cluster id and only the ones that actually changed are touched, and
+  // appearance — selected, lit, dimmed — is written onto the elements that already exist. Panning
+  // within one cluster set costs nothing.
+  //
+  // The click and drop handlers read REFS rather than closing over state, which is what lets this
+  // effect depend on almost nothing.
+  const workModeRef = useRef(workMode);
+  const assignFileRef = useRef(assignFile);
+  const worldRef = useRef(world);
+  useEffect(() => { workModeRef.current = workMode; }, [workMode]);
+  useEffect(() => { assignFileRef.current = assignFile; }, [assignFile]);
+  useEffect(() => { worldRef.current = world; }, [world]);
+
   useEffect(() => {
     if (!map || typeof google === 'undefined' || !google.maps?.marker) return;
-    for (const m of markersRef.current) m.map = null;
-    markersRef.current = [];
+    const have = markersRef.current;
+    const want = new Map(clusters.map((c) => [c.id, c]));
 
-    for (const c of clusters) {
-      // ── THE WRAPPER IS WHAT MAKES A PIN POINT AT ITS COORDINATE ─────────────────────────────
+    for (const [id, entry] of have) {
+      if (!want.has(id)) { entry.marker.map = null; have.delete(id); }
+    }
+
+    for (const [id, c] of want) {
+      const existing = have.get(id);
+      if (existing) { existing.cluster = c; continue; }
+
+      // ── THE WRAPPER IS WHAT MAKES A PIN POINT AT ITS COORDINATE ───────────────────────────────
       // Google anchors the content element by its bottom-centre. The pin is a rotated square whose
       // tip hangs below its own box, so without a wrapper of the right height every pin marks a
       // spot ~5px above the thing it points at — and in screen pixels, so it never scales away.
       // See PIN_BOX_HEIGHT_PX in lib/jobs/map-world.ts for the arithmetic.
       const el = document.createElement('div');
-      el.className = 'gmap__marker';
+      let pin: HTMLDivElement | null = null;
+
       if (c.items.length === 1) {
         const p = c.items[0];
-        const pin = document.createElement('div');
-        // `--dim` and `--lit` are the hover relation: hovering a layer row lights its own points and
-        // dims everything else, so "what is on this sheet" is answered by looking rather than by
-        // counting. Hovering a pin does the reverse through `hoverLayerId` below.
-        const related = hoverLayer !== null && p.layerId === hoverLayer;
-        const muted = hoverLayer !== null && !related;
-        pin.className = [
-          'gmap__pin',
-          p.id === selectedId ? 'gmap__pin--on' : '',
-          p.mediaCount > 0 ? 'gmap__pin--has-files' : '',
-          related ? 'gmap__pin--lit' : '',
-          muted ? 'gmap__pin--dim' : '',
-        ].filter(Boolean).join(' ');
+        el.className = 'gmap__marker';
+        pin = document.createElement('div');
+        pin.className = 'gmap__pin';
         pin.style.setProperty('--pin', p.colour);
         const num = document.createElement('span');
         num.className = 'gmap__pin-num';
         num.textContent = String(p.ordinal);
         pin.appendChild(num);
         el.appendChild(pin);
-        el.title = `${p.ordinal}. ${p.title}${p.jobNumber ? ` · ${p.jobNumber}` : ''}`;
+        el.title = p.ordinal + '. ' + p.title + (p.jobNumber ? ' \u00b7 ' + p.jobNumber : '');
 
-        if (workMode) {
-          el.addEventListener('dragover', (e) => { e.preventDefault(); pin.classList.add('gmap__pin--over'); });
-          el.addEventListener('dragleave', () => pin.classList.remove('gmap__pin--over'));
-          el.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            pin.classList.remove('gmap__pin--over');
-            const fileId = (e as DragEvent).dataTransfer?.getData(FILE_DRAG_TYPE);
-            if (fileId) void assignFile(p.id, fileId);
-          });
+        // A marker is a DOM node, which is what lets a file be dropped straight onto a pin — the
+        // same HTML5 drag the panel already uses, with a real element as the target.
+        const inner = pin;
+        el.addEventListener('dragover', (e) => {
+          if (!workModeRef.current) return;
+          e.preventDefault();
+          inner.classList.add('gmap__pin--over');
+        });
+        el.addEventListener('dragleave', () => inner.classList.remove('gmap__pin--over'));
+        el.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          inner.classList.remove('gmap__pin--over');
+          const fileId = (e as DragEvent).dataTransfer?.getData(FILE_DRAG_TYPE);
+          if (fileId && workModeRef.current) void assignFileRef.current(p.id, fileId);
+        });
+
+        // Hovering a pin lights its layer's row in the panel — the other half of the relation.
+        if (p.layerId) {
+          const layerId = p.layerId;
+          el.addEventListener('mouseenter', () => setHoverLayer(layerId));
+          el.addEventListener('mouseleave', () => setHoverLayer((cur) => (cur === layerId ? null : cur)));
         }
       } else {
         el.className = 'gmap__marker gmap__marker--cluster';
@@ -539,35 +647,55 @@ export default function GlobalPropertyMapPage() {
         dot.className = 'gmap__cluster';
         dot.textContent = String(c.items.length);
         el.appendChild(dot);
-        el.title = `${c.items.length} points here — zoom in to separate them`;
+        el.title = c.items.length + ' points here \u2014 zoom in to separate them';
       }
 
-      const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: c.lat, lng: c.lng }, content: el });
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map, position: { lat: c.lat, lng: c.lng }, content: el,
+      });
+
+      const entry: MarkerEntry = { marker, el, pin, cluster: c };
       marker.addListener('gmp-click', () => {
-        if (c.items.length > 1) {
-          const b = boundsOf(c.items) ?? padPoint({ lat: c.lat, lng: c.lng });
+        const cur = entry.cluster;
+        if (cur.items.length > 1) {
+          const b = boundsOf(cur.items) ?? padPoint({ lat: cur.lat, lng: cur.lng });
           map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 64);
           return;
         }
-        const p = c.items[0];
+        const p = cur.items[0];
         // Armed for assignment: the click spends itself putting the file on this pin instead of
         // selecting it, which is the touch and keyboard half of the drag.
-        if (workMode && armedRef.current) { void assignFile(p.id, armedRef.current); return; }
-        if (workMode) setSelectedId(p.id);
-        else setBrowsePick(world.find((w) => w.id === p.id) ?? null);
+        if (workModeRef.current && armedRef.current) { void assignFileRef.current(p.id, armedRef.current); return; }
+        if (workModeRef.current) setSelectedId(p.id);
+        else setBrowsePick(worldRef.current.find((w) => w.id === p.id) ?? null);
       });
 
-      // Hovering a pin lights its layer's row in the panel — the other half of the relation.
-      if (c.items.length === 1 && c.items[0].layerId) {
-        const layerId = c.items[0].layerId;
-        el.addEventListener('mouseenter', () => setHoverLayer(layerId));
-        el.addEventListener('mouseleave', () => setHoverLayer((cur) => (cur === layerId ? null : cur)));
-      }
-
-      markersRef.current.push(marker);
+      have.set(id, entry);
     }
-    return () => { for (const m of markersRef.current) m.map = null; };
-  }, [map, clusters, workMode, selectedId, world, assignFile, hoverLayer]);
+  }, [map, clusters]);
+
+  /** Appearance only — written onto the elements that already exist, so hovering a layer row does
+   *  not rebuild six hundred markers while the tiles are trying to paint. */
+  useEffect(() => {
+    for (const entry of markersRef.current.values()) {
+      const p = entry.cluster.items.length === 1 ? entry.cluster.items[0] : null;
+      if (!p || !entry.pin) continue;
+      const related = hoverLayer !== null && p.layerId === hoverLayer;
+      entry.pin.classList.toggle('gmap__pin--on', p.id === selectedId);
+      entry.pin.classList.toggle('gmap__pin--has-files', p.mediaCount > 0);
+      entry.pin.classList.toggle('gmap__pin--lit', related);
+      entry.pin.classList.toggle('gmap__pin--dim', hoverLayer !== null && !related);
+    }
+  }, [selectedId, hoverLayer, clusters]);
+
+  /** Every marker goes when the page does. */
+  useEffect(() => {
+    const held = markersRef.current;
+    return () => {
+      for (const entry of held.values()) entry.marker.map = null;
+      held.clear();
+    };
+  }, []);
 
   // ── DRAWING THE OTHER THREE SHAPES ────────────────────────────────────────────────────────────
   //
@@ -699,8 +827,12 @@ export default function GlobalPropertyMapPage() {
   // "go there" — and so there is one place that decides how far in "zoomed in on it" is.
   const flyTo = useCallback((at: LatLng, z = JOB_ZOOM) => {
     if (!map) return;
-    map.setCenter(at);
-    map.setZoom(z);
+    // ONE camera change, not two. `setCenter` then `setZoom` is two moves: Google fetches tiles for
+    // the new centre at the OLD zoom, throws them away, and fetches again — and that first set is
+    // what you sit watching resolve. `moveCamera` applies both at once, so the only tiles ever
+    // requested are the ones you actually asked for.
+    if (typeof map.moveCamera === 'function') map.moveCamera({ center: at, zoom: z });
+    else { map.setCenter(at); map.setZoom(z); }
   }, [map]);
 
   /**
