@@ -224,9 +224,19 @@ export function sortPoints<T extends { ordinal: number }>(points: T[]): T[] {
   return [...points].sort((a, b) => a.ordinal - b.ordinal);
 }
 
-/** "3. Pipe found at the NE corner" — the label the list, the popup and the export all use. */
+/**
+ * What a point is called: its name, and nothing else.
+ *
+ * Owner, 2026-09-19: "I want to get rid of point numbers altogether and just have names for the
+ * points." This used to return "3. Pipe at the NE corner"; it returns "Pipe at the NE corner".
+ *
+ * `ordinal` STAYS on the row. It is the ordering key, it has a unique index per map, and deleting a
+ * point renumbers the rest — all of which is still wanted. What changed is that it stopped being
+ * something anybody is shown, so a point no longer has two identities to keep in step. The argument
+ * keeps its shape so every caller does not have to change for a display decision.
+ */
 export function pointLabel(point: Pick<MapPoint, 'ordinal' | 'title'>): string {
-  return `${point.ordinal}. ${point.title}`.trim();
+  return point.title.trim();
 }
 
 // ── WHAT IS ATTACHED ────────────────────────────────────────────────────────────────────────────

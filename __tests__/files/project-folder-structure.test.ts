@@ -262,9 +262,11 @@ describe('the job page: one Files tab instead of five bubbles', () => {
   const src = read(JOBPAGE);
   const code = stripJs(src);
 
-  it('the tabs are Overview, Schedule, Files, Field Work, Financial, Activity, Messages', () => {
+  it('the tabs are Overview, Schedule, Files, Field Work, Property Map, Financial, Activity, Messages', () => {
     const keys = [...code.matchAll(/\{ key: '([a-z]+)', label: '/g)].map((m) => m[1]);
-    expect(keys).toEqual(['overview', 'schedule', 'files', 'fieldwork', 'financial', 'activity', 'messages']);
+    // `propertymap` joined the row when the interactive map was built. It sits after Field Work
+    // because that is when a crew wants it — you come back from the parcel and place what you shot.
+    expect(keys).toEqual(['overview', 'schedule', 'files', 'fieldwork', 'propertymap', 'financial', 'activity', 'messages']);
   });
 
   it('mounts the explorer on the job\'s own mount and reads the badge from it', () => {

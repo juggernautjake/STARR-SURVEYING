@@ -35,7 +35,7 @@ import { useSearchParams } from 'next/navigation';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
   ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
-  Hash, Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
+  Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
 } from 'lucide-react';
 import { usePageError } from '@/app/admin/hooks/usePageError';
 import { useToast } from '@/app/admin/components/Toast';
@@ -220,12 +220,10 @@ export default function GlobalPropertyMapPage() {
   const [kindFilter, setKindFilter] = useState<MediaKind | 'all'>('all');
   const [unplacedOnly, setUnplacedOnly] = useState(false);
   const [hiddenTypes, setHiddenTypes] = useState<PointTypeId[]>([]);
-  /** Names beside the pins. On by default — a numbered dot is not a label. */
+  /** Names beside the pins — and since 2026-09-19 the ONLY thing that identifies a point on the map.
+   *  Owner: "I want to get rid of point numbers altogether and just have names for the points." Still
+   *  a toggle, because a dense corner of a parcel is sometimes easier to read as bare dots. */
   const [showLabels, setShowLabels] = useState(true);
-  /** And the ordinals inside them. Owner, 2026-09-19: "I can hide names of points right now, but I
-   *  also need to be able to hide numbers of points too." Both off leaves a plain coloured dot,
-   *  which is the right map for looking at where things are rather than reading them. */
-  const [showNumbers, setShowNumbers] = useState(true);
   const [viewerOn, setViewerOn] = useState<{ source: 'library' | 'point'; fileId: string } | null>(null);
 
   const jobPickRef = useRef<HTMLDivElement | null>(null);
@@ -592,7 +590,7 @@ export default function GlobalPropertyMapPage() {
   const unassignFile = useCallback(async (file: LibraryFile, at: LibraryFile['assignedTo'][number]) => {
     if (!job) return;
     setConfirmUnassign(null);
-    await mutate('unassign that file', `/api/admin/jobs/${job.jobId}/property-map/media?point_id=${encodeURIComponent(at.pointId)}&media_id=${encodeURIComponent(at.mediaId)}`, { method: 'DELETE' }, at.ordinal > 0 ? `Taken off point ${at.ordinal}.` : 'Unassigned.');
+    await mutate('unassign that file', `/api/admin/jobs/${job.jobId}/property-map/media?point_id=${encodeURIComponent(at.pointId)}&media_id=${encodeURIComponent(at.mediaId)}`, { method: 'DELETE' }, at.title ? `Taken off ${at.title}.` : 'Unassigned.');
     void loadLibrary(job.jobId, mapId);
   }, [job, mapId, mutate, loadLibrary]);
 
@@ -800,10 +798,9 @@ export default function GlobalPropertyMapPage() {
         pin = document.createElement('div');
         pin.className = 'gmap__pin';
         pin.style.setProperty('--pin', p.colour);
-        const num = document.createElement('span');
-        num.className = 'gmap__pin-num';
-        num.textContent = String(p.ordinal);
-        pin.appendChild(num);
+        // No numeral inside the head any more (owner, 2026-09-19). A point is known by its name, and
+        // the name sits beside the pin — a number as well was a second identity for the same thing,
+        // and the one nobody had chosen.
         el.appendChild(pin);
 
         // ── THE NAME, ON THE MAP ────────────────────────────────────────────────────────────────
@@ -818,7 +815,7 @@ export default function GlobalPropertyMapPage() {
         label.textContent = p.title;
         el.appendChild(label);
 
-        el.title = p.ordinal + '. ' + p.title + (p.jobNumber ? ' \u00b7 ' + p.jobNumber : '');
+        el.title = p.title + (p.jobNumber ? ' \u00b7 ' + p.jobNumber : '');
 
         // A marker is a DOM node, which is what lets a file be dropped straight onto a pin — the
         // same HTML5 drag the panel already uses, with a real element as the target.
@@ -1033,6 +1030,107 @@ export default function GlobalPropertyMapPage() {
 
     return () => { for (const s of drawn) s.setMap(null); };
   }, [map, mapDead, workMode, points, layers, hiddenTypes, hiddenLayers, hoverLayer, hoverPoint, selectedId, draw]);
+
+  // ── DRAWING YOU CAN SEE (owner, 2026-09-19) ───────────────────────────────────────────────────
+  //
+  // "there needs to be better representation for the walked path while we are are drawing it. Like,
+  // I need to be able to click the first point and see the first point appear. Walked path needs to
+  // have a starting point and a final point."
+  //
+  // Before this, the first click produced NOTHING on screen. A polyline needs two positions to be a
+  // line, so a path with one corner in it drew nothing at all — you clicked where the walk began and
+  // the map sat there, and the only way to find out whether it had registered was to click again.
+  //
+  // Three things now happen, and they are separate on purpose:
+  //
+  //   1. every corner gets a handle the moment it is placed, so one click is visibly one corner;
+  //   2. the first and last are labelled START and END, because a walked path has a direction and a
+  //      line on a photograph does not show which way somebody walked;
+  //   3. a dashed line follows the cursor from the last corner, so the next leg is visible before
+  //      it is committed rather than after.
+  //
+  // The rubber band is drawn IMPERATIVELY, off React state. `mousemove` fires about sixty times a
+  // second and putting that through a setState would re-render this whole page — panels, tiles and
+  // all — for every pixel of pointer movement.
+  const drawMarksRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const rubberRef = useRef<google.maps.Polyline | null>(null);
+
+  useEffect(() => {
+    if (!map || mapDead || typeof google === 'undefined' || !google.maps?.marker) return;
+
+    const clear = () => {
+      for (const m of drawMarksRef.current) m.map = null;
+      drawMarksRef.current = [];
+      rubberRef.current?.setMap(null);
+      rubberRef.current = null;
+    };
+    clear();
+    if (!draw) return;
+
+    try {
+      const corners = [draw.anchor, ...draw.vertices];
+      const walked = draw.geometry === 'path' || draw.geometry === 'area';
+
+      corners.forEach((at, i) => {
+        const el = document.createElement('div');
+        el.className = 'gmap__vertex';
+        if (walked && i === 0) el.classList.add('gmap__vertex--start');
+        if (walked && i === corners.length - 1 && corners.length > 1) el.classList.add('gmap__vertex--end');
+        if (walked && (i === 0 || (i === corners.length - 1 && corners.length > 1))) {
+          const tag = document.createElement('span');
+          tag.className = 'gmap__vertex-tag';
+          // "END" only once there is something to be the end OF — on a single corner it is the
+          // start and nothing else, and labelling it both would be a lie about a path of one point.
+          tag.textContent = i === 0 ? (draw.geometry === 'area' ? 'FIRST' : 'START') : (draw.geometry === 'area' ? 'LAST' : 'END');
+          el.appendChild(tag);
+        }
+        drawMarksRef.current.push(new google.maps.marker.AdvancedMarkerElement({
+          map, position: at, content: el, zIndex: 20,
+        }));
+      });
+
+      // The leg being aimed, from the last corner to wherever the pointer is. Dashed, because it is
+      // not a leg yet — it becomes one on the next click.
+      if (walked) {
+        rubberRef.current = new google.maps.Polyline({
+          map,
+          path: [],
+          strokeOpacity: 0,
+          zIndex: 19,
+          icons: [{
+            icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeColor: '#FACC15', strokeWeight: 3, scale: 3 },
+            offset: '0',
+            repeat: '11px',
+          }],
+        });
+      }
+    } catch (err) {
+      console.error('[property map] the drawing preview could not be shown:', err);
+    }
+
+    return clear;
+  }, [map, mapDead, draw]);
+
+  /** The rubber band follows the pointer. Separate from the effect above so moving the mouse does
+   *  not tear down and rebuild every handle sixty times a second. */
+  useEffect(() => {
+    if (!map || mapDead || !draw) return;
+    const walked = draw.geometry === 'path' || draw.geometry === 'area';
+    if (!walked) return;
+    const last = draw.vertices.length ? draw.vertices[draw.vertices.length - 1] : draw.anchor;
+
+    const listener = map.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
+      const at = e.latLng;
+      const line = rubberRef.current;
+      if (!at || !line) return;
+      // An area closes back to where it started, so the band shows BOTH the leg being aimed and the
+      // edge that will close the ring — otherwise the shape looks open right up until it is kept.
+      line.setPath(draw.geometry === 'area' && draw.vertices.length
+        ? [last, { lat: at.lat(), lng: at.lng() }, draw.anchor]
+        : [last, { lat: at.lat(), lng: at.lng() }]);
+    });
+    return () => listener.remove();
+  }, [map, mapDead, draw]);
 
   const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
@@ -1327,7 +1425,7 @@ export default function GlobalPropertyMapPage() {
       meta: [
         { label: 'Kind', value: KIND_ONE[f.kind] },
         ...(f.assignedTo.length
-          ? [{ label: f.assignedTo.length === 1 ? 'Placed on' : `Placed on ${f.assignedTo.length} points`, value: f.assignedTo.map((a) => (a.ordinal > 0 ? `Point ${a.ordinal} · ${a.title}` : a.title)).join('  ·  ') }]
+          ? [{ label: f.assignedTo.length === 1 ? 'Placed on' : `Placed on ${f.assignedTo.length} points`, value: f.assignedTo.map((a) => a.title).filter(Boolean).join('  ·  ') }]
           : []),
       ],
     })),
@@ -1507,17 +1605,6 @@ export default function GlobalPropertyMapPage() {
           <Tag size={13} aria-hidden /> Names
         </button>
 
-        <button
-          className={`gmap__btn${showNumbers ? ' gmap__btn--on' : ''}`}
-          type="button"
-          aria-pressed={showNumbers}
-          title="Show each point's number inside its pin"
-          data-testid="gmap-numbers"
-          onClick={() => setShowNumbers((c) => !c)}
-        >
-          <Hash size={13} aria-hidden /> Numbers
-        </button>
-
         {(loading || busy) && <Loader2 className="gmap__spin" size={15} aria-label="Working" />}
       </div>
 
@@ -1664,7 +1751,7 @@ export default function GlobalPropertyMapPage() {
                   onDragEnd={() => setDraggingFileId(null)}
                   onOpen={() => { if (f.url) setViewerOn({ source: 'library', fileId: f.id }); }}
                   onShowPoint={() => {
-                    const first = [...f.assignedTo].sort((a, b) => a.ordinal - b.ordinal)[0];
+                    const first = f.assignedTo[0];
                     if (first) setSelectedId(first.pointId);
                   }}
                   onAskUnassign={() => setConfirmUnassign(f.id)}
@@ -1679,7 +1766,7 @@ export default function GlobalPropertyMapPage() {
         )}
 
         {/* ── the map ────────────────────────────────────────────────────────────────────────── */}
-        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}${showNumbers ? ' gmap__canvas--numbers' : ''}${editing ? ' gmap__canvas--editing' : ''}`}>
+        <div className={`gmap__canvas${placing ? ' gmap__canvas--placing' : ''}${drawKind ? ' gmap__canvas--drawing' : ''}${armedFileId ? ' gmap__canvas--assigning' : ''}${draggingFileId ? ' gmap__canvas--dragging' : ''}${showLabels ? ' gmap__canvas--labels' : ''}${editing ? ' gmap__canvas--editing' : ''}`}>
           {/* The map, and only the map, lives inside this boundary. Google throws from inside its
               own constructor when it refuses a key, and without this that exception unmounted the
               entire page — files, layers, point panel and all. See MapFrame. */}
@@ -1890,7 +1977,7 @@ export default function GlobalPropertyMapPage() {
           <aside className="gmap__panel" aria-label="Point details" data-testid="gmap-browse-point">
             <div className="gmap__panel-head">
               <div>
-                <h2 className="gmap__panel-title">{browsePick.ordinal}. {browsePick.title}</h2>
+                <h2 className="gmap__panel-title">{browsePick.title}</h2>
                 <p className="gmap__panel-sub">{pointType(browsePick.pointType).label}{browsePick.mediaCount > 0 && ` · ${browsePick.mediaCount} file${browsePick.mediaCount === 1 ? '' : 's'}`}</p>
               </div>
               <button className="gmap__icon-btn" type="button" aria-label="Close point details" data-testid="gmap-browse-close" onClick={() => setBrowsePick(null)}><X size={16} aria-hidden /></button>

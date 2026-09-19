@@ -205,8 +205,8 @@ export function FileTile({
   const [imgState, setImgState] = useState<'loading' | 'ok' | 'failed'>(file.thumbUrl ? 'loading' : 'failed');
   useEffect(() => { setImgState(file.thumbUrl ? 'loading' : 'failed'); }, [file.thumbUrl]);
   const where = assigned
-    ? (file.assignedTo.length === 1 && file.assignedTo[0].ordinal > 0
-      ? `point ${file.assignedTo[0].ordinal}`
+    ? (file.assignedTo.length === 1
+      ? (file.assignedTo[0]!.title || 'that point')
       : `${file.assignedTo.length} points`)
     : 'that point';
   // An assigned file used to be undraggable, because there was nowhere legal for it to go. It can
@@ -370,7 +370,7 @@ export function FileTile({
                 >
                   {file.assignedTo.length === 1
                     ? 'Unassign'
-                    : (at.ordinal > 0 ? `Off ${at.ordinal}` : 'Off it')}
+                    : `Off ${at.title || 'it'}`}
                 </button>
               ))}
               <button

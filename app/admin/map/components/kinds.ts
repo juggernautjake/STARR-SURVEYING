@@ -20,21 +20,21 @@ export const KIND_ONE: Record<MediaKind, string> = {
 };
 
 /**
- * What the "On 4" chip says.
+ * What the chip under a placed file says.
  *
- * A file can hang on several points since 2026-09-18, so this lists them: "On 2, 7". A file held by
- * a point on ANOTHER map of the same job comes back with an ordinal of 0 — the numbering is per-map
- * — and "On 0" is a lie, so that case says so plainly instead.
+ * Owner, 2026-09-19: "I want to get rid of point numbers altogether and just have names for the
+ * points." It used to read "On 2, 7". A name is much longer than a numeral and the chip sits under a
+ * 6.5rem tile, so one point is NAMED and several are COUNTED — "On NE corner rod" or "On 3 points".
+ * The full list is still in the tile's tooltip and in the viewer's details, where there is room.
  *
- * Capped at three numbers: the chip sits under a 6.5rem tile, and a photograph of a whole fence line
- * can legitimately be on eight points. "On 2, 7, 9 +5" still answers "where did this end up?"
- * without the tile growing a second row.
+ * A file held by a point on another map of the same job comes back with no usable title, which is
+ * why the single-point case falls back to a bare word rather than an empty chip.
  */
 export function assignedChip(file: LibraryFile): string {
-  const ords = file.assignedTo.map((a) => a.ordinal).filter((n) => n > 0).sort((a, b) => a - b);
-  if (!ords.length) return file.assignedTo.length ? 'Assigned' : '';
-  const shown = ords.slice(0, 3).join(', ');
-  return ords.length > 3 ? `On ${shown} +${ords.length - 3}` : `On ${shown}`;
+  const on = file.assignedTo;
+  if (!on.length) return '';
+  if (on.length === 1) return on[0]!.title ? `On ${on[0]!.title}` : 'Assigned';
+  return `On ${on.length} points`;
 }
 
 /** Unplaced first, then newest first — the panel is a to-do list, and the thing most likely to be

@@ -93,10 +93,13 @@ describe('the numbers on the pins', () => {
     expect(reorder(list, 'nope', 0), 'a point that is not there moves nothing').toEqual([]);
   });
 
-  it('the list is always in number order, and the label reads like a legend entry', () => {
+  it('the list is still in ordinal order, but a point is labelled by its name alone', () => {
     const out = sortPoints([point({ id: 'b', ordinal: 3 }), point({ id: 'a', ordinal: 1 })]);
     expect(out.map((p) => p.ordinal)).toEqual([1, 3]);
-    expect(pointLabel({ ordinal: 3, title: 'Pipe at the NE corner' })).toBe('3. Pipe at the NE corner');
+    // Owner, 2026-09-19: "I want to get rid of point numbers altogether and just have names for the
+    // points." The ordinal still orders the list — it just never reaches anybody's eyes.
+    expect(pointLabel({ ordinal: 3, title: 'Pipe at the NE corner' })).toBe('Pipe at the NE corner');
+    expect(pointLabel({ ordinal: 1, title: '  Trimmed  ' }), 'stray whitespace is not a name').toBe('Trimmed');
   });
 });
 

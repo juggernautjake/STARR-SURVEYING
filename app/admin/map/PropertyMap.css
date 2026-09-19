@@ -3225,13 +3225,6 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   box-shadow: 0 2px 6px rgb(0 0 0 / 45%);
   cursor: pointer;
 }
-.gmap__pin-num {
-  transform: rotate(45deg);
-  /* `display` is what the Numbers toggle switches, so it is set there and not here. */
-  font: 700 0.68rem/1 system-ui, sans-serif;
-  color: #FFF;
-  font-variant-numeric: tabular-nums;
-}
 /* A point with files gets a second ring, so "which of these has photographs" is answerable without
  * opening any of them. */
 .gmap__pin--has-files { box-shadow: 0 0 0 3px color-mix(in srgb, #FFF 65%, transparent), 0 2px 6px rgb(0 0 0 / 45%); }
@@ -3717,18 +3710,6 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   border-color: var(--theme-accent, #1D3095);
 }
 
-/* ── NUMBERS, SEPARATELY FROM NAMES (owner, 2026-09-19) ───────────────────────────────────────
- * "I can hide names of points right now, but I also need to be able to hide numbers of points too."
- *
- * Two toggles, because they answer different questions: the number is how a point is referred to on
- * the phone ("go and look at 7"), the name is what it is. With both off the pin is a plain coloured
- * dot, which is the right map for seeing WHERE things are rather than reading them.
- *
- * Hidden with CSS rather than by rebuilding the markers, for the same reason the labels are: a
- * toggle should cost a class on one ancestor, not six hundred new DOM nodes. */
-.gmap__pin-num { display: none; }
-.gmap__canvas--numbers .gmap__pin-num { display: block; }
-
 /* How many previews are still being made, beside the file count that they belong to. */
 .gmap__thumbing {
   display: inline-flex;
@@ -3784,3 +3765,49 @@ svg.pmap__shapes--inert * { pointer-events: none; }
  * mid-placement every click belongs to the new point, not to moving an old one. */
 .gmap__canvas--placing .gmap__pin,
 .gmap__canvas--drawing .gmap__pin { cursor: inherit; }
+
+/* ── DRAWING YOU CAN SEE (owner, 2026-09-19) ──────────────────────────────────────────────────
+ * "I need to be able to click the first point and see the first point appear. Walked path needs to
+ * have a starting point and a final point."
+ *
+ * Before this the first click produced nothing: a polyline needs two positions to be a line, so one
+ * corner drew nothing at all and the only way to learn whether the click had registered was to
+ * click again.
+ *
+ * A handle is a ring, not a filled dot, so the imagery underneath stays visible — you are placing
+ * these ON something and need to see what. Yellow, matching the shape being drawn, because these
+ * belong to the thing in progress rather than to the map's saved points.
+ *
+ * Sized in absolute pixels and centred on their position: a handle marks a spot exactly, unlike a
+ * pin, which points at one from above. */
+.gmap__vertex {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 3px solid #FACC15;
+  background: rgb(0 0 0 / 45%);
+  box-shadow: 0 0 0 1.5px rgb(0 0 0 / 55%);
+  /* Google anchors content by its bottom-centre; this pushes the ring's own centre onto the point. */
+  transform: translateY(50%);
+  pointer-events: none;
+}
+
+/* The two that a walked path needs told apart. A line on a photograph does not show which way
+ * somebody walked, so the ends say so. */
+.gmap__vertex--start { background: #22C55E; border-color: #FFF; }
+.gmap__vertex--end { background: #EF4444; border-color: #FFF; }
+
+.gmap__vertex-tag {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 5px);
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 72%);
+  color: #FFF;
+  font: 700 0.58rem/1.3 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
