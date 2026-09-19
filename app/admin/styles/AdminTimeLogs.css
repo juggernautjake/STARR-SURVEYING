@@ -684,16 +684,68 @@
 .tl-employee-group {
   margin-bottom: 1.5rem;
 }
+/* ── THE HEADER IS THE CONTROL (owner, 2026-09-19) ───────────────────────────────────────────
+ * "if the person approving hours clicks on that employees element, it will drop down and show the
+ * specific logging for all of the hours."
+ *
+ * A real <button> that happens to look like a heading, so it is tabbable and announced as the
+ * thing that opens the panel. `text-align: left` and `width: 100%` are what undo the browser's
+ * button defaults; without them a heading collapses to a centred pill. */
 .tl-employee-group__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.6rem 0;
+  width: 100%;
+  padding: 0.6rem 0.25rem;
+  border: none;
   border-bottom: 2px solid var(--color-brand-navy);
   margin-bottom: 0.5rem;
   flex-wrap: wrap;
   gap: 0.35rem;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.tl-employee-group__header:hover { background: var(--theme-bg-elevated, #F3F4F6); }
+.tl-employee-group__header:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: -2px;
+}
+.tl-employee-group__chevron {
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: var(--theme-fg-muted, #6B7280);
+  transition: transform 150ms ease;
+}
+.tl-employee-group__chevron--open { transform: rotate(90deg); }
+/* The panel is hidden with the `hidden` attribute rather than unmounted, so a half-typed rejection
+ * reason survives a collapse. `display: none` has to be forced because the flex/grid rules above
+ * would otherwise beat the attribute's default styling. */
+.tl-employee-group__panel[hidden] { display: none; }
+
+/* One figure and its name, stacked, so five of them read as five answers rather than as a row of
+ * loose numbers somebody has to decode by position. */
+.tl-stat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+.tl-stat strong { font-size: 0.95rem; font-weight: 700; color: var(--theme-fg-primary, #1F2937); }
+.tl-stat em {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+}
+/* Pending is the only figure here that is a job to do, so it is the only one that is allowed to
+ * shout — and only when it is not zero. A permanently coloured "0.0h awaiting" would make the
+ * colour mean nothing by the second glance. */
+.tl-stat--due strong { color: var(--theme-warning-fg, #92400E); }
+.tl-stat--due em { color: var(--theme-warning-fg, #92400E); }
 .tl-employee-group__email {
   font-weight: 700;
   color: var(--theme-fg-primary, #1F2937);
@@ -1177,4 +1229,12 @@
   margin: 0.4rem 0 0.1rem;
   font-size: 0.76rem;
   color: var(--theme-fg-muted, #6B7280);
+}
+
+/* Said on every lunch line, because the whole question an approver has when they see one is
+ * whether it has already come off. It has not — seeds/650 — and the answer belongs next to the
+ * number rather than in a help page. */
+.tl-approval-entry__lunch-note {
+  color: var(--theme-fg-muted, #6B7280);
+  font-style: italic;
 }

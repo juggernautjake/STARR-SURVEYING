@@ -78,7 +78,7 @@ export function ClockInModal({ open, onClose, onSubmit, catalog }: ClockInModalP
 interface ClockOutModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => void | Promise<void>;
+  onSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => void | Promise<void>;
   catalog: ActivityTag[];
   /** Map of job id → suggested hours, e.g. from the day's auto-tracked time. */
   suggestedAllocations: Record<string, number>;
@@ -88,6 +88,13 @@ export function ClockOutModal({ open, onClose, onSubmit, catalog, suggestedAlloc
   const [allocations, setAllocations] = useState<Record<string, number>>(suggestedAllocations);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  // ── LUNCH (owner, 2026-09-19) ────────────────────────────────────────────────────────────────
+  // "whenever they log out, they should have the option of recording how long their lunch time was."
+  //
+  // `null` is the starting state and it is NOT zero: it means nobody has answered yet, which is
+  // what an approver sees as "no lunch recorded" rather than as "no lunch taken". Pressing the
+  // "None" chip is how somebody says zero, and that is a different fact — see seeds/650.
+  const [lunch, setLunch] = useState<number | null>(null);
 
   if (!open) return null;
 
@@ -132,6 +139,43 @@ export function ClockOutModal({ open, onClose, onSubmit, catalog, suggestedAlloc
           })}
         </div>
       </fieldset>
+      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
+        <legend style={labelStyle}>Lunch</legend>
+        {/* Chips first, a box second. The honest common cases are none, half an hour and an hour,
+            and three taps beats typing at the end of a long day with gloves on. The box is there
+            for the day that was none of those. */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {[{ v: 0, label: 'None' }, { v: 30, label: '30 min' }, { v: 45, label: '45 min' }, { v: 60, label: '1 hour' }].map((opt) => {
+            const on = lunch === opt.v;
+            return (
+              <button
+                key={opt.v}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setLunch(on ? null : opt.v)}
+                style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--theme-border)', background: on ? 'var(--theme-accent)' : 'transparent', color: on ? 'var(--theme-accent-fg)' : 'var(--theme-fg-secondary)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+          <input
+            type="number"
+            min={0}
+            max={480}
+            step={5}
+            inputMode="numeric"
+            aria-label="Minutes at lunch"
+            placeholder="min"
+            value={lunch ?? ''}
+            onChange={(e) => setLunch(e.target.value === '' ? null : Math.max(0, Math.min(480, Math.round(Number(e.target.value)) || 0)))}
+            style={{ ...inputStyle, width: 84 }}
+          />
+        </div>
+        <span style={hintStyle}>
+          Optional. Your hours are not reduced by this — whoever approves them sees it and decides.
+        </span>
+      </fieldset>
       <label style={fieldStyle}>
         <span style={labelStyle}>End-of-day debrief</span>
         <textarea
@@ -145,7 +189,7 @@ export function ClockOutModal({ open, onClose, onSubmit, catalog, suggestedAlloc
           A short recap so future-you and admins can reconstruct the day.
         </span>
       </label>
-      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes })} confirmLabel="Submit + clock out" busyLabel="Saving your hours…" />
+      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes, lunchMinutes: lunch })} confirmLabel="Submit + clock out" busyLabel="Saving your hours…" />
     </ModalShell>
   );
 }

@@ -84,7 +84,7 @@ export default function ClockInPill() {
     setModal('none');
   }, []);
 
-  const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => {
+  const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes, lunchMinutes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => {
     if (!active) { setModal('none'); return; }
     const totalAllocated = Object.values(perJobAllocations).reduce((sum, h) => sum + h, 0);
     const elapsed = elapsedHours(active.startedAt);
@@ -104,6 +104,12 @@ export default function ClockInPill() {
             notes,
             activity_tag_ids: [...new Set([...active.tagIds, ...tagIds])],
           }))
+          // ── THE LUNCH IS ONE LUNCH ──────────────────────────────────────────────────────────
+          // A day split across three jobs is three rows, and putting the lunch on each would tell
+          // an approver somebody was at lunch for three times as long as they were. It goes on the
+          // first row only; the person had one lunch, and the day's total is what is being asked
+          // about. (Owner, 2026-09-19.)
+          .map((e, i) => (i === 0 ? { ...e, lunch_minutes: lunchMinutes } : e))
       : [{
           log_date: today,
           work_type: 'general',
@@ -112,6 +118,7 @@ export default function ClockInPill() {
           description: 'Clock-out entry from top-bar pill',
           notes,
           activity_tag_ids: [...new Set([...active.tagIds, ...tagIds])],
+          lunch_minutes: lunchMinutes,
         }];
 
     let ok = false;

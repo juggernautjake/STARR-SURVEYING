@@ -157,7 +157,7 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     setClockModal('none');
   }, []);
 
-  const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => {
+  const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes, lunchMinutes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => {
     if (!clockSession) { setClockModal('none'); return; }
     const totalAllocated = Object.values(perJobAllocations).reduce((sum, h) => sum + h, 0);
     const elapsed = elapsedHours(clockSession.startedAt);
@@ -174,6 +174,11 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
             notes,
             activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
           }))
+          // ── THE LUNCH IS ONE LUNCH ──────────────────────────────────────────────────────────
+          // A day split across three jobs is three rows, and putting the lunch on each would tell
+          // an approver somebody was at lunch for three times as long as they were. It goes on the
+          // first row only; they had one lunch, and the day's total is what is being asked about.
+          .map((e, i) => (i === 0 ? { ...e, lunch_minutes: lunchMinutes } : e))
       : [{
           log_date: today,
           work_type: 'general',
@@ -182,6 +187,7 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
           description: 'Clock-out entry from Quick Actions widget',
           notes,
           activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
+          lunch_minutes: lunchMinutes,
         }];
     try {
       await fetch('/api/admin/time-logs', {
@@ -347,7 +353,7 @@ function ClockModalsHost({
   modal: 'none' | 'in' | 'out';
   onClose: () => void;
   onClockInSubmit: (data: { jobId: string | null; tagIds: string[] }) => void;
-  onClockOutSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => void;
+  onClockOutSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => void;
   catalog: ActivityTag[];
 }) {
   return (

@@ -132,6 +132,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 }, { routeName: 'time-logs' });
 
 // POST: Submit daily time log entries
+/** A reported lunch, or null when there is nothing to record.
+ *
+ *  The column's CHECK refuses anything over 8 hours (seeds/650) — a typo guard, since the realistic
+ *  mistake is 45 typed into a box somebody thinks is hours. Clamping HERE as well means a bad value
+ *  from an old client is stored as "not recorded" rather than failing the whole insert and taking
+ *  the day's hours down with it. The hours are the thing that matters; the lunch is a note on them.
+ */
+function cleanLunch(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 480) return null;
+  return n;
+}
+
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -147,6 +161,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       description: string;
       notes?: string;
       role_on_job?: string | null;
+      /** Minutes at lunch, reported at clock-out. See seeds/650: recorded, never deducted. */
+      lunch_minutes?: number | null;
     }>;
     /** Whose timesheet these belong to. Admin only — see below. */
     user_email?: string;
@@ -298,6 +314,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         job_name: entry.job_name || null,
         description: entry.description,
         notes: entry.notes || null,
+        // ── LUNCH (owner, 2026-09-19) ─────────────────────────────────────────────────────────
+        // "whenever they log out, they should have the option of recording how long their lunch
+        // time was … they can revize the payment to account for the time spent at lunch."
+        //
+        // Recorded, never subtracted — `hours` above is untouched. seeds/650 has the argument.
+        //
+        // NULL and 0 are different answers and both survive: NULL is "nobody was asked", which is
+        // every office-entered row and every row before today; 0 is "asked, none taken". A `|| null`
+        // would collapse the second into the first, so the check is explicit.
+        lunch_minutes: cleanLunch(entry.lunch_minutes),
         // An admin entering hours IS the approver. Making them go and approve their own entry is
         // ceremony that produces a queue item nobody needs to look at — and a `pending` row the
         // employee could then edit, which would let them silently rewrite what the office recorded.

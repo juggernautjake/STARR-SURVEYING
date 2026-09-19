@@ -10,6 +10,7 @@ import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/
 import { describeSnapshot } from '@/lib/hours/period-snapshot';
 import { decidedPay } from '@/lib/hours/summarise';
 import { countByStatus, filterLogs, statusOf } from '@/lib/hours/status-view';
+import { groupByEmployee, formatLunch, nameFromEmail } from '@/lib/hours/by-employee';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -42,6 +43,8 @@ interface TimeLog {
    *  see seed 585. Not the same question as `approved_by`, which agrees with it on office-entered
    *  rows and cannot distinguish them from an ordinary approval. */
   entered_by: string | null;
+  /** Minutes at lunch, reported at clock-out. NULL = never asked; 0 = asked, none taken. seeds/650. */
+  lunch_minutes: number | null;
   /**
    * What an approver DECIDED this entry is worth, when they decided anything.
    *
@@ -263,6 +266,17 @@ export default function HoursApprovalPage() {
   >(null);
   /** Set while a payout is being prepared from a closed week, so the button cannot be pressed twice. */
   const [preparingPayout, setPreparingPayout] = useState(false);
+  /** Which employees are expanded. Owner, 2026-09-19: "the default should be closed until open."
+   *
+   *  A Set of emails rather than one open id: an approver comparing two people's weeks should not
+   *  have to keep one closed to read the other. Nothing is remembered between visits — the useful
+   *  default on arriving is the summary, every time. */
+  const [openEmployees, setOpenEmployees] = useState<Set<string>>(new Set());
+  const toggleEmployee = (email: string) => setOpenEmployees((cur) => {
+    const next = new Set(cur);
+    if (next.has(email)) next.delete(email); else next.add(email);
+    return next;
+  });
   /** Every lock overlapping the visible week, for the late-entry check. See `lib/hours/late-entry.ts`:
    *  an entry added AFTER its week was closed off belongs to that week but is paid in the next
    *  payout, and until now looked identical to one submitted on time. */
@@ -889,13 +903,18 @@ export default function HoursApprovalPage() {
   const statusCounts = countByStatus(weekLogs);
   const logs = filterLogs(weekLogs, { status: filterStatus, source: filterSource });
 
-  // Group logs by employee
-  const byEmployee = new Map<string, TimeLog[]>();
-  for (const log of logs) {
-    const arr = byEmployee.get(log.user_email) || [];
-    arr.push(log);
-    byEmployee.set(log.user_email, arr);
-  }
+  // ── GROUPED BY PERSON, PENDING FIRST (owner, 2026-09-19) ──────────────────────────────────────
+  // "employees with pending hours are listed first, with the employee with the most recently
+  // clocked hours being at the top."
+  //
+  // The grouping, the counting and the ordering all live in `lib/hours/by-employee.ts`, where they
+  // are tested without a page. What stays here is what to DO with the result.
+  //
+  // `isPaid` is not passed, and that is not an oversight. Nothing marks a single time log as paid:
+  // paid-ness is a running per-person balance (`lib/payroll/owed.ts`), so a per-row or per-week
+  // "paid hours" figure would be invented. The balance itself is shown on the header instead,
+  // which is the number that actually answers "have they been paid".
+  const employeeGroups = groupByEmployee(logs);
 
   // Counted off the WEEK, not the filtered view: the tab badge answers "is there anything waiting",
   // and it must not read zero merely because you are currently looking at approved days.
@@ -986,8 +1005,18 @@ export default function HoursApprovalPage() {
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128101;</div>
-          <div className="tl-summary-card__value">{byEmployee.size}</div>
+          <div className="tl-summary-card__value">{employeeGroups.length}</div>
           <div className="tl-summary-card__label">Employees</div>
+        </div>
+        {/* Lunch across everything shown. Owner, 2026-09-19: "they can see what the total lunch
+            time is for each day and the week". Counted over the FILTERED list like the hours and
+            pay cards beside it, so the three always describe the same set of rows. */}
+        <div className="tl-summary-card">
+          <div className="tl-summary-card__icon">&#127828;</div>
+          <div className="tl-summary-card__value">
+            {formatLunch(logs.reduce((sum, l) => sum + (l.lunch_minutes ?? 0), 0))}
+          </div>
+          <div className="tl-summary-card__label">Lunch</div>
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128337;</div>
@@ -1187,23 +1216,45 @@ export default function HoursApprovalPage() {
           )}
 
           {/* Grouped by employee */}
-          {[...byEmployee.entries()].map(([email, empLogs]) => {
-            // Same rule as the page total, and the same rule `computeHoursFlags` below already used —
-            // the per-employee heading was the third number on this screen disagreeing with the other two.
-            const empTotal = empLogs.reduce((s, l) => s + effectiveHours(l), 0);
+          {employeeGroups.map((group) => {
+            const email = group.email;
+            const empLogs = group.logs;
             // Same rule as the page total: the decision wins over the rules' figure.
             const empPay = empLogs.reduce((s, l) => s + (decidedPay(l) ?? 0), 0);
             const empFlags = computeHoursFlags(empLogs);
+            const isOpen = openEmployees.has(email);
+            const panelId = `tl-emp-${email.replace(/[^a-z0-9]/gi, '-')}`;
             return (
-              <div key={email} className="tl-employee-group">
-                <div className="tl-employee-group__header">
+              <div key={email} className={`tl-employee-group${isOpen ? ' tl-employee-group--open' : ''}`}>
+                {/* A real <button>, not a div with onClick: this is the control that opens the
+                    panel, and it has to be reachable and announced as one. */}
+                <button
+                  type="button"
+                  className="tl-employee-group__header"
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  onClick={() => toggleEmployee(email)}
+                  data-testid={`tl-employee-toggle-${email}`}
+                >
+                  <span className={`tl-employee-group__chevron${isOpen ? ' tl-employee-group__chevron--open' : ''}`} aria-hidden="true">&#9656;</span>
                   <div>
-                    <span className="tl-employee-group__email">{email.split('@')[0]}</span>
-                    <span className="tl-employee-group__domain">@{email.split('@')[1]}</span>
+                    <span className="tl-employee-group__email">{nameFromEmail(email)}</span>
+                    <span className="tl-employee-group__domain">{email}</span>
                   </div>
                   <div className="tl-employee-group__stats">
-                    <span>{empTotal.toFixed(1)}h</span>
-                    <span>{formatCurrency(empPay)}</span>
+                    {/* Pending first and loudest: it is the only figure here that is a job to do.
+                        Shown even at zero, so "nothing waiting" is stated rather than left to be
+                        inferred from an absence. */}
+                    <span className={`tl-stat tl-stat--pending${group.pendingCount > 0 ? ' tl-stat--due' : ''}`}>
+                      <strong>{group.pendingHours.toFixed(1)}h</strong>
+                      <em>awaiting{group.pendingCount > 0 ? ` (${group.pendingCount})` : ''}</em>
+                    </span>
+                    <span className="tl-stat"><strong>{group.loggedHours.toFixed(1)}h</strong><em>logged</em></span>
+                    <span className="tl-stat"><strong>{group.approvedHours.toFixed(1)}h</strong><em>approved</em></span>
+                    {/* Lunch across the range. `—` when nobody was ever asked, which is a different
+                        thing from nobody having taken one — see seeds/650. */}
+                    <span className="tl-stat"><strong>{group.lunchDays > 0 ? formatLunch(group.lunchMinutes) : '—'}</strong><em>lunch</em></span>
+                    <span className="tl-stat"><strong>{formatCurrency(empPay)}</strong><em>pay</em></span>
                     {/* The running balance, so approving is done with the whole picture in view.
                         Rendered only when it loaded — an absent balance says nothing, which is
                         better than a zero that reads as "paid up". */}
@@ -1218,7 +1269,11 @@ export default function HoursApprovalPage() {
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
+
+                {/* Rendered but HIDDEN rather than unmounted, so a half-typed rejection reason and
+                    a scroll position survive somebody collapsing a person to glance at another. */}
+                <div className="tl-employee-group__panel" id={panelId} hidden={!isOpen}>
 
                 {/* H5 — conflict/totals flags so an admin spots missed clock-outs,
                     suspect period totals, and unresolved entries at a glance. */}
@@ -1283,6 +1338,15 @@ export default function HoursApprovalPage() {
                         })()}
                         {log.job_name && <div className="tl-approval-entry__meta">Job: {log.job_name}</div>}
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
+                        {/* Lunch on this day. Rendered only when there IS an answer: a row from
+                            before this existed, or one the office entered, was never asked, and a
+                            silent "0m" would put words in somebody's mouth. seeds/650. */}
+                        {log.lunch_minutes !== null && log.lunch_minutes !== undefined && (
+                          <div className="tl-approval-entry__meta">
+                            &#127828; Lunch: {log.lunch_minutes === 0 ? 'none taken' : formatLunch(log.lunch_minutes)}
+                            <span className="tl-approval-entry__lunch-note"> — not deducted from the hours above</span>
+                          </div>
+                        )}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
                         {log.adjustment_note && (
                           <div className="tl-approval-entry__adjustment">
@@ -1336,6 +1400,7 @@ export default function HoursApprovalPage() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             );
           })}

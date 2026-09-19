@@ -14,6 +14,8 @@
 // Pure. No React, no fetching, no dates beyond the strings the rows already carry. Tested in
 // __tests__/admin/hours-by-employee.test.ts.
 
+import { effectiveHours } from './hours-flags';
+
 /** One row as this module needs it. A superset is fine — every caller passes the whole time log. */
 export interface EmployeeLog {
   id: string;
@@ -49,14 +51,21 @@ export interface EmployeeGroup<T extends EmployeeLog> {
 
 /** The hours that count for a row: what an approver decided, else what was clocked.
  *
- *  `adjusted_hours` is how an approver says "you clocked nine, I am paying eight" — including, from
- *  2026-09-19, when the reason is a lunch break. So every total here reads the adjustment when
- *  there is one. Lunch is never subtracted automatically; see seeds/650. */
+ *  DELEGATES to `effectiveHours`, which has been the single definition of this rule since it was
+ *  pulled out of four modules on 2026-08-12. Re-implementing it here would have made five, and the
+ *  one that drifted would be whichever screen nobody was looking at.
+ *
+ *  The coercion is this module's own business: rows arrive from the API with `numeric` columns the
+ *  driver hands back as STRINGS, and `effectiveHours` is typed for numbers. A silent NaN here would
+ *  zero somebody's week. */
 export function payableHours(log: EmployeeLog): number {
-  const adjusted = Number(log.adjusted_hours);
-  if (Number.isFinite(adjusted) && adjusted > 0) return adjusted;
-  const raw = Number(log.hours);
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  const n = effectiveHours({
+    hours: Number(log.hours),
+    adjusted_hours: log.adjusted_hours === null || log.adjusted_hours === undefined
+      ? null
+      : Number(log.adjusted_hours),
+  });
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /** When this row landed, as a sortable string. */
