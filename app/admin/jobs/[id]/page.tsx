@@ -521,7 +521,7 @@ export default function JobDetailPage() {
                 and got fixed the same way. A header action is visible from every tab, says which of
                 the two things it does, and carries the point count when there is one. */}
             <Link
-              href={`/admin/jobs/${jobId}/map`}
+              href={`/admin/map?job=${jobId}`}
               className="job-detail__action job-detail__action--ghost"
               title={propertyMap?.exists
                 ? 'Open the aerial with the numbered points of interest on it'
@@ -1024,7 +1024,7 @@ export default function JobDetailPage() {
                     </p>
                   </div>
                   <Link
-                    href={`/admin/jobs/${jobId}/map`}
+                    href={`/admin/map?job=${jobId}`}
                     className="jobs-page__btn jobs-page__btn--primary"
                     data-testid="job-property-map-photos-btn"
                   >
@@ -1066,7 +1066,7 @@ export default function JobDetailPage() {
                       </p>
                     </div>
                     <Link
-                      href={`/admin/jobs/${jobId}/map`}
+                      href={`/admin/map?job=${jobId}`}
                       className="jobs-page__btn jobs-page__btn--primary"
                       data-testid="job-property-map-files-btn"
                     >
@@ -1183,7 +1183,7 @@ export default function JobDetailPage() {
               </p>
             </div>
             <Link
-              href={`/admin/jobs/${jobId}/map`}
+              href={`/admin/map?job=${jobId}`}
               className="jobs-page__btn jobs-page__btn--primary"
               data-testid="job-property-map-link"
             >

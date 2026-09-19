@@ -18,6 +18,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { loadPropertyMap } from '@/lib/jobs/property-map-server';
 import { clampToImage, isKnownPointType, nextOrdinal, renumber, DEFAULT_POINT_TYPE, POINT_STATUSES, type RelativePoint } from '@/lib/jobs/property-map';
+import { isLatLng, roundLatLng } from '@/lib/jobs/map-world';
 import {
   isKnownGeometry, DEFAULT_GEOMETRY, clampBearing, clampFovDeg, clampFovRadius,
   FOV_DEFAULT_DEG, FOV_DEFAULT_RADIUS, type GeometryId,
@@ -97,15 +98,24 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     map_id?: string; x?: number; y?: number; title?: string; notes?: string; point_type?: string; status?: string;
     geometry?: string; vertices?: unknown; bearing_deg?: number; fov_deg?: number; fov_radius?: number;
     layer_id?: string | null;
+    /** Where on the earth. The position of record since seeds/647. */
+    lat?: number; lng?: number;
   };
   if (!body.map_id || !(await mapOfJob(params.id, body.map_id))) {
     return NextResponse.json({ error: 'That map is not on this job.' }, { status: 404 });
   }
-  if (typeof body.x !== 'number' || typeof body.y !== 'number') {
-    return NextResponse.json({ error: 'A point needs an x and a y.' }, { status: 400 });
+  // ── A POINT IS A PLACE ON THE EARTH (seeds/647) ─────────────────────────────────────────────
+  // It used to be a fraction of an uploaded image. Both are accepted while anything might still
+  // send the old shape, but lat/lng is what the map draws from and what makes a point findable by
+  // address, comparable across jobs, and measurable in feet.
+  const at = typeof body.x === 'number' && typeof body.y === 'number'
+    ? clampToImage({ x: body.x, y: body.y })
+    : null;
+  const here = { lat: Number(body.lat), lng: Number(body.lng) };
+  if (!isLatLng(here) && !at) {
+    return NextResponse.json({ error: 'A point needs a latitude and a longitude.' }, { status: 400 });
   }
-
-  const at = clampToImage({ x: body.x, y: body.y });
+  const placed = isLatLng(here) ? roundLatLng(here) : null;
   const geometry: GeometryId = isKnownGeometry(body.geometry) ? body.geometry : DEFAULT_GEOMETRY;
   const vertices = geometry === 'path' || geometry === 'area' ? cleanVertices(body.vertices) : [];
   // Which sheet it lands on. Null is fine and means the default one — `loadPropertyMap` resolves it.
@@ -117,8 +127,10 @@ export const POST = withErrorHandler<Ctx>(async (req: NextRequest, { params }: C
     ordinal: nextOrdinal(await livePoints(body.map_id)),
     title: (body.title ?? '').trim().slice(0, 160) || 'Point of interest',
     notes: (body.notes ?? '').trim() || null,
-    x: at.x,
-    y: at.y,
+    x: at?.x ?? null,
+    y: at?.y ?? null,
+    lat: placed?.lat ?? null,
+    lng: placed?.lng ?? null,
     geometry,
     vertices: vertices.length ? vertices : null,
     ...fovColumns(geometry, body),
@@ -167,8 +179,21 @@ export const PATCH = withErrorHandler<Ctx>(async (req: NextRequest, { params }: 
     if (!POINT_STATUSES.some((s) => s.id === body.status)) return NextResponse.json({ error: 'Unknown status.' }, { status: 400 });
     patch.status = body.status;
   }
-  if (body.lat !== undefined) patch.lat = body.lat;
-  if (body.lng !== undefined) patch.lng = body.lng;
+  // Dragging a pin on the world map. Validated rather than passed through: the database now refuses
+  // 0,0 (seeds/647) and a 500 from a CHECK constraint is a worse answer than a sentence.
+  if (body.lat !== undefined || body.lng !== undefined) {
+    const here = { lat: Number(body.lat), lng: Number(body.lng) };
+    if (body.lat === null && body.lng === null) {
+      patch.lat = null;
+      patch.lng = null;
+    } else if (isLatLng(here)) {
+      const r = roundLatLng(here);
+      patch.lat = r.lat;
+      patch.lng = r.lng;
+    } else {
+      return NextResponse.json({ error: 'That is not a place on the earth.' }, { status: 400 });
+    }
+  }
 
   // Moving a point between sheets. `'layer_id' in body` rather than a truthiness check, because null
   // is meaningful — it is "put this back on the default layer".

@@ -1,0 +1,323 @@
+/* app/admin/map/PropertyMap.css — the global property map.
+ *
+ * Owner, 2026-09-18: "we just have google earth in a viewer, just like we do for the current map set
+ * up, but we can zoom around and scroll in and all of that."
+ *
+ * Tokens only, like every other admin surface. The one thing this file owns that nothing else does
+ * is the pin: Google's AdvancedMarkerElement takes a DOM node, so the marker is styled here rather
+ * than drawn as an image, which is what lets a pin carry its type colour and its number. */
+
+.gmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  /* The admin topbar is 64px and outranks this; the map fills what is left rather than pushing the
+   * page into a scroll, because a map you have to scroll to see is not a map. */
+  height: calc(100vh - 6rem);
+  min-height: 30rem;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+@media (max-width: 720px) {
+  .gmap { height: calc(100vh - 4.5rem); }
+}
+
+/* ── the bar ─────────────────────────────────────────────────────────── */
+
+.gmap__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gmap__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--theme-accent, #1D3095);
+  text-decoration: none;
+}
+.gmap__back:hover { text-decoration: underline; }
+
+.gmap__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 999px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-muted, #64748B);
+}
+.gmap__search:focus-within {
+  border-color: var(--theme-accent, #1D3095);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent, #1D3095) 18%, transparent);
+}
+.gmap__search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.gmap__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--motion-fast, 120ms), border-color var(--motion-fast, 120ms);
+}
+.gmap__btn:hover { border-color: var(--theme-accent, #1D3095); }
+.gmap__btn--on {
+  background: var(--theme-accent, #1D3095);
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFF);
+}
+.gmap__btn--primary {
+  background: var(--theme-accent, #1D3095);
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFF);
+  justify-content: center;
+}
+
+.gmap__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #475569);
+  cursor: pointer;
+}
+.gmap__icon-btn:hover { background: var(--theme-bg-elevated, #F1F5F9); }
+
+.gmap__spin { animation: spin 0.9s linear infinite; color: var(--theme-accent, #1D3095); }
+
+/* ── the job picker ──────────────────────────────────────────────────── */
+
+.gmap__jobpick { position: relative; }
+
+.gmap__joblist {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  width: min(24rem, 80vw);
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.3rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFF);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 16%, transparent);
+}
+.gmap__joblist-empty { margin: 0; padding: 0.6rem; font-size: 0.82rem; color: var(--theme-fg-muted, #64748B); }
+
+.gmap__jobrow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 0.45rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gmap__jobrow:hover { background: var(--theme-bg-elevated, #F1F5F9); }
+.gmap__jobrow--on { background: var(--theme-brand-tint, #EEF2FF); }
+.gmap__jobrow strong { font-size: 0.82rem; }
+.gmap__jobrow span { font-size: 0.82rem; color: var(--theme-fg-secondary, #475569); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gmap__jobrow small { grid-column: 1 / -1; font-size: 0.72rem; color: var(--theme-fg-muted, #64748B); }
+
+/* ── the legend ──────────────────────────────────────────────────────── */
+
+.gmap__legend { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+
+.gmap__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 999px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gmap__chip-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--swatch, var(--theme-accent, #1D3095));
+}
+.gmap__chip--off { opacity: 0.45; text-decoration: line-through; }
+
+/* ── the map itself ──────────────────────────────────────────────────── */
+
+.gmap__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 20rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+/* Placing a point: the cursor says so across the whole canvas, because the thing you are aiming at
+ * is the imagery rather than any control on top of it. */
+.gmap__canvas--placing { cursor: crosshair; }
+.gmap__canvas--placing :where(.gmap__pin, .gmap__cluster) { pointer-events: none; }
+
+.gmap__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 0.85rem;
+  color: var(--theme-fg-muted, #64748B);
+}
+
+.gmap__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: min(32rem, 90%);
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-fg-primary, #0F172A) 82%, transparent);
+  color: #FFF;
+  font-size: 0.78rem;
+  font-weight: 600;
+  /* Above Google's own controls, but never in the way of a click on the map. */
+  z-index: 5;
+  pointer-events: none;
+}
+.gmap__hint--warn { background: color-mix(in srgb, var(--theme-warning-fg, #92400E) 88%, transparent); }
+.gmap__hint--go { background: color-mix(in srgb, var(--theme-accent, #1D3095) 90%, transparent); }
+
+/* ── the pins ────────────────────────────────────────────────────────── */
+/*
+ * A marker is a DOM node Google positions, so it is styled here rather than drawn as an image. That
+ * is what lets a pin carry BOTH its type colour and its number — a coloured dot alone cannot say
+ * "point 7", and "point 7" alone cannot say it is a utility.
+ *
+ * Sized in absolute pixels on purpose: a marker must not scale with zoom, or a pin readable at the
+ * parcel becomes a blob covering the field at the county.
+ */
+.gmap__pin {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  background: var(--pin, #1D3095);
+  border: 2px solid #FFF;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 45%);
+  cursor: pointer;
+}
+.gmap__pin-num {
+  transform: rotate(45deg);
+  font: 700 0.68rem/1 system-ui, sans-serif;
+  color: #FFF;
+  font-variant-numeric: tabular-nums;
+}
+/* A point with files gets a second ring, so "which of these has photographs" is answerable without
+ * opening any of them. */
+.gmap__pin--has-files { box-shadow: 0 0 0 3px color-mix(in srgb, #FFF 65%, transparent), 0 2px 6px rgb(0 0 0 / 45%); }
+
+.gmap__cluster {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-accent, #1D3095) 90%, transparent);
+  border: 2px solid #FFF;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+  font: 700 0.8rem/1 system-ui, sans-serif;
+  color: #FFF;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/* ── the point panel ─────────────────────────────────────────────────── */
+
+.gmap__panel {
+  position: absolute;
+  right: 1rem;
+  top: 6rem;
+  z-index: 20;
+  width: min(22rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFF);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 20%, transparent);
+}
+
+@media (max-width: 720px) {
+  .gmap__panel { right: 0.5rem; left: 0.5rem; width: auto; top: auto; bottom: 0.5rem; }
+}
+
+.gmap__panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.gmap__panel-title { margin: 0; font-size: 1rem; font-weight: 700; }
+.gmap__panel-sub { margin: 0.1rem 0 0; font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
+
+.gmap__facts { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.6rem; margin: 0; font-size: 0.8rem; }
+.gmap__facts dt { font-weight: 700; color: var(--theme-fg-secondary, #475569); }
+.gmap__facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.gmap__facts a { color: var(--theme-accent, #1D3095); }
+
+/* ── no key ──────────────────────────────────────────────────────────── */
+
+.gmap--nokey { display: block; height: auto; }
+.gmap__title { margin: 0 0 0.5rem; font-size: 1.3rem; font-weight: 700; }
+.gmap__nokey-msg {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--theme-warning-fg, #92400E);
+  border-radius: 12px;
+  background: var(--theme-warning-bg, #FEF3C7);
+  color: var(--theme-warning-fg, #92400E);
+  font-size: 0.88rem;
+}
+.gmap__nokey-msg code { font-family: ui-monospace, monospace; }
