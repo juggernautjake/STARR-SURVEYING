@@ -205,3 +205,45 @@
 .ufd__scope-label { font-size: 0.92rem; font-weight: 800; }
 .ufd__scope select { flex: 1 1 16rem; min-height: 42px; max-width: 100%; padding: 0 0.6rem; border: 1px solid var(--theme-border, #CBD5E1); border-radius: 10px; background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-fg-primary, #0F172A); font: inherit; font-size: 0.92rem; }
 .ufd__scope select:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 1px; }
+
+/* ── SORT BY TYPE (owner, 2026-09-19) ─────────────────────────────────────────────────────────
+ * "there should be a button that auto sorts the files being uploaded into the correct folder."
+ *
+ * A quiet button, not a primary one. It sits beside "Put every file in" and does the same class of
+ * thing — fill in the dropdowns — so it should read as a convenience, not as the way to upload.
+ * Upload is the primary action in this pop-up and there should only be one. */
+.ufd__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+.ufd__sort:hover:not(:disabled) {
+  border-color: var(--theme-accent, #1D3095);
+  background: var(--theme-brand-tint, #EEF2FF);
+  color: var(--theme-fg-primary, #0F172A);
+}
+.ufd__sort:disabled { opacity: 0.55; cursor: default; }
+
+/* What it just did. `role="status"` on the element, so a screen reader hears the outcome rather
+ * than being left to re-read forty dropdowns to find out what changed. */
+.ufd__sorted {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: var(--theme-brand-tint, #EEF2FF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.78rem;
+  font-weight: 600;
+}

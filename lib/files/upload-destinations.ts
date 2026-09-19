@@ -230,6 +230,74 @@ export function suggestDestination(destinations: readonly UploadDestination[], f
   return destinations.find((d) => d.folderId === null && parseJobFolderId(d.id)?.folder === key) ?? null;
 }
 
+/**
+ * ── SORT THESE FOR ME (owner, 2026-09-19) ──────────────────────────────────────────────────────
+ *
+ * "in the upload drop box modal there should be a button that auto sorts the files being uploaded
+ * into the correct folder. It will take all video files and auto sort them into the videos folder,
+ * and all images (jpg, png, img, etc.) should be auto sorted into the images folder."
+ *
+ * The rule itself is `suggestFolderKey` above and predates this — every file already offered its
+ * own one-click "Put it in Photos" hint. What was missing was doing it to the whole list at once,
+ * which is the difference between a hint and a feature when somebody has just dropped forty
+ * photographs in.
+ *
+ * Returns a PLAN rather than applying one, for two reasons: it can be described before it happens
+ * ("38 to Photos, 12 to Videos, 2 left for you"), and it can be tested without a browser or a
+ * dialog. Nothing here mutates.
+ *
+ * THREE THINGS IT DELIBERATELY WILL NOT DO:
+ *
+ *   1. It will not place a file a folder would refuse. Photos and Videos each take one medium, so
+ *      a destination that fails `destinationAccepts` is not offered even if the key matched.
+ *   2. It will not guess across jobs. `suggestDestination` returns nothing when the destinations
+ *      span more than one job, because "the Photos folder" is then ambiguous and a confident wrong
+ *      answer is worse than none.
+ *   3. It will not invent a folder. A scope with no standard folders — somebody's personal Files,
+ *      say — produces an empty plan, and the button that calls this should not be shown at all.
+ *
+ * Anything it cannot place is returned in `unplaced` rather than dropped, so the caller can say how
+ * many are still waiting on a person instead of quietly leaving them at the bottom of the list.
+ */
+export interface AutoSortPlan<T> {
+  moves: Array<{ item: T; destination: UploadDestination }>;
+  unplaced: T[];
+  /** What it did, in the order the folders appear, for a sentence afterwards. */
+  summary: Array<{ label: string; count: number }>;
+}
+
+export function planAutoSort<T extends { name: string; type?: string | null }>(
+  destinations: readonly UploadDestination[],
+  files: readonly T[],
+): AutoSortPlan<T> {
+  const moves: AutoSortPlan<T>['moves'] = [];
+  const unplaced: T[] = [];
+
+  for (const file of files) {
+    const dest = suggestDestination(destinations, file);
+    // `destinationAccepts` is checked even though the key matched: a folder marked photos-only and
+    // a file the kind test reads as something else must not be forced together here, where there
+    // is nobody watching, when the upload would refuse it later anyway.
+    if (dest && destinationAccepts(dest, file)) moves.push({ item: file, destination: dest });
+    else unplaced.push(file);
+  }
+
+  const counts = new Map<string, number>();
+  for (const m of moves) counts.set(m.destination.label, (counts.get(m.destination.label) ?? 0) + 1);
+
+  return { moves, unplaced, summary: [...counts.entries()].map(([label, count]) => ({ label, count })) };
+}
+
+/** Can a "sort these for me" button do anything useful here at all?
+ *
+ *  Asked before the button is rendered rather than after it is pressed: a control that is visible,
+ *  enabled, and does nothing when clicked teaches people to distrust the ones that do work. */
+export function canAutoSort(destinations: readonly UploadDestination[]): boolean {
+  const jobs = new Set(destinations.filter((d) => d.owner.kind === 'job').map((d) => d.groupId));
+  if (jobs.size !== 1) return false;
+  return destinations.some((d) => d.folderId === null && parseJobFolderId(d.id) !== null);
+}
+
 /** Destinations grouped for `<optgroup>`s, keeping the tree's order. */
 export function groupDestinations<T extends { groupId: string; group: string }>(items: readonly T[]): Array<{ groupId: string; group: string; items: T[] }> {
   const out: Array<{ groupId: string; group: string; items: T[] }> = [];

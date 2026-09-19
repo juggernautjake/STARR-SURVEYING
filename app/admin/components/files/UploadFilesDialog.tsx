@@ -35,6 +35,7 @@ import { useSession } from 'next-auth/react';
 import type { MountTree } from '@/lib/files/mount-node';
 import {
   destinationsFromTree, destinationAccepts, refusalFor, suggestDestination, groupDestinations, withNewFolder,
+  planAutoSort, canAutoSort,
   type UploadDestination, type NewFolderParent,
 } from '@/lib/files/upload-destinations';
 import { checkFolderName, detectJobFileType } from '@/lib/files/job-folders';
@@ -283,6 +284,35 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
       ? (d && destinationAccepts(d, i.file) ? { ...i, destId: value } : i)
       : i));
   }
+
+  /**
+   * ── SORT THESE FOR ME (owner, 2026-09-19) ───────────────────────────────────────────────────
+   *
+   * "there should be a button that auto sorts the files being uploaded into the correct folder …
+   * all video files … into the videos folder, and all images … into the images folder."
+   *
+   * The rule lives in `planAutoSort`, which is pure and tested; this is the part that touches the
+   * list. It sorts EVERY file still waiting, not only the ones with no folder yet, because that is
+   * what the button says it does — and because the row of dropdowns is right there to correct any
+   * one of them afterwards. It is the same bargain as "Put every file in" next to it, which also
+   * overwrites what you already chose.
+   *
+   * A file already uploading or uploaded is never touched: its folder is a fact by then, not a
+   * choice.
+   */
+  const [sorted, setSorted] = useState<{ summary: Array<{ label: string; count: number }>; left: number } | null>(null);
+
+  function sortByKind() {
+    const open = items.filter((i) => (i.status === 'waiting' || i.status === 'failed') && !tooBig(i.file));
+    const plan = planAutoSort(destinations, open.map((i) => ({ name: i.file.name, type: i.file.type, key: i.key })));
+    const byKey = new Map(plan.moves.map((m) => [m.item.key, m.destination.id]));
+    setItems((cur) => cur.map((i) => (byKey.has(i.key) ? { ...i, destId: byKey.get(i.key)!, error: undefined } : i)));
+    setSorted({ summary: plan.summary, left: plan.unplaced.length });
+  }
+
+  // A changed list makes the last sort's sentence stale — it described files that may no longer be
+  // here, or may now have company.
+  useEffect(() => { setSorted(null); }, [items.length]);
 
   function openDraft(forKey: string) {
     const item = items.find((i) => i.key === forKey);
@@ -661,7 +691,31 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
                     </select>
                   </label>
                 )}
+                {/* Only where there are standard folders to sort INTO — see `canAutoSort`. On a
+                    personal Files folder, or across several jobs at once, this button could only
+                    ever do nothing, and a visible control that does nothing is worse than none. */}
+                {phase !== 'uploading' && canAutoSort(destinations) && (
+                  <button
+                    type="button"
+                    className="ufd__sort"
+                    onClick={sortByKind}
+                    disabled={loadingFolders || uploading}
+                    title="Put photos in Photos, videos in Videos, drawings in CAD and the rest in Documents"
+                    data-testid="ufd-sort"
+                  >
+                    <Sparkles size={14} aria-hidden="true" /> Sort by type
+                  </button>
+                )}
               </div>
+
+              {sorted && (
+                <p className="ufd__sorted" role="status" data-testid="ufd-sorted">
+                  {sorted.summary.length > 0
+                    ? `Sorted: ${sorted.summary.map((s) => `${s.count} to ${s.label}`).join(', ')}.`
+                    : 'Nothing could be sorted by type.'}
+                  {sorted.left > 0 && ` ${sorted.left} still need${sorted.left === 1 ? 's' : ''} a folder from you.`}
+                </p>
+              )}
 
               {draft?.forKey === 'all' && renderDraft()}
 

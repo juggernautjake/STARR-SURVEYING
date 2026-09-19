@@ -21,6 +21,7 @@ import {
 } from '@/lib/files/job-folders';
 import {
   destinationsFromTree, destinationAccepts, suggestDestination, suggestFolderKey, groupDestinations, cleanFolderName, uploadScopeFor, withNewFolder,
+  planAutoSort, canAutoSort,
 } from '@/lib/files/upload-destinations';
 import type { MountTree } from '@/lib/files/mount-node';
 
@@ -574,5 +575,137 @@ describe('a new folder appears at once, under the id the listing will give it', 
     const { tree, folderId } = withNewFolder(et, p, { id: F2, name: 'Deeds' });
     expect(folderId).toBe(F2);
     expect(destinationsFromTree(tree).destinations.map((d) => d.label)).toEqual(['Mine', 'Mine › Deeds']);
+  });
+});
+
+// ── 6. SORT BY TYPE (owner, 2026-09-19) ──────────────────────────────────────────────────────────
+//
+// "in the upload drop box modal there should be a button that auto sorts the files being uploaded
+// into the correct folder. It will take all video files and auto sort them into the videos folder,
+// and all images (jpg, png, img, etc.) should be auto sorted into the images folder."
+describe('sorting a dropped pile of files by what they are', () => {
+  const root = `mnt:jobs:${J}`;
+  const tree = jobTree([
+    folder(root, '24-103 — Smith', null, 0),
+    folder(`${root}:research`, 'Research', root, 1, { folder_key: 'research' }),
+    folder(`${root}:cad`, 'CAD', root, 1, { folder_key: 'cad' }),
+    folder(`${root}:photos`, 'Photos', root, 1, { folder_key: 'photos' }),
+    folder(`${root}:videos`, 'Videos', root, 1, { folder_key: 'videos' }),
+  ]);
+  const { destinations } = destinationsFromTree(tree);
+
+  it('puts every photo in Photos and every video in Videos', () => {
+    const plan = planAutoSort(destinations, [
+      { name: 'corner.jpg', type: 'image/jpeg' },
+      { name: 'monument.PNG', type: 'image/png' },
+      { name: 'IMG_5719.heic', type: 'image/heic' },
+      { name: 'access-route.mov', type: 'video/quicktime' },
+      { name: 'walk.mp4', type: 'video/mp4' },
+    ]);
+    expect(plan.moves.map((m) => m.destination.label))
+      .toEqual(['Photos', 'Photos', 'Photos', 'Videos', 'Videos']);
+    expect(plan.unplaced).toEqual([]);
+    expect(plan.summary).toEqual([{ label: 'Photos', count: 3 }, { label: 'Videos', count: 2 }]);
+  });
+
+  it('works from the extension when the browser gives no type at all', () => {
+    // Some Android builds hand over an empty type for .mkv, and a drag from certain file managers
+    // sends nothing. A sort that only read `type` would drop those on the floor.
+    const plan = planAutoSort(destinations, [
+      { name: 'clip.mkv', type: '' },
+      { name: 'shot.jpeg', type: null },
+    ]);
+    expect(plan.moves.map((m) => m.destination.label)).toEqual(['Videos', 'Photos']);
+  });
+
+  it('sends drawings to CAD and everything else to Documents', () => {
+    // The owner named photos and videos; the rule already covered the rest, and leaving a deed in
+    // an unsorted heap because it is not a photograph would be a worse answer than filing it.
+    const plan = planAutoSort(destinations, [
+      { name: 'boundary.dwg' },
+      { name: 'points.rw5' },
+      { name: 'deed.pdf', type: 'application/pdf' },
+    ]);
+    expect(plan.moves.map((m) => m.destination.label)).toEqual(['CAD', 'CAD', 'Documents']);
+  });
+
+  it('leaves a file alone rather than putting it somewhere that would refuse it', () => {
+    // Photos and Videos each take one medium. If the key ever matched a folder that would reject
+    // the file, the upload would fail later — quietly, and after the person walked away.
+    const onlyPhotos = destinations.filter((d) => d.label === 'Photos');
+    const plan = planAutoSort(onlyPhotos, [{ name: 'walk.mp4', type: 'video/mp4' }]);
+    expect(plan.moves).toEqual([]);
+    expect(plan.unplaced).toHaveLength(1);
+  });
+
+  it('refuses to guess when the files could go to more than one job', () => {
+    const two: MountTree = {
+      root: { id: 'mnt:projects:p1', name: 'Project' },
+      breadcrumb: [], total_files: 0, truncated: false,
+      folders: [
+        folder('mnt:projects:p1', 'Project', null, 0),
+        folder(`mnt:jobs:${J}`, 'Job A', 'mnt:projects:p1', 1),
+        folder(`mnt:jobs:${J}:photos`, 'Photos', `mnt:jobs:${J}`, 2, { folder_key: 'photos' }),
+        folder(`mnt:jobs:${J2}`, 'Job B', 'mnt:projects:p1', 1),
+        folder(`mnt:jobs:${J2}:photos`, 'Photos', `mnt:jobs:${J2}`, 2, { folder_key: 'photos' }),
+      ],
+    };
+    const d = destinationsFromTree(two).destinations;
+    expect(canAutoSort(d), 'which job is a guess, and a confident wrong answer is worse than none').toBe(false);
+    expect(planAutoSort(d, [{ name: 'a.png', type: 'image/png' }]).moves).toEqual([]);
+  });
+
+  it('is not offered where there are no standard folders to sort into', () => {
+    // Somebody's personal Files folder. The button would be visible, enabled, and do nothing.
+    expect(canAutoSort([])).toBe(false);
+    expect(canAutoSort(destinations)).toBe(true);
+  });
+
+  it('counts what it could not place, so the pop-up can say so', () => {
+    const onlyPhotos = destinations.filter((d) => d.label === 'Photos');
+    const plan = planAutoSort(onlyPhotos, [
+      { name: 'a.jpg', type: 'image/jpeg' },
+      { name: 'b.mp4', type: 'video/mp4' },
+      { name: 'c.mov', type: 'video/quicktime' },
+    ]);
+    expect(plan.moves).toHaveLength(1);
+    expect(plan.unplaced).toHaveLength(2);
+  });
+
+  it('changes nothing it was given', () => {
+    const files = [{ name: 'a.jpg', type: 'image/jpeg' }];
+    const before = JSON.stringify({ files, destinations });
+    planAutoSort(destinations, files);
+    expect(JSON.stringify({ files, destinations })).toBe(before);
+  });
+});
+
+describe('the sort button in the pop-up', () => {
+  const code = stripJs(read('app/admin/components/files/UploadFilesDialog.tsx'));
+
+  it('is rendered, and only where it can do something', () => {
+    expect(code).toContain('canAutoSort(destinations) && (');
+    expect(code).toContain('data-testid="ufd-sort"');
+    expect(code).toContain('onClick={sortByKind}');
+  });
+
+  it('never touches a file that is already on its way', () => {
+    expect(code).toContain("i.status === 'waiting' || i.status === 'failed'");
+    expect(code).toContain('!tooBig(i.file)');
+  });
+
+  it('uses the tested planner rather than re-deciding here', () => {
+    expect(code).toContain('planAutoSort(destinations,');
+    expect(code, 'the rule lives in one place').not.toContain("=== 'image' ? 'photos'");
+  });
+
+  it('says what it did', () => {
+    expect(code).toContain('data-testid="ufd-sorted"');
+  });
+
+  it('is styled', () => {
+    const css = read('app/admin/components/files/UploadFilesDialog.css');
+    expect(css).toContain('.ufd__sort {');
+    expect(css).toContain('.ufd__sorted {');
   });
 });

@@ -83,7 +83,16 @@ export interface ViewerCapabilities {
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|tiff?)$/i;
 const TEXT_EXT = /\.(txt|md|csv|json|log|xml|yaml|yml|rtf)$/i;
-const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
+// `mkv` and `avi` added 2026-09-19. The Videos folder's own `accept` list in lib/files/job-folders.ts
+// has named them since it was written — with a comment saying some Android builds send an EMPTY
+// type for .mkv — but this list did not, and these two lists have to agree. The disagreement was a
+// real refusal: `destinationAccepts` asks `fileKind`, so a typeless .mkv the file picker happily
+// offered was then rejected by the only folder it belongs in.
+//
+// The cost is that the viewer now puts an .avi in a <video> element, which most browsers cannot
+// decode. That is the better failure: the browser says it cannot play this format, where before
+// the file could not be filed as a video at all.
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v|mkv|avi)$/i;
 const AUDIO_EXT = /\.(mp3|wav|m4a|ogg)$/i;
 
 export function fileKind(name: string | null | undefined, mime?: string | null): FileKind {
