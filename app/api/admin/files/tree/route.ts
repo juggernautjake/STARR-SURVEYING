@@ -13,6 +13,7 @@ import type { FileUser } from '@/lib/files/permissions';
 import { listChildren } from '@/lib/files/server';
 import { MOUNT_PREFIX, listMountTree } from '@/lib/files/mounts';
 import type { MountNode, MountTree, MountTreeFolder } from '@/lib/files/mount-node';
+import { signTreeThumbs } from '@/lib/files/thumb-urls';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
   if (!session?.user?.email) return null;
@@ -36,6 +37,9 @@ export async function GET(req: NextRequest) {
   if (rootId.startsWith(MOUNT_PREFIX)) {
     const result = await listMountTree(rootId, user, admin, { maxFolders: MAX_FOLDERS, maxDepth: MAX_DEPTH });
     if (!result.ok || !result.tree) return NextResponse.json({ error: result.error ?? 'Could not list that folder.' }, { status: result.status ?? 500 });
+    // Every preview in the tree, signed in one call per bucket — see lib/files/thumb-urls.ts for
+    // why this is not done per file.
+    await signTreeThumbs(result.tree);
     return NextResponse.json(result.tree);
   }
 
@@ -49,10 +53,17 @@ export async function GET(req: NextRequest) {
   let total = 0;
   let truncated = false;
 
-  const shape = (n: { id: string; parent_id: string | null; node_type: 'folder' | 'file'; name: string; mime_type: string | null; size_bytes: number | null; updated_at: string; access: MountNode['access']; notes?: string | null; tags?: string[] | null }): MountNode => ({
+  const shape = (n: { id: string; parent_id: string | null; node_type: 'folder' | 'file'; name: string; mime_type: string | null; size_bytes: number | null; updated_at: string; access: MountNode['access']; notes?: string | null; tags?: string[] | null; thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null }): MountNode => ({
     id: n.id, parent_id: n.parent_id, node_type: n.node_type, name: n.name, mime_type: n.mime_type,
     size_bytes: n.size_bytes, updated_at: n.updated_at, access: n.access,
     notes: n.notes ?? null, tags: n.tags ?? [],
+    // seed 649. A folder has no preview and never will, so it is not given a state to report.
+    ...(n.node_type === 'file' ? {
+      thumb_ref: n.thumb_path && n.thumb_bucket ? { bucket: n.thumb_bucket, path: n.thumb_path } : null,
+      thumb_state: (['pending', 'ok', 'failed', 'unsupported'] as const).includes(n.thumb_state as never)
+        ? (n.thumb_state as NonNullable<MountNode['thumb_state']>)
+        : 'pending',
+    } : {}),
   });
 
   async function walk(id: string, name: string, path: string[], depth: number, parentId: string | null, nodes?: ReturnType<typeof shape>[], access?: MountNode['access']): Promise<void> {
@@ -81,5 +92,6 @@ export async function GET(req: NextRequest) {
     total_files: total,
     truncated,
   };
+  await signTreeThumbs(tree);
   return NextResponse.json(tree);
 }

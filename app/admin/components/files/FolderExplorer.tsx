@@ -31,7 +31,7 @@ import Link from 'next/link';
 import {
   ChevronRight, Folder, FolderOpen, Layers, Search, Upload, Link2, Eye, Download, ExternalLink, Loader2,
   FileText, Image as ImageIcon, Film, Music, Archive, DraftingCompass, Receipt, BookOpenText, Camera, Video, X, RefreshCw,
-  FolderPlus, Pencil, Trash2,
+  FolderPlus, Pencil, Trash2, LayoutGrid, Grid2x2, Rows3, List as ListIcon,
 } from 'lucide-react';
 import SharedFileViewer from './FileViewer';
 import DownloadAllButton from './DownloadAllButton';
@@ -48,6 +48,7 @@ import {
   detectJobFileType, checkFolderName, type JobFolderKey,
 } from '@/lib/files/job-folders';
 import { mountNodeToViewerFile, mountCapabilities, mountViewUrl } from '@/lib/files/adapters/mount';
+import { useFileThumbnails, kindOfNode, wantsThumb } from './useFileThumbnails';
 import './FolderExplorer.css';
 
 export type FolderExtraKey = JobFolderKey | 'root' | 'docs' | 'job';
@@ -70,6 +71,36 @@ export interface FolderExplorerProps {
 }
 
 type Mode = 'folder' | 'all';
+
+// ── HOW BIG THE PREVIEWS ARE (owner, 2026-09-19) ────────────────────────────────────────────────
+//
+// "Please make sure that in our filing system for the jobs we have a way to choose different tiles
+// sizes for each file preview so that we can see a thumbnail of each document/pdf/photo/video
+// easily."
+//
+// Four steps rather than a slider. A slider implies every width in between is worth having; these
+// four are the ones that answer different questions — "which of these forty plats is the one with
+// the pond on it" wants Large, and "what is in this folder" wants the list.
+//
+// `list` is the original row view and stays the default, because it is the only one that shows the
+// size and the date, and because changing what everybody's Files tab looks like on upgrade is not
+// something to do by fiat.
+type View = 'list' | 'small' | 'medium' | 'large';
+
+const VIEWS: Array<{ id: View; label: string; hint: string }> = [
+  { id: 'list', label: 'List', hint: 'Names, sizes and dates — no previews' },
+  { id: 'small', label: 'Small', hint: 'Small tiles with previews' },
+  { id: 'medium', label: 'Medium', hint: 'Medium tiles with previews' },
+  { id: 'large', label: 'Large', hint: 'Large tiles — the biggest preview a stored one supports' },
+];
+
+/** Remembered per person, for every folder they open.
+ *
+ *  The owner asked for one setting, not one per folder: "Pick Large once and it stays Large." Read
+ *  in an effect rather than in the `useState` initialiser, deliberately — this component renders on
+ *  the server too, and reading storage during the first render is a hydration mismatch. The pattern
+ *  is FileExplorerDialog's, which has used the same key shape since it was built. */
+const VIEW_KEY = 'fe-view';
 
 interface UploadTarget {
   kind: 'job' | 'project';
@@ -149,6 +180,20 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string>(rootId);
   const [mode, setMode] = useState<Mode>('folder');
+  const [view, setView] = useState<View>('list');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY) as View | null;
+      if (saved && VIEWS.some((v) => v.id === saved)) setView(saved);
+    } catch { /* private window, blocked site data — the default is a working view */ }
+  }, []);
+  const chooseView = useCallback((v: View) => {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* nothing to do, and nothing worth saying */ }
+  }, []);
+  /** Previews the browser made this session, keyed by node id — shown at once rather than waiting
+   *  for a reload to fetch back the copy that was just uploaded. */
+  const [madeThumbs, setMadeThumbs] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -476,6 +521,108 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   // ── render ──
   const openInFiles = `/admin/files?node=${encodeURIComponent(currentId)}`;
 
+  // ── MAKING THE PREVIEWS THAT ARE MISSING ──────────────────────────────────────────────────────
+  //
+  // Only in a view that shows pictures, and only for tiles that have actually come on screen — see
+  // useFileThumbnails for why that restraint matters (making a preview costs the whole file).
+  const { request: requestThumbs } = useFileThumbnails({
+    enabled: view !== 'list',
+    resolveUrl: async (id) => urlsRef.current[id] ?? await mountViewUrl(id),
+    onResult: useCallback((id: string, thumbUrl: string | null) => {
+      if (thumbUrl) setMadeThumbs((m) => ({ ...m, [id]: thumbUrl }));
+    }, []),
+  });
+
+  /** One observer for the whole grid. A tile asks to be watched as it mounts and the callback
+   *  queues whatever has come into view — so a folder of a thousand documents generates previews
+   *  for the dozen somebody actually scrolled to. */
+  const seenRef = useRef<Map<Element, MountNode>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  useEffect(() => {
+    if (view === 'list' || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => {
+      const arrived: MountNode[] = [];
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const n = seenRef.current.get(e.target);
+        if (n) arrived.push(n);
+      }
+      if (!arrived.length) return;
+      requestThumbs(arrived.map((n) => ({
+        id: n.id,
+        name: n.name,
+        mime: n.mime_type,
+        sizeBytes: n.size_bytes,
+        kind: kindOfNode(n.mime_type, n.name),
+        thumbState: n.thumb_state,
+      })));
+    }, { rootMargin: '200px' });
+    observerRef.current = io;
+    for (const el of seenRef.current.keys()) io.observe(el);
+    return () => { io.disconnect(); observerRef.current = null; };
+  }, [view, requestThumbs]);
+
+  const watchTile = useCallback((el: HTMLElement | null, n: MountNode) => {
+    if (!el) return;
+    seenRef.current.set(el, n);
+    observerRef.current?.observe(el);
+  }, []);
+
+  /** The picture to show on a tile, or null for the icon.
+   *
+   *  Three sources, in order: one this browser just made, one the server already had, and — for a
+   *  photograph small enough that a separate preview would be pointless — the file itself. The last
+   *  case only fires when a signed URL is already to hand; it never fetches one just to fill a tile,
+   *  which is the mistake that made the map panel download a gigabyte to draw a contact sheet. */
+  const previewFor = (n: MountNode): string | null => {
+    if (madeThumbs[n.id]) return madeThumbs[n.id]!;
+    if (n.thumb_url) return n.thumb_url;
+    const kind = kindOfNode(n.mime_type, n.name);
+    if (kind === 'image' && !wantsThumb({ id: n.id, name: n.name, mime: n.mime_type, sizeBytes: n.size_bytes, kind, thumbState: n.thumb_state })) {
+      return urls[n.id] ?? null;
+    }
+    return null;
+  };
+
+  const renderTile = (n: MountNode, i: number) => {
+    const preview = previewFor(n);
+    return (
+      <li
+        key={n.id}
+        className="fe__card m-stagger"
+        style={{ '--i': i } as React.CSSProperties}
+        ref={(el) => watchTile(el, n)}
+      >
+        <button type="button" className="fe__card-open" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
+          <span className="fe__card-thumb">
+            {preview ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={preview} alt="" className="fe__card-img" loading="lazy" decoding="async" />
+            ) : (
+              <span className="fe__card-icon"><FileIcon node={n} /></span>
+            )}
+          </span>
+          <span className="fe__card-name">{n.name}</span>
+        </button>
+        <span className="fe__card-meta">{formatBytes(n.size_bytes)}</span>
+        <span className="fe__card-actions">
+          {n.open_href ? (
+            <a className="fe__icon-btn" href={n.open_href} title="Open in Starr CAD" aria-label={`Open ${n.name} in Starr CAD`}><ExternalLink size={14} aria-hidden="true" /></a>
+          ) : (
+            <button type="button" className="fe__icon-btn" onClick={() => void openFile(n)} title="Open in the viewer" aria-label={`Open ${n.name}`}><Eye size={14} aria-hidden="true" /></button>
+          )}
+          <button type="button" className="fe__icon-btn" onClick={() => void save(n)} title="Save to your computer" aria-label={`Download ${n.name}`}><Download size={14} aria-hidden="true" /></button>
+        </span>
+      </li>
+    );
+  };
+
+  /** One list of files, in whichever view is chosen. Both call sites go through this so the folder
+   *  view and the all-files groups can never disagree about what "Large" means. */
+  const renderFiles = (files: MountNode[]) => (view === 'list'
+    ? <ul className="fe__rows">{files.map(renderRow)}</ul>
+    : <ul className={`fe__grid fe__grid--${view}`}>{files.map(renderTile)}</ul>);
+
   const renderRow = (n: MountNode, i: number) => (
     <li key={n.id} className="fe__row m-stagger" style={{ '--i': i } as React.CSSProperties}>
       <span className="fe__row-icon"><FileIcon node={n} /></span>
@@ -537,6 +684,25 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
             <button type="button" className={`fe__mode-btn${mode === 'all' ? ' fe__mode-btn--on' : ''}`} onClick={() => setMode('all')} aria-pressed={mode === 'all'} title="View all files in this folder and its subfolders" data-testid="fe-all-files">
               <Layers size={14} aria-hidden="true" /> All files{current ? ` (${countUnder(current.id)})` : ''}
             </button>
+          </div>
+          <div className="fe__views" role="group" aria-label="Preview size">
+            {VIEWS.map((v) => {
+              const Icon = v.id === 'list' ? ListIcon : v.id === 'small' ? Rows3 : v.id === 'medium' ? Grid2x2 : LayoutGrid;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={`fe__view-btn${view === v.id ? ' fe__view-btn--on' : ''}`}
+                  onClick={() => chooseView(v.id)}
+                  aria-pressed={view === v.id}
+                  title={v.hint}
+                  data-testid={`fe-view-${v.id}`}
+                >
+                  <Icon size={14} aria-hidden="true" />
+                  <span className="fe__view-label">{v.label}</span>
+                </button>
+              );
+            })}
           </div>
           <DownloadAllButton
             className="fe__btn"
@@ -672,7 +838,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                     {q ? 'Nothing here matches.' : target ? `Nothing in ${target.label} yet — drag files here, or press Upload files above.` : 'Nothing here yet.'}
                   </p>
                 ) : (
-                  <ul className="fe__rows">{folderFiles.map(renderRow)}</ul>
+                  renderFiles(folderFiles)
                 )}
               </div>
             )}
@@ -698,7 +864,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                 </header>
                 {g.folder.error ? <p className="fe__error">{g.folder.error}</p>
                   : g.files.length === 0 ? <p className="fe__empty fe__empty--tight">Empty</p>
-                  : <ul className="fe__rows">{g.files.map(renderRow)}</ul>}
+                  : renderFiles(g.files)}
               </section>
             )))}
           </div>

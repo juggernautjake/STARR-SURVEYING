@@ -2366,7 +2366,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
 }
 
 .pmap__file-unassign:hover {
-  background: var(--theme-danger-bg, var(--theme-bg-elevated, rgb(243 244 246)));
+  background: var(--theme-danger-bg, rgb(254 242 242));
 }
 
 /* Inline, not `window.confirm` — a system dialog takes the focus out of a panel somebody is working
@@ -2378,14 +2378,14 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   padding: 0.3rem;
   border-top: 1px solid var(--theme-danger, rgb(185 28 28));
   border-radius: 0 0 8px 8px;
-  background: var(--theme-danger-bg, var(--theme-bg-elevated, rgb(243 244 246)));
+  background: var(--theme-danger-bg, rgb(254 242 242));
 }
 
 .pmap__file-confirm-ask {
   font-size: 0.62rem;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--theme-danger-fg, var(--theme-danger, rgb(185 28 28)));
+  color: var(--theme-danger-fg, rgb(185 28 28));
 }
 
 .pmap__file-confirm-acts {
@@ -2435,7 +2435,7 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-primary, rgb(17 24 39));
 }
 
-.pmap__assign-msg--bad { color: var(--theme-danger-fg, var(--theme-danger, rgb(185 28 28))); }
+.pmap__assign-msg--bad { color: var(--theme-danger-fg, rgb(185 28 28)); }
 
 .pmap__assign-name {
   max-width: 16rem;

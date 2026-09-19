@@ -43,6 +43,34 @@ export interface MountNode {
   blurb?: string;
   /** The standard-folder key, on the folders under a job (research / cad / photos / …). */
   folder_key?: string;
+
+  // ── WHAT THIS FILE LOOKS LIKE (owner, 2026-09-19) ────────────────────────────────────────────
+  //
+  // "we have a way to choose different tiles sizes for each file preview so that we can see a
+  // thumbnail of each document/pdf/photo/video easily."
+  //
+  // A survey job's folder is mostly PDFs — deeds, plats, tax statements, field notes — and a grid
+  // of identical document icons answers no question anybody has. These two carry the generated
+  // 400 px preview so the Explorer can show the file instead of its file type.
+  //
+  // Both are OPTIONAL and both are absent for most mount sources. Only `job_files` (seeds/644) and
+  // `file_nodes` (seeds/649) store previews; research documents, receipts, CAD drawings and field
+  // media have no such column and keep their icons. A client must treat "no thumbnail" as the
+  // normal case, not an error.
+
+  /** A signed URL for the generated preview, when one has been made. */
+  thumb_url?: string | null;
+  /** SERVER SIDE ONLY — where that preview lives, before anybody has signed it.
+   *
+   *  Listing a folder can turn up two hundred previews, and signing them one at a time is two
+   *  hundred round trips. So the listing carries the raw object here, the route collects every one
+   *  of them, signs them in a single bulk call per bucket, and swaps in `thumb_url`. `stripThumbRef`
+   *  deletes this before the response goes out: a bucket path is not a secret, but it is not the
+   *  client's business either, and leaving it would invite somebody to construct URLs from it. */
+  thumb_ref?: { bucket: string; path: string } | null;
+  /** Whether a preview exists, was tried, or can never exist — so a client knows whether to offer
+   *  to make one rather than asking again forever. Absent where the source cannot store one. */
+  thumb_state?: 'pending' | 'ok' | 'failed' | 'unsupported';
 }
 
 /** What `GET /api/admin/files/tree?node=` returns: every folder under a node, flattened, in

@@ -171,6 +171,27 @@ export interface MountListResult {
 
 const LIMIT = 500;
 
+/** A row's generated preview, as the tree route wants it.
+ *
+ *  Owner, 2026-09-19: "so that we can see a thumbnail of each document/pdf/photo/video easily."
+ *
+ *  Only `job_files` stores one (seeds/644) among the mount sources, and it is stored rather than
+ *  derived because making it needs a PDF renderer and a video decoder that this deployment does not
+ *  have — the browser that first looks at a file makes it and posts it back. A row with no preview
+ *  yet reports its STATE anyway, so the Explorer knows whether to offer to make one or to stop
+ *  asking. See lib/jobs/file-thumbnails.ts for what each state means.
+ */
+function thumbOf(row: { thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null }): Pick<MountNode, 'thumb_ref' | 'thumb_state'> {
+  const state = ['pending', 'ok', 'failed', 'unsupported'].includes(row.thumb_state ?? '')
+    ? (row.thumb_state as NonNullable<MountNode['thumb_state']>)
+    : 'pending';
+  const ref = row.thumb_path && row.thumb_bucket ? { bucket: row.thumb_bucket, path: row.thumb_path } : null;
+  // `ok` with nothing behind it is a row that lost its object. Reporting it as pending sends the
+  // Explorer round to make another, which is the repair rather than a permanent empty square.
+  return { thumb_ref: ref, thumb_state: ref ? state : (state === 'ok' ? 'pending' : state) };
+}
+
+
 /** List a mount folder's children (its source rows as read-only file nodes). */
 export async function listMount(mountId: string, user: FileUser, isAdmin: boolean): Promise<MountListResult> {
   // `mnt:receipts` is one segment; `mnt:jobs:<jobId>:<kind>` is three. Job ids are UUIDs and kinds
@@ -389,7 +410,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
 
     const { data, error } = await supabaseAdmin
       .from('job_files')
-      .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section, file_type, folder_id')
+      .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section, file_type, folder_id, thumb_path, thumb_bucket, thumb_state')
       .eq('job_id', jobId)
       .eq('is_deleted', false)
       .eq('is_backup', false)
@@ -400,6 +421,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
       job_id: string | null; project_id: string | null; description: string | null;
       uploaded_at: string | null; created_at: string | null; section: string | null; file_type: string | null;
       folder_id: string | null;
+      thumb_path: string | null; thumb_bucket: string | null; thumb_state: string | null;
     };
     for (const r of (data ?? []) as unknown as Row[]) {
       const shape = shapeOf(r);
@@ -422,6 +444,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
         notes: r.description ?? null,
         tags: r.tags ?? [],
         original_name: originalName(r),
+        ...thumbOf(r),
       });
       if (inNamed) byNamed.get(inNamed.id)?.push({ ...fileNode, parent_id: inNamed.mountId });
       else push(key, fileNode);
@@ -735,7 +758,7 @@ async function projectDocNodes(
 ): Promise<{ ok: boolean; error?: string; nodes: MountNode[] }> {
   const { data, error } = await supabaseAdmin
     .from('job_files')
-    .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section')
+    .select('id, job_id, project_id, file_name, name, label, description, tags, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at, section, thumb_path, thumb_bucket, thumb_state')
     .eq('project_id', projectId)
     .is('job_id', null)
     .eq('is_deleted', false)
@@ -743,7 +766,7 @@ async function projectDocNodes(
     .order('uploaded_at', { ascending: false, nullsFirst: false })
     .limit(LIMIT);
   if (error) return { ok: false, error: error.message, nodes: [] };
-  type Row = JobFileRow & { job_id: string | null; project_id: string | null; description: string | null; uploaded_at: string | null; created_at: string | null; section: string | null };
+  type Row = JobFileRow & { job_id: string | null; project_id: string | null; description: string | null; uploaded_at: string | null; created_at: string | null; section: string | null; thumb_path: string | null; thumb_bucket: string | null; thumb_state: string | null };
   const nodes = ((data ?? []) as unknown as Row[])
     .filter((r) => shapeOf(r) !== 'missing')
     .map((r): MountNode => ({
@@ -759,6 +782,7 @@ async function projectDocNodes(
       notes: r.description ?? null,
       tags: r.tags ?? [],
       original_name: originalName(r),
+      ...thumbOf(r),
     }));
   return { ok: true, nodes };
 }

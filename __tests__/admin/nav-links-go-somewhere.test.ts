@@ -87,11 +87,14 @@ describe('every menu destination is a page', () => {
     // Named individually because these are the five the owner actually clicked. A generic sweep
     // passing while "My Hours" still lands on the Hub would be the guard defending the wrong thing.
     for (const [label, href] of [
-      // C4 (2026-08-25): the Hours portal absorbed `/admin/my-hours` as its `my-time` tab, and the
-      // nav row is called 'Hours & Time' now. The thing this guard is about — the owner clicked
-      // 'My Hours' and landed on the Hub — is unchanged: there is still exactly one nav row that
-      // opens a timesheet, and 'my hours' is still one of its keywords so searching finds it.
-      ['Hours & Time', '/admin/hours'],
+      // C4 (2026-08-25): the Hours portal absorbed `/admin/my-hours` as its `my-time` tab. Renamed
+      // again on 2026-09-19 to 'Hours & Approvals', because the owner could not find the crew's
+      // submitted timesheets behind a row named for the personal half of what it does.
+      //
+      // The thing this guard is about — the owner clicked 'My Hours' and landed on the Hub — is
+      // unchanged by either rename: there is still exactly one nav row that opens a timesheet, and
+      // 'my hours' is still one of its keywords so searching finds it.
+      ['Hours & Approvals', '/admin/hours'],
       // C6: absorbed as the Pay portal's `my-pay` tab. Same guard, new row: there is still exactly
       // one nav entry that opens somebody's own pay, and 'my pay' is one of its keywords.
       ['Pay & Payouts', '/admin/pay'],

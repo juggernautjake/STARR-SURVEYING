@@ -41,6 +41,11 @@ export interface FileNodeRow {
   /** seed 634 — a person's note and tags on a file OR a folder. */
   notes?: string | null;
   tags?: string[] | null;
+  /** seed 649 — the generated 400 px preview, so the Explorer can show the document rather than an
+   *  icon of its file type. Made by the first browser to look at it; see lib/jobs/file-thumbnails.ts. */
+  thumb_path?: string | null;
+  thumb_bucket?: string | null;
+  thumb_state?: string | null;
 }
 
 export interface ListedNode extends FileNodeRow {
@@ -51,7 +56,7 @@ export interface ListedNode extends FileNodeRow {
 }
 
 export const NODE_COLS =
-  'id, parent_id, node_type, name, owner_email, is_personal_root, is_system, permission_mode, storage_bucket, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, notes, tags';
+  'id, parent_id, node_type, name, owner_email, is_personal_root, is_system, permission_mode, storage_bucket, storage_path, mime_type, size_bytes, created_by, created_at, updated_at, notes, tags, thumb_path, thumb_bucket, thumb_state';
 
 export async function getNode(id: string): Promise<FileNodeRow | null> {
   const { data } = await supabaseAdmin

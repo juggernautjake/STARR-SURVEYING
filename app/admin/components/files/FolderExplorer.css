@@ -375,3 +375,123 @@
   .fe__cta-actions { width: 100%; }
   .fe__cta-actions .fe__btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ── PREVIEW SIZE (owner, 2026-09-19) ─────────────────────────────────────────────────────────
+ * "a way to choose different tiles sizes for each file preview so that we can see a thumbnail of
+ * each document/pdf/photo/video easily."
+ *
+ * Built to match .fe__mode beside it rather than inventing a second kind of switch — two segmented
+ * controls in one toolbar that look different read as two unrelated things. */
+.fe__views { display: inline-flex; border: 1px solid var(--theme-border, #E2E8F0); border-radius: 10px; overflow: hidden; background: var(--theme-bg-surface, #FFFFFF); }
+.fe__view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+.fe__view-btn + .fe__view-btn { border-left: 1px solid var(--theme-border, #E2E8F0); }
+.fe__view-btn:hover { background: var(--theme-bg-elevated, #F1F5F9); }
+.fe__view-btn--on { background: var(--theme-accent, #1D3095); color: var(--theme-accent-fg, #FFFFFF); }
+.fe__view-btn--on:hover { background: var(--theme-brand-hover, #172775); }
+/* The words go first when the toolbar is tight — the icons carry the meaning and four labels is
+ * what pushes this row onto a second line on a laptop. */
+.fe__view-label { display: inline; }
+
+/* ── THE TILES ────────────────────────────────────────────────────────────────────────────────
+ * `auto-fill` with a minimum rather than a fixed column count, so the same three sizes work in the
+ * narrow Files tab of a job page and in the full-width explorer.
+ *
+ * Large stops at 15rem on purpose. A stored preview is 400 px on its long edge (THUMB_MAX_PX), so
+ * a tile wider than that is upscaling a thumbnail and showing a softer picture for more space. */
+.fe__grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+.fe__grid--small { grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); }
+.fe__grid--medium { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+.fe__grid--large { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+
+.fe__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--theme-bg-surface, #FFFFFF);
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.fe__card:hover { border-color: var(--theme-accent, #1D3095); box-shadow: 0 2px 10px rgb(15 23 42 / 10%); }
+.fe__card-open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* A fixed ratio, so a grid of portrait plats and landscape photographs still lines up. */
+.fe__card-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  overflow: hidden;
+}
+/* `contain`, not `cover`: a plat cropped to fill a box has lost the corner you were looking for. */
+.fe__card-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.fe__card-icon { display: flex; color: var(--theme-fg-muted, #64748B); }
+.fe__card-icon svg { width: 28px; height: 28px; }
+.fe__card-name {
+  padding: 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #0F172A);
+  /* Two lines then an ellipsis. One line hides which revision a plat is; three makes the tiles
+   * ragged, because file names here are long and differ only near the end. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.fe__card-meta { padding: 0 0.55rem 0.5rem; font-size: 0.7rem; color: var(--theme-fg-muted, #64748B); }
+/* Revealed on hover, like the row pencil — four visible buttons per tile across a wall of forty
+ * tiles is a wall of buttons, not a wall of files. */
+.fe__card-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 18%);
+  opacity: 0;
+  transition: opacity var(--motion-fast);
+}
+.fe__card:hover .fe__card-actions,
+.fe__card:focus-within .fe__card-actions { opacity: 1; }
+/* Touch has no hover, so there is nothing to reveal and hiding them hides them for good. */
+@media (hover: none) {
+  .fe__card-actions { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  /* The labels go, not the control: four icons still fit and still switch. */
+  .fe__view-label { display: none; }
+  .fe__grid--large { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
+}
