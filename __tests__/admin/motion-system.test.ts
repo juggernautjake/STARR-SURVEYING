@@ -98,13 +98,28 @@ describe('THE RATCHET — keyframes outside motion.css may only go down', () => 
   //
   // It had drifted back to 208 unnoticed, because a red test nobody lowers is a red test everybody
   // stops reading. Lower it on the way past, every time.
-  const BASELINE = 200;
+  //
+  // 200 → 194 (2026-09-21), and NOTHING WAS PAID DOWN: stripping comments before counting revealed
+  // that six of the "violations" were prose ABOUT the rule, in six different sheets. The instrument
+  // had been over-reporting by 3%, and the real backlog is 194. Same correction the
+  // starr-assumptions audit made in August, for the same reason, one file over.
+  const BASELINE = 194;
   it('counts them', () => {
     const files = walkCss(path.join(ROOT, 'app')).filter((f) => !f.endsWith(path.join('styles', 'motion.css')));
     let total = 0;
     const perFile: Record<string, number> = {};
     for (const f of files) {
-      const n = (fs.readFileSync(f, 'utf8').match(/@keyframes\s+[a-zA-Z0-9_-]+/g) ?? []).length;
+      // COMMENTS STRIPPED BEFORE COUNTING (2026-09-21). This ratchet counted its own explanation:
+      // a sheet whose header says "every @keyframes here comes from motion.css" — prose in SUPPORT
+      // of the rule — scored one against it, and the count went 200 → 201 for a note about the
+      // hazard rather than an instance of it.
+      //
+      // The ordering-assertion ratchet learned this exact lesson in August and wrote it down: "a
+      // guard that fires on prose about the thing it guards teaches people to stop writing the
+      // prose." CSS has one comment form, so stripping it is three characters of regex, and the
+      // alternative was rewording a comment to appease a counter.
+      const css = fs.readFileSync(f, 'utf8').replace(/\/\*[^]*?\*\//g, '');
+      const n = (css.match(/@keyframes\s+[a-zA-Z0-9_-]+/g) ?? []).length;
       if (n) { total += n; perFile[path.relative(ROOT, f).split(path.sep).join('/')] = n; }
     }
     const worst = Object.entries(perFile).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([f, n]) => `${n}  ${f}`).join('\n  ');

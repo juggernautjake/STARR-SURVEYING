@@ -1,139 +1,337 @@
-/* /admin/dev/receptionist — the receptionist test bench. Shares the calls pages' pill styles. */
-.rtest { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; display: grid; gap: 1.25rem; }
-.rtest__head h1 { margin: 0; font-size: 1.6rem; }
-.rtest__head p { margin: .35rem 0 0; opacity: .8; max-width: 70ch; }
-.rtest__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; align-items: start; }
-.rtest__card { border: 1px solid rgba(127,127,127,.3); border-radius: 10px; padding: 1rem 1.1rem; background: rgba(127,127,127,.05); display: grid; gap: .6rem; }
-.rtest__card h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: .5rem; }
-.rtest__card p { margin: 0; font-size: .9rem; opacity: .8; }
-.rtest__row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
-.rtest__btn { border: 1px solid rgba(29,48,149,.6); background: #1d3095; color: #fff; border-radius: 8px; padding: .5rem .9rem; font-weight: 600; cursor: pointer; }
-.rtest__btn[disabled] { opacity: .5; cursor: default; }
-.rtest__btn--danger { background: #bd1218; border-color: rgba(189,18,24,.7); }
-.rtest__btn--ghost { background: transparent; color: inherit; border-color: rgba(127,127,127,.5); }
-.rtest__input { border: 1px solid rgba(127,127,127,.45); border-radius: 8px; padding: .5rem .7rem; font: inherit; background: transparent; color: inherit; min-width: 0; flex: 1; }
-.rtest__status { font-size: .85rem; font-variant-numeric: tabular-nums; opacity: .85; }
-.rtest__status--live { color: #1f9d63; font-weight: 600; }
-.rtest__status--err { color: #bd1218; }
-.rtest__chat { display: grid; gap: .5rem; max-height: 420px; overflow-y: auto; padding: .5rem; border: 1px solid rgba(127,127,127,.25); border-radius: 8px; background: rgba(127,127,127,.04); }
-.rtest__msg { padding: .45rem .7rem; border-radius: 10px; max-width: 85%; font-size: .93rem; line-height: 1.4; white-space: pre-wrap; }
-.rtest__msg--caller { justify-self: end; background: rgba(29,48,149,.14); }
-.rtest__msg--assistant { justify-self: start; background: rgba(255,207,110,.18); }
-.rtest__msg small { display: block; opacity: .65; font-size: .72rem; margin-top: .2rem; font-variant-numeric: tabular-nums; }
-.rtest__facts { font-size: .8rem; opacity: .85; display: grid; gap: .15rem; }
-.rtest__facts b { font-weight: 600; }
-.rtest__list { display: grid; gap: .4rem; }
-.rtest__item { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center; padding: .5rem .7rem; border: 1px solid rgba(127,127,127,.25); border-radius: 8px; text-decoration: none; color: inherit; font-size: .9rem; }
-.rtest__item:hover { background: rgba(127,127,127,.08); }
-.rtest__item small { opacity: .7; }
-.rtest__note { font-size: .85rem; opacity: .85; border-left: 3px solid rgba(255,207,110,.8); padding-left: .7rem; }
-.rtest__kv { display: grid; grid-template-columns: auto 1fr; gap: .2rem .8rem; font-size: .85rem; }
-.rtest__kv dt { opacity: .7; }
-.rtest__kv dd { margin: 0; font-variant-numeric: tabular-nums; }
-@media (max-width: 640px) { .rtest__msg { max-width: 100%; } }
+/* app/admin/styles/AdminReceptionistTest.css — /admin/dev/receptionist.
+ *
+ * ── REWRITTEN 2026-09-21, AFTER I BROKE IT ──────────────────────────────────────────────────────
+ *
+ * Removing the intake bench, I deleted its CSS with a regex that ran from one comment marker to
+ * another. This file is built by APPENDING, so everything added between those two markers went with
+ * it — including the whole three-step setup panel and the voice list. Twenty-three classes the page
+ * renders had no rules at all, which is what "the formatting for the sample voices is weird" was.
+ *
+ * A regex cannot see that a block it is deleting has had unrelated blocks appended into the middle
+ * of it. Delete CSS by naming the rules, or by rewriting the file.
+ *
+ * So this is a rewrite rather than a patch, and two things changed while it was open:
+ *
+ *   · it is on the theme tokens throughout. Half the sheet predated them and used flat greys like
+ *     rgba(127,127,127,.3), which is why the new panel looked bolted on next to the old cards.
+ *   · the dead rules are gone — .rtest__voice, __voice-body, __voice-actions, __voicegroup,
+ *     __voices, __kv and __subhead all styled markup that no longer exists.
+ *
+ * Every @keyframes here comes from app/styles/motion.css. None are declared locally, which a ratchet
+ * test enforces.
+ *
+ * Order follows the page: shell, live line, setup panel, the ways to test, recent calls, motion. */
 
-/* ── Motion ─────────────────────────────────────────────────────────────────────────────────────
-   Small, purposeful, and off under prefers-reduced-motion. The cards rise in on load, replies slide
-   in as they stream, a live call breathes, and buttons acknowledge the press. */
+/* ══ SHELL ═══════════════════════════════════════════════════════════════════════════════════ */
+.rtest {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+  display: grid;
+  gap: 1.1rem;
+}
+.rtest__head h1 { margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.rtest__head p { margin: .35rem 0 0; max-width: 72ch; font-size: .9rem; line-height: 1.6; color: var(--theme-fg-secondary, #475569); }
 
-.rtest__head { animation: ui-rise .45s ease-out both; }
-.rtest__card { animation: ui-rise .5s ease-out both; transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
-.rtest__grid > .rtest__card:nth-child(1) { animation-delay: .06s; }
-.rtest__grid > .rtest__card:nth-child(2) { animation-delay: .12s; }
-.rtest__grid > .rtest__card:nth-child(3) { animation-delay: .18s; }
-.rtest > .rtest__card { animation-delay: .24s; }
-.rtest__note { animation: ui-rise .5s ease-out .3s both; }
-.rtest__card:focus-within { border-color: rgba(29,48,149,.45); box-shadow: 0 6px 24px -14px rgba(29,48,149,.5); }
-.rtest__card--live { border-color: rgba(31,157,99,.6); box-shadow: 0 8px 28px -16px rgba(31,157,99,.7); }
-
-.rtest__btn { transition: background-color .2s ease, transform .12s ease, box-shadow .2s ease, opacity .2s ease; }
-.rtest__btn:not([disabled]):hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgba(29,48,149,.7); }
-.rtest__btn:not([disabled]):active { transform: translateY(0) scale(.98); box-shadow: none; }
-.rtest__btn--danger:not([disabled]):hover { box-shadow: 0 6px 16px -10px rgba(189,18,24,.7); }
-.rtest__btn:focus-visible, .rtest__input:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
-.rtest__input { transition: border-color .2s ease, box-shadow .2s ease; }
-.rtest__input:focus { border-color: rgba(29,48,149,.6); box-shadow: 0 0 0 3px rgba(29,48,149,.12); }
-
-.rtest__dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #1f9d63; margin-right: .45rem; vertical-align: middle; animation: ui-breathe 1.6s ease-out infinite; }
-.rtest__dot--ring { background: #b7791f; animation: ui-breathe 1.1s ease-out infinite; }
-.rtest__phone-icon { display: inline-block; transform-origin: 50% 80%; animation: ui-ring 1.4s ease-in-out infinite; margin-right: .35rem; }
-.rtest__status { transition: color .2s ease, opacity .2s ease; }
-
-.rtest__chat { scroll-behavior: smooth; }
-.rtest__msg { animation: ui-rise-scale .28s ease-out both; }
-.rtest__msg--assistant { transition: background-color .3s ease; }
-.rtest__msg small { animation: ui-rise .3s ease-out both; }
-.rtest__typing { display: inline-flex; gap: 4px; align-items: center; height: 1.2em; }
-.rtest__typing i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; animation: ui-bounce-dot 1.1s ease-in-out infinite; }
-.rtest__typing i:nth-child(2) { animation-delay: .15s; }
-.rtest__typing i:nth-child(3) { animation-delay: .3s; }
-.rtest__facts { animation: ui-rise .35s ease-out both; }
-.rtest__item { animation: ui-rise .35s ease-out both; transition: background-color .2s ease, transform .2s ease, border-color .2s ease; }
-.rtest__item:hover { transform: translateX(3px); border-color: rgba(29,48,149,.45); }
-/* Scoped to this page on purpose. A bare `.pill` here is a SECOND global definition of a class
- * AdminCalls.css already owns, and which of the two applies then depends on which sheet the route
- * happened to load last — a difference that shows up as "the pills move on one page and not the
- * other" and is close to impossible to attribute. The hover effect belongs to this page, so it
- * says so. */
-.rtest .pill { transition: transform .15s ease; }
-.rtest__item:hover .pill { transform: scale(1.04); }
-
-@media (prefers-reduced-motion: reduce) {
-  .rtest *, .rtest *::before, .rtest *::after { animation: none !important; transition: none !important; }
-  .rtest__chat { scroll-behavior: auto; }
+.rtest__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  align-items: start;
 }
 
-/* ── Two versions (2026-09-15): which one answers live calls, and which one a test call runs ── */
+.rtest__card {
+  display: grid;
+  gap: .6rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.rtest__card h2 { margin: 0; display: flex; align-items: center; gap: .5rem; font-size: 1rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.rtest__card p { margin: 0; font-size: .86rem; line-height: 1.6; color: var(--theme-fg-secondary, #475569); }
+
+/* ══ THE LIVE LINE ═══════════════════════════════════════════════════════════════════════════
+ * Deliberately the loudest thing on the page. It is the only card here that changes what a real
+ * customer hears, and it should never be mistaken for one of the test controls below it. */
 .rtest__live { border-width: 2px; }
-.rtest__live--answering-machine { border-color: rgba(31,157,99,.55); }
-.rtest__live--agent { border-color: rgba(189,18,24,.55); }
-.rtest__live-now { font-size: 1rem !important; opacity: 1 !important; }
-.rtest__versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .6rem; }
-.rtest__version { display: grid; gap: .25rem; text-align: left; padding: .7rem .85rem; border: 1px solid rgba(127,127,127,.4); border-radius: 10px; background: transparent; color: inherit; font: inherit; cursor: pointer; transition: border-color .2s ease, background-color .2s ease; }
-.rtest__version span { font-size: .85rem; opacity: .8; }
-.rtest__version em { justify-self: start; font-style: normal; }
-.rtest__version:hover { border-color: rgba(29,48,149,.55); }
-.rtest__version--on { border: 2px solid #1d3095; background: rgba(29,48,149,.08); }
-.rtest__version:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
-.rtest__subhead { margin: .4rem 0 0; font-size: .95rem; font-weight: 600; }
-.rtest__card select.rtest__input { flex: 1 1 18rem; }
+.rtest__live--answering-machine { border-color: var(--theme-success-fg, #166534); }
+.rtest__live--elevenlabs,
+.rtest__live--agent { border-color: var(--theme-danger-fg, #991B1B); }
+.rtest__live--loading { border-color: var(--theme-border, #E2E8F0); }
+.rtest__live-now { font-size: 1rem !important; opacity: 1 !important; color: var(--theme-fg-primary, #0F172A) !important; }
 
-/* ── Voices: audition, then assign (owner, 2026-09-16) ── */
-.rtest__voicegroup { display: grid; gap: .4rem; }
-.rtest__voices { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .45rem; }
-.rtest__voice { display: grid; grid-template-columns: auto 1fr auto; gap: .5rem .8rem; align-items: center; padding: .55rem .7rem; border: 1px solid rgba(127,127,127,.3); border-radius: 10px; }
-.rtest__voice--on { border-color: rgba(29,48,149,.6); background: rgba(29,48,149,.06); }
-.rtest__voice-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .5rem; min-width: 0; }
-.rtest__voice-body b { font-size: .98rem; }
-.rtest__voice-body span:last-child { flex-basis: 100%; font-size: .86rem; opacity: .8; }
-.rtest__voice-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
-.rtest__voice-actions .rtest__btn { padding: .35rem .7rem; font-size: .82rem; }
-.rtest__play { width: 38px; height: 38px; border-radius: 999px; border: 1px solid rgba(29,48,149,.5); background: rgba(29,48,149,.1); color: inherit; font-size: .9rem; cursor: pointer; }
-.rtest__play:hover { background: rgba(29,48,149,.2); }
-.rtest__play:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
-@media (max-width: 640px) { .rtest__voice { grid-template-columns: auto 1fr; } .rtest__voice-actions { grid-column: 1 / -1; } }
+/* Option cards: the live-version switch and the "which agent to talk to" pair. */
+.rtest__versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .5rem; }
+.rtest__version {
+  display: grid;
+  gap: .2rem;
+  padding: .6rem .75rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+.rtest__version:hover:not(:disabled) { border-color: var(--theme-fg-muted, #94A3B8); }
+.rtest__version--on { border-color: var(--theme-accent, #1D3095); background: var(--theme-brand-tint, #EEF2FF); }
+.rtest__version b { font-size: .88rem; color: var(--theme-fg-primary, #0F172A); }
+.rtest__version span { font-size: .77rem; line-height: 1.5; color: var(--theme-fg-secondary, #475569); }
 
-/* Who is speaking, on every line of a live transcript (owner, 2026-09-21).
- *
- * The bubbles were tinted and nothing else. That reads fine while you are watching them arrive and
- * not at all afterwards — and this transcript is the thing you scroll back through to work out what
- * went wrong on a call, which is the moment the tint stops being enough. */
-.rtest__who {
-  display: inline-block;
-  margin-right: .4rem;
+/* ══ SET UP YOUR TEST ════════════════════════════════════════════════════════════════════════
+ * One decision in three parts — which receptionist, in which voice, on which speech model — so
+ * one panel, three numbered columns, left to right, above everything they govern. The numbers are
+ * load-bearing: step 2 shows the voices of whichever engine step 1 chose. */
+.rtest__setup {
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.rtest__setup-title { margin: 0 0 .9rem; font-size: 1rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.rtest__setup-grid {
+  display: grid;
+  /* Step 2 holds a scrolling list, so it gets the widest column. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+@media (max-width: 1000px) { .rtest__setup-grid { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; } }
+
+.rtest__step { display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+.rtest__step-head {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin: 0;
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.rtest__step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
   font-size: .72rem;
   font-weight: 700;
-  letter-spacing: .02em;
-  opacity: .75;
+  letter-spacing: 0;
 }
 
-/* The rehearsal-script picker, moved to the text chat when the intake bench was removed. */
+/* A choice: a receptionist, or a speech model. Left border rather than a full fill — a filled card
+ * at this size swamps the text inside it, and the text is why you are choosing. */
+.rtest__choices { display: flex; flex-direction: column; gap: .4rem; }
+.rtest__choice {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-left: 3px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+.rtest__choice:hover:not(:disabled) { border-color: var(--theme-fg-muted, #94A3B8); }
+.rtest__choice:disabled { opacity: .55; cursor: default; }
+.rtest__choice--on {
+  border-color: var(--theme-accent, #1D3095);
+  border-left-color: var(--theme-accent, #1D3095);
+  background: var(--theme-brand-tint, #EEF2FF);
+}
+.rtest__choice-name {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  font-size: .87rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #0F172A);
+}
+.rtest__choice-blurb { font-size: .76rem; line-height: 1.5; color: var(--theme-fg-secondary, #475569); }
+/* What the option costs you. Every real choice here has a price, and saying it is the difference
+ * between a picker and a sales page. */
+.rtest__choice-cost { font-size: .73rem; line-height: 1.45; color: var(--theme-warning-fg, #92400E); }
+
+.rtest__tag {
+  padding: .05rem .35rem;
+  border-radius: 999px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  color: var(--theme-fg-muted, #64748B);
+  font-size: .64rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rtest__tag--live { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.rtest__tag--on { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+
+/* ══ THE VOICE LIST ══════════════════════════════════════════════════════════════════════════
+ * Twelve voices is a list you skim, so it scrolls rather than running its column to twice the
+ * height of its neighbours. The two that matter are marked: the one in use, and the shortlist. */
+.rtest__voicelist {
+  display: flex;
+  flex-direction: column;
+  gap: .12rem;
+  max-height: 17rem;
+  overflow-y: auto;
+  padding-right: .2rem;
+}
+.rtest__grouphead {
+  margin: .5rem 0 .15rem;
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #94A3B8);
+}
+.rtest__grouphead:first-child { margin-top: 0; }
+
+.rtest__voicerow { display: flex; align-items: center; gap: .4rem; }
+.rtest__play {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 50%;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: .6rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease;
+}
+.rtest__play:hover { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
+
+.rtest__voicepick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+  padding: .3rem .5rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .16s ease;
+}
+.rtest__voicepick:hover:not(:disabled) { background: var(--theme-bg-elevated, #F1F5F9); }
+.rtest__voicepick:disabled { opacity: .55; cursor: default; }
+.rtest__voicerow--on .rtest__voicepick {
+  border-color: var(--theme-accent, #1D3095);
+  background: var(--theme-brand-tint, #EEF2FF);
+}
+.rtest__voicename { font-size: .84rem; font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
+
+/* ══ CONTROLS ════════════════════════════════════════════════════════════════════════════════ */
+.rtest__row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.rtest__rowbtns { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+.rtest__btn {
+  padding: .5rem .9rem;
+  border: 1px solid var(--theme-accent, #1D3095);
+  border-radius: 8px;
+  background: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rtest__btn[disabled] { opacity: .5; cursor: default; }
+.rtest__btn--danger { background: var(--theme-danger-solid, #BD1218); border-color: var(--theme-danger-solid, #BD1218); color: #FFFFFF; }
+.rtest__btn--ghost {
+  background: transparent;
+  border-color: var(--theme-border, #CBD5E1);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: .82rem;
+}
+.rtest__btn--ghost:hover:not([disabled]) { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
+
+.rtest__input,
+.rtest__select {
+  min-width: 0;
+  padding: .45rem .65rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: .86rem;
+}
+.rtest__input { flex: 1; }
+.rtest__select { width: 100%; }
+
+.rtest__hint { margin: 0; font-size: .75rem; line-height: 1.55; color: var(--theme-fg-muted, #64748B); }
+.rtest__note {
+  margin: 0;
+  padding: .45rem .6rem;
+  border-left: 3px solid var(--theme-warning-fg, #B7791F);
+  border-radius: 0 7px 7px 0;
+  background: var(--theme-warning-bg, #FEF3C7);
+  font-size: .78rem;
+  line-height: 1.55;
+  color: var(--theme-warning-fg, #92400E);
+}
+
+.rtest__status { font-size: .84rem; font-variant-numeric: tabular-nums; color: var(--theme-fg-secondary, #475569); }
+.rtest__status--live { color: var(--theme-success-fg, #166534); font-weight: 600; }
+.rtest__status--err { color: var(--theme-danger-fg, #991B1B); }
+
+/* ══ TRANSCRIPTS ═════════════════════════════════════════════════════════════════════════════ */
+.rtest__chat {
+  display: grid;
+  gap: .5rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: .6rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.rtest__msg {
+  max-width: 85%;
+  padding: .45rem .7rem;
+  border-radius: 10px;
+  font-size: .92rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.rtest__msg--caller { justify-self: end; background: var(--theme-brand-tint, #EEF2FF); color: var(--theme-fg-primary, #0F172A); }
+.rtest__msg--assistant { justify-self: start; background: var(--theme-warning-bg, #FEF3C7); color: var(--theme-fg-primary, #0F172A); }
+.rtest__msg small { display: block; margin-top: .2rem; font-size: .71rem; font-variant-numeric: tabular-nums; opacity: .65; }
+/* Who is speaking. The bubbles were tinted and nothing else, which reads fine while you watch them
+ * arrive and not at all afterwards — and afterwards is when you scroll back to find what broke. */
+.rtest__who { display: inline-block; margin-right: .4rem; font-size: .71rem; font-weight: 700; letter-spacing: .02em; opacity: .7; }
+
+.rtest__facts { display: grid; gap: .15rem; font-size: .79rem; color: var(--theme-fg-secondary, #475569); }
+.rtest__facts b { font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
+
+/* The rehearsal-script picker, above the chat box. */
 .rtest__scriptbar {
   display: flex;
   align-items: center;
   gap: .6rem;
   flex-wrap: wrap;
-  margin: .1rem 0 .6rem;
+  margin: .1rem 0 .5rem;
   padding: .5rem .65rem;
   border: 1px solid var(--theme-border, #E2E8F0);
   border-radius: 9px;
@@ -141,7 +339,7 @@
 }
 .rtest__scriptpick { display: flex; align-items: center; gap: .4rem; min-width: 0; }
 .rtest__scriptlabel {
-  font-size: .68rem;
+  font-size: .66rem;
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -156,4 +354,77 @@
   color: var(--theme-fg-primary, #0F172A);
   font: inherit;
   font-size: .8rem;
+}
+
+/* ══ RECENT TEST CALLS ═══════════════════════════════════════════════════════════════════════ */
+.rtest__list { display: grid; gap: .4rem; }
+.rtest__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .5rem;
+  align-items: center;
+  padding: .5rem .7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  color: var(--theme-fg-primary, #0F172A);
+  font-size: .88rem;
+  text-decoration: none;
+}
+.rtest__item:hover { background: var(--theme-bg-elevated, #F1F5F9); }
+.rtest__item small { color: var(--theme-fg-muted, #64748B); }
+
+@media (max-width: 640px) { .rtest__msg { max-width: 100%; } }
+
+/* ══ MOTION ══════════════════════════════════════════════════════════════════════════════════
+ * Small, purposeful, and off under prefers-reduced-motion. Every keyframe is a ui-* from
+ * app/styles/motion.css; none are declared here, which a ratchet test enforces. */
+.rtest__head { animation: ui-rise .45s ease-out both; }
+.rtest__card,
+.rtest__setup { animation: ui-rise .5s ease-out both; transition: border-color .25s ease, box-shadow .25s ease; }
+.rtest__grid > .rtest__card:nth-child(1) { animation-delay: .06s; }
+.rtest__grid > .rtest__card:nth-child(2) { animation-delay: .12s; }
+.rtest__grid > .rtest__card:nth-child(3) { animation-delay: .18s; }
+.rtest__card:focus-within { border-color: var(--theme-accent, #1D3095); }
+.rtest__card--live { border-color: var(--theme-success-fg, #166534); box-shadow: 0 8px 28px -16px rgba(31, 157, 99, .7); }
+
+.rtest__btn { transition: background-color .2s ease, transform .12s ease, box-shadow .2s ease, opacity .2s ease; }
+.rtest__btn:not([disabled]):hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgba(29, 48, 149, .7); }
+.rtest__btn:not([disabled]):active { transform: translateY(0) scale(.98); box-shadow: none; }
+.rtest__btn:focus-visible,
+.rtest__input:focus-visible,
+.rtest__select:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 2px; }
+.rtest__input:focus,
+.rtest__select:focus { outline: none; border-color: var(--theme-accent, #1D3095); }
+
+.rtest__dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: .45rem;
+  border-radius: 50%;
+  background: var(--theme-success-fg, #1F9D63);
+  vertical-align: middle;
+  animation: ui-breathe 1.6s ease-out infinite;
+}
+.rtest__dot--ring { background: var(--theme-warning-fg, #B7791F); animation: ui-breathe 1.1s ease-out infinite; }
+.rtest__phone-icon { display: inline-block; margin-right: .35rem; transform-origin: 50% 80%; animation: ui-ring 1.4s ease-in-out infinite; }
+
+.rtest__chat { scroll-behavior: smooth; }
+.rtest__msg { animation: ui-rise-scale .28s ease-out both; }
+.rtest__typing { display: inline-flex; gap: 4px; align-items: center; height: 1.2em; }
+.rtest__typing i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; animation: ui-bounce-dot 1.1s ease-in-out infinite; }
+.rtest__typing i:nth-child(2) { animation-delay: .15s; }
+.rtest__typing i:nth-child(3) { animation-delay: .3s; }
+.rtest__item { animation: ui-rise .35s ease-out both; transition: background-color .2s ease, transform .2s ease, border-color .2s ease; }
+.rtest__item:hover { transform: translateX(3px); border-color: var(--theme-accent, #1D3095); }
+
+/* Scoped to this page on purpose. A bare `.pill` here is a SECOND global definition of a class
+ * AdminCalls.css already owns, and which of the two applies then depends on which sheet the route
+ * happened to load last. The hover effect belongs to this page, so it says so. */
+.rtest .pill { transition: transform .15s ease; }
+.rtest__item:hover .pill { transform: scale(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rtest *, .rtest *::before, .rtest *::after { animation: none !important; transition: none !important; }
+  .rtest__chat { scroll-behavior: auto; }
 }
