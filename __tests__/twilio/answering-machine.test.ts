@@ -7,6 +7,7 @@
 // … make it so that the version of the agent that is responding to live calls is the simple recording
 // agent, and then make it so that I can do private test calls with the more complex version."
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { expectOrder } from '../helpers/expect-order';
 import { createHmac } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,7 +73,10 @@ describe('what the answering machine says', () => {
     expect(xml).toContain('<Record action="/api/twilio/receptionist/machine?step=recorded&amp;n=0&amp;ask=0"');
     expect(xml).toContain('playBeep="true"');
     expect(xml).toContain('transcribeCallback="/api/twilio/receptionist/voicemail?part=1"');
-    expect(xml.indexOf('<Say')).toBeLessThan(xml.indexOf('<Record'));
+    // Converted from `indexOf < indexOf` (2026-09-21). Written that way it passed hardest when
+    // the <Say> disappeared — a machine that recorded without greeting anyone would have been
+    // green. The helper asserts both are present first.
+    expectOrder(xml, '<Say', '<Record', 'the caller hears the greeting before the beep');
   });
 });
 

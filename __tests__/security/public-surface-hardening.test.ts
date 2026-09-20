@@ -3,6 +3,7 @@
 // Both close a gap the earlier A1 slices left, and both are the kind of thing that quietly regresses: a
 // new `return` in a route drops the timing floor, and a new bucket copied from an old one loses the cost.
 import { describe, it, expect } from 'vitest';
+import { expectOrder } from '../helpers/expect-order';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MIN_RESPONSE_MS, notBefore, now } from '@/lib/http/constant-time';
@@ -33,7 +34,10 @@ describe('A1-4b — a hit and a miss take the same time', () => {
   it('starts the clock after the rate-limit check, not before', () => {
     // A throttled caller should be refused immediately; padding their 429 only makes the endpoint slower
     // to say no, and tells an attacker nothing either way.
-    expect(ROUTE.indexOf('enforceRateLimit')).toBeLessThan(ROUTE.indexOf('const startedAt'));
+    // Converted from `indexOf < indexOf` (2026-09-21). This one guarded a THROTTLE: written the
+    // unsafe way, deleting `enforceRateLimit` entirely would have turned the assertion green.
+    expectOrder(ROUTE, 'enforceRateLimit', 'const startedAt',
+      'the throttle runs before the timing floor starts');
   });
 
   it('the floor is a real one, and it is the backstop rather than the fix', () => {

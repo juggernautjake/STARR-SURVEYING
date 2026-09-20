@@ -196,13 +196,38 @@ export async function notifyOwners(
   return { texted, emailed, belled };
 }
 
+/**
+ * The office copy of a call.
+ *
+ * ── IT USED TO FAIL IN COMPLETE SILENCE ───────────────────────────────────────────────────────
+ *
+ * A missing RESEND_API_KEY returned `false` and said nothing, and a rejected send returned `res.ok`
+ * and said nothing. `notifyOwners` then reported `emailed: false` to a caller that does not look at
+ * it. So the failure mode was: somebody phones, nobody is emailed, and the first anyone knows is a
+ * customer asking why they were never called back.
+ *
+ * In development the quiet return is right — nobody wants a red line in the console for a key they
+ * deliberately did not set. In production a missing key is a misconfiguration, and the log names
+ * the variable so whoever reads it knows what to set rather than only that something broke.
+ */
 async function emailOffice(subject: string, text: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
-  if (!key || key === 'your_resend_api_key') return false;
+  if (!key || key === 'your_resend_api_key') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[receptionist] RESEND_API_KEY is not set — the office was NOT emailed about this call');
+    }
+    return false;
+  }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify({ from: `${BUSINESS_NAME} <noreply@${EMAIL.split('@')[1]}>`, to: [EMAIL], subject, text }),
   });
+  if (!res.ok) {
+    // The body carries Resend's reason — a blocked domain, an unverified sender — and without it
+    // the log says only "it did not work", which is the least actionable thing a log can say.
+    const detail = await res.text().catch(() => '');
+    console.error(`[receptionist] office email rejected (${res.status}): ${detail.slice(0, 300)}`);
+  }
   return res.ok;
 }

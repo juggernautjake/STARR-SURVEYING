@@ -97,6 +97,11 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // admin-only and operates the firm's OWN phone line; the page is `internalOnly` with no bundle, so the
   // routes carry the same answer rather than being left unclassified.
   'receptionist-test': { bundle: null, reason: 'Operator-only test bench and live-line switch for the firm\'s own phone receptionist.' },
+  // The caller-ID memory behind that same phone system (/admin/calls/registry): who a number
+  // belongs to, whether the name was verified or merely overheard, and whether to assume anything
+  // at all. Admin-only, and about the firm's OWN callers rather than a customer's data, so it takes
+  // the same answer as the bench it serves.
+  'caller-registry': { bundle: null, reason: 'Operator-only caller-ID memory for the firm\'s own phone line.' },
   // ── C3 MADE THIS EXPLICIT, AND THE RATCHET IS WHY ───────────────────────────────────────────
   //
   // These were classified by MIRRORING `/admin/vehicles` in the page registry. C3 turned that page

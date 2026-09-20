@@ -65,6 +65,26 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/jobs/new', roles: ['admin'] },
   { prefix: '/admin/jobs/import', roles: ['admin'] },
   { prefix: '/admin/jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
+  // Added 2026-09-21, both reachable by ANY signed-in user until now.
+  //
+  // The role list is copied from each page's own API rather than guessed, because the API is the
+  // real boundary and a page gate that disagrees with it is either theatre or a lockout:
+  //   · /api/admin/calls/*, /api/admin/caller-registry  → isAdmin
+  //   · /api/admin/jobs/[id]/property-map/*             → isAdmin
+  //
+  // Call recordings, transcripts and caller history are the most sensitive thing in the product
+  // after payroll, and the property map carries a job's surveyed points and field photographs.
+  { prefix: '/admin/calls', roles: ['admin'] },
+  //
+  // The map is gated to the NAV's audience, not to its API's. They disagree: every
+  // /api/admin/jobs/[id]/property-map handler checks isAdmin (strictly `roles.includes('admin')`),
+  // while the sidebar offers the page to five other roles. That is a real inconsistency and it is
+  // NOT resolved here — widening an API boundary is not a thing to do quietly as a side effect of
+  // adding a page gate, and narrowing the nav would take the map away from the field crew who are
+  // the people it was built for. Recorded for the owner to settle.
+  //
+  // Until then the page gate matches the nav, so nobody is shown a link that bounces them.
+  { prefix: '/admin/map', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'tech_support'] },
   // /admin/my-jobs + /admin/my-hours role-gates removed in
   // consolidation Slice 2 — the redirect at the top of the handler
   // takes the user to /admin/me?tab=… before we reach the role check.

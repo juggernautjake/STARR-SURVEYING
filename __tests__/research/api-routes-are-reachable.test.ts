@@ -59,6 +59,31 @@ const KNOWN_UNCALLED: Record<string, string> = {
   '/api/admin/research/requests':
     'The collection endpoint behind requests/claim, same queue. Written for the worker and for operators inspecting the queue by hand; no UI lists it yet, which is a gap worth closing but not a broken feature — the queue itself is working.',
 
+  // ── FOUND 2026-09-21, WHEN THE MATCHER STOPPED MATCHING ON THE LAST SEGMENT ──────
+  //
+  // These three were reported as called for as long as this check has existed, and none of them
+  // are. The old matcher asked only whether the route's last path segment appeared anywhere in the
+  // product, and all three have a segment that is a common word:
+  //
+  //   `versions`      → matched /api/admin/design/versions, an unrelated route
+  //   `full-extract`  → matched a COMMENT in lib/saas/api-bundle-gate.ts using it as an example
+  //   `share`         → matched nothing once the shape was checked; it never had a caller
+  //
+  // A guard that reports dead capability as live is worse than no guard: three routes sat here
+  // being counted as working for months. They are recorded now as what they are.
+  '/api/admin/research/[projectId]/versions':
+    'DEAD CAPABILITY — owner call. Project version history, with no caller anywhere. The only '
+    + '/versions fetch in the product is /api/admin/design/versions, which is the design system\'s '
+    + 'own board and unrelated. Either surface project history on the project page or retire it.',
+  '/api/admin/research/[projectId]/documents/[docId]/full-extract':
+    'DEAD CAPABILITY — owner call. Full text extraction for a single document. Its only mention '
+    + 'outside app/api is as an EXAMPLE PATH inside a comment in lib/saas/api-bundle-gate.ts, which '
+    + 'is how it passed the old tail-matching check. Nothing calls it.',
+  '/api/admin/research/[projectId]/share':
+    'DEAD CAPABILITY — owner call. Project sharing, never wired to anything. Note that a share '
+    + 'route that nobody can reach is the safest kind of unreachable: the capability is absent '
+    + 'rather than half-exposed. Worth building deliberately or deleting.',
+
   // ── OPERATOR-TRIGGERED, BY DESIGN ─────────────────────────────────────────────
   '/api/admin/research/self-heal/evaluate':
     'Admin-triggered by hand, and its own module says so (lib/research/self-heal-apply-runner.ts). SelfHealTab wires the other three — /sweep, /proposals, /settings — so the tab is not broken; evaluate is the deliberate manual step between proposing a fix and applying it. Worth a button eventually; not a dead feature.',
@@ -142,6 +167,27 @@ function tailSegment(url: string): string {
 }
 
 const routes = routeFiles(API_ROOT);
+
+/**
+ * Tails that belong to exactly one route in the entire API.
+ *
+ * A caller very often builds the base separately — `const base = \`/api/admin/research/${id}\`;`
+ * and then `fetch(\`${base}/versions\`)` — so the full path never appears as one string and only
+ * the tail is visible. Matching on the tail is the only way to see those.
+ *
+ * But `thumbnail` is the tail of three different routes in this codebase, and matching it reported
+ * a dead research route as live because an unrelated files route is fetched. So the tail counts as
+ * evidence only when nothing else in app/api shares it — which is true of `chain-of-title` and
+ * `report-card`, and false of `thumbnail`.
+ */
+const UNIQUE_TAILS: Set<string> = (() => {
+  const counts = new Map<string, number>();
+  for (const f of routeFiles('app/api')) {
+    const t = tailSegment(urlOf(f));
+    if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  return new Set([...counts].filter(([, n]) => n === 1).map(([t]) => t));
+})();
 const sources = CALLER_DIRS.flatMap((d) => sourceFiles(d));
 const haystack = sources.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
 
@@ -162,13 +208,38 @@ const haystack = sources.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))
  * So a route also counts as called when its PARENT path appears with a template hole after it.
  */
 function isCalled(url: string): boolean {
-  const tail = tailSegment(url);
-  const literal = [`/${tail}\``, `/${tail}'`, `/${tail}"`, `/${tail}?`, `/${tail}/`]
-    .some((s) => haystack.includes(s));
-  if (literal) return true;
+  // ── AND A TAIL MATCH IS ALSO TOO LOOSE ────────────────────────────────────────────────────────
+  //
+  // The tail-only version had the opposite failure too. `/api/admin/research/templates/drawing/
+  // [id]/thumbnail` was reported as CALLED because somewhere else in the product a completely
+  // different route, `/api/admin/files/thumbnail`, is fetched — and `thumbnail` is a common enough
+  // word that this was only a matter of time.
+  //
+  // That direction is just as bad: a dead capability reported as live, sitting on the exception
+  // list with a reason that has quietly become false.
+  //
+  // So the whole path is matched, with each dynamic segment allowed to be either a literal or a
+  // template hole. A tail match is kept only as a fallback for the interpolated-parent case the
+  // comment above describes, and only when the tail is discriminating enough to mean something.
+  /** A dynamic segment is satisfied by a literal value or by a `${…}` hole. */
+  const DYNAMIC = String.raw`(?:[^'"\`/\s]+|\$\{[^}]*\})`;
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const shape = url
+    .split('/')
+    .filter(Boolean)
+    .map((seg) => (seg.startsWith('[') ? DYNAMIC : escapeRegExp(seg)))
+    .join('/');
+  if (new RegExp(`/${shape}(?:['"\`?/]|$)`).test(haystack)) return true;
+
+  // The tail alone, for the `${base}/tail` shape — but only when that tail is unique in the API.
+  if (UNIQUE_TAILS.has(tailSegment(url))) {
+    const t = tailSegment(url);
+    if ([`/${t}\``, `/${t}'`, `/${t}\"`, `/${t}?`, `/${t}/`].some((lit) => haystack.includes(lit))) return true;
+  }
 
   // `/templates/${type}` reaches `/templates/analysis`. Look for the parent with an interpolation.
   const segs = url.split('/').filter(Boolean);
+  const tail = tailSegment(url);
   const tailAt = segs.lastIndexOf(tail);
   const parent = tailAt > 0 ? segs[tailAt - 1] : null;
 

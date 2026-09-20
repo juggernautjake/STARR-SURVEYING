@@ -11,7 +11,22 @@ function authHeader(): string {
   return `Basic ${Buffer.from(`${SID()}:${TOKEN()}`).toString('base64')}`;
 }
 
+/**
+ * One Twilio REST call.
+ *
+ * Missing credentials are reported rather than sent. Without this the request went out with a
+ * Basic header built from two empty strings, Twilio answered 401, and the thrown error said
+ * "Twilio 401" — which reads like a transient auth problem and is actually "nobody set
+ * TWILIO_ACCOUNT_SID". Naming the variable turns a half-hour of confusion into a one-line fix.
+ */
 async function call<T>(url: string, init: RequestInit = {}): Promise<T> {
+  if (!twilioConfigured()) {
+    const missing = [!SID() && 'TWILIO_ACCOUNT_SID', !TOKEN() && 'TWILIO_AUTH_TOKEN'].filter(Boolean).join(' and ');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(`[twilio] ${missing} not set — the phone system cannot reach Twilio`);
+    }
+    throw new Error(`Twilio is not configured: ${missing} not set`);
+  }
   const res = await fetch(url, { ...init, headers: { authorization: authHeader(), ...(init.headers ?? {}) } });
   const json = (await res.json().catch(() => ({}))) as T & { message?: string };
   if (!res.ok) throw new Error(json.message || `Twilio ${res.status}`);

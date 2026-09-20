@@ -985,6 +985,26 @@ export function scoreRoute(route: AdminRoute, query: string): number {
   // Tie-breaker: prefer shorter labels so "rec" → "Receipts" (8 chars)
   // beats "Research & CAD" (14 chars) when both partially match.
   if (score > 0) score += Math.max(0, 30 - label.length);
+
+  // ── A DEVELOPER HARNESS IS NOT WHAT THREE LETTERS SHOULD FIND (2026-09-21) ──────────────────
+  //
+  // Typing "rec" ranked "Receptionist Test" — a page under /admin/dev for exercising the phone
+  // system — above "Receipts & Spending", which is where money actually goes out. Both labels
+  // start with "rec", both have a matching keyword, and the dev page won on two points because
+  // its label is two characters shorter.
+  //
+  // The tie-breaker above had also quietly lost its premise: its comment reasons about "Receipts"
+  // at 8 characters, and the label has since been renamed to "Receipts & Spending" at 19. A
+  // heuristic whose comment describes a value that no longer exists is one nobody can reason
+  // about, which is how this sat failing.
+  //
+  // So: a /admin/dev route is damped unless the query names it outright. It stays findable — type
+  // "receptionist" or "receptionist test" and it is right there — but it stops intercepting short
+  // prefixes meant for the business.
+  const isDevHarness = route.href.startsWith('/admin/dev/');
+  if (isDevHarness && score > 0 && label !== q && !(route.keywords ?? []).some((k) => k.toLowerCase() === q)) {
+    return Math.round(score * 0.6);
+  }
   return score;
 }
 

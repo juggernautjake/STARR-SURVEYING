@@ -52,7 +52,16 @@ const GATES = [
   // A shared secret in a header is a gate. The Stripe webhook uses a signature; the inbound-email one
   // uses a static secret, and both are named here so neither reads as unprotected.
   { id: 'secret', label: 'shared secret header', re: /\b(EMAIL_INBOUND_WEBHOOK_SECRET|x-webhook-secret|STRIPE_WEBHOOK_SECRET)\b/ },
-  { id: 'signature', label: 'signed webhook', re: /\b(constructEvent|verifySignature|stripe\.webhooks|createHmac|timingSafeEqual|WORKER_API_KEY|CRON_SECRET)\b/ },
+  // `validTwilioSignature` and `validInitToken` added 2026-09-21, and this is the THIRD time this
+  // list has been short by exactly one subsystem's helper — after `getVoiceSession` and the
+  // resource-ownership set above. The phone system verifies every Twilio webhook with an HMAC-SHA1
+  // over the URL and its sorted params, and gates the ElevenLabs init webhook with a constant-time
+  // token compare. Both live in lib/, so the route file names the helper and never the primitive,
+  // and a predicate that only knows primitives cannot see them.
+  //
+  // The failure direction is the loud one again: three genuinely signed handlers reported as
+  // unprotected, in a sweep whose entire value is that its number can be trusted.
+  { id: 'signature', label: 'signed webhook', re: /\b(constructEvent|verifySignature|stripe\.webhooks|createHmac|timingSafeEqual|WORKER_API_KEY|CRON_SECRET|validTwilioSignature|validInitToken)\b/ },
   { id: 'password', label: 'shared password', re: /\b(PAY_PORTAL_PASSWORD|portalPassword|checkPortalPassword)\b/ },
 ];
 
