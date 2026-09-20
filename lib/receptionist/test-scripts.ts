@@ -1,4 +1,4 @@
-// lib/receptionist/test-scripts.ts — twenty callers to rehearse the voicemail agent against.
+// lib/receptionist/test-scripts.ts — twenty-one callers to rehearse the receptionist against.
 //
 // Owner, 2026-09-21: "Please actually come up with about 15-20 different scripts I can use and
 // write in all of the pauses and confusion and weird scenarios that might come up with a caller."
@@ -9,6 +9,11 @@
 // test bench can step through one turn at a time, a test can assert that every script still parses
 // and still names what it is testing, and a generator can write the readable folder from the same
 // source — which means the document and the thing being run cannot drift apart.
+//
+// They were written for the voicemail intake interview, which was removed on 2026-09-21. They
+// outlived it because the caller is the point, not the agent: an open lot in Killeen, a man who
+// stutters, somebody who wants a price six times. Every one of them is still a way the live
+// receptionist can fail, and six of them have already found one.
 //
 // ── WHAT MAKES A SCRIPT WORTH HAVING ────────────────────────────────────────────────────────────
 //

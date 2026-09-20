@@ -98,7 +98,7 @@ function renderIndex(scripts) {
   const lines = [];
   lines.push('# Voice agent test scripts');
   lines.push('');
-  lines.push(`${scripts.length} callers to rehearse the voicemail intake agent against.`);
+  lines.push(`${scripts.length} callers to rehearse the receptionist against.`);
   lines.push('');
   lines.push('**These are generated.** The source is `lib/receptionist/test-scripts.ts`; edit that');
   lines.push('and run `node scripts/write-test-scripts.mjs`. The test bench at');
@@ -107,8 +107,8 @@ function renderIndex(scripts) {
   lines.push('');
   lines.push('## How to use one');
   lines.push('');
-  lines.push('Open the bench, pick the script, and read the caller lines out loud (or paste them in,');
-  lines.push('one turn at a time). After the call, check the two lists at the bottom of the script:');
+  lines.push('Open the bench, pick the script in the text chat, and read the caller lines out loud');
+  lines.push('(or load them one at a time). After the call, check the two lists at the bottom:');
   lines.push('what the agent should have ended up with, and — more importantly — what it should');
   lines.push('never have asked about.');
   lines.push('');
@@ -152,18 +152,41 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 
 // Old files are removed first, so a renamed script does not leave its previous copy behind looking
 // current.
+//
+// `~$…` is skipped: Word writes a lock file beside any document somebody has OPEN, and this script
+// crashed on it — the whole generator died with an EPERM from unlink because a person was reading
+// the documentation it was regenerating. A file we did not write is not ours to delete.
 for (const f of fs.readdirSync(OUT_DIR)) {
-  if (f.endsWith('.md')) fs.unlinkSync(path.join(OUT_DIR, f));
+  if (!f.endsWith('.md') || f.startsWith('~$') || f.startsWith('.')) continue;
+  try {
+    fs.unlinkSync(path.join(OUT_DIR, f));
+  } catch (err) {
+    // Locked by an editor. Say so and carry on; the write below will fail loudly if it matters.
+    console.log(`note: could not remove ${f} (${err.code ?? 'error'}) — leaving it`);
+  }
 }
 
-scripts.forEach((s, i) => {
-  const file = path.join(OUT_DIR, `${slugNumber(i)}-${s.id}.md`);
-  fs.writeFileSync(file, renderScript(s, i), 'utf8');
-});
-fs.writeFileSync(path.join(OUT_DIR, 'README.md'), renderIndex(scripts), 'utf8');
+// A file somebody has OPEN cannot be rewritten, and that is not a reason to abandon the other
+// twenty. Each one is attempted, the locked ones are named, and the exit code says whether the
+// folder is fully current — so "it worked" and "it worked except for the one you are reading" are
+// different outcomes rather than the same tick.
+const locked = [];
+const writeOr = (file, text) => {
+  try { fs.writeFileSync(file, text, 'utf8'); } catch (err) {
+    locked.push(`${path.basename(file)} (${err.code ?? 'error'})`);
+  }
+};
+
+scripts.forEach((s, i) => writeOr(path.join(OUT_DIR, `${slugNumber(i)}-${s.id}.md`), renderScript(s, i)));
+writeOr(path.join(OUT_DIR, 'README.md'), renderIndex(scripts));
 
 const turns = scripts.reduce((n, s) => n + s.turns.length, 0);
-console.log(`✓ ${scripts.length} scripts, ${turns} turns → ${path.relative(ROOT, OUT_DIR)}`);
+const attempted = scripts.length + 1;
+console.log(`✓ ${attempted - locked.length} of ${attempted} files written, ${turns} turns → ${path.relative(ROOT, OUT_DIR)}`);
+if (locked.length) {
+  console.log(`✗ could not write (open in an editor?): ${locked.join(', ')}`);
+}
 for (const s of scripts) {
   console.log(`   ${String(s.minutes).padStart(2)}m  ${s.difficulty.padEnd(15)} ${s.title}`);
 }
+if (locked.length) process.exit(1);

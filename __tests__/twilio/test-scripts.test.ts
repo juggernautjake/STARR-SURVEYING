@@ -8,7 +8,6 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TEST_SCRIPTS, testScript, estimatedSeconds } from '@/lib/receptionist/test-scripts';
-import { CALL_BUDGET_MS } from '@/lib/receptionist/intake';
 
 const DOCS = path.join(process.cwd(), 'docs', 'receptionist', 'test-scripts');
 
@@ -97,9 +96,14 @@ describe('the scripts cover what the owner asked for', () => {
 describe('the long one really is long', () => {
   const talker = testScript('the-talker-seven-minutes')!;
 
-  it('is the only script that reaches the cap', () => {
-    const atCap = TEST_SCRIPTS.filter((s) => s.minutes * 60 * 1000 >= CALL_BUDGET_MS);
-    expect(atCap.map((s) => s.id)).toEqual(['the-talker-seven-minutes']);
+  it('is the only script that runs long enough to trigger a wind-down', () => {
+    // Seven minutes, measured against the relay's own wind-down rather than a constant imported
+    // from somewhere else: worker/relay/server.mjs wraps up at 6 minutes and hard-stops at 8, so a
+    // seven-minute call is the one that lands between them. (The ElevenLabs agent's platform cap is
+    // 15 minutes, which nothing here is trying to reach.)
+    const LONG_ENOUGH_MINUTES = 7;
+    const long = TEST_SCRIPTS.filter((s) => s.minutes >= LONG_ENOUGH_MINUTES);
+    expect(long.map((s) => s.id)).toEqual(['the-talker-seven-minutes']);
   });
 
   it('has enough turns to actually get there', () => {

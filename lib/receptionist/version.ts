@@ -22,15 +22,8 @@
 
 export type ReceptionistVersion = 'answering-machine' | 'agent' | 'elevenlabs';
 
-/**
- * What a TEST call can run.
- *
- * The three live versions, plus `intake` — the voicemail interview, which is deliberately NOT a
- * `ReceptionistVersion`. It has no TwiML and no phone route yet, so it cannot be put in front of a
- * real caller, and keeping it out of that type is what makes that impossible rather than merely
- * discouraged: `parseVersion` (which the live switch uses) cannot return it.
- */
-export type TestVersion = ReceptionistVersion | 'intake';
+/** What a TEST call can run — the same three, chosen per call whatever live calls are using. */
+export type TestVersion = ReceptionistVersion;
 
 export const RECEPTIONIST_SETTINGS_KEY = 'receptionist';
 export const DEFAULT_LIVE_VERSION: ReceptionistVersion = 'answering-machine';
@@ -50,13 +43,7 @@ export const VERSION_LABELS: Record<ReceptionistVersion, { name: string; blurb: 
   },
 };
 
-export const TEST_VERSION_LABELS: Record<TestVersion, { name: string; blurb: string }> = {
-  ...VERSION_LABELS,
-  intake: {
-    name: 'Voicemail intake interview',
-    blurb: 'Greets, lets the caller say their piece, reads what it can out of it, then asks only about what is still missing — and stops at seven minutes. Bench only: it has no phone route, so it cannot answer a real call.',
-  },
-};
+export const TEST_VERSION_LABELS: Record<TestVersion, { name: string; blurb: string }> = VERSION_LABELS;
 
 /** A stored or requested version, or null when it is not one. Accepts a few spellings. */
 export function parseVersion(value: unknown): ReceptionistVersion | null {
@@ -67,17 +54,9 @@ export function parseVersion(value: unknown): ReceptionistVersion | null {
   return null;
 }
 
-/**
- * A version a TEST call may run.
- *
- * Its own function because the two lists diverged again on 2026-09-21: a test call may run the
- * intake interview, and a live call may not. `parseVersion` is what the live switch uses, and it
- * cannot return `intake` — so there is no string anybody can PUT to the live endpoint that puts an
- * unfinished agent in front of a customer.
- */
+/** Kept as its own name because the two lists were different until 2026-09-16, and the call sites
+ *  read better for saying which decision they are making. */
 export function parseTestVersion(value: unknown): TestVersion | null {
-  const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (v === 'intake' || v === 'voicemail-intake') return 'intake';
   return parseVersion(value);
 }
 

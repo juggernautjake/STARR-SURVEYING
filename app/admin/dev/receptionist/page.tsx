@@ -18,7 +18,6 @@
 import '../../styles/AdminCalls.css';
 import '../../styles/AdminReceptionistTest.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import IntakeBench from './IntakeBench';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
@@ -30,6 +29,7 @@ import { AGENT_MODELS, type AgentModel } from '@/lib/receptionist/agent-models';
 // The agent's name and the firm's, from the modules that own them — both are environment-
 // overridable, and a hard-coded "Ellie" here would be a second copy that drifts.
 import { ASSISTANT_NAME } from '@/lib/receptionist/knowledge';
+import { TEST_SCRIPTS, testScript } from '@/lib/receptionist/test-scripts';
 import { BUSINESS_NAME } from '@/lib/seo/business';
 
 const RS = '';
@@ -114,7 +114,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
    * showing the wrong one was the single most confusing thing on this page — you could pick Riley
    * for the answering machine, which cannot speak in Riley.
    */
-  const usesElevenLabsVoice = testVersion === 'elevenlabs' || testVersion === 'intake';
+  const usesElevenLabsVoice = testVersion === 'elevenlabs';
 
   // The voice a test call is spoken in. Remembered, so auditioning one voice after another is quick.
   const [testVoice, setTestVoice] = useState<string>(DEFAULT_VOICE_ID);
@@ -344,6 +344,26 @@ export default function ReceptionistTestPage(): React.ReactElement {
   // ── 3. text chat ──────────────────────────────────────────────────────────────────────────────
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
+
+  // ── THE REHEARSAL SCRIPTS, ATTACHED TO THE CHAT (2026-09-21) ────────────────────────────────
+  //
+  // They used to live in the intake bench. That is gone, and the scripts are the most-used thing
+  // on this page — six of the transcripts the owner has worked through came out of them — so they
+  // move to the nearest equivalent rather than going with it. One click loads the next caller line
+  // into the box below; you read it or send it.
+  const [scriptId, setScriptId] = useState('');
+  const [scriptAt, setScriptAt] = useState(0);
+  const script = scriptId ? testScript(scriptId) : undefined;
+  const scriptTurn = script?.turns[scriptAt];
+
+  const loadNextScriptLine = useCallback(() => {
+    const turn = script?.turns[scriptAt];
+    if (!turn) return;
+    setScriptAt((n) => n + 1);
+    // A silence turn has nothing to type. Saying so is more useful than loading an empty box,
+    // because "say nothing for ten seconds" is a thing the tester has to DO.
+    setDraft(turn.says ?? '');
+  }, [script, scriptAt]);
   const [busy, setBusy] = useState(false);
   const [chatSid, setChatSid] = useState<string | null>(null);
   const [chatDone, setChatDone] = useState(false);
@@ -475,7 +495,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
           <div className="rtest__step">
             <h3 className="rtest__step-head"><span className="rtest__step-n">1</span> Which receptionist</h3>
             <div className="rtest__choices" role="radiogroup" aria-label="Which receptionist to test">
-              {(['elevenlabs', 'agent', 'answering-machine', 'intake'] as TestVersion[])
+              {(['elevenlabs', 'agent', 'answering-machine'] as TestVersion[])
                 .filter((v) => v !== 'elevenlabs' || live?.elevenLabsReady !== false)
                 .map((v) => (
                   <button
@@ -490,18 +510,15 @@ export default function ReceptionistTestPage(): React.ReactElement {
                     <span className="rtest__choice-name">
                       {TEST_VERSION_LABELS[v].name}
                       {live?.version === v && <em className="rtest__tag rtest__tag--live">Live now</em>}
-                      {v === 'intake' && <em className="rtest__tag">Bench only</em>}
                     </span>
                     <span className="rtest__choice-blurb">{TEST_VERSION_LABELS[v].blurb}</span>
                   </button>
                 ))}
             </div>
             <p className="rtest__hint">
-              {testVersion === 'intake'
-                ? 'Runs in the bench further down — type what a caller would say, or load one of the twenty-one scripts.'
-                : testVersion === 'elevenlabs'
-                  ? 'Runs on a phone call, a browser call, or “Talk now” below.'
-                  : 'Runs on a phone call or a browser call below. “Talk now” always goes straight to ElevenLabs.'}
+              {testVersion === 'elevenlabs'
+                ? 'Runs on a phone call, a browser call, or “Talk now” below.'
+                : 'Runs on a phone call or a browser call below. “Talk now” always goes straight to ElevenLabs.'}
             </p>
           </div>
 
@@ -733,21 +750,45 @@ export default function ReceptionistTestPage(): React.ReactElement {
           {phoneStatus && <div className="rtest__status" aria-live="polite">{phoneStatus.startsWith('Ringing') ? <span className="rtest__phone-icon" aria-hidden="true">📞</span> : null}{phoneStatus}</div>}
         </section>
 
-        {/* The voicemail intake interview (owner, 2026-09-21). Full width, above the chat,
-            because it is the thing currently being built and the thing being rehearsed. */}
-        <div style={{ gridColumn: '1 / -1' }}>
-          {testVersion === 'intake' ? (
-            <IntakeBench />
-          ) : (
-            <p className="rtest__card-note">
-              Pick <b>{TEST_VERSION_LABELS.intake.name}</b> above to rehearse the voicemail interview here.
-            </p>
-          )}
-        </div>
-
         <section className="rtest__card" aria-labelledby="rt-chat" style={{ gridColumn: '1 / -1' }}>
           <h2 id="rt-chat">Text chat (full AI agent)</h2>
           <p>The same brain by keyboard: push it for a price, leave a message, or run a full intake. Each reply shows how long the first word took, which is what a caller feels.</p>
+          <div className="rtest__scriptbar">
+            <label className="rtest__scriptpick" htmlFor="rtest-script">
+              <span className="rtest__scriptlabel">Rehearsal script</span>
+              <select
+                id="rtest-script"
+                value={scriptId}
+                onChange={(e) => { setScriptId(e.target.value); setScriptAt(0); setDraft(''); }}
+                data-testid="rtest-script"
+              >
+                <option value="">— free typing —</option>
+                {TEST_SCRIPTS.map((sc, i) => (
+                  <option key={sc.id} value={sc.id}>
+                    {String(i + 1).padStart(2, '0')} · {sc.title} ({sc.minutes}m, {sc.difficulty})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {script && (
+              <>
+                <button
+                  type="button"
+                  className="rtest__btn rtest__btn--ghost"
+                  onClick={loadNextScriptLine}
+                  disabled={scriptAt >= script.turns.length}
+                  data-testid="rtest-script-next"
+                >
+                  {scriptAt >= script.turns.length ? 'Script finished' : `Load line ${scriptAt + 1} of ${script.turns.length}`}
+                </button>
+                <span className="rtest__hint">{script.tests}</span>
+              </>
+            )}
+          </div>
+          {scriptTurn?.silenceSeconds ? (
+            <p className="rtest__note">Next: say nothing for {scriptTurn.silenceSeconds} seconds.</p>
+          ) : null}
+          {scriptTurn?.watchFor ? <p className="rtest__note">Watch for: {scriptTurn.watchFor}</p> : null}
           <div className="rtest__chat" ref={chatBox} aria-live="polite">
             {msgs.length === 0 && (
               <div className="rtest__msg rtest__msg--assistant">

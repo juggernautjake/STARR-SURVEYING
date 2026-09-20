@@ -1,6 +1,6 @@
 # Voice agent test scripts
 
-21 callers to rehearse the voicemail intake agent against.
+21 callers to rehearse the receptionist against.
 
 **These are generated.** The source is `lib/receptionist/test-scripts.ts`; edit that
 and run `node scripts/write-test-scripts.mjs`. The test bench at
@@ -9,8 +9,8 @@ being run cannot drift apart.
 
 ## How to use one
 
-Open the bench, pick the script, and read the caller lines out loud (or paste them in,
-one turn at a time). After the call, check the two lists at the bottom of the script:
+Open the bench, pick the script in the text chat, and read the caller lines out loud
+(or load them one at a time). After the call, check the two lists at the bottom:
 what the agent should have ended up with, and — more importantly — what it should
 never have asked about.
 
