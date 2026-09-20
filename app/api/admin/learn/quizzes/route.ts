@@ -262,8 +262,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     const sync = gradeQuestionSync(a, q as RawQuestion);
     if (sync) {
-      // fill_blank contributes partial credit; every other type is all-or-nothing.
-      totalScore += q.question_type === 'fill_blank' ? (sync.partial_score ?? 0) : (sync.is_correct ? 1 : 0);
+      // ── PARTIAL CREDIT ACTUALLY COUNTS NOW (2026-09-20) ────────────────────────────────────
+      //
+      // It was computed for fill_blank, multi_select and ordering, and rendered as an "N% credit"
+      // badge — but only fill_blank was added to the score, and the number was never written to
+      // `quiz_attempt_answers` at all. So a paper with three of four blanks right scored the same
+      // as one with none on the other two types, and nothing survived to say otherwise.
+      //
+      // Every type that reports a partial score now contributes it. `partial_score` is undefined
+      // for all-or-nothing types, so the fallback is the boolean and nothing else changes for them.
+      totalScore += typeof sync.partial_score === 'number'
+        ? sync.partial_score
+        : (sync.is_correct ? 1 : 0);
       return sync;
     }
 
@@ -345,6 +355,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         question_id: g.question_id,
         user_answer: g.user_answer,
         is_correct: g.is_correct,
+        // seeds/652 added the column; this is what finally fills it. NULL for an all-or-nothing
+        // type, so "no partial credit applies here" and "scored zero" stay different facts.
+        partial_score: typeof g.partial_score === 'number' ? g.partial_score : null,
       }))
     );
 

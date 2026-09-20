@@ -169,6 +169,7 @@ export default function PracticePanel({ moduleId, onProblemChange }: {
           {current.problem.question_type === 'multi_step' && Array.isArray(current.problem.steps) ? (
             <MultiStepProblem
               key={`${current.problem.id}-${idx}`}
+              questionId={current.problem.id}
               statement={current.problem.question_text}
               steps={current.problem.steps as ProblemStep[]}
               givenVars={(current.problem.given_vars ?? {}) as Record<string, number>}

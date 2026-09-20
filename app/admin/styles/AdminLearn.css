@@ -3591,3 +3591,58 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 @media (hover: none) {
   .fs-module__formula-practice { opacity: 1; }
 }
+
+/* ── GOING DEEPER ON ONE STEP (owner, 2026-09-20) ─────────────────────────────────────────────
+ * "make sure it works really well in explaining things and how to do problems and what all the
+ * applications might be."
+ *
+ * Two buttons because they are two questions. Quiet and secondary — the authored explanation above
+ * them is the primary answer, and these are for when it is not enough. */
+.mstep__deeper-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.mstep__deeper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-height: 30px;
+  padding: 0 0.6rem;
+  border: 1px dashed var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mstep__deeper-btn:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-fg-primary, #0F172A);
+}
+/* Disabled once the answer is on screen — the text below IS the result, and a button that fetches
+ * the same paragraph again is a button that charges twice for it. */
+.mstep__deeper-btn:disabled { opacity: 0.45; cursor: default; }
+
+.mstep__deeper {
+  margin-top: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid var(--theme-accent, #1D3095);
+  border-radius: 0 8px 8px 0;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.mstep__deeper-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.mstep__deeper-text {
+  margin: 0 0 0.5rem;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--theme-fg-secondary, #475569);
+}
+.mstep__deeper-text:last-child { margin-bottom: 0; }

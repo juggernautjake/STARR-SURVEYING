@@ -17,13 +17,15 @@
 // file is the part that has to look right.
 
 import { useCallback, useMemo, useState } from 'react';
-import { CheckCircle2, XCircle, CornerDownRight, RotateCcw, Lightbulb } from 'lucide-react';
+import { CheckCircle2, XCircle, CornerDownRight, RotateCcw, Lightbulb, HelpCircle, Hammer, Loader2 } from 'lucide-react';
 import {
   gradeMultiStep, verdictLabel, shownAnswer,
   type ProblemStep, type MultiStepResult,
 } from '@/lib/learn/gradeSteps';
 
 export interface MultiStepProblemProps {
+  /** The bank row, so the attempt can be recorded against it. Omit for a preview. */
+  questionId?: string;
   /** The question as it reads, before any of the parts. */
   statement: string;
   steps: ProblemStep[];
@@ -38,6 +40,14 @@ export interface MultiStepProblemProps {
   onAskTutor?: (prompt: string) => void;
 }
 
+/** Blank-line-separated prose into paragraphs.
+ *
+ *  A named helper rather than an inline regex because the model's reply is plain prose and the
+ *  alternative — one `<p>` holding three paragraphs' worth of text with the breaks collapsed — reads
+ *  as a wall. Tolerant of however much whitespace surrounds the break. */
+const splitParagraphs = (text: string): string[] =>
+  text.split(/\r?\n\s*\r?\n/).map((p) => p.trim()).filter(Boolean);
+
 const nice = (n: number): string => {
   if (!Number.isFinite(n)) return '—';
   // Trailing zeros on a surveyed figure are noise; 500 should not read as 500.000.
@@ -46,11 +56,40 @@ const nice = (n: number): string => {
 };
 
 export default function MultiStepProblem({
-  statement, steps, givenVars = {}, difficulty, explanation, onGraded, onAskTutor,
+  questionId, statement, steps, givenVars = {}, difficulty, explanation, onGraded, onAskTutor,
 }: MultiStepProblemProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [startedAt] = useState(() => Date.now());
   const [result, setResult] = useState<MultiStepResult | null>(null);
   const [showWorked, setShowWorked] = useState(false);
+  /** Deeper explanations, per step and per mode, kept once fetched.
+   *
+   *  Owner, 2026-09-20: the AI should explain "how to do problems and what all the applications
+   *  might be" — two different questions, so two buttons rather than one that tries to be both.
+   *  Cached by `stepId:mode` so re-opening one costs nothing and nobody is charged twice for
+   *  reading the same paragraph again. */
+  const [deeper, setDeeper] = useState<Record<string, { text: string; source: string } | 'loading'>>({});
+
+  const explain = useCallback(async (stepId: string, mode: 'how' | 'where', verdict?: string) => {
+    const key = `${stepId}:${mode}`;
+    if (deeper[key]) return;
+    if (!questionId) return;
+    setDeeper((d) => ({ ...d, [key]: 'loading' }));
+    try {
+      const res = await fetch('/api/admin/learn/explain-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, stepId, mode, verdict }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setDeeper((d) => ({
+        ...d,
+        [key]: { text: data.text || 'That explanation could not be loaded.', source: data.source || 'stored' },
+      }));
+    } catch {
+      setDeeper((d) => ({ ...d, [key]: { text: 'That explanation could not be loaded.', source: 'error' } }));
+    }
+  }, [questionId, deeper]);
 
   const marked = result !== null;
   const anyAnswered = useMemo(
@@ -61,11 +100,27 @@ export default function MultiStepProblem({
   const submit = useCallback(() => {
     const r = gradeMultiStep(steps, answers, givenVars);
     setResult(r);
+
+    // Recorded, and re-graded server-side while it is. What is shown is this local result, because
+    // waiting on a round trip to find out whether step one was right is what makes a five-part
+    // problem feel like paperwork. What is KEPT is the server's own marking of the same answers —
+    // see the route: a posted verdict would be a score anyone could set from the console.
+    if (questionId) {
+      void fetch('/api/admin/learn/problem-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId,
+          answers,
+          timeSpentSeconds: Math.round((Date.now() - startedAt) / 1000),
+        }),
+      }).catch(() => { /* the mark is on screen; losing the record is not worth an error toast */ });
+    }
     // Revealed automatically on submit. Somebody who has just been told a step is wrong wants to
     // know why, and making them press a second button for it is a step between them and the point.
     setShowWorked(true);
     onGraded?.(r);
-  }, [steps, answers, givenVars, onGraded]);
+  }, [steps, answers, givenVars, onGraded, questionId, startedAt]);
 
   const retry = useCallback(() => {
     setAnswers({});
@@ -134,6 +189,54 @@ export default function MultiStepProblem({
                   </div>
                   {step.formula && <code className="mstep__worked-formula">{step.formula}</code>}
                   {step.explanation && <p className="mstep__worked-why">{step.explanation}</p>}
+
+                  {/* Two questions, two buttons. "How does this work" and "where would I use it"
+                      are genuinely different asks, and one button trying to answer both produces
+                      an answer that half-does each. Only offered once the step is marked — before
+                      that, an explanation of the method IS the answer. */}
+                  {questionId && (
+                    <div className="mstep__deeper-actions">
+                      <button
+                        type="button"
+                        className="mstep__deeper-btn"
+                        onClick={() => void explain(step.id, 'how', r.verdict)}
+                        disabled={Boolean(deeper[`${step.id}:how`])}
+                        data-testid={`mstep-how-${step.id}`}
+                      >
+                        {deeper[`${step.id}:how`] === 'loading'
+                          ? <Loader2 size={13} className="spin" aria-hidden />
+                          : <HelpCircle size={13} aria-hidden />}
+                        Why does this work?
+                      </button>
+                      <button
+                        type="button"
+                        className="mstep__deeper-btn"
+                        onClick={() => void explain(step.id, 'where', r.verdict)}
+                        disabled={Boolean(deeper[`${step.id}:where`])}
+                        data-testid={`mstep-where-${step.id}`}
+                      >
+                        {deeper[`${step.id}:where`] === 'loading'
+                          ? <Loader2 size={13} className="spin" aria-hidden />
+                          : <Hammer size={13} aria-hidden />}
+                        Where is this used?
+                      </button>
+                    </div>
+                  )}
+
+                  {(['how', 'where'] as const).map((mode) => {
+                    const got = deeper[`${step.id}:${mode}`];
+                    if (!got || got === 'loading') return null;
+                    return (
+                      <div key={mode} className="mstep__deeper" data-testid={`mstep-deeper-${step.id}-${mode}`}>
+                        <span className="mstep__deeper-label">
+                          {mode === 'how' ? 'Why this works' : 'Where it is used'}
+                        </span>
+                        {splitParagraphs(got.text).map((para, pi) => (
+                          <p key={pi} className="mstep__deeper-text">{para}</p>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </li>
