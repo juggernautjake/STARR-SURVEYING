@@ -313,6 +313,252 @@ const problems = [
     ],
     explanation: 'Engineering economics on the FS is mostly recognising which factor is being asked for. (P/F) discounts a single future sum; (P/A) discounts a series.',
   },
+  // == SECOND BATCH (2026-09-19) -- filling the modules that had none ==========================
+  // m7, m9 and m10 had no multi-step problems at all; m3, m6, m8 and m11 had one each.
+
+  {
+    module: 1, difficulty: 'medium', tags: ['fs-module-1', 'statistics', 'weighted-mean'],
+    statement: 'A distance is measured by three parties. Party A gets 842.16 ft with weight 3, party B gets 842.22 ft with weight 1, and party C gets 842.19 ft with weight 2. Find the weighted mean.',
+    given: { v1: 842.16, w1: 3, v2: 842.22, w2: 1, v3: 842.19, w3: 2 },
+    steps: [
+      { id: 'sumW', prompt: 'Sum of the weights', formula: 'w1+w2+w3', tolerance: 0.001,
+        explanation: 'Add the weights: 3 + 1 + 2.' },
+      { id: 'wmean', prompt: 'Weighted mean, in ft', formula: '(v1*w1 + v2*w2 + v3*w3)/sumW', unit: 'ft', tolerance: 0.005,
+        explanation: 'x-bar = sum(wx)/sum(w). A weight of 3 means that observation counts three times over - weights are usually inversely proportional to the square of the standard error.' },
+    ],
+    explanation: 'Weighted means appear whenever observations are not equally trustworthy. The weight is proportional to 1/sigma-squared, so halving the standard error quadruples the weight.',
+  },
+  {
+    module: 1, difficulty: 'easy', tags: ['fs-module-1', 'precision', 'ratio'],
+    statement: 'A traverse 2,450 ft long closes with a linear misclosure of 0.14 ft. Find the precision, expressed as the denominator of 1:N.',
+    given: { perim: 2450, misclosure: 0.14 },
+    steps: [
+      { id: 'precision', prompt: 'Precision denominator - enter just the number', formula: 'perim/misclosure', tolerance: 200,
+        explanation: 'Precision = perimeter divided by misclosure. 2450/0.14 = 17,500, so 1:17,500 - usually rounded down to 1:17,000 when reported.' },
+    ],
+    explanation: 'Relative precision is always reported with 1 as the numerator, and rounded DOWN so the claim is conservative.',
+  },
+
+  {
+    module: 2, difficulty: 'medium', tags: ['fs-module-2', 'leveling', 'curvature-refraction'],
+    statement: 'A sight is taken 1.8 miles long. (a) Find the combined curvature and refraction correction. (b) The rod reads 6.42 ft - what is the corrected reading?',
+    given: { miles: 1.8, rod: 6.42 },
+    steps: [
+      { id: 'cr', prompt: 'Combined curvature and refraction, in ft', formula: '0.0206*pow(miles,2)', unit: 'ft', tolerance: 0.002,
+        explanation: 'C+R = 0.0206 M-squared ft with M in miles. Curvature makes the rod read HIGH; refraction gives back about a seventh of it, and the 0.0206 already accounts for that.' },
+      { id: 'corrected', prompt: 'Corrected rod reading, in ft', formula: 'rod - cr', unit: 'ft', tolerance: 0.003,
+        explanation: 'Subtract: the earth curving away makes a distant rod read too high, so the true reading is less.' },
+    ],
+    explanation: 'Negligible under 500 ft, which is why balanced backsights and foresights cancel it in ordinary differential leveling. It matters for a long single sight across a river or a canyon.',
+  },
+
+  {
+    module: 3, difficulty: 'medium', tags: ['fs-module-3', 'angles', 'closure'],
+    statement: 'A six-sided closed traverse is measured. The interior angles sum to 720 deg 02 min 30 sec. (a) What should the angles sum to? (b) What is the angular misclosure, in seconds? (c) What correction is applied to each angle, in seconds?',
+    given: { n: 6, measuredDeg: 720, measuredMin: 2, measuredSec: 30 },
+    steps: [
+      { id: 'should', prompt: 'Correct sum of interior angles, in degrees', formula: '(n-2)*180', unit: 'deg', tolerance: 0.01,
+        explanation: 'Sum of interior angles = (n-2) x 180. For six sides that is 720 degrees.' },
+      { id: 'misSec', prompt: 'Angular misclosure, in seconds', formula: '(measuredDeg + measuredMin/60 + measuredSec/3600 - should)*3600', unit: 'sec', tolerance: 1,
+        explanation: 'Convert the measured sum to decimal degrees, subtract the true sum, and multiply by 3600 to get seconds. Here 02 min 30 sec = 150 seconds.' },
+      { id: 'perAngle', prompt: 'Correction per angle, in seconds', formula: '-misSec/n', unit: 'sec', tolerance: 1,
+        explanation: 'Distribute the misclosure equally with the opposite sign - each angle was measured the same way, so none deserves more of the blame.' },
+    ],
+    explanation: 'Angular closure comes first: adjust the angles before computing any bearings, or the error propagates into every course.',
+  },
+  {
+    module: 3, difficulty: 'medium', tags: ['fs-module-3', 'stadia'],
+    statement: 'A stadia reading gives an interval of 2.46 ft on a rod, at a vertical angle of 6 deg 20 min. The stadia constant is 100. Find the horizontal distance and the vertical difference.',
+    given: { s: 2.46, K: 100, deg: 6, min: 20 },
+    steps: [
+      { id: 'horiz', prompt: 'Horizontal distance, in ft', formula: 'K*s*pow(cos(toRad(deg+min/60)),2)', unit: 'ft', tolerance: 0.3,
+        explanation: 'H = K s cos-squared(alpha). The cosine is SQUARED - one factor reduces the slope distance, the other corrects the rod interval for being read at an angle.' },
+      { id: 'vert', prompt: 'Vertical difference, in ft', formula: 'K*s*sin(toRad(deg+min/60))*cos(toRad(deg+min/60))', unit: 'ft', tolerance: 0.2,
+        explanation: 'V = K s sin(alpha) cos(alpha), which is also half of K s sin(2 alpha).' },
+    ],
+    explanation: 'The squared cosine is the part people forget. At small angles it barely matters; at 20 degrees it is a 12 percent error.',
+  },
+
+  {
+    module: 4, difficulty: 'easy', tags: ['fs-module-4', 'bearings', 'azimuth'],
+    statement: 'A line has a bearing of S 42 deg 30 min E. Find its azimuth from north, in decimal degrees.',
+    given: { deg: 42, min: 30 },
+    steps: [
+      { id: 'az', prompt: 'Azimuth from north, in decimal degrees', formula: '180 - (deg + min/60)', unit: 'deg', tolerance: 0.02,
+        explanation: 'A southeast bearing converts as Az = 180 - bearing. Sketch the quadrant every time; it takes three seconds and prevents the commonest error in this topic.' },
+    ],
+    explanation: 'NE: Az = bearing. SE: Az = 180 - bearing. SW: Az = 180 + bearing. NW: Az = 360 - bearing.',
+  },
+  {
+    module: 4, difficulty: 'medium', tags: ['fs-module-4', 'traverse', 'latitude-departure'],
+    statement: 'A course has a length of 428.60 ft and an azimuth of 121 deg 45 min. Find its latitude and departure.',
+    given: { L: 428.60, deg: 121, min: 45 },
+    steps: [
+      { id: 'lat', prompt: 'Latitude, in ft', formula: 'L*cos(toRad(deg+min/60))', unit: 'ft', tolerance: 0.02,
+        explanation: 'Lat = L cos(azimuth). The cosine is negative past 90 degrees, which correctly makes this a southerly course.' },
+      { id: 'dep', prompt: 'Departure, in ft', formula: 'L*sin(toRad(deg+min/60))', unit: 'ft', tolerance: 0.02,
+        explanation: 'Dep = L sin(azimuth), positive here because the course still runs east.' },
+    ],
+    explanation: 'Latitude is cosine and departure is sine when you work from AZIMUTH. With bearings you use the acute angle and assign the signs by quadrant - one more chance to go wrong, which is why azimuths are preferred for computation.',
+  },
+
+  {
+    module: 5, difficulty: 'hard', tags: ['fs-module-5', 'vertical-curve'],
+    statement: 'An equal-tangent vertical curve is 600 ft long. The grade in is -3.0 percent and the grade out is +2.0 percent. The PVC is at elevation 452.80 ft. (a) What is the rate of change of grade per station? (b) What is the elevation on the curve 200 ft from the PVC? (c) How far from the PVC is the low point?',
+    given: { L: 600, g1: -3.0, g2: 2.0, elevPVC: 452.80, x: 200 },
+    steps: [
+      { id: 'r', prompt: 'Rate of change of grade, in percent per station', formula: '(g2-g1)/(L/100)', unit: '%/sta', tolerance: 0.02,
+        explanation: 'r = (g2 - g1)/L in stations. Here (2 - (-3))/6 = 0.8333 percent per station.' },
+      { id: 'elev', prompt: 'Elevation 200 ft from the PVC, in ft', formula: 'elevPVC + g1*(x/100) + (r/2)*pow(x/100,2)', unit: 'ft', tolerance: 0.03,
+        explanation: 'Y = Y_PVC + g1 x + (r/2) x-squared, with x in stations. At x = 2: 452.80 - 6.00 + 1.667 = 448.47 ft.' },
+      { id: 'lowX', prompt: 'Distance from the PVC to the low point, in ft', formula: '(-g1/r)*100', unit: 'ft', tolerance: 2,
+        explanation: 'The low point is where the grade reaches zero: x = -g1/r stations. Here 3/0.8333 = 3.6 stations = 360 ft.' },
+    ],
+    explanation: 'Keep x in STATIONS throughout and the arithmetic stays small. The low point is inside the curve only when the grades have opposite signs - a sag curve, as here.',
+  },
+  {
+    module: 5, difficulty: 'medium', tags: ['fs-module-5', 'curves', 'stationing'],
+    statement: 'A curve has a PI at station 48+62.40, a tangent distance of 285.60 ft and a length of curve of 548.20 ft. Find the station of the PC and the station of the PT, expressed as a plain number of feet.',
+    given: { piSta: 4862.40, T: 285.60, L: 548.20 },
+    steps: [
+      { id: 'pc', prompt: 'Station of the PC, in ft', formula: 'piSta - T', unit: 'ft', tolerance: 0.02,
+        explanation: 'PC = PI - T, measured back along the tangent.' },
+      { id: 'pt', prompt: 'Station of the PT, in ft', formula: 'pc + L', unit: 'ft', tolerance: 0.02,
+        explanation: 'PT = PC + L, measured ALONG THE CURVE. Not PI + T - the curve is shorter than going out and back along the tangents.' },
+    ],
+    explanation: 'The classic trap is computing the PT as PI + T. Stationing follows the centreline, which runs along the curve once you reach the PC.',
+  },
+
+  {
+    module: 6, difficulty: 'easy', tags: ['fs-module-6', 'geodesy', 'geoid'],
+    statement: 'A GNSS observation gives an ellipsoid height of 621.48 ft. The geoid separation at the point is -88.24 ft. Find the orthometric height.',
+    given: { h: 621.48, N: -88.24 },
+    steps: [
+      { id: 'H', prompt: 'Orthometric height, in ft', formula: 'h - N', unit: 'ft', tolerance: 0.01,
+        explanation: 'H = h - N. The separation is negative across most of the continental US, so subtracting it ADDS to the height.' },
+    ],
+    explanation: 'H = h - N is the single most important relationship in GNSS heighting. GNSS measures h; everybody wants H; N comes from a geoid model.',
+  },
+  {
+    module: 6, difficulty: 'hard', tags: ['fs-module-6', 'geodesy', 'scale-factor', 'elevation-factor'],
+    statement: 'A line is measured at a mean elevation of 1,840 ft. The mean radius of the earth is 20,906,000 ft. The grid scale factor is 0.9999382 and the measured ground distance is 3,642.18 ft. Find the elevation factor, the combined factor, and the grid distance.',
+    given: { elev: 1840, R: 20906000, sf: 0.9999382, ground: 3642.18 },
+    steps: [
+      { id: 'ef', prompt: 'Elevation factor (7 decimal places)', formula: 'R/(R+elev)', tolerance: 0.0000005,
+        explanation: 'EF = R/(R+h). Being higher up means your measurement sits on a bigger sphere, so it must be shrunk to sea level.' },
+      { id: 'cf', prompt: 'Combined factor (7 decimal places)', formula: 'ef*sf', tolerance: 0.0000005,
+        explanation: 'CF = EF x grid scale factor. The two reductions are independent and multiply.' },
+      { id: 'grid', prompt: 'Grid distance, in ft', formula: 'ground*cf', unit: 'ft', tolerance: 0.01,
+        explanation: 'Ground to grid MULTIPLIES by the combined factor. Grid to ground divides.' },
+    ],
+    explanation: 'At 1,840 ft the elevation factor alone shortens a line by about 88 parts per million - 0.32 ft over this course. Ignoring it is how a project ends up not fitting its control.',
+  },
+
+  {
+    module: 7, difficulty: 'easy', tags: ['fs-module-7', 'plss', 'aliquot'],
+    statement: 'A regular section contains 640 acres. How many acres are in the NE quarter of the SW quarter?',
+    given: { section: 640 },
+    steps: [
+      { id: 'acres', prompt: 'Acres', formula: 'section/4/4', unit: 'ac', tolerance: 0.1,
+        explanation: 'Each aliquot division quarters what came before: 640 to 160 (the SW quarter) to 40 (the NE quarter of it). Read the description from the RIGHT.' },
+    ],
+    explanation: 'Read aliquot descriptions right to left. "NE quarter of the SW quarter" means find the SW quarter first, then its NE quarter.',
+  },
+  {
+    module: 7, difficulty: 'medium', tags: ['fs-module-7', 'plss', 'lots', 'closing-section'],
+    statement: 'A section is 5,280 ft on its south line but only 5,214 ft on its north line, the excess and deficiency being thrown into the north tier. (a) What is the total shortage along the north line? (b) If that shortage is distributed equally across the four lots in the north tier, how wide is each lot, in feet?',
+    given: { south: 5280, north: 5214, lots: 4 },
+    steps: [
+      { id: 'short', prompt: 'Shortage along the north line, in ft', formula: 'south - north', unit: 'ft', tolerance: 0.1,
+        explanation: 'The nominal section is a mile square. The difference is what the original survey failed to close by.' },
+      { id: 'lotWidth', prompt: 'Width of each north-tier lot, in ft', formula: 'north/lots', unit: 'ft', tolerance: 0.2,
+        explanation: 'The whole north line is divided into four, so each lot takes its proportionate share of the deficiency - 1303.5 ft rather than the nominal 1320 ft.' },
+    ],
+    explanation: 'The PLSS throws all excess and deficiency into the north and west tiers, which is why government lots exist there. Lots are proportioned, not made nominal with a remainder at the end.',
+  },
+  {
+    module: 7, difficulty: 'medium', tags: ['fs-module-7', 'proration', 'boundary'],
+    statement: 'A block was originally platted as five lots, each called 50.00 ft, for a record total of 250.00 ft. The monuments at both ends are found and the measured distance between them is 249.15 ft. Find the total discrepancy and the prorated width of each lot.',
+    given: { record: 250.00, measured: 249.15, lots: 5 },
+    steps: [
+      { id: 'diff', prompt: 'Discrepancy (measured minus record), in ft', formula: 'measured - record', unit: 'ft', tolerance: 0.005,
+        explanation: 'Negative here: the block is short of its record dimension.' },
+      { id: 'width', prompt: 'Prorated width of each lot, in ft', formula: 'measured/lots', unit: 'ft', tolerance: 0.005,
+        explanation: 'Each lot gets its proportionate share of what is actually there: 249.15/5 = 49.83 ft.' },
+    ],
+    explanation: 'Simultaneous conveyance means every lot shares the shortage proportionately - you do not give the first four their full 50 ft and leave the last one short. Sequential conveyances are different, and that distinction is heavily tested.',
+  },
+
+  {
+    module: 8, difficulty: 'hard', tags: ['fs-module-8', 'photogrammetry', 'relief-displacement'],
+    statement: 'A vertical photograph is taken from 6,000 ft above datum with a 6 in focal length camera. A tower stands 240 ft tall, and its top appears 4.12 in from the principal point. (a) What is the relief displacement of the tower? (b) Where is its base, measured from the principal point? (c) A second structure whose top also images 4.12 in from the principal point shows 0.092 in of displacement - how tall is it?',
+    given: { H: 6000, h: 240, r: 4.12, d2: 0.092 },
+    steps: [
+      { id: 'd', prompt: 'Relief displacement, in inches', formula: 'r*h/H', unit: 'in', tolerance: 0.005,
+        explanation: 'd = r h / H, with r measured to the TOP of the object. Relief displacement is radially outward from the principal point.' },
+      { id: 'base', prompt: 'Radial distance to the base, in inches', formula: 'r - d', unit: 'in', tolerance: 0.008,
+        explanation: 'The top is displaced outward, so the base lies closer to the principal point by exactly d.' },
+      { id: 'h2', prompt: 'Height of the second structure, in ft', formula: 'd2*H/r', unit: 'ft', tolerance: 2,
+        explanation: 'Rearranged: h = d H / r. This is the direction the formula is actually used in practice - you measure the displacement off the photo and solve for a height you could not reach.' },
+    ],
+    explanation: 'Relief displacement is what lets you measure a building height from a single photo - and what makes a vertical photo not a map. It is zero at the principal point and grows toward the edges.',
+  },
+
+  {
+    module: 9, difficulty: 'medium', tags: ['fs-module-9', 'units', 'texas', 'varas'],
+    statement: 'A Texas deed calls for 1,250 varas. Using 1 vara = 33 and 1/3 inches: (a) how many feet is that? (b) how many chains?',
+    given: { varas: 1250, varaIn: 33.3333333 },
+    steps: [
+      { id: 'feet', prompt: 'Distance, in ft', formula: 'varas*varaIn/12', unit: 'ft', tolerance: 0.5,
+        explanation: '1 vara = 33 and 1/3 in = 2.7778 ft, so 1250 varas = 3472.2 ft. The vara is the unit of every original Texas land grant.' },
+      { id: 'chains', prompt: 'Distance, in chains', formula: 'feet/66', unit: 'ch', tolerance: 0.05,
+        explanation: 'A Gunter chain is 66 ft. 80 chains make a mile, and 10 square chains make an acre - which is why an acre is 43,560 square ft.' },
+    ],
+    explanation: 'Texas is a vara state and never went through the PLSS. Knowing the vara cold, and its relationship to the chain, is worth easy points on the exam and is unavoidable in Texas practice.',
+  },
+  {
+    module: 9, difficulty: 'easy', tags: ['fs-module-9', 'units', 'dms'],
+    statement: 'Convert 37 deg 14 min 52 sec to decimal degrees.',
+    given: { d: 37, m: 14, sec: 52 },
+    steps: [
+      { id: 'dd', prompt: 'Decimal degrees', formula: 'd + m/60 + sec/3600', unit: 'deg', tolerance: 0.0002,
+        explanation: 'Minutes over 60, seconds over 3600. Every approved calculator does this with one key - learn where it is before exam day.' },
+    ],
+    explanation: 'Trivial, and worth practising until it is automatic: DMS conversion appears inside half the computational problems on the exam.',
+  },
+
+  {
+    module: 10, difficulty: 'hard', tags: ['fs-module-10', 'review', 'mixed'],
+    statement: 'A closed traverse leg runs 512.40 ft at an azimuth of 68 deg 30 min. A level run along it starts at elevation 740.20 ft with a backsight of 5.18 ft and ends with a foresight of 11.46 ft. (a) Find the latitude of the course. (b) Find the departure. (c) Find the elevation at the far end. (d) Find the grade along the course, in percent.',
+    given: { L: 512.40, deg: 68, min: 30, elevStart: 740.20, bs: 5.18, fs: 11.46 },
+    steps: [
+      { id: 'lat', prompt: 'Latitude, in ft', formula: 'L*cos(toRad(deg+min/60))', unit: 'ft', tolerance: 0.03,
+        explanation: 'Lat = L cos(Az).' },
+      { id: 'dep', prompt: 'Departure, in ft', formula: 'L*sin(toRad(deg+min/60))', unit: 'ft', tolerance: 0.03,
+        explanation: 'Dep = L sin(Az).' },
+      { id: 'elevEnd', prompt: 'Elevation at the far end, in ft', formula: 'elevStart + bs - fs', unit: 'ft', tolerance: 0.01,
+        explanation: 'Elevation out = elevation in + BS - FS. The single setup makes this one line.' },
+      { id: 'grade', prompt: 'Grade along the course, in percent', formula: '(elevEnd-elevStart)/L*100', unit: '%', tolerance: 0.02,
+        explanation: 'Grade = rise divided by run, times 100, using the HORIZONTAL distance. Negative here - the course falls.' },
+    ],
+    explanation: 'A comprehensive-review problem: three separate areas of the exam in one question, which is exactly how the harder FS items are built. Nothing in it is difficult on its own.',
+  },
+
+  {
+    module: 11, difficulty: 'hard', tags: ['fs-module-11', 'economics', 'uniform-series'],
+    statement: 'A survey firm is considering a $95,000 scanner that will save $22,000 a year for 6 years, with no salvage value. Money costs 9 percent. (a) What is the present worth of the savings? (b) What is the net present worth of the purchase? (c) Should they buy it - enter 1 for yes, 0 for no.',
+    given: { cost: 95000, annual: 22000, i: 0.09, n: 6 },
+    steps: [
+      { id: 'pwSavings', prompt: 'Present worth of the annual savings, in dollars', formula: 'annual*((pow(1+i,n)-1)/(i*pow(1+i,n)))', unit: '$', tolerance: 20,
+        explanation: 'The uniform-series present-worth factor (P/A, i, n) = ((1+i)^n - 1)/(i (1+i)^n). At 9 percent for 6 years it is 4.4859.' },
+      { id: 'npw', prompt: 'Net present worth, in dollars', formula: 'pwSavings - cost', unit: '$', tolerance: 20,
+        explanation: 'What the savings are worth today, less what it costs today.' },
+      { id: 'buy', prompt: 'Should they buy it? 1 for yes, 0 for no', formula: 'npw > 0 ? 1 : 0', tolerance: 0.001,
+        explanation: 'A positive net present worth means the investment beats the 9 percent they could get elsewhere.' },
+    ],
+    explanation: 'The (P/A) factor is the workhorse of engineering economics. Recognise the phrase "each year for n years" and reach for it.',
+  },
+
 ];
 
 // ── check every problem before anything is written ──────────────────────────────────────────────
