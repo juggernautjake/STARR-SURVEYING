@@ -3432,3 +3432,137 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
   .fs-step__body { max-height: none; }
   .fs-step__arrow { padding: 0 0.6rem; }
 }
+
+/* ── A PROBLEM SOLVED A PART AT A TIME (owner, 2026-09-19) ────────────────────────────────────
+ * "There should be problems that require use to solve the different parts of the problem so that
+ * it can check each step of our process."
+ *
+ * Every part is on screen from the start rather than revealed one at a time: the shape of the
+ * method is most of what is being taught, and hiding it turns a procedure into a guessing game. */
+.mstep {
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 14px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  padding: 1.1rem 1.25rem;
+}
+.mstep__head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.mstep__badge {
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mstep__badge--hard { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.mstep__badge--medium { background: var(--theme-warning-bg, #FEF3C7); color: var(--theme-warning-fg, #92400E); }
+.mstep__badge--easy { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+.mstep__score { margin-left: auto; font-size: 0.82rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.mstep__statement { margin: 0 0 0.9rem; color: var(--theme-fg-primary, #0F172A); line-height: 1.6; }
+
+.mstep__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.mstep__step {
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-left-width: 3px;
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+/* The left edge carries the verdict, so a ladder of five parts can be read at a glance without
+ * looking at each badge in turn. */
+.mstep__step--correct { border-left-color: var(--theme-success-fg, #166534); }
+.mstep__step--carried { border-left-color: var(--theme-warning-fg, #92400E); }
+.mstep__step--wrong { border-left-color: var(--theme-danger-fg, #991B1B); }
+.mstep__step--blank { border-left-color: var(--theme-fg-muted, #94A3B8); }
+
+.mstep__step-head { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.45rem; }
+.mstep__step-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px; height: 20px;
+  border-radius: 999px;
+  background: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.mstep__step-prompt { color: var(--theme-fg-primary, #0F172A); font-size: 0.9rem; font-weight: 600; }
+
+.mstep__step-answer { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.mstep__input {
+  width: 11rem;
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.mstep__input:disabled { opacity: 0.75; }
+.mstep__unit { color: var(--theme-fg-muted, #64748B); font-size: 0.82rem; }
+.mstep__verdict { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.76rem; font-weight: 600; }
+.mstep__verdict--correct { color: var(--theme-success-fg, #166534); }
+.mstep__verdict--carried { color: var(--theme-warning-fg, #92400E); }
+.mstep__verdict--wrong { color: var(--theme-danger-fg, #991B1B); }
+.mstep__verdict--blank { color: var(--theme-fg-muted, #64748B); }
+
+.mstep__worked {
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--theme-border, #E2E8F0);
+}
+.mstep__worked-answer { font-size: 0.9rem; color: var(--theme-fg-primary, #0F172A); }
+.mstep__worked-note { color: var(--theme-warning-fg, #92400E); font-weight: 600; }
+.mstep__worked-formula {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: var(--theme-bg-elevated, #EEF2FF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.78rem;
+}
+.mstep__worked-why { margin: 0.35rem 0 0; font-size: 0.83rem; color: var(--theme-fg-secondary, #475569); line-height: 1.55; }
+
+.mstep__actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.9rem; }
+.mstep__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 38px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mstep__btn:hover:not(:disabled) { border-color: var(--theme-accent, #1D3095); }
+.mstep__btn:disabled { opacity: 0.5; cursor: default; }
+.mstep__btn--primary { background: var(--theme-accent, #1D3095); color: var(--theme-accent-fg, #FFFFFF); border-color: var(--theme-accent, #1D3095); }
+.mstep__hint { font-size: 0.78rem; color: var(--theme-fg-muted, #64748B); }
+
+.mstep__explain {
+  margin-top: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+  font-size: 0.86rem;
+  color: var(--theme-fg-secondary, #475569);
+}
+.mstep__explain p { margin: 0.3rem 0 0; line-height: 1.6; }
+.mstep__carry-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #64748B);
+}

@@ -33,6 +33,10 @@ interface TokenPayload {
 interface Rendered {
   id: string; question_type: string; question_text: string;
   options: string[]; diagram?: string; difficulty?: string;
+  /** multi_step only — the parts, the numbers they compute from, and how the whole thing works. */
+  steps?: unknown;
+  given_vars?: Record<string, unknown>;
+  explanation?: string;
 }
 
 const b64e = (o: unknown) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64url');
@@ -86,7 +90,25 @@ async function renderProblem(row: Row): Promise<{ problem: Rendered; token: stri
     : qtype === 'multiple_choice' ? shuffle(options)
     : [];
 
-  const problem: Rendered = { id: String(row.id), question_type: qtype, question_text, options: displayOptions, diagram, difficulty: row.difficulty };
+  // ── A MULTI-STEP PROBLEM CARRIES ITS LADDER (owner, 2026-09-19) ────────────────────────────
+  //
+  // The steps and the given values go to the client because the marking happens there — every part
+  // is checked the moment "Check my work" is pressed, with no round trip, which is what makes a
+  // five-part problem feel like working rather than like submitting.
+  //
+  // That means the FORMULAS are visible to anyone who opens the network panel. Accepted
+  // deliberately: this is a study tool, the worked solution with every formula in it is shown the
+  // instant you submit, and the only thing hidden by keeping them server-side would be the answer
+  // to a problem you can ask the tutor to explain. The exam simulator, where that calculus is
+  // different, does not use this route.
+  const steps = Array.isArray(row.steps) ? row.steps : null;
+  const givenVars = (row.given_vars && typeof row.given_vars === 'object' ? row.given_vars : {}) as Record<string, unknown>;
+
+  const problem: Rendered = {
+    id: String(row.id), question_type: qtype, question_text, options: displayOptions, diagram,
+    difficulty: row.difficulty,
+    ...(qtype === 'multi_step' && steps ? { steps, given_vars: givenVars, explanation } : {}),
+  };
   const token = b64e({ correct_answer, tolerance, question_type: qtype, explanation, solution_steps } satisfies TokenPayload);
   return { problem, token };
 }

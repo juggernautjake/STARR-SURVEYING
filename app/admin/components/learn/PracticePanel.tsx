@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, ArrowRight, Dumbbell } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
+import MultiStepProblem from '@/app/admin/components/learn/MultiStepProblem';
+import type { ProblemStep } from '@/lib/learn/gradeSteps';
 
 type Kind = 'all' | 'knowledge' | 'problems';
 interface Counts { total: number; knowledge: number; problems: number; by_difficulty: Record<string, number>; genres: string[] }
@@ -144,8 +146,32 @@ export default function PracticePanel({ moduleId }: { moduleId: string }) {
         </div>
       ) : current ? (
         <>
-          <ProblemCard key={`${current.problem.id}-${idx}`} problem={current.problem}
-            answerToken={current.answerToken} onGraded={onGraded} onAnother={another} />
+          {/* A step ladder is graded in the browser by `gradeMultiStep`, so it does not go through
+              ProblemCard's single-answer flow. The tally it reports is the same either way: a
+              problem counts as correct when every part was earned. */}
+          {current.problem.question_type === 'multi_step' && Array.isArray(current.problem.steps) ? (
+            <MultiStepProblem
+              key={`${current.problem.id}-${idx}`}
+              statement={current.problem.question_text}
+              steps={current.problem.steps as ProblemStep[]}
+              givenVars={(current.problem.given_vars ?? {}) as Record<string, number>}
+              difficulty={current.problem.difficulty}
+              explanation={current.problem.explanation}
+              onGraded={(r) => onGraded(current.problem, {
+                // Every part earned, or it does not count. A problem where two of four parts were
+                // right is honest progress on those parts and is not a solved problem, and the
+                // module tally is about problems.
+                correct: r.partialScore === 1,
+                gradable: true,
+                correctAnswer: '',
+                explanation: current.problem.explanation ?? '',
+                solutionSteps: [],
+              })}
+            />
+          ) : (
+            <ProblemCard key={`${current.problem.id}-${idx}`} problem={current.problem}
+              answerToken={current.answerToken} onGraded={onGraded} onAnother={another} />
+          )}
           <div className="fs-practice__nav">
             <span className="fs-practice__pos">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
             <button className="admin-btn admin-btn--primary" onClick={next}>

@@ -20,7 +20,10 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 interface QRow { id: string; question_type: string; difficulty: string | null; tags: string[] | null }
 
 const KNOWLEDGE_TYPES = ['multiple_choice', 'true_false'];
-const PROBLEM_TYPES = ['numeric_input', 'math_template'];
+// `multi_step` counts as a problem (owner, 2026-09-19). It is the most problem-like thing in the
+// bank — a worked calculation in parts — so a student who filters to "Problems" expecting arithmetic
+// would be surprised to find the multi-part ones missing.
+const PROBLEM_TYPES = ['numeric_input', 'math_template', 'multi_step'];
 
 function shuffle<T>(a: T[]): T[] {
   for (let i = a.length - 1; i > 0; i--) {

@@ -8,6 +8,7 @@
 // grader that marks against the true answer throughout reports five errors for one keypress. Nearly
 // all of what follows is about that.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   gradeMultiStep, verdictLabel, shownAnswer, DEFAULT_STEP_TOLERANCE,
   type ProblemStep,
@@ -182,5 +183,62 @@ describe('what the student is told', () => {
     const r = gradeMultiStep(INVERSE, { dN: 300, dE: 300, dist: 424.26 }, GIVENS);
     expect(r.partialScore).toBeGreaterThan(0.5);
     expect(r.finalCorrect).toBe(false);
+  });
+});
+
+describe('the wiring', () => {
+  const read = (p: string) => readFileSync(p, 'utf8');
+
+  it('a step ladder reaches the practice panel with its parts', () => {
+    // The steps and the givens ride on the same payload as every other problem, because a second
+    // problem type would otherwise mean a second fetch for the same row.
+    const route = read('app/api/admin/learn/tutor-problem/route.ts');
+    expect(route).toContain("qtype === 'multi_step' && steps");
+    expect(route).toContain('given_vars: givenVars');
+  });
+
+  it('the panel renders the ladder rather than the single-answer card', () => {
+    const panel = read('app/admin/components/learn/PracticePanel.tsx');
+    expect(panel).toContain("current.problem.question_type === 'multi_step'");
+    expect(panel).toContain('<MultiStepProblem');
+  });
+
+  it('a problem counts as solved only when every part was earned', () => {
+    const panel = read('app/admin/components/learn/PracticePanel.tsx');
+    expect(panel).toContain('correct: r.partialScore === 1');
+  });
+
+  it('multi-step counts as a problem in the practice filters', () => {
+    // Somebody filtering to "Problems" expecting arithmetic would be surprised to find the
+    // multi-part ones missing.
+    const route = read('app/api/admin/learn/exam-prep/fs/practice/route.ts');
+    expect(route).toContain("const PROBLEM_TYPES = ['numeric_input', 'math_template', 'multi_step'];");
+  });
+
+  it('shows the worked solution as soon as it is marked', () => {
+    // Somebody just told a step is wrong wants to know why; a second button is a step between them
+    // and the point.
+    const c = read('app/admin/components/learn/MultiStepProblem.tsx');
+    expect(c).toContain('setShowWorked(true)');
+    expect(c, 'and never before').toContain('{showWorked && r && (');
+  });
+
+  it('every part is on screen from the start', () => {
+    // The shape of the method is most of what is being taught; revealing one part at a time turns
+    // a procedure into a guessing game about what comes next.
+    const c = read('app/admin/components/learn/MultiStepProblem.tsx');
+    expect(c).toContain('steps.map((step, i)');
+    // Looks for STATE that would gate the parts, not for the word — "revealed" appears in the
+    // comment explaining why the parts are not revealed one at a time, and an assertion that trips
+    // over its own rationale is worse than no assertion.
+    expect(c).not.toMatch(/useState[^;]*(revealedSteps|unlockedStep|visibleSteps|stepIndex)/);
+    expect(c, 'no slice on the ladder').not.toMatch(/steps\.slice\(0,/);
+  });
+
+  it('is styled', () => {
+    const css = read('app/admin/styles/AdminLearn.css');
+    for (const cls of ['.mstep {', '.mstep__step--carried', '.mstep__verdict--carried', '.mstep__worked-note']) {
+      expect(css).toContain(cls);
+    }
   });
 });

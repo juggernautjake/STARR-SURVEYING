@@ -16,6 +16,13 @@ export interface ProblemData {
   options: string[];
   diagram?: string;
   difficulty?: string;
+  /** `multi_step` only — the parts, the numbers they work from, and how the problem works.
+   *  ProblemCard itself never renders these; MultiStepProblem does. They live on the shared type
+   *  because they arrive on the same payload from the same route, and a second problem type would
+   *  have been a second fetch for the same row. */
+  steps?: unknown;
+  given_vars?: Record<string, unknown>;
+  explanation?: string;
 }
 interface Step { step_number?: number; title?: string; calculation?: string; calculation_template?: string; result?: string; result_template?: string; }
 export interface GradeResult { correct: boolean; gradable: boolean; correctAnswer: string; explanation: string; solutionSteps: Step[] }
