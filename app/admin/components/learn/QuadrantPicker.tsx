@@ -24,6 +24,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Check, X, RotateCcw } from 'lucide-react';
+import { OUTCOME_MOTION } from '@/lib/learn/reveal';
+import { compassReading } from '@/lib/surveying/compass';
 
 export type QuadrantId = 'NE' | 'SE' | 'SW' | 'NW';
 
@@ -59,16 +61,25 @@ export function quadrantOf(azimuth: number): QuadrantId {
   return 'NW';
 }
 
-/** The bearing an azimuth corresponds to, written the way a deed would. */
+/**
+ * The bearing an azimuth corresponds to, written the way a deed would.
+ *
+ * This used to be eight lines of hand-rolled quadrant arithmetic here. It is now `compassReading`
+ * from lib/surveying/compass.ts — the same formatter Work Mode's compass uses — which matters for
+ * a reason beyond tidiness: a student who practises against a bearing written one way and then
+ * reads one written another way has been taught two notations, and told about only one.
+ *
+ * It also carries seconds rather than rounded minutes, which is the precision a deed is actually
+ * written to, and the 16-point cardinal name ("SSW") that gives somebody a sanity check they can
+ * apply without a calculator.
+ */
 export function bearingOf(azimuth: number): string {
-  const a = ((azimuth % 360) + 360) % 360;
-  const q = quadrantOf(a);
-  const angle = q === 'NE' ? a : q === 'SE' ? 180 - a : q === 'SW' ? a - 180 : 360 - a;
-  const deg = Math.floor(angle);
-  const min = Math.round((angle - deg) * 60);
-  const ns = q === 'NE' || q === 'NW' ? 'N' : 'S';
-  const ew = q === 'NE' || q === 'SE' ? 'E' : 'W';
-  return `${ns} ${deg}°${String(min).padStart(2, '0')}′ ${ew}`;
+  return compassReading(azimuth)?.bearingText ?? '—';
+}
+
+/** "SSW" — the coarse direction, as a check that needs no arithmetic at all. */
+export function cardinalOf(azimuth: number): string {
+  return compassReading(azimuth)?.cardinal ?? '—';
 }
 
 export interface QuadrantPickerProps {
@@ -126,7 +137,13 @@ export default function QuadrantPicker({ azimuth, onAnswered }: QuadrantPickerPr
         className={`qpick__dial${picked ? (correct ? ' qpick__dial--right' : ' qpick__dial--wrong') : ''}`}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         role="group"
-        aria-label={`Compass. Choose the quadrant containing azimuth ${azimuth} degrees.`}
+        aria-label={picked === null
+          ? `Compass. Choose the quadrant containing azimuth ${azimuth} degrees.`
+          // An SVG whose wedges change colour says nothing to a screen reader. OUTCOME_MOTION
+          // carries the spoken half of each outcome precisely so that the two cannot drift apart:
+          // a surface that animates without announcing is a surface that only works for people who
+          // can see it.
+          : OUTCOME_MOTION[correct ? 'right' : 'wrong'].announce}
       >
         {QUADRANTS.map((q) => {
           const isAnswer = q.id === answer;
@@ -190,7 +207,7 @@ export default function QuadrantPicker({ azimuth, onAnswered }: QuadrantPickerPr
           <div>
             <strong>{correct ? 'Correct' : `Not quite — it is ${answer}`}</strong>
             <p className="qpick__verdict-why">
-              {azimuth}° is {bearingOf(azimuth)}.{' '}
+              {azimuth}° is {bearingOf(azimuth)} — roughly {cardinalOf(azimuth)}.{' '}
               {QUADRANTS.find((q) => q.id === answer)!.convert}, because the azimuth is between{' '}
               {QUADRANTS.find((q) => q.id === answer)!.from}° and{' '}
               {QUADRANTS.find((q) => q.id === answer)!.to}°.

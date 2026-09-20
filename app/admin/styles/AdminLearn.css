@@ -3646,3 +3646,137 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
   color: var(--theme-fg-secondary, #475569);
 }
 .mstep__deeper-text:last-child { margin-bottom: 0; }
+
+/* ══ STAGED REVEAL (owner, 2026-09-20) ═══════════════════════════════════════════════════════
+ * "slides that introduce new elements and effects at different times when triggered."
+ *
+ * Every animation here uses a `ui-*` keyframe from motion.css — none are declared in this sheet,
+ * which is the rule a ratchet test enforces. The timing comes from lib/learn/reveal.ts, which caps
+ * how long a whole sequence may take; this file only says what the movement looks like.
+ *
+ * THE CONTENT NEVER DEPENDS ON THE ANIMATION. `animation-fill-mode: both` means a staged child is
+ * invisible until its delay elapses — which is the effect — but the reduced-motion block at the
+ * bottom removes the animation AND the delay together, so nothing can be left permanently hidden by
+ * a preference. That is the failure mode worth guarding: a page that animates in is charming, and a
+ * page whose text never arrives is broken. */
+.reveal-item {
+  animation: ui-rise var(--motion-normal, 260ms) var(--ease-out, cubic-bezier(0.2, 0, 0, 1)) both;
+}
+
+/* The slide itself, when you press Next. Enters from the side you came from, so the direction of
+ * travel is visible — going back should not look identical to going forward. */
+.fs-step__body--in { animation: ui-rise-scale var(--motion-normal, 260ms) var(--ease-out, ease) both; }
+
+/* ── marking an answer ───────────────────────────────────────────────────────────────────────
+ * Right and wrong are deliberately not symmetrical. See lib/learn/reveal.ts for why. */
+.reveal-right { animation: ui-tick 260ms var(--ease-out, ease) both; }
+.reveal-wrong { animation: ui-nudge 300ms var(--ease-out, ease) both; }
+/* A carried step gets neither — it earned its mark, so a celebration overstates it and a nudge
+ * would say the method was wrong when it was right. It fades in like any other result. */
+.reveal-carried { animation: ui-fade-in var(--motion-normal, 260ms) var(--ease-out, ease) both; }
+
+/* The verdict chip is the thing the eye should land on, and WHICH animation it plays comes from
+ * OUTCOME_MOTION in lib/learn/reveal.ts rather than from a rule per verdict here — so the choice
+ * about how success and failure differ is made once, in prose, next to the reasoning.
+ *
+ * Nothing animates the chip by default on purpose. A blanket `.mstep__verdict { animation: ... }`
+ * would sit at the same specificity as `.reveal-right` and later in the file, and quietly win. */
+.mstep__verdict { min-height: 1em; }
+
+/* The worked solution, unfolding rather than appearing. Height-based so the buttons below it move
+ * smoothly out of the way instead of jumping. */
+.mstep__worked { animation: ui-rise var(--motion-normal, 260ms) var(--ease-out, ease) both; }
+.mstep__deeper { animation: ui-rise var(--motion-normal, 260ms) var(--ease-out, ease) both; }
+
+/* ── LESSON BODY WITH DEMOS IN IT ────────────────────────────────────────────────────────────
+ * Only used when a section actually embeds one; plain prose renders the same single block it
+ * always did, with no wrapper, so no existing spacing shifts. */
+.fs-lesson { display: flex; flex-direction: column; gap: 1rem; }
+.fs-lesson__demo {
+  padding: 1rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+
+/* ── the quadrant dial ───────────────────────────────────────────────────────────────────────
+ * "if they are correct, then that quadrant will get a green highlight and check mark, but if not
+ * then it will be red with an X." */
+.qpick { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.qpick__ask {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--theme-fg-primary, #0F172A);
+  text-align: center;
+}
+.qpick__dial { width: 260px; height: 260px; max-width: 100%; }
+.qpick__dial--wrong { animation: ui-nudge 300ms var(--ease-out, ease) both; }
+
+.qpick__wedge {
+  fill: var(--theme-bg-elevated, #F1F5F9);
+  stroke: var(--theme-border, #CBD5E1);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: fill var(--motion-fast, 160ms) var(--ease-out, ease);
+}
+.qpick__wedge--idle:hover { fill: var(--theme-brand-tint, #EEF2FF); }
+.qpick__wedge--idle:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); }
+.qpick__wedge--right { fill: var(--theme-success-bg, #DCFCE7); stroke: var(--theme-success-fg, #166534); stroke-width: 2.5; }
+.qpick__wedge--wrong { fill: var(--theme-danger-bg, #FEE2E2); stroke: var(--theme-danger-fg, #991B1B); stroke-width: 2.5; }
+/* The correct wedge is shown even when they picked another one. Being told "no" without being
+ * shown "there" is the least useful feedback available. */
+.qpick__wedge--reveal { fill: var(--theme-success-bg, #DCFCE7); stroke: var(--theme-success-fg, #166534); stroke-width: 2; stroke-dasharray: 5 4; }
+.qpick__wedge--dim { fill: var(--theme-bg-elevated, #F8FAFC); opacity: 0.5; cursor: default; }
+
+.qpick__cardinal { font-size: 13px; font-weight: 700; fill: var(--theme-fg-secondary, #475569); }
+.qpick__wedge-label { font-size: 15px; font-weight: 700; fill: var(--theme-fg-muted, #64748B); pointer-events: none; }
+/* Drawn only after they answer — before that it would be the answer. */
+.qpick__needle { stroke: var(--theme-accent, #1D3095); stroke-width: 3; stroke-linecap: round; animation: ui-fade-in 300ms var(--ease-out, ease) both; }
+.qpick__hub { fill: var(--theme-accent, #1D3095); }
+
+.qpick__verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  animation: ui-rise var(--motion-normal, 260ms) var(--ease-out, ease) both;
+}
+.qpick__verdict--right { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+.qpick__verdict--wrong { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.qpick__verdict-icon { display: flex; animation: ui-tick 300ms var(--ease-out, ease) both; }
+.qpick__verdict-why { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.55; opacity: 0.9; }
+.qpick__again {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── the rule that keeps all of this honest ──────────────────────────────────────────────────
+ * Reduced motion removes the animation AND its delay. Removing only the animation would leave
+ * `animation-fill-mode: both` holding every staged child at its start state — invisible — forever.
+ * For some people motion causes nausea, so the answer here is "none", not "less". */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-item,
+  .fs-step__body--in,
+  .reveal-right, .reveal-wrong, .reveal-carried,
+  .mstep__verdict, .mstep__step--wrong, .mstep__worked, .mstep__deeper,
+  .qpick__dial--wrong, .qpick__needle, .qpick__verdict, .qpick__verdict-icon {
+    animation: none !important;
+    animation-delay: 0ms !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

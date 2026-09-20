@@ -9,7 +9,9 @@ import QuizRunner from '@/app/admin/components/QuizRunner';
 import MediaViewer, { type MediaItem } from '@/app/admin/components/MediaViewer';
 import DeeperLearningTutor from '@/app/admin/components/learn/DeeperLearningTutor';
 import { chunkModule, chunkPosition, firstChunkOfSection, type Chunk } from '@/lib/learn/chunkSection';
+import { revealStyle } from '@/lib/learn/reveal';
 import PracticePanel from '@/app/admin/components/learn/PracticePanel';
+import LessonContent from '@/app/admin/components/learn/LessonContent';
 import FlashcardsPanel from '@/app/admin/components/learn/FlashcardsPanel';
 import TermDefinitionPopup, { type TermPopupTarget } from '@/app/admin/components/learn/TermDefinitionPopup';
 import { looksLikeTerm, lookupTerm } from '@/lib/learn/fsGlossary';
@@ -333,6 +335,9 @@ export default function FSModulePage() {
     try { localStorage.setItem('fsReadMode', mode); } catch { /* nothing to do */ }
   }, []);
 
+  /** How many blocks stagger in on each slide: heading, body, nav, hint. */
+  const STEP_REVEAL_PARTS = 4;
+
   /** The whole module as one sequence of steps, derived from the headings the author wrote. */
   const chunks: Chunk[] = useMemo(
     () => chunkModule(module?.content_sections ?? []),
@@ -543,11 +548,19 @@ export default function FSModulePage() {
           }} />
         </div>
         {readMode === 'steps' && CONTENT_TABS.includes(activeTab) && currentChunk ? (
-          <div className="fs-step">
+          /* `key` is the point of this element. Changing it remounts the slide, which is what
+             restarts the staged reveal below — without it React would reuse the same DOM nodes,
+             the CSS animations would already have finished, and every step after the first would
+             simply blink its text over the last one. */
+          <div className="fs-step" key={currentChunk.id}>
             <div className="fs-step__rail" aria-hidden="true">
               <div className="fs-step__rail-fill" style={{ width: `${((stepAt.index + 1) / Math.max(1, stepAt.total)) * 100}%` }} />
             </div>
-            <div className="fs-step__head">
+            {/* The order below is the order somebody reads in: where am I, what does it say,
+                how do I move on. Each arrives a beat after the last, which gives the eye a
+                starting point without a word of instruction. The delays come from reveal.ts,
+                which compresses them so the set always lands inside a third of a second. */}
+            <div className="fs-step__head reveal-item" style={revealStyle(0, { total: STEP_REVEAL_PARTS })}>
               <span className="fs-step__section">{currentChunk.sectionTitle}</span>
               <h3 className="fs-step__title">
                 {currentChunk.title}
@@ -559,13 +572,15 @@ export default function FSModulePage() {
               </h3>
             </div>
 
-            <div
-              className="fs-module__content-text fs-step__body"
-              onClick={handleContentClick}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(currentChunk.content) }}
+            <LessonContent
+              content={currentChunk.content}
+              render={renderMarkdown}
+              onContentClick={handleContentClick}
+              className="fs-module__content-text fs-step__body reveal-item"
+              style={revealStyle(1, { total: STEP_REVEAL_PARTS })}
             />
 
-            <div className="fs-step__nav">
+            <div className="fs-step__nav reveal-item" style={revealStyle(2, { total: STEP_REVEAL_PARTS })}>
               <button
                 type="button"
                 className="fs-step__arrow"
@@ -590,7 +605,9 @@ export default function FSModulePage() {
                 Next <ChevronRight size={18} aria-hidden />
               </button>
             </div>
-            <p className="fs-step__hint">Use the arrow keys, or ask the tutor about this step.</p>
+            <p className="fs-step__hint reveal-item" style={revealStyle(3, { total: STEP_REVEAL_PARTS })}>
+              Use the arrow keys, or ask the tutor about this step.
+            </p>
           </div>
         ) : activeTab === 'practice' ? (
           <PracticePanel moduleId={moduleId} onProblemChange={reportProblem} />
@@ -622,11 +639,11 @@ export default function FSModulePage() {
               </div>
             ))}
             {contentSection && (
-              <div className="fs-module__content-text" onClick={handleContentClick} dangerouslySetInnerHTML={{ __html: renderMarkdown(contentSection.content) }} />
+              <LessonContent content={contentSection.content} render={renderMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
             )}
           </div>
         ) : contentSection ? (
-          <div className="fs-module__content-text" onClick={handleContentClick} dangerouslySetInnerHTML={{ __html: renderMarkdown(contentSection.content) }} />
+          <LessonContent content={contentSection.content} render={renderMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
         ) : (
           <div className="admin-empty" style={{ padding: '2rem' }}>
             <div className="admin-empty__icon"><BookOpen size={30} strokeWidth={1.5} /></div>

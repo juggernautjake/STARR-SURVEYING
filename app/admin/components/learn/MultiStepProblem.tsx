@@ -18,6 +18,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { CheckCircle2, XCircle, CornerDownRight, RotateCcw, Lightbulb, HelpCircle, Hammer, Loader2 } from 'lucide-react';
+import { OUTCOME_MOTION, revealStyle, type Outcome } from '@/lib/learn/reveal';
 import {
   gradeMultiStep, verdictLabel, shownAnswer,
   type ProblemStep, type MultiStepResult,
@@ -54,6 +55,21 @@ const nice = (n: number): string => {
   const r = Math.round(n * 1000) / 1000;
   return String(r);
 };
+
+/**
+ * The grader's vocabulary translated into the motion system's.
+ *
+ * They are separate words on purpose: the grader says what HAPPENED ('carried' — the method was
+ * right, the number came from an earlier slip), and the motion system says how that should FEEL.
+ * A blank answer is 'neutral' rather than 'wrong' because nobody got anything wrong by not
+ * answering yet, and nudging an empty box would say otherwise.
+ */
+function outcomeOf(verdict: string): Outcome {
+  if (verdict === 'correct') return 'right';
+  if (verdict === 'carried') return 'carried';
+  if (verdict === 'wrong') return 'wrong';
+  return 'neutral';
+}
 
 export default function MultiStepProblem({
   questionId, statement, steps, givenVars = {}, difficulty, explanation, onGraded, onAskTutor,
@@ -148,7 +164,14 @@ export default function MultiStepProblem({
           const r = result?.steps[i];
           const shown = r ? shownAnswer(r) : null;
           return (
-            <li key={step.id} className={`mstep__step${r ? ` mstep__step--${r.verdict}` : ''}`}>
+            /* Parts arrive a beat apart on the way in, which reads as a list being laid out
+               rather than a wall of inputs appearing. `revealStyle` is given the count, so a
+               nine-part problem compresses the gap instead of taking a second to finish. */
+            <li
+              key={step.id}
+              className={`mstep__step reveal-item${r ? ` mstep__step--${r.verdict}` : ''}`}
+              style={revealStyle(i, { total: steps.length })}
+            >
               <div className="mstep__step-head">
                 <span className="mstep__step-n">{i + 1}</span>
                 <span className="mstep__step-prompt">{step.prompt}</span>
@@ -169,7 +192,9 @@ export default function MultiStepProblem({
                 />
                 {step.unit && <span className="mstep__unit">{step.unit}</span>}
                 {r && (
-                  <span className={`mstep__verdict mstep__verdict--${r.verdict}`}>
+                  /* Right, wrong and carried are deliberately not animated the same way — see
+                     OUTCOME_MOTION for why a carried step gets neither a tick nor a nudge. */
+                  <span className={`mstep__verdict mstep__verdict--${r.verdict} ${OUTCOME_MOTION[outcomeOf(r.verdict)].className}`}>
                     {r.verdict === 'correct' && <CheckCircle2 size={14} aria-hidden />}
                     {r.verdict === 'carried' && <CornerDownRight size={14} aria-hidden />}
                     {r.verdict === 'wrong' && <XCircle size={14} aria-hidden />}
@@ -180,7 +205,7 @@ export default function MultiStepProblem({
 
               {/* The worked step. Shown after marking, never before — it is the answer. */}
               {showWorked && r && (
-                <div className="mstep__worked">
+                <div className="mstep__worked" style={revealStyle(i, { total: steps.length })}>
                   <div className="mstep__worked-answer">
                     <strong>{nice(shown!.value)}{step.unit ? ` ${step.unit}` : ''}</strong>
                     {/* The one line that makes carry-forward legible: what it should have been, and

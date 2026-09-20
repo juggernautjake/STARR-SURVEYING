@@ -92,9 +92,13 @@ describe('the reference surfaces are on the system', () => {
 });
 
 describe('THE RATCHET — keyframes outside motion.css may only go down', () => {
-  // 218 when the system shipped (2026-09-09); 202 after the two reference sheets migrated. Every
-  // page redesign that moves onto ui-* lowers this; a sheet adding its own fade raises it and fails.
-  const BASELINE = 202;
+  // 218 when the system shipped (2026-09-09); 202 after the two reference sheets migrated; 200 once
+  // PropertyMap and the receptionist test moved onto ui-* (2026-09-20). Every page redesign that
+  // moves onto ui-* lowers this; a sheet adding its own fade raises it and fails.
+  //
+  // It had drifted back to 208 unnoticed, because a red test nobody lowers is a red test everybody
+  // stops reading. Lower it on the way past, every time.
+  const BASELINE = 200;
   it('counts them', () => {
     const files = walkCss(path.join(ROOT, 'app')).filter((f) => !f.endsWith(path.join('styles', 'motion.css')));
     let total = 0;
