@@ -1,13 +1,14 @@
 // app/admin/learn/exam-prep/sit/module/[id]/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2, FileX, Lock, CheckCircle2, ClipboardList, BookOpen, FileText } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Loader2, FileX, Lock, CheckCircle2, ClipboardList, BookOpen, FileText, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import QuizRunner from '@/app/admin/components/QuizRunner';
 import MediaViewer, { type MediaItem } from '@/app/admin/components/MediaViewer';
 import DeeperLearningTutor from '@/app/admin/components/learn/DeeperLearningTutor';
+import { chunkModule, chunkPosition, firstChunkOfSection, type Chunk } from '@/lib/learn/chunkSection';
 import PracticePanel from '@/app/admin/components/learn/PracticePanel';
 import FlashcardsPanel from '@/app/admin/components/learn/FlashcardsPanel';
 import TermDefinitionPopup, { type TermPopupTarget } from '@/app/admin/components/learn/TermDefinitionPopup';
@@ -300,6 +301,71 @@ export default function FSModulePage() {
     return module.content_sections?.find(s => s.type === typeMap[tab]);
   }
 
+  // ── TWO WAYS TO READ THE SAME MODULE (owner, 2026-09-19) ─────────────────────────────────────
+  //
+  // "One view will have all of the info formatted just as it is currently. The other will split the
+  // information up into bite sized chunks … like a slide show."
+  //
+  // Both views render the SAME `content_sections` through the SAME `renderMarkdown`, so there is no
+  // second copy of the content to keep in step and no second set of bugs in the term-popup, figure
+  // zoom and table styling that pipeline is responsible for. The stepped view differs only in how
+  // much of it is on screen at once.
+  //
+  // The preference is remembered, because which one somebody wants is a fact about how they study
+  // rather than about the module they happen to have open.
+  const [readMode, setReadMode] = useState<'full' | 'steps'>('full');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fsReadMode');
+      if (saved === 'steps' || saved === 'full') setReadMode(saved);
+    } catch { /* private window — the default view still works */ }
+  }, []);
+  const chooseReadMode = useCallback((mode: 'full' | 'steps') => {
+    setReadMode(mode);
+    try { localStorage.setItem('fsReadMode', mode); } catch { /* nothing to do */ }
+  }, []);
+
+  /** The whole module as one sequence of steps, derived from the headings the author wrote. */
+  const chunks: Chunk[] = useMemo(
+    () => chunkModule(module?.content_sections ?? []),
+    [module?.content_sections],
+  );
+  const [chunkId, setChunkId] = useState<string | null>(null);
+  const currentChunk = useMemo(
+    () => chunks.find((c) => c.id === chunkId) ?? chunks[0] ?? null,
+    [chunks, chunkId],
+  );
+  const stepAt = chunkPosition(chunks, currentChunk?.id ?? '');
+
+  /** Arrows, and the keyboard. Left and right are what anybody tries on a slideshow. */
+  const goStep = useCallback((delta: number) => {
+    if (chunks.length === 0) return;
+    const next = chunks[Math.min(chunks.length - 1, Math.max(0, stepAt.index + delta))];
+    if (next) setChunkId(next.id);
+  }, [chunks, stepAt.index]);
+
+  useEffect(() => {
+    if (readMode !== 'steps') return;
+    const onKey = (e: KeyboardEvent) => {
+      // Not while somebody is typing in the tutor.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); goStep(1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goStep(-1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [readMode, goStep]);
+
+  // Reading a step is reading its section. The existing per-section progress is reused rather than
+  // given a parallel per-chunk store, so the header's "N/5 sections read" keeps meaning the same
+  // thing in both views.
+  useEffect(() => {
+    if (readMode !== 'steps' || !currentChunk) return;
+    if (!CONTENT_TABS.includes(currentChunk.sectionType)) return;
+    if (activeTab !== currentChunk.sectionType) setActiveTab(currentChunk.sectionType);
+  }, [readMode, currentChunk, activeTab]);
+
   if (loading) return (
     <div className="admin-empty">
       <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
@@ -425,15 +491,99 @@ export default function FSModulePage() {
 
       {/* Content Area */}
       <div className="fs-module__content">
+        {/* Which way to read it. Only where there is something to step through — Practice and
+            Flashcards are already one-thing-at-a-time and have no chunks. */}
+        {CONTENT_TABS.includes(activeTab) && chunks.length > 0 && (
+          <div className="fs-read-mode" role="group" aria-label="How to read this module">
+            <button
+              type="button"
+              className={`fs-read-mode__btn${readMode === 'full' ? ' fs-read-mode__btn--on' : ''}`}
+              aria-pressed={readMode === 'full'}
+              onClick={() => chooseReadMode('full')}
+              data-testid="fs-read-full"
+            >
+              <FileText size={13} aria-hidden /> Full page
+            </button>
+            <button
+              type="button"
+              className={`fs-read-mode__btn${readMode === 'steps' ? ' fs-read-mode__btn--on' : ''}`}
+              aria-pressed={readMode === 'steps'}
+              onClick={() => {
+                // Enter the stepped view at the section being read, not back at the very start.
+                const first = firstChunkOfSection(chunks, activeTab);
+                if (first) setChunkId(first.id);
+                chooseReadMode('steps');
+              }}
+              data-testid="fs-read-steps"
+            >
+              <Layers size={13} aria-hidden /> Step through
+              <span className="fs-read-mode__count">{chunks.length}</span>
+            </button>
+          </div>
+        )}
         <div className="fs-module__tutor-bar">
           <DeeperLearningTutor context={{
             moduleId,
             moduleNumber: module.module_number,
             moduleTitle: module.title,
-            getSectionTitle: () => tabs.find(t => t.key === activeTab)?.label,
+            // In the stepped view the tutor is told the CHUNK, not the section. "Explain this"
+            // should mean the twelve lines on screen, not the four pages they came from.
+            getSectionTitle: () => (readMode === 'steps' && currentChunk
+              ? `${currentChunk.sectionTitle} — ${currentChunk.title}`
+              : tabs.find(t => t.key === activeTab)?.label),
           }} />
         </div>
-        {activeTab === 'practice' ? (
+        {readMode === 'steps' && CONTENT_TABS.includes(activeTab) && currentChunk ? (
+          <div className="fs-step">
+            <div className="fs-step__rail" aria-hidden="true">
+              <div className="fs-step__rail-fill" style={{ width: `${((stepAt.index + 1) / Math.max(1, stepAt.total)) * 100}%` }} />
+            </div>
+            <div className="fs-step__head">
+              <span className="fs-step__section">{currentChunk.sectionTitle}</span>
+              <h3 className="fs-step__title">
+                {currentChunk.title}
+                {/* Said out loud, because a heading repeated across three slides otherwise reads as
+                    the same slide shown three times. */}
+                {currentChunk.partsInHeading > 1 && (
+                  <span className="fs-step__part"> ({currentChunk.part} of {currentChunk.partsInHeading})</span>
+                )}
+              </h3>
+            </div>
+
+            <div
+              className="fs-module__content-text fs-step__body"
+              onClick={handleContentClick}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(currentChunk.content) }}
+            />
+
+            <div className="fs-step__nav">
+              <button
+                type="button"
+                className="fs-step__arrow"
+                onClick={() => goStep(-1)}
+                disabled={stepAt.index === 0}
+                aria-label="Previous step"
+                data-testid="fs-step-prev"
+              >
+                <ChevronLeft size={18} aria-hidden /> Back
+              </button>
+              <span className="fs-step__count" aria-live="polite">
+                {stepAt.index + 1} of {stepAt.total}
+              </span>
+              <button
+                type="button"
+                className="fs-step__arrow fs-step__arrow--next"
+                onClick={() => goStep(1)}
+                disabled={stepAt.index >= stepAt.total - 1}
+                aria-label="Next step"
+                data-testid="fs-step-next"
+              >
+                Next <ChevronRight size={18} aria-hidden />
+              </button>
+            </div>
+            <p className="fs-step__hint">Use the arrow keys, or ask the tutor about this step.</p>
+          </div>
+        ) : activeTab === 'practice' ? (
           <PracticePanel moduleId={moduleId} />
         ) : activeTab === 'flashcards' ? (
           <FlashcardsPanel moduleId={moduleId} moduleNumber={module.module_number} />
