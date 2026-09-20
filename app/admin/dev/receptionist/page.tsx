@@ -142,6 +142,10 @@ export default function ReceptionistTestPage(): React.ReactElement {
   const [talkSpeaking, setTalkSpeaking] = useState<'agent' | 'you' | null>(null);
   const [talkSeconds, setTalkSeconds] = useState(0);
   const [filing, setFiling] = useState<string | null>(null);
+  /** The ElevenLabs id of the conversation currently held, so it can be filed by name. */
+  const [talkConvId, setTalkConvId] = useState<string | null>(null);
+  /** conversationId -> the call row it became. Keyed so the button reflects THIS call. */
+  const [filed, setFiled] = useState<Record<string, string | null>>({});
   const convRef = useRef<{ endSession: () => Promise<void> } | null>(null);
   const talkBox = useRef<HTMLDivElement>(null);
   useEffect(() => { talkBox.current?.scrollTo({ top: talkBox.current.scrollHeight }); }, [talkTurns]);
@@ -155,6 +159,8 @@ export default function ReceptionistTestPage(): React.ReactElement {
     setTalkError(null);
     setTalkTurns([]);
     setTalkSeconds(0);
+    setTalkConvId(null);
+    setFiling(null);
     setTalkState('connecting');
     try {
       const r = await fetch('/api/admin/receptionist-test/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ agent: talkAgent }) });
@@ -166,7 +172,13 @@ export default function ReceptionistTestPage(): React.ReactElement {
       const conversation = await Conversation.startSession({
         conversationToken: j.token,
         connectionType: 'webrtc',
-        onConnect: () => setTalkState('live'),
+        // The conversation id is the whole reason filing can be per-call. Without it the bench
+        // could only sweep "the last ten conversations of both agents" and had nothing to mark a
+        // button against.
+        onConnect: (info?: { conversationId?: string }) => {
+          setTalkState('live');
+          if (info?.conversationId) setTalkConvId(info.conversationId);
+        },
         onDisconnect: () => { setTalkState('ended'); convRef.current = null; },
         onError: (message: string) => { setTalkError(String(message)); setTalkState('error'); },
         onModeChange: ({ mode }: { mode: string }) => setTalkSpeaking(mode === 'speaking' ? 'agent' : 'you'),
@@ -175,7 +187,11 @@ export default function ReceptionistTestPage(): React.ReactElement {
           setTalkTurns((cur) => [...cur, { role: source === 'ai' ? 'assistant' : 'caller', text: message }]);
         },
       });
-      convRef.current = conversation as unknown as { endSession: () => Promise<void> };
+      const conv = conversation as unknown as { endSession: () => Promise<void>; getId?: () => string };
+      convRef.current = conv;
+      // Some SDK versions hand the id back here rather than to onConnect. Either will do; taking
+      // both means the button never silently falls back to the sweep.
+      try { const id = conv.getId?.(); if (id) setTalkConvId(id); } catch { /* not available */ }
     } catch (e) {
       setTalkError((e as Error).message);
       setTalkState('error');
@@ -188,12 +204,31 @@ export default function ReceptionistTestPage(): React.ReactElement {
     setTalkSpeaking(null);
   };
   const fileTranscripts = async () => {
-    setFiling('Filing the conversation…');
+    setFiling('Filing this conversation…');
     try {
-      const r = await fetch('/api/admin/receptionist-test/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 10 }) });
-      const j = (await r.json()) as { imported?: number; updated?: number; error?: string };
+      // Name the conversation when we have it, so exactly one row is written and we learn which.
+      // Without an id we fall back to the old sweep rather than filing nothing — a conversation
+      // that reached the bench should always be fileable.
+      const body = talkConvId
+        ? { conversationId: talkConvId, agent: talkAgent }
+        : { limit: 10 };
+      const r = await fetch('/api/admin/receptionist-test/import', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = (await r.json()) as {
+        imported?: number; updated?: number; skipped?: boolean; callId?: string | null; error?: string;
+      };
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      setFiling(`Filed: ${j.imported ?? 0} new, ${j.updated ?? 0} updated. They are on the Calls page.`);
+
+      if (talkConvId) {
+        if (j.skipped) { setFiling('Nothing to file — ElevenLabs has no transcript for that conversation yet. Try again in a moment.'); return; }
+        // Remembered against the conversation id, so the button reflects THIS call rather than
+        // "something was filed at some point".
+        setFiled((cur) => ({ ...cur, [talkConvId]: j.callId ?? null }));
+        setFiling(j.imported ? 'Filed on the Calls page.' : 'Already filed — updated with the latest transcript.');
+      } else {
+        setFiling(`Filed: ${j.imported ?? 0} new, ${j.updated ?? 0} updated. They are on the Calls page, under Test calls.`);
+      }
       refresh();
     } catch (e) {
       setFiling((e as Error).message);
@@ -401,8 +436,25 @@ export default function ReceptionistTestPage(): React.ReactElement {
               : talkState === 'ended' ? 'Conversation ended'
               : talkState === 'error' ? 'Could not connect' : 'Ready'}
           </span>
+          {/* Once this conversation is filed the button is GONE, replaced by a link to the row it
+              became. Leaving a "File it" button sitting there after filing invites a second press
+              and gives no way to see what happened — the owner asked for exactly this. */}
           {talkTurns.length > 0 && talkState !== 'live' && (
-            <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => void fileTranscripts()} data-testid="rtest-talk-file">File it on the Calls page</button>
+            talkConvId && talkConvId in filed ? (
+              filed[talkConvId] ? (
+                <Link href={`/admin/calls/${filed[talkConvId]}`} className="rtest__btn rtest__btn--ghost" data-testid="rtest-talk-filed">
+                  ✓ Filed — open it on the Calls page
+                </Link>
+              ) : (
+                <Link href="/admin/calls?scope=test" className="rtest__btn rtest__btn--ghost" data-testid="rtest-talk-filed">
+                  ✓ Filed — see it under Test calls
+                </Link>
+              )
+            ) : (
+              <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => void fileTranscripts()} data-testid="rtest-talk-file">
+                File it on the Calls page
+              </button>
+            )
           )}
         </div>
         {talkError && <div className="rtest__status rtest__status--err">{talkError}</div>}

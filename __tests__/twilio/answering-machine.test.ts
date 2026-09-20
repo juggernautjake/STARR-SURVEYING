@@ -367,7 +367,23 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(p, 'the six blocks the platform weights').toMatch(/# Personality[\s\S]*# Environment[\s\S]*# Tone[\s\S]*# Goal[\s\S]*# Guardrails/);
     // Published guidance: past ~2000 tokens a voice prompt buys latency and nothing else. The
     // firm's own facts live in the knowledge base, which is retrieved only when somebody asks.
-    expect(p.length, 'roughly under 2000 tokens').toBeLessThan(8200);
+    // 8200 → 9000 on 2026-09-21, once, after three test calls each produced a rule:
+    //
+    //   · confirm only what could have been MISHEARD — the whole-file recital it used to mandate
+    //     was a thirty-second digit-dense utterance, and it is where the audio dropped
+    //   · flag an email that contradicts a surname the caller has just spelled (Pruitt / pruett)
+    //   · say a VOLUNTEERED name back — "Marisol" was heard as "Marcel" and used for a whole call
+    //
+    // I went looking for fat to pay for them first and there is none: no term appears more than
+    // twice, and the three longest passages are the field procedure, the price rule and the
+    // caller-history rule, each guarded by its own assertion here. The alternative was cutting
+    // load-bearing text to stay under a round number, which is optimising the measurement.
+    //
+    // ~2230 tokens against a "~2000" guideline is inside its own precision, the platform caches
+    // the system prompt so the cost lands once, and the latency the owner is actually reporting is
+    // dropped TTS audio mid-utterance — not a prefix. Raise this again only for a rule that came
+    // from a real call, the way all three of these did.
+    expect(p.length, 'roughly under 2000 tokens').toBeLessThan(9000);
     expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
@@ -462,7 +478,23 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(p, 'still demands a yes or a no').not.toMatch(/is that right, yes or no\?/);
     expect(p).toMatch(/NEVER say "yes or no"/);
     // Confirm the set once at the end; on a correction, fix only the item that was wrong.
-    expect(p).toMatch(/Confirm the whole set once, at the end/);
+    // REVISED 2026-09-21. It used to mandate reciting the WHOLE set back — name, number, email,
+    // address, acreage, job, deadline — in one breath. On a real call that produced a
+    // thirty-second, digit-dense utterance, the audio dropped in the middle of it, and the caller
+    // then heard the entire thing a second time. Confirm what could have been MISHEARD instead.
+    expect(p).toMatch(/Confirm what you might have MISHEARD/);
+    expect(p).toMatch(/Do NOT recite the address/);
+    // And the cross-check the same call exposed: a surname spelled P-R-U-I-T-T followed by an
+    // email that sounded like "pruett", accepted without a murmur.
+    expect(p).toMatch(/WHEN TWO THINGS DISAGREE/);
+    // 2026-09-21, third test call: the caller said "Marisol" in her opening sentence, the
+    // recogniser heard "Marcel", and the agent used it for the whole call — six times — and only
+    // found out at goodbye. A volunteered name was never checked because nothing had ASKED for it.
+    expect(p).toMatch(/If they gave a name BEFORE you asked/);
+    // 2026-09-21, fourth test call: Curtis opened with "I'm just trying to call to learn a few
+    // things", and was asked for an email "so he can send you a written quote". He had to say "I'm
+    // not really looking for a quote right now."
+    expect(p).toMatch(/if there is NO JOB/);
     expect(p).toMatch(/confirm only that one/);
   });
 
