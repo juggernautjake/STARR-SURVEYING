@@ -550,3 +550,17 @@
   line-height: 1.5;
   color: var(--theme-fg-secondary, #475569);
 }
+
+/* Who is speaking, on every line of a live transcript (owner, 2026-09-21).
+ *
+ * The bubbles were tinted and nothing else. That reads fine while you are watching them arrive and
+ * not at all afterwards — and this transcript is the thing you scroll back through to work out what
+ * went wrong on a call, which is the moment the tint stops being enough. */
+.rtest__who {
+  display: inline-block;
+  margin-right: .4rem;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  opacity: .75;
+}

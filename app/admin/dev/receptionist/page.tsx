@@ -27,6 +27,10 @@ import { VERSION_LABELS, TEST_VERSION_LABELS, type ReceptionistVersion, type Tes
 import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
 import { AGENT_VOICES, AGENT_VOICE_GROUPS, type AgentVoice } from '@/lib/receptionist/agent-voices';
 import { AGENT_MODELS, type AgentModel } from '@/lib/receptionist/agent-models';
+// The agent's name and the firm's, from the modules that own them — both are environment-
+// overridable, and a hard-coded "Ellie" here would be a second copy that drifts.
+import { ASSISTANT_NAME } from '@/lib/receptionist/knowledge';
+import { BUSINESS_NAME } from '@/lib/seo/business';
 
 const RS = '';
 
@@ -686,7 +690,13 @@ export default function ReceptionistTestPage(): React.ReactElement {
         {talkTurns.length > 0 && (
           <div className="rtest__chat" ref={talkBox} aria-live="polite" data-testid="rtest-talk-transcript">
             {talkTurns.map((t, i) => (
-              <div key={i} className={`rtest__msg rtest__msg--${t.role === 'assistant' ? 'assistant' : 'caller'}`}>{t.text}</div>
+              <div key={i} className={`rtest__msg rtest__msg--${t.role === 'assistant' ? 'assistant' : 'caller'}`}>
+                {/* Who said it, named. Two tinted bubbles read fine while you are watching them
+                    arrive and not at all afterwards — and this transcript is the thing you scroll
+                    back through to work out what went wrong on a call. */}
+                <span className="rtest__who">{t.role === 'assistant' ? `${ASSISTANT_NAME}:` : 'Caller:'}</span>
+                {t.text}
+              </div>
             ))}
           </div>
         )}
@@ -739,10 +749,16 @@ export default function ReceptionistTestPage(): React.ReactElement {
           <h2 id="rt-chat">Text chat (full AI agent)</h2>
           <p>The same brain by keyboard: push it for a price, leave a message, or run a full intake. Each reply shows how long the first word took, which is what a caller feels.</p>
           <div className="rtest__chat" ref={chatBox} aria-live="polite">
-            {msgs.length === 0 && <div className="rtest__msg rtest__msg--assistant">Ellie: Hi, thanks for calling Starr Surveying. You can leave a message, or ask me anything. Type below to start.</div>}
+            {msgs.length === 0 && (
+              <div className="rtest__msg rtest__msg--assistant">
+                <span className="rtest__who">{ASSISTANT_NAME}:</span>
+                Hi, thanks for calling {BUSINESS_NAME}. You can leave a message, or ask me anything. Type below to start.
+              </div>
+            )}
             {msgs.map((m, i) => (
               <div key={i} className={`rtest__msg rtest__msg--${m.role}`}>
-                {m.text || (m.role === 'assistant' ? <span className="rtest__typing" aria-label="Ellie is replying"><i /><i /><i /></span> : '')}
+                <span className="rtest__who">{m.role === 'assistant' ? `${ASSISTANT_NAME}:` : 'You:'}</span>
+                {m.text || (m.role === 'assistant' ? <span className="rtest__typing" aria-label={`${ASSISTANT_NAME} is replying`}><i /><i /><i /></span> : '')}
                 {m.role === 'assistant' && m.totalMs != null && <small>first word {m.firstWordMs ?? '?'} ms · full reply {m.totalMs} ms</small>}
               </div>
             ))}

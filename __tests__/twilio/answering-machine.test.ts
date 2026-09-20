@@ -486,8 +486,21 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // address, acreage, job, deadline — in one breath. On a real call that produced a
     // thirty-second, digit-dense utterance, the audio dropped in the middle of it, and the caller
     // then heard the entire thing a second time. Confirm what could have been MISHEARD instead.
-    expect(p).toMatch(/Confirm what you might have MISHEARD/);
-    expect(p).toMatch(/Do NOT recite the address/);
+    // REVISED AGAIN 2026-09-21, seventh test call. Priya's surname was spelled five times: a guess,
+    // her correction, the email readback, her second correction, and then ONCE MORE in the closing
+    // recap — after she had already said yes to it.
+    //
+    // Two rules of mine combined to guarantee that. Rule 4 said to confirm "the number, the email
+    // and any spelled name" at the end regardless of what had already been settled, and the NAME
+    // rule (added the day before, from Tova's call) said to spell rather than pronounce when saying
+    // a name back. Together they re-opened a closed question at the end of every call.
+    //
+    // "Once it is confirmed it is confirmed." So a yes now CLOSES an item, and the end-of-call check
+    // covers only what is still open — which is often nothing.
+    expect(p).toMatch(/CONFIRMED IS CLOSED/);
+    expect(p).toMatch(/never spell it again/);
+    expect(p, 'still tells it to spell a settled name back').not.toMatch(/spell it rather than pronounce it/);
+    expect(p).toMatch(/Never recite the address/);
     // And the cross-check the same call exposed: a surname spelled P-R-U-I-T-T followed by an
     // email that sounded like "pruett", accepted without a murmur.
     expect(p).toMatch(/WHEN TWO THINGS DISAGREE/);
