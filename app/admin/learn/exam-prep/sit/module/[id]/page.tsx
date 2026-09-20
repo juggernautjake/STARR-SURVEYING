@@ -1,7 +1,7 @@
 // app/admin/learn/exam-prep/sit/module/[id]/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Loader2, FileX, Lock, CheckCircle2, ClipboardList, BookOpen, FileText, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -313,6 +313,14 @@ export default function FSModulePage() {
   //
   // The preference is remembered, because which one somebody wants is a fact about how they study
   // rather than about the module they happen to have open.
+  /** Which practice problem is open, so the tutor hints rather than solves until it is attempted.
+   *  A ref, not state: the tutor reads it lazily when a message is sent, and re-rendering this whole
+   *  page every time somebody moves to the next problem would be a cost for nothing. */
+  const openProblemRef = useRef<{ statement: string; attempted: boolean } | null>(null);
+  const reportProblem = useCallback((p: { statement: string; attempted: boolean } | null) => {
+    openProblemRef.current = p;
+  }, []);
+
   const [readMode, setReadMode] = useState<'full' | 'steps'>('full');
   useEffect(() => {
     try {
@@ -528,6 +536,7 @@ export default function FSModulePage() {
             moduleTitle: module.title,
             // In the stepped view the tutor is told the CHUNK, not the section. "Explain this"
             // should mean the twelve lines on screen, not the four pages they came from.
+            getOpenProblem: () => openProblemRef.current,
             getSectionTitle: () => (readMode === 'steps' && currentChunk
               ? `${currentChunk.sectionTitle} — ${currentChunk.title}`
               : tabs.find(t => t.key === activeTab)?.label),
@@ -584,7 +593,7 @@ export default function FSModulePage() {
             <p className="fs-step__hint">Use the arrow keys, or ask the tutor about this step.</p>
           </div>
         ) : activeTab === 'practice' ? (
-          <PracticePanel moduleId={moduleId} />
+          <PracticePanel moduleId={moduleId} onProblemChange={reportProblem} />
         ) : activeTab === 'flashcards' ? (
           <FlashcardsPanel moduleId={moduleId} moduleNumber={module.module_number} />
         ) : activeTab === 'formulas' && module.key_formulas && module.key_formulas.length > 0 ? (
@@ -594,6 +603,22 @@ export default function FSModulePage() {
               <div key={i} className="fs-module__formula-card">
                 <div className="fs-module__formula-name">{f.name}</div>
                 <div className="fs-module__formula-expr">{f.formula}</div>
+                {/* ── PRACTICE, FROM THE FORMULA (owner, 2026-09-19) ──────────────────────────
+                    "we have the formulas page, and I would need the opportunity to do practice
+                    problems for the formulas."
+
+                    Sends you to Practice filtered to this module's problems rather than opening a
+                    problem here. The practice panel already owns the queue, the difficulty filter
+                    and the tally, and a second problem runner on the formulas tab would be a second
+                    place for that state to be wrong. */}
+                <button
+                  type="button"
+                  className="fs-module__formula-practice"
+                  onClick={() => setActiveTab('practice')}
+                  data-testid={`fs-formula-practice-${i}`}
+                >
+                  Practice this
+                </button>
               </div>
             ))}
             {contentSection && (

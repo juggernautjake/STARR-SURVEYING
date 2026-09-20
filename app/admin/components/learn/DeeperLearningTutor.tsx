@@ -25,6 +25,12 @@ export interface TutorContext {
   getSectionTitle?: () => string | undefined;
   /** Where the "practice this" links point (e.g. the module quiz). */
   quizHref?: string;
+  /** A problem the student has open right now, resolved lazily so it stays fresh as they work.
+   *
+   *  While one is open and unattempted the tutor hints instead of solving — the owner's choice on
+   *  2026-09-19, so it stays "useful for learning without becoming a way to skip the problem". The
+   *  moment `attempted` is true the restraint lifts entirely. */
+  getOpenProblem?: () => { statement: string; attempted: boolean } | null;
 }
 
 interface Msg { role: 'user' | 'assistant'; content: string }
@@ -383,6 +389,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
           moduleNumber: context.moduleNumber,
           moduleTitle: context.moduleTitle,
           sectionTitle: context.getSectionTitle?.(),
+          openProblem: context.getOpenProblem?.() ?? undefined,
           messages: history,
         }),
       });

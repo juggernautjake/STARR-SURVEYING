@@ -53,6 +53,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     moduleTitle?: string;
     sectionTitle?: string;
     messages?: TutorMessage[];
+    /** A problem the student currently has open, and whether they have submitted an attempt at it.
+     *  Drives the restraint rule in the system prompt below. */
+    openProblem?: { statement?: string; attempted?: boolean };
   } | null;
 
   if (!body || typeof body.highlightedText !== 'string' || !body.highlightedText.trim()) {
@@ -115,6 +118,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     /* related-problem lookup is best-effort; never fail the chat over it */
   }
 
+  const openProblemText = (body.openProblem?.statement ?? '').trim().slice(0, 1200);
+  const problemOpen = openProblemText.length > 0;
+  const problemAttempted = body.openProblem?.attempted === true;
+
   const system = [
     'You are an expert tutor in land surveying, geomatics, boundary law, and the NCEES Fundamentals of Surveying (FS) exam (the Texas Surveyor-In-Training path). Adapt to the module/course context given below.',
     'A student is studying and has HIGHLIGHTED a passage they want to understand more deeply. Have a focused, encouraging, back-and-forth learning conversation about exactly that.',
@@ -125,6 +132,36 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     '- When sources are provided, base your answer on them and cite them inline as [S1], [S2]… matching the source numbers. Prefer the sources over your own memory.',
     '- If the sources do not fully cover the question, you MAY use web search to fill the gap from reputable sources — but clearly LABEL anything from the web (e.g. "From a web source: …") so the student can tell vetted material from web results. Never fabricate citations or URLs.',
     '- If neither the sources nor the web give a confident answer, say so plainly rather than guessing.',
+    '',
+    // ── HINT BEFORE THEY TRY, EXPLAIN AFTER (owner, 2026-09-19) ────────────────────────────────
+    //
+    // The owner chose: the tutor "hints and explains rather than handing over the solution until
+    // you've submitted", so it stays "useful for learning without becoming a way to skip the
+    // problem."
+    //
+    // Only in force while a problem is actually open and unattempted. Outside that — reading a
+    // section, asking about a formula, reviewing after submitting — the tutor answers fully, which
+    // is the whole reason it exists. A tutor that withheld explanations generally would be a worse
+    // tutor, not a stricter one.
+    //
+    // It is stated as a teaching stance rather than a prohibition because that is what actually
+    // works on a model: "ask them what they have tried" produces a Socratic reply, while "do not
+    // reveal the answer" produces a refusal, and a refusal is what makes somebody close the panel.
+    ...(problemOpen && !problemAttempted ? [
+      '',
+      'THE STUDENT HAS A PROBLEM OPEN AND HAS NOT SUBMITTED AN ATTEMPT YET:',
+      `Problem: ${openProblemText}`,
+      '- Do NOT give the final answer, and do not work the problem through to its numbers, even if asked directly.',
+      '- DO help them get started: name the relationship or formula that applies, ask what they have tried, point out which given value the first step needs, or work a SIMILAR problem with different numbers.',
+      '- If they ask outright for the answer, say warmly that they will learn it better by trying first, then give them the next concrete thing to do — a hint they can act on, not a closed door.',
+      '- The moment they submit, this restriction lifts entirely: explain the whole thing, every step, in full.',
+    ] : []),
+    ...(problemOpen && problemAttempted ? [
+      '',
+      'THE STUDENT HAS ALREADY SUBMITTED AN ATTEMPT AT THIS PROBLEM:',
+      `Problem: ${openProblemText}`,
+      '- Explain freely and completely — the whole solution, every step, and where a wrong answer most likely came from.',
+    ] : []),
     '',
     'RULES:',
     '- Accuracy first. Only state what you are confident is correct. If something is uncertain, disputed, or varies by state/jurisdiction, SAY SO plainly. Never invent formulas, numeric values, code/statute sections, or citations.',

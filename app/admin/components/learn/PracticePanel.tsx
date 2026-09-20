@@ -21,7 +21,12 @@ interface Current { problem: ProblemData; answerToken: string }
 
 const DIFFS = ['', 'easy', 'medium', 'hard'] as const;
 
-export default function PracticePanel({ moduleId }: { moduleId: string }) {
+export default function PracticePanel({ moduleId, onProblemChange }: {
+  moduleId: string;
+  /** Tells the page which problem is open and whether it has been attempted, so the tutor can hint
+   *  rather than solve until the student has had a go (owner, 2026-09-19). */
+  onProblemChange?: (p: { statement: string; attempted: boolean } | null) => void;
+}) {
   const [kind, setKind] = useState<Kind>('all');
   const [difficulty, setDifficulty] = useState('');
   const [queue, setQueue] = useState<string[]>([]);
@@ -46,6 +51,16 @@ export default function PracticePanel({ moduleId }: { moduleId: string }) {
     } catch { setError('Network error — please try again.'); }
     setLoadingProblem(false);
   }, []);
+
+  // A new problem is an unattempted one. Reported on every change so the tutor's restraint follows
+  // the student through the queue rather than latching on the first problem they opened.
+  useEffect(() => {
+    onProblemChange?.(current ? { statement: current.problem.question_text, attempted: false } : null);
+  }, [current, onProblemChange]);
+
+  // Leaving Practice must clear it, or the tutor goes on withholding answers about a problem that
+  // is no longer on screen.
+  useEffect(() => () => { onProblemChange?.(null); }, [onProblemChange]);
 
   const loadQueue = useCallback(async () => {
     setLoadingQueue(true); setError(null);
@@ -87,6 +102,8 @@ export default function PracticePanel({ moduleId }: { moduleId: string }) {
   }
 
   function onGraded(_p: ProblemData, result: GradeResult) {
+    // The restraint lifts the moment they submit — right or wrong.
+    if (current) onProblemChange?.({ statement: current.problem.question_text, attempted: true });
     if (!result.gradable) return; // written answers aren't auto-scored
     fetch('/api/admin/learn/exam-prep/fs/practice', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

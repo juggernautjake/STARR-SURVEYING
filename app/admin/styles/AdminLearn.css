@@ -3566,3 +3566,28 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
   line-height: 1.55;
   color: var(--theme-fg-muted, #64748B);
 }
+
+/* "we have the formulas page, and I would need the opportunity to do practice problems for the
+ * formulas" (owner, 2026-09-19). Quiet, and only visible when the card is hovered or focused — a
+ * grid of twenty formulas with twenty buttons on it is a grid of buttons, not of formulas. */
+.fs-module__formula-practice {
+  margin-top: 0.5rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast), border-color var(--motion-fast);
+}
+.fs-module__formula-card:hover .fs-module__formula-practice,
+.fs-module__formula-card:focus-within .fs-module__formula-practice { opacity: 1; }
+.fs-module__formula-practice:hover { border-color: var(--theme-accent, #1D3095); color: var(--theme-fg-primary, #0F172A); }
+/* Touch has no hover, so there is nothing to reveal and hiding it hides it for good. */
+@media (hover: none) {
+  .fs-module__formula-practice { opacity: 1; }
+}
