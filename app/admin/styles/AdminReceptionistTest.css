@@ -122,6 +122,59 @@
  * glance as the sentence it produced. */
 .intake { display: flex; flex-direction: column; gap: 0.8rem; }
 
+/* The script picker. Twenty-one rehearsals, one click a line — which is what makes the long
+ * silences actually get tested, because a twenty-second pause is the same single click as a
+ * sentence rather than something a tester has to sit through deliberately. */
+.intake__scriptbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.intake__pick { display: flex; align-items: center; gap: 0.4rem; min-width: 0; color: var(--theme-fg-muted, #64748B); }
+.intake__pick-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.intake__pick select {
+  max-width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 7px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.82rem;
+}
+.intake__scripthint {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #64748B);
+}
+
+/* What to watch for on the line about to be played — shown BEFORE it is sent, because a warning
+ * that arrives after the thing it warns about is a post-mortem. */
+.intake__watch {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: var(--theme-warning-bg, #FEF3C7);
+  color: var(--theme-warning-fg, #92400E);
+  font-size: 0.79rem;
+  line-height: 1.55;
+}
+
 .intake__scenarios { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .intake__scenario {
   padding: 0.3rem 0.65rem;

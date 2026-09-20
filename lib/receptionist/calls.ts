@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase';
 import { resolveIntakeOrgId } from '@/lib/leads/intake';
 import type { CallFacts } from './state';
+import { supabaseSearchFilter } from './call-search';
 
 export type AnsweredBy = 'owner' | 'ai' | 'voicemail' | 'none';
 
@@ -128,8 +129,39 @@ export async function getCall(client: Client, id: string): Promise<PhoneCall | n
   return (data as unknown as PhoneCall) ?? null;
 }
 
-export async function listCalls(client: Client, limit = 100): Promise<PhoneCall[]> {
-  const { data, error } = await client.from('phone_calls').select(CALL_COLUMNS).order('started_at', { ascending: false }).limit(limit);
+export interface ListCallsOptions {
+  limit?: number;
+  /**
+   * Which log to read.
+   *
+   * Owner, 2026-09-21: "I want you to keep test call recordings and live call recordings seperate
+   * on the website. That way we aren't seeing test calls mixed in with real calls."
+   *
+   * So this is a SCOPE, not a filter — the two are different logs that happen to share a table, and
+   * the default is `live` because that is the one with customers in it. It is applied in the query
+   * rather than in the browser: a page that fetches 200 rows and hides half of them shows 100 live
+   * calls while claiming to show 200, and the oldest ones fall off the end unseen.
+   */
+  scope?: 'live' | 'test' | 'both';
+  /** Narrowed server-side; the browser ranks what comes back. See lib/receptionist/call-search.ts. */
+  search?: string;
+}
+
+export async function listCalls(client: Client, opts: ListCallsOptions | number = {}): Promise<PhoneCall[]> {
+  // The old signature was `listCalls(client, limit)`. Kept working because several callers use it
+  // and a silent change of meaning in a positional argument is the worst kind of breakage.
+  const o: ListCallsOptions = typeof opts === 'number' ? { limit: opts } : opts;
+  const limit = Math.min(500, Math.max(1, o.limit ?? 100));
+  const scope = o.scope ?? 'live';
+
+  let q = client.from('phone_calls').select(CALL_COLUMNS).order('started_at', { ascending: false });
+  if (scope === 'live') q = q.eq('is_test', false);
+  else if (scope === 'test') q = q.eq('is_test', true);
+
+  const filter = supabaseSearchFilter(o.search ?? '');
+  if (filter) q = q.or(filter);
+
+  const { data, error } = await q.limit(limit);
   if (error) { console.error('[calls] listCalls failed:', error); return []; }
   return (data as unknown as PhoneCall[]) ?? [];
 }

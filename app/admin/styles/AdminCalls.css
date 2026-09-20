@@ -72,3 +72,98 @@
 }
 .calls-page__testbtn:hover { background: rgba(29,48,149,.16); }
 .calls-page__testbtn:focus-visible { outline: 2px solid #1d3095; outline-offset: 2px; }
+
+/* ── SCOPE: TWO LOGS, NOT A FILTER (owner, 2026-09-21) ────────────────────────────────────────
+ * "keep test call recordings and live call recordings seperate on the website."
+ *
+ * Styled as a segmented switch rather than as another pill, because it is not a kind of call — it
+ * is which log you are looking at. A chip that looked like its neighbours was how test calls came
+ * to read as a seventh category of customer. */
+.calls-page__scope {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: .65rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+.calls-page__scopebtn {
+  padding: .34rem .85rem;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .16s ease, color .16s ease;
+}
+.calls-page__scopebtn[aria-pressed="true"] {
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-accent, #1D3095);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+}
+
+/* ── SEARCH ───────────────────────────────────────────────────────────────────────────────────
+ * Full width and above the filter chips: it is the primary way to find a call once there are more
+ * than a screenful, and the chips are the secondary one. */
+.calls-page__searchrow {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-bottom: .8rem;
+}
+.calls-page__searchbox {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 1 1 22rem;
+  min-width: 0;
+  padding: .4rem .65rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-muted, #64748B);
+}
+.calls-page__searchbox:focus-within { border-color: var(--theme-accent, #1D3095); }
+.calls-page__search {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: .86rem;
+}
+.calls-page__search:focus { outline: none; }
+/* Safari draws its own X on a type=search input, and two clear buttons is worse than either. */
+.calls-page__search::-webkit-search-decoration,
+.calls-page__search::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.calls-page__searchclear {
+  display: inline-flex;
+  padding: .15rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--theme-fg-muted, #64748B);
+  cursor: pointer;
+}
+.calls-page__searchclear:hover { color: var(--theme-fg-primary, #0F172A); }
+
+/* Why a call is in the results. Without this a transcript match looks like a mistake, because
+ * nothing visible on the card contains what was typed. */
+.pill--match {
+  background: var(--theme-brand-tint, #EEF2FF);
+  color: var(--theme-accent, #1D3095);
+  border-color: rgba(29, 48, 149, .35);
+}
+
+/* Was an inline style on the card title. Moved out so the hex ratchet has one less thing to hold. */
+.call-card__number { opacity: .6; font-weight: 400; }
+
+@media (max-width: 640px) {
+  .calls-page__searchbox { flex-basis: 100%; }
+}

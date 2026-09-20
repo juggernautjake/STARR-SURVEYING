@@ -21,7 +21,8 @@
 // Nothing here touches the live line: no Twilio, no phone_calls row, no lead, no notification.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Phone, Send, RotateCcw, Clock, AlertTriangle, Check } from 'lucide-react';
+import { Phone, Send, RotateCcw, Clock, AlertTriangle, Check, BookOpen, SkipForward } from 'lucide-react';
+import { TEST_SCRIPTS, testScript } from '@/lib/receptionist/test-scripts';
 
 type Confidence = 'known' | 'unsure' | 'missing' | 'implied' | 'refused';
 
@@ -48,34 +49,17 @@ interface TurnResponse {
 
 interface Line { who: 'agent' | 'caller'; text: string }
 
-/** The scenarios worth having one click away, because they are the ones that expose the logic. */
-const SCENARIOS: Array<{ label: string; text: string; why: string }> = [
-  {
-    label: 'Open lot in Killeen',
-    why: 'The owner’s own example. It should never ask about structures, and it should ask for the address.',
-    text: 'Hi, this is John Smith, my number is 254 555 0100. I have an open lot over in Killeen and '
-      + 'I need a boundary survey done so I can put up a fence. Give me a call back when you can, thanks.',
-  },
-  {
-    label: 'Hard-to-spell surname',
-    why: 'First name ordinary, last name not. It should ask about the LAST name only.',
-    text: 'Yeah hi, my name is John Szczepanski, I need a survey on a property I just bought.',
-  },
-  {
-    label: 'Says almost nothing',
-    why: 'Nothing to work from, so it should start at the top and work down.',
-    text: 'Hey, give me a call back about a survey. Thanks.',
-  },
-  {
-    label: 'Title company, house on it',
-    why: 'Not the owner, and a structure is mentioned — neither should be asked about again.',
-    // A deliberately fictional firm. Demo data that names a real local company ends up in a
-    // screenshot eventually, and it also reads to the county-assumption audit as a hard-coded
-    // county — which it is not, but a scanner cannot tell demo text from a real assumption.
-    text: 'This is Karen calling from Greenline Title, we need an ALTA survey for a closing on a '
-      + 'house at 1420 Elm Street. Best number is 254 555 0142.',
-  },
-];
+/**
+ * The rehearsal scripts, as a picker.
+ *
+ * The same twenty-one scripts the folder documents (docs/receptionist/test-scripts) and the same
+ * array a test validates — one source, so what you act out here is what is written down.
+ *
+ * Picking one loads its turns into a queue. "Next line" sends the next one, which is the difference
+ * between rehearsing a call and retyping one: a twenty-turn script is twenty clicks rather than
+ * twenty paragraphs of typing, and the long silences actually get tested because they are one click
+ * like everything else.
+ */
 
 const CONFIDENCE_LABEL: Record<Confidence, string> = {
   known: 'heard clearly',
@@ -90,12 +74,14 @@ export default function IntakeBench() {
   const [state, setState] = useState<IntakeStateWire | null>(null);
   const [debug, setDebug] = useState<TurnResponse['debug'] | null>(null);
   const [said, setSaid] = useState('');
+  const [scriptId, setScriptId] = useState<string>('');
+  const [scriptAt, setScriptAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState(false);
   const [ended, setEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const turn = useCallback(async (text: string, declined = false) => {
+  const turn0 = useCallback(async (text: string, declined = false) => {
     setBusy(true);
     setError(null);
     try {
@@ -123,13 +109,39 @@ export default function IntakeBench() {
   }, [state, elapsed]);
 
   const reset = useCallback(() => {
-    setLines([]); setState(null); setDebug(null); setSaid(''); setEnded(false); setError(null); setElapsed(0);
+    setLines([]); setState(null); setDebug(null); setSaid(''); setEnded(false); setError(null);
+    setElapsed(0); setScriptAt(0);
   }, []);
+
+  const script = scriptId ? testScript(scriptId) : undefined;
+  /** The turn about to be played, so its `watchFor` can be shown BEFORE it is sent. */
+  const currentTurn = script?.turns[scriptAt];
+
+  /**
+   * Play the next line of the script.
+   *
+   * A silence turn sends nothing and advances the clock instead, which is the only honest way to
+   * rehearse "the caller went quiet" — sending the word "silence" would just be a caller saying a
+   * strange word. A pause inside a turn does the same before the words go.
+   */
+  const sayNextScriptLine = useCallback(async () => {
+    const turn = script?.turns[scriptAt];
+    if (!turn) return;
+    setScriptAt((n) => n + 1);
+    const waited = (turn.silenceSeconds ?? 0) + (turn.pauseSeconds ?? 0);
+    if (waited) setElapsed((e) => Math.min(430, e + waited));
+    if (turn.says) await turn0(turn.says);
+    else {
+      // Silence: the agent is asked what it would say having heard nothing.
+      setLines((prev) => [...prev, { who: 'caller', text: `— ${turn.silenceSeconds ?? 0} seconds of silence —` }]);
+      await turn0('');
+    }
+  }, [script, scriptAt]);
 
   // The greeting on mount, so the bench opens on the first thing a caller would hear rather than on
   // an empty box that gives no sense of what this is.
   useEffect(() => {
-    if (lines.length === 0 && !state && !busy) void turn('');
+    if (lines.length === 0 && !state && !busy) void turn0('');
     // Deliberately once. `turn` changes identity every render and re-running it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -148,20 +160,47 @@ export default function IntakeBench() {
         touches the live line — the business number still reaches the plain answering machine.
       </p>
 
-      <div className="intake__scenarios">
-        {SCENARIOS.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            className="intake__scenario"
-            title={s.why}
-            disabled={busy || ended}
-            onClick={() => setSaid(s.text)}
+      <div className="intake__scriptbar">
+        <label className="intake__pick" htmlFor="intake-script">
+          <BookOpen size={14} aria-hidden />
+          <span className="intake__pick-label">Script</span>
+          <select
+            id="intake-script"
+            value={scriptId}
+            onChange={(e) => { setScriptId(e.target.value); setScriptAt(0); setSaid(''); }}
+            disabled={busy}
           >
-            {s.label}
-          </button>
-        ))}
+            <option value="">— free typing —</option>
+            {TEST_SCRIPTS.map((s, i) => (
+              <option key={s.id} value={s.id}>
+                {String(i + 1).padStart(2, '0')} · {s.title} ({s.minutes}m, {s.difficulty})
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {script && (
+          <>
+            <button
+              type="button"
+              className="intake__btn intake__btn--primary"
+              onClick={() => void sayNextScriptLine()}
+              disabled={busy || ended || scriptAt >= script.turns.length}
+              data-testid="intake-next-line"
+            >
+              <SkipForward size={13} aria-hidden />
+              {scriptAt >= script.turns.length ? 'Script finished' : `Next line (${scriptAt + 1}/${script.turns.length})`}
+            </button>
+            <span className="intake__scripthint">{script.tests}</span>
+          </>
+        )}
       </div>
+
+      {script && currentTurn?.watchFor && (
+        <p className="intake__watch" role="note">
+          <AlertTriangle size={13} aria-hidden /> {currentTurn.watchFor}
+        </p>
+      )}
 
       <div className="intake__body">
         <div className="intake__talk">
@@ -191,7 +230,7 @@ export default function IntakeBench() {
           ) : (
             <form
               className="intake__compose"
-              onSubmit={(e) => { e.preventDefault(); if (said.trim()) void turn(said); }}
+              onSubmit={(e) => { e.preventDefault(); if (said.trim()) void turn0(said); }}
             >
               <textarea
                 id="intake-said"
@@ -206,7 +245,7 @@ export default function IntakeBench() {
                 <button type="submit" className="intake__btn intake__btn--primary" disabled={busy || !said.trim()}>
                   <Send size={13} aria-hidden /> Say it
                 </button>
-                <button type="button" className="intake__btn" onClick={() => void turn('No thanks', true)} disabled={busy}>
+                <button type="button" className="intake__btn" onClick={() => void turn0('No thanks', true)} disabled={busy}>
                   Decline the questions
                 </button>
                 <button type="button" className="intake__btn" onClick={reset} disabled={busy}>
