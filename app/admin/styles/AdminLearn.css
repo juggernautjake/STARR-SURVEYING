@@ -4404,3 +4404,27 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
    * its own line with a lake of space beside it. */
   .genprac__tally { margin-left: 0; }
 }
+
+/* Fenced code blocks in lesson content. Module 7's township section-numbering grid is the reason
+ * this exists: a 6x6 layout whose entire value is that the numbers line up in rows, which needs a
+ * monospaced face and preserved whitespace. It scrolls rather than wraps, because a wrapped grid
+ * is not a grid. */
+.fs-pre {
+  margin: 0.8rem 0;
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 9px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.fs-pre code {
+  display: block;
+  padding: 0;
+  background: none;
+  color: var(--theme-fg-primary, #0F172A);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  white-space: pre;
+  tab-size: 2;
+}

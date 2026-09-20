@@ -15,7 +15,7 @@ import LessonContent from '@/app/admin/components/learn/LessonContent';
 import FlashcardsPanel from '@/app/admin/components/learn/FlashcardsPanel';
 import TermDefinitionPopup, { type TermPopupTarget } from '@/app/admin/components/learn/TermDefinitionPopup';
 import { looksLikeTerm, lookupTerm } from '@/lib/learn/fsGlossary';
-import { protectMath } from '@/lib/learn/math';
+import { renderLessonMarkdown } from '@/lib/learn/renderLessonMarkdown';
 import { usePageError } from '../../../../../hooks/usePageError';
 
 interface ContentSection {
@@ -102,7 +102,7 @@ export default function FSModulePage() {
     if (term) {
       const text = (term.textContent || '').trim();
       if (!text) return;
-      // `renderMarkdown` marks every **bold** run as a term, and authors bold emphasis, formulas,
+      // `renderLessonMarkdown` marks every **bold** run as a term, and authors bold emphasis, formulas,
       // angle values and headings too. Opening a definition popup for `**not**` or `**112°00′25″**`
       // asks the AI to define something that has no definition — and it will oblige. Skip those.
       if (!looksLikeTerm(text)) return;
@@ -170,127 +170,6 @@ export default function FSModulePage() {
     fetchModule(); // refresh status/progress so the banner + unlock reflect the pass
   }, [moduleId, fetchModule]);
 
-  function renderMarkdown(rawText: string): string {
-    // Pull LaTeX math out first so the markdown/newline passes below can't
-    // mangle it, then render it with KaTeX on the way out ($…$ inline,
-    // $$…$$ display). `text` is the math-free source the rest of the pipeline
-    // operates on.
-    const { text, restore } = protectMath(rawText);
-    // Escape a string for safe insertion into an HTML attribute/text node.
-    const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-    // ── Step 1: pull block-level HTML out BEFORE the line-break transforms ──
-    // Tables, inline SVG diagrams and explicit <ul>/<ol> lists span multiple
-    // lines. Without this, the `\n → <br/>` pass below injects a <br/> after
-    // every row/cell, which is exactly why the error-type table looked cramped
-    // and broken. Each block is swapped for an opaque placeholder, then
-    // restored verbatim at the end.
-    const blocks: string[] = [];
-    const stash = (html: string) => {
-      blocks.push(html);
-      return ` B${blocks.length - 1} `;
-    };
-    const styleTable = (tbl: string) =>
-      tbl
-        // drop the raw border="1"/cellpadding attrs and give it our styled class
-        .replace(/<table[^>]*>/i, '<table class="fs-table">')
-        .replace(/\s+(border|cellpadding|cellspacing|style|width)="[^"]*"/gi, '');
-
-    // Inline markdown (bold/italic/code) — reused inside table cells, which are
-    // stashed and therefore bypass the main inline pass further down.
-    const inline = (s: string) =>
-      s.replace(/\*\*(.*?)\*\*/g, '<strong class="fs-term">$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code>$1</code>');
-
-    // Convert GitHub-flavored markdown pipe tables → styled HTML tables up
-    // front so the <table> stash below protects them from the newline pass.
-    // Without this they render as raw "| a | b |" pipe text — the main cause of
-    // the cramped/ugly formula + example tables across the modules.
-    const splitCells = (row: string) =>
-      row.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((x) => x.trim());
-    const isSepRow = (l: string) => l.includes('|') && /-/.test(l) && /^[\s|:-]+$/.test(l);
-    const convertPipeTables = (src: string) => {
-      const lines = src.split('\n');
-      const acc: string[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.includes('|') && i + 1 < lines.length && isSepRow(lines[i + 1])) {
-          const head = splitCells(line);
-          let j = i + 2;
-          const rows: string[][] = [];
-          while (j < lines.length && lines[j].includes('|') && lines[j].trim() !== '') {
-            rows.push(splitCells(lines[j]));
-            j++;
-          }
-          const th = head.map((h) => `<th>${inline(h)}</th>`).join('');
-          const body = rows
-            .map((r) => `<tr>${r.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`)
-            .join('');
-          acc.push(`<table class="fs-table"><tr>${th}</tr>${body}</table>`);
-          i = j - 1;
-        } else {
-          acc.push(line);
-        }
-      }
-      return acc.join('\n');
-    };
-
-    let out = convertPipeTables(text)
-      .replace(/<table[\s\S]*?<\/table>/gi, (m) => stash(styleTable(m)))
-      .replace(/<svg[\s\S]*?<\/svg>/gi, (m) => stash(`<div class="fs-embed">${m}</div>`))
-      .replace(/<(ul|ol)[\s\S]*?<\/\1>/gi, (m) => stash(m));
-
-    // ── Step 2: markdown → HTML on the remaining prose ──
-    out = out
-      // Figures: ![Caption](/path.svg "Credit / reference"). The optional quoted
-      // title becomes a small credit line so every diagram/photo is attributed.
-      .replace(
-        /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
-        (_m, alt: string, url: string, credit?: string) => {
-          const cap = esc(alt || '');
-          const creditHtml = credit
-            ? `<span class="fs-fig__credit">${esc(credit)}</span>`
-            : '';
-          const figcap = cap || credit
-            ? `<figcaption class="fs-fig__cap">${cap}${creditHtml}</figcaption>`
-            : '';
-          return `<figure class="fs-fig"><img class="fs-fig__img" loading="lazy" src="${esc(url)}" alt="${cap}"/>${figcap}</figure>`;
-        }
-      )
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="fs-term">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/^### (.*$)/gm, '<h4>$1</h4>')
-      .replace(/^## (.*$)/gm, '<h3>$1</h3>')
-      .replace(/^# (.*$)/gm, '<h2>$1</h2>')
-      .replace(/^- (.*$)/gm, '<li>$1</li>')
-      // Wrap each RUN of consecutive <li> lines in its own <ul> (the previous
-      // single greedy match wrapped everything between the first and last item
-      // — including paragraphs — in one giant list).
-      .replace(/(?:^<li>.*$\n?)+/gm, (m) => `<ul>${m.replace(/\n/g, '')}</ul>`)
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br/>');
-
-    // ── Step 3: restore blocks, then strip stray <br/> / empty <p> that the
-    // line-break pass left hugging any block element (figure/table/svg/list). ──
-    out = out.replace(/ B(\d+) /g, (_m, i) => blocks[Number(i)] ?? '');
-    // Wrap so the first + last prose chunks are real <p> elements too (the
-    // \n\n → </p><p> pass only creates the internal boundaries), giving every
-    // paragraph consistent spacing. Block elements are then lifted back out of
-    // any <p> hugging them, and empty paragraphs are dropped.
-    out = `<p>${out}</p>`;
-    out = out
-      .replace(/<br\/>\s*(<figure|<table|<div class="fs-embed"|<ul|<ol)/g, '$1')
-      .replace(/(<\/figure>|<\/table>|<\/div>|<\/ul>|<\/ol>)\s*<br\/>/g, '$1')
-      .replace(/<p>\s*(<figure|<table|<div class="fs-embed"|<ul|<ol)/g, '$1')
-      .replace(/(<\/figure>|<\/table>|<\/div>|<\/ul>|<\/ol>)\s*<\/p>/g, '$1')
-      .replace(/<p>\s*<\/p>/g, '');
-    // Swap the KaTeX-rendered math back in for its placeholders.
-    return restore(out);
-  }
-
   function getContentForTab(tab: string): ContentSection | undefined {
     if (!module) return undefined;
     const typeMap: Record<string, string> = {
@@ -308,7 +187,7 @@ export default function FSModulePage() {
   // "One view will have all of the info formatted just as it is currently. The other will split the
   // information up into bite sized chunks … like a slide show."
   //
-  // Both views render the SAME `content_sections` through the SAME `renderMarkdown`, so there is no
+  // Both views render the SAME `content_sections` through the SAME `renderLessonMarkdown`, so there is no
   // second copy of the content to keep in step and no second set of bugs in the term-popup, figure
   // zoom and table styling that pipeline is responsible for. The stepped view differs only in how
   // much of it is on screen at once.
@@ -574,7 +453,7 @@ export default function FSModulePage() {
 
             <LessonContent
               content={currentChunk.content}
-              render={renderMarkdown}
+              render={renderLessonMarkdown}
               onContentClick={handleContentClick}
               className="fs-module__content-text fs-step__body reveal-item"
               style={revealStyle(1, { total: STEP_REVEAL_PARTS })}
@@ -639,11 +518,11 @@ export default function FSModulePage() {
               </div>
             ))}
             {contentSection && (
-              <LessonContent content={contentSection.content} render={renderMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
+              <LessonContent content={contentSection.content} render={renderLessonMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
             )}
           </div>
         ) : contentSection ? (
-          <LessonContent content={contentSection.content} render={renderMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
+          <LessonContent content={contentSection.content} render={renderLessonMarkdown} onContentClick={handleContentClick} className="fs-module__content-text" />
         ) : (
           <div className="admin-empty" style={{ padding: '2rem' }}>
             <div className="admin-empty__icon"><BookOpen size={30} strokeWidth={1.5} /></div>
