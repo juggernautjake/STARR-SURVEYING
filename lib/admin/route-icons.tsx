@@ -11,7 +11,7 @@
 import {
   Activity, AlertTriangle, ArrowLeftRight, ArrowUpCircle, BadgeDollarSign, Banknote, BarChart3,
   Bell, BookMarked, BookOpen, BookText, Boxes,
-  Briefcase, Brush, Bug, Building, Building2, Calendar, CalendarClock, CalendarDays, Camera, Car,
+  Briefcase, Brush, Bug, Building, Building2, Calculator, Calendar, CalendarClock, CalendarDays, Camera, Car,
   CheckCircle2, CheckSquare, Circle, ClipboardCheck, ClipboardList, Clock, ClockCheck, CloudSun, Code, Compass, Contact,
   CreditCard, DollarSign, DraftingCompass, EyeOff, FileBarChart, FileCheck, FilePlus, FileSpreadsheet,
   FileText, Files, Folder,
@@ -30,7 +30,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   Activity, AlertTriangle, ArrowLeftRight, ArrowUpCircle, BadgeDollarSign, Banknote, BarChart3,
   Bell, BookMarked, BookOpen, BookText, Boxes,
-  Briefcase, Brush, Bug, Building, Building2, Calendar, CalendarClock, CalendarDays, Camera, Car,
+  Briefcase, Brush, Bug, Building, Building2, Calculator, Calendar, CalendarClock, CalendarDays, Camera, Car,
   CheckCircle2, CheckSquare, Circle, ClipboardCheck, ClipboardList, Clock, ClockCheck, CloudSun, Code, Compass, Contact,
   CreditCard, DollarSign, DraftingCompass, EyeOff, FileBarChart, FileCheck, FilePlus, FileSpreadsheet,
   FileText, Files, Folder,

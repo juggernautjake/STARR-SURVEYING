@@ -559,6 +559,266 @@ const problems = [
     explanation: 'The (P/A) factor is the workhorse of engineering economics. Recognise the phrase "each year for n years" and reach for it.',
   },
 
+  // == THIRD BATCH (2026-09-20) -- the thin modules ============================================
+  // m10 had one multi-step problem, m8, m9 and m11 had two each, m6 and m7 three. The comprehensive
+  // review module having the fewest was the worst of it: it is the one somebody works through last,
+  // when they most want to find out whether the pieces join up.
+
+  // ══ MODULE 6 — GNSS and geodesy ════════════════════════════════════════════════════════════
+  {
+    module: 6, difficulty: 'hard', tags: ['fs-module-6', 'grid', 'combined-factor'],
+    statement: 'A ground distance of 4,182.65 ft is measured at an average elevation of 1,340 ft. The grid scale factor for the project is 0.9999428. Using a mean earth radius of 20,906,000 ft, find (a) the elevation factor, (b) the combined factor, and (c) the grid distance.',
+    given: { ground: 4182.65, elev: 1340, k: 0.9999428, R: 20906000 },
+    steps: [
+      { id: 'ef', prompt: 'Elevation factor (sea-level factor)', formula: 'R/(R+elev)', tolerance: 0.0000005,
+        explanation: 'EF = R/(R+h). Being above the ellipsoid means your ground distance is longer than the arc at sea level, so the factor is slightly less than 1.' },
+      { id: 'cf', prompt: 'Combined factor', formula: 'ef*k', tolerance: 0.0000005,
+        explanation: 'CF = EF x grid scale factor. The two corrections are independent and multiply.' },
+      { id: 'grid', prompt: 'Grid distance, in ft', formula: 'ground*cf', unit: 'ft', tolerance: 0.01,
+        explanation: 'Grid = ground x CF. Going the other way -- grid to ground -- you divide.' },
+    ],
+    explanation: 'The commonest mistake is applying the combined factor the wrong way round. Ground to grid multiplies; grid to ground divides. At 1,340 ft the elevation factor alone is about 64 parts per million, which is 0.27 ft over this line -- far more than the measurement error.',
+  },
+  {
+    module: 6, difficulty: 'medium', tags: ['fs-module-6', 'geoid', 'orthometric'],
+    statement: 'A GNSS observation gives an ellipsoid height of 412.86 ft at a point where the geoid model gives a separation of -88.42 ft. (a) What is the orthometric height? (b) A second point has an orthometric height of 366.10 ft and a geoid separation of -88.31 ft -- what ellipsoid height would GNSS report there?',
+    given: { h1: 412.86, N1: -88.42, H2: 366.10, N2: -88.31 },
+    steps: [
+      { id: 'H1', prompt: 'Orthometric height at the first point, in ft', formula: 'h1 - N1', unit: 'ft', tolerance: 0.02,
+        explanation: 'H = h - N. The geoid separation is negative across the continental United States, so subtracting it makes the orthometric height LARGER than the ellipsoid height.' },
+      { id: 'h2', prompt: 'Ellipsoid height at the second point, in ft', formula: 'H2 + N2', unit: 'ft', tolerance: 0.02,
+        explanation: 'Rearranged: h = H + N. Same relationship, solved the other way.' },
+    ],
+    explanation: 'H = h - N is the one geodesy formula worth knowing cold. GNSS measures h, levelling measures H, and the geoid model supplies N. Mixing the two height systems in one project is a classic and expensive error.',
+  },
+
+  // ══ MODULE 7 — boundary law and the PLSS ═══════════════════════════════════════════════════
+  {
+    module: 7, difficulty: 'medium', tags: ['fs-module-7', 'plss', 'aliquot'],
+    statement: 'A deed calls for the NE 1/4 of the SW 1/4 of a regular section, less the west 200 ft. (a) How many acres are in the aliquot part before the exception? (b) The aliquot part is a square -- how long is each side, in feet? (c) How many acres remain after the exception?',
+    given: { sectionAcres: 640, exceptFt: 200 },
+    steps: [
+      { id: 'aliquot', prompt: 'Acres in the NE 1/4 of the SW 1/4', formula: 'sectionAcres/4/4', unit: 'acres', tolerance: 0.1,
+        explanation: 'Each aliquot division quarters what came before: 640 / 4 = 160 for the SW 1/4, then 160 / 4 = 40. A quarter-quarter is 40 acres in a regular section.' },
+      { id: 'side', prompt: 'Length of one side, in ft', formula: 'sqrt(aliquot*43560)', unit: 'ft', tolerance: 1,
+        explanation: 'A 40-acre square is 40 x 43,560 = 1,742,400 sq ft, and the square root of that is 1,320 ft -- 20 chains, a quarter of a mile.' },
+      { id: 'remaining', prompt: 'Acres remaining after the west 200 ft is excepted', formula: '(side-exceptFt)*side/43560', unit: 'acres', tolerance: 0.05,
+        explanation: 'The exception is a 200 ft wide strip the full depth of the parcel. What is left is (1320 - 200) x 1320 sq ft, divided by 43,560.' },
+    ],
+    explanation: 'Regular-section arithmetic is worth memorising: a section is 640 acres and one mile square, a quarter is 160, a quarter-quarter is 40 and measures 1,320 ft on a side. Only the north and west tiers carry the shortages, which is why the question says "regular".',
+  },
+  {
+    module: 7, difficulty: 'medium', tags: ['fs-module-7', 'boundary', 'proration'],
+    statement: 'An original block was platted as five lots, each called 50.00 ft wide, for a record total of 250.00 ft. A resurvey finds the two original block corners 248.60 ft apart. (a) What is the total shortage? (b) What is each lot width after single proportion? (c) What is the record distance to the far side of the third lot, and (d) the prorated distance to that same point?',
+    given: { record: 250.00, measured: 248.60, lots: 5, lotRecord: 50.00 },
+    steps: [
+      { id: 'short', prompt: 'Total shortage, in ft', formula: 'record - measured', unit: 'ft', tolerance: 0.01,
+        explanation: 'What the block is short of its record dimension. Positive means a shortage; a negative would be an excess, prorated exactly the same way.' },
+      { id: 'lotWidth', prompt: 'Each prorated lot width, in ft', formula: 'measured/lots', unit: 'ft', tolerance: 0.005,
+        explanation: 'Single proportion distributes the difference in proportion to record distance. With five equal record lots each simply gets one fifth of what is actually there.' },
+      { id: 'recordTo3', prompt: 'Record distance from the block corner to the far side of lot 3, in ft', formula: 'lotRecord*3', unit: 'ft', tolerance: 0.01,
+        explanation: 'Three record lots at 50.00 ft.' },
+      { id: 'proratedTo3', prompt: 'Prorated distance to that same point, in ft', formula: 'lotWidth*3', unit: 'ft', tolerance: 0.01,
+        explanation: 'Three prorated lots. The shortage is shared out along the block rather than dumped in the last lot.' },
+    ],
+    explanation: 'Proration applies only where the original lines are lost and the lots were created simultaneously. Where a lot was sold first and the rest followed, it takes its full record width and the remainder carries the shortage -- sequential conveyances are not prorated.',
+  },
+
+  // ══ MODULE 8 — photogrammetry, GIS and construction ════════════════════════════════════════
+  {
+    module: 8, difficulty: 'hard', tags: ['fs-module-8', 'photogrammetry', 'flight-planning'],
+    statement: 'A photo mission uses a 6 in focal length camera with a 9 in square format, flown at 7,200 ft above mean terrain, with 60% endlap. (a) What is the scale denominator, in feet per inch? (b) How much ground does one photo cover along the flight line, in feet? (c) What is the air-base spacing between exposures, in feet? (d) How many exposures are needed for a 9.5 mile flight line, counting one at each end?',
+    given: { f_in: 6, H: 7200, format_in: 9, endlap: 0.60, lineMiles: 9.5 },
+    steps: [
+      { id: 'scaleN', prompt: 'Feet on the ground per inch on the photo', formula: 'H/f_in', unit: 'ft/in', tolerance: 1,
+        explanation: 'Scale is f/H, so one inch of photo covers H/f feet of ground -- 7200/6 = 1,200 ft per inch. The 6 in focal length is already in inches, so no conversion is needed here.' },
+      { id: 'coverage', prompt: 'Ground covered by one photo along the line, in ft', formula: 'format_in*scaleN', unit: 'ft', tolerance: 5,
+        explanation: 'Nine inches of format at 1,200 ft per inch is 10,800 ft square on the ground.' },
+      { id: 'airBase', prompt: 'Air-base spacing between exposures, in ft', formula: 'coverage*(1-endlap)', unit: 'ft', tolerance: 5,
+        explanation: 'Endlap of 60% means consecutive photos share 60% of their coverage, so the aircraft advances only 40% of one photo between exposures.' },
+      { id: 'photos', prompt: 'Number of exposures on the line', formula: 'floor(lineMiles*5280/airBase) + 1', tolerance: 0.5,
+        explanation: 'The line is 50,160 ft long and the air base is 4,320 ft, giving 11 full spacings, plus one for the exposure at the start. In practice you would add two more at each end for stereo coverage of the ends.' },
+    ],
+    explanation: 'Flight planning is unit bookkeeping more than it is photogrammetry. Keep focal length and format in the same units, and remember that endlap eats coverage along the line while sidelap eats it between lines.',
+  },
+  {
+    module: 8, difficulty: 'hard', tags: ['fs-module-8', 'construction', 'vertical-curve'],
+    statement: 'An equal-tangent vertical curve is 600 ft long. The grades are +3.20% in and -1.80% out, and the PVI is at station 42+00 with elevation 618.40 ft. (a) What is the elevation of the PVC? (b) What is the elevation on the curve at station 41+00? (c) How far from the PVC is the high point? (d) What is the elevation there?',
+    given: { L: 600, g1: 3.20, g2: -1.80, pviElev: 618.40, pviSta: 4200, staB: 4100 },
+    steps: [
+      { id: 'pvcElev', prompt: 'Elevation of the PVC, in ft', formula: 'pviElev - (g1/100)*(L/2)', unit: 'ft', tolerance: 0.02,
+        explanation: 'The PVC is half the curve length back along the incoming grade: 300 ft at +3.20% is 9.60 ft below the PVI.' },
+      { id: 'x', prompt: 'Distance from the PVC to station 41+00, in ft', formula: 'staB - (pviSta - L/2)', unit: 'ft', tolerance: 0.5,
+        explanation: 'The PVC is at station 39+00, so station 41+00 is 200 ft along the curve.' },
+      { id: 'elevB', prompt: 'Curve elevation at station 41+00, in ft', formula: 'pvcElev + (g1/100)*x + ((g2-g1)/(200*L))*x*x', unit: 'ft', tolerance: 0.03,
+        explanation: 'y = PVC + g1 x + (g2-g1) x^2 / (200 L), with grades as percentages and x in feet. The quadratic term is the curve pulling away from the tangent.' },
+      { id: 'xHigh', prompt: 'Distance from the PVC to the high point, in ft', formula: '-g1*L/(g2-g1)', unit: 'ft', tolerance: 1,
+        explanation: 'The high point is where the slope reaches zero: x = -g1 L / (g2 - g1). With a crest curve this always falls between the PVC and the PVT.' },
+      { id: 'elevHigh', prompt: 'Elevation at the high point, in ft', formula: 'pvcElev + (g1/100)*xHigh + ((g2-g1)/(200*L))*xHigh*xHigh', unit: 'ft', tolerance: 0.03,
+        explanation: 'The same curve equation evaluated at the high point.' },
+    ],
+    explanation: 'The one detail that catches people: in y = PVC + g1 x + (g2-g1) x^2/(200 L) the grades are PERCENTAGES, not decimals -- that is where the 200 comes from. Use decimals and everything is out by a factor of 100.',
+  },
+  {
+    module: 8, difficulty: 'medium', tags: ['fs-module-8', 'construction', 'slope-staking'],
+    statement: 'A roadway has a finished centreline elevation of 742.60 ft, a level 24 ft wide section (12 ft each side of centreline), and 2:1 fill slopes. Existing ground at the catch point on the left is 731.40 ft. (a) What is the fill depth at that point? (b) How far from centreline is the catch point? (c) What is the slope-stake offset beyond the edge of the shoulder?',
+    given: { finish: 742.60, ground: 731.40, halfWidth: 12, slopeRatio: 2 },
+    steps: [
+      { id: 'fill', prompt: 'Fill depth at the catch point, in ft', formula: 'finish - ground', unit: 'ft', tolerance: 0.02,
+        explanation: 'Finished grade minus existing ground. Positive is fill; negative would be cut.' },
+      { id: 'dist', prompt: 'Distance from centreline to the catch point, in ft', formula: 'halfWidth + slopeRatio*fill', unit: 'ft', tolerance: 0.05,
+        explanation: 'Out to the shoulder, then 2 ft horizontally for every 1 ft of fill: 12 + 2 x 11.20.' },
+      { id: 'offset', prompt: 'Offset beyond the edge of the shoulder, in ft', formula: 'dist - halfWidth', unit: 'ft', tolerance: 0.05,
+        explanation: 'What the slope itself accounts for, which is the number the stake is marked with.' },
+    ],
+    explanation: 'A 2:1 slope is 2 HORIZONTAL to 1 vertical -- the convention is the opposite of the rise-over-run slope of a road grade, and reading it the wrong way halves or doubles every offset on the job.',
+  },
+
+  // ══ MODULE 9 — calculator mastery ══════════════════════════════════════════════════════════
+  {
+    module: 9, difficulty: 'medium', tags: ['fs-module-9', 'dms', 'angle-closure'],
+    statement: 'A five-sided closed traverse has interior angles of 101 deg 14 min 22 sec, 96 deg 38 min 51 sec, 112 deg 05 min 09 sec, 118 deg 47 min 33 sec and 111 deg 14 min 20 sec. (a) What should the angles sum to? (b) What do they actually sum to, in decimal degrees? (c) What is the angular misclosure, in seconds?',
+    given: { n: 5, a1: 101.239444444, a2: 96.647500000, a3: 112.085833333, a4: 118.792500000, a5: 111.238888889 },
+    steps: [
+      { id: 'should', prompt: 'Required sum of the interior angles, in degrees', formula: '(n-2)*180', unit: 'deg', tolerance: 0.001,
+        explanation: '(n - 2) x 180 for any closed polygon. Five sides gives 540 degrees.' },
+      { id: 'actual', prompt: 'Actual sum, in decimal degrees', formula: 'a1+a2+a3+a4+a5', unit: 'deg', tolerance: 0.0005,
+        explanation: 'Convert each angle to decimal degrees first -- degrees plus minutes over 60 plus seconds over 3600 -- then add. On the TI-30Xa this is one long chain ending in a single equals.' },
+      { id: 'misclose', prompt: 'Angular misclosure, in seconds', formula: '(actual - should)*3600', unit: 'sec', tolerance: 2,
+        explanation: 'The difference converted back to seconds. A common field standard is 30 seconds times the square root of the number of angles, which for five angles is about 67 seconds -- so this traverse passes comfortably.' },
+    ],
+    explanation: 'DMS arithmetic is where calculator fluency earns its keep. Convert once, work in decimal degrees, and convert back only at the end. Converting back and forth at every step is how rounding error creeps into an angular closure.',
+  },
+  {
+    module: 9, difficulty: 'hard', tags: ['fs-module-9', 'inverse', 'polar-rectangular'],
+    statement: 'From point A at N 5,214.60 E 3,880.25 to point B at N 4,902.18 E 4,271.94. (a) What is the latitude of the course? (b) What is the departure? (c) What is the length? (d) What is the azimuth, in decimal degrees?',
+    given: { nA: 5214.60, eA: 3880.25, nB: 4902.18, eB: 4271.94 },
+    steps: [
+      { id: 'lat', prompt: 'Latitude (change in northing), in ft', formula: 'nB - nA', unit: 'ft', tolerance: 0.02,
+        explanation: 'Always destination minus origin. The negative sign says the course runs south, and carrying that sign is what makes the azimuth come out right without any extra thought.' },
+      { id: 'dep', prompt: 'Departure (change in easting), in ft', formula: 'eB - eA', unit: 'ft', tolerance: 0.02,
+        explanation: 'Destination minus origin again. Positive means east.' },
+      { id: 'len', prompt: 'Length of the course, in ft', formula: 'sqrt(lat*lat + dep*dep)', unit: 'ft', tolerance: 0.03,
+        explanation: 'Pythagoras. On the TI-30Xa: 312.42 x-squared, plus, 391.69 x-squared, equals, square root.' },
+      { id: 'az', prompt: 'Azimuth of the course, in decimal degrees', formula: '(toDeg(atan2(dep, lat)) + 360) % 360', unit: 'deg', tolerance: 0.02,
+        explanation: 'atan2(departure, latitude) gives the azimuth directly and gets the quadrant right on its own. A plain arctangent cannot: atan(391.69 / -312.42) returns -51.42 degrees, and turning that into 128.58 means YOU deciding the course runs south-east and adding 180. The calculator has no way to know.' },
+    ],
+    explanation: 'This is the inverse, and it is the single most-used computation on the exam. Latitude is negative and departure is positive, which puts the course in the south-east quadrant -- the answer near 128 degrees, not the 51 degrees a bare arctangent hands back.',
+  },
+  {
+    module: 9, difficulty: 'medium', tags: ['fs-module-9', 'statistics', 'standard-error'],
+    statement: 'An angle is turned six times: 87 deg 14 min 20 sec, 87 deg 14 min 26 sec, 87 deg 14 min 18 sec, 87 deg 14 min 24 sec, 87 deg 14 min 22 sec and 87 deg 14 min 16 sec. Working in seconds past 87 deg 14 min: (a) what is the mean, (b) what is the sample standard deviation, and (c) what is the standard error of the mean?',
+    given: { s1: 20, s2: 26, s3: 18, s4: 24, s5: 22, s6: 16, n: 6 },
+    steps: [
+      { id: 'mean', prompt: 'Mean, in seconds past 87 deg 14 min', formula: '(s1+s2+s3+s4+s5+s6)/n', unit: 'sec', tolerance: 0.1,
+        explanation: 'Subtracting the common part first is the trick worth learning: six three-part angles become six small integers, and the statistics registers do the rest.' },
+      { id: 'sd', prompt: 'Sample standard deviation, in seconds', formula: 'sqrt(((s1-mean)*(s1-mean)+(s2-mean)*(s2-mean)+(s3-mean)*(s3-mean)+(s4-mean)*(s4-mean)+(s5-mean)*(s5-mean)+(s6-mean)*(s6-mean))/(n-1))', unit: 'sec', tolerance: 0.05,
+        explanation: 'Divided by n-1, which on the TI-30Xa is 2nd sigma-x-n-1. The sigma-x-n key next to it divides by n and gives a smaller, more flattering number that is the wrong one for observations.' },
+      { id: 'sem', prompt: 'Standard error of the mean, in seconds', formula: 'sd/sqrt(n)', unit: 'sec', tolerance: 0.05,
+        explanation: 'The standard deviation of the MEAN, not of one observation: sigma divided by the square root of n. Six repetitions roughly halve the uncertainty of the result.' },
+    ],
+    explanation: 'The standard error of the mean is what justifies turning an angle more than once, and the square root is why the returns diminish: going from one repetition to four halves the error, and getting the next halving takes sixteen.',
+  },
+
+  // ══ MODULE 10 — comprehensive review ═══════════════════════════════════════════════════════
+  {
+    module: 10, difficulty: 'hard', tags: ['fs-module-10', 'traverse', 'closure', 'review'],
+    statement: 'A four-sided traverse has these courses. AB: 412.60 ft at azimuth 84 deg 12 min. BC: 380.15 ft at azimuth 168 deg 40 min. CD: 405.90 ft at azimuth 262 deg 55 min. DA: 389.78 ft at azimuth 347 deg 48 min. (a) What is the sum of the latitudes? (b) The sum of the departures? (c) The linear misclosure? (d) The precision, as the denominator of 1:N?',
+    given: {
+      l1: 412.60, a1: 84.200000, l2: 380.15, a2: 168.666667,
+      l3: 405.90, a3: 262.916667, l4: 389.78, a4: 347.800000,
+    },
+    steps: [
+      { id: 'sumLat', prompt: 'Sum of the latitudes, in ft', formula: 'l1*cos(toRad(a1)) + l2*cos(toRad(a2)) + l3*cos(toRad(a3)) + l4*cos(toRad(a4))', unit: 'ft', tolerance: 0.03,
+        explanation: 'Latitude is length times the cosine of the azimuth. Working from azimuths rather than bearings means the signs take care of themselves -- no quadrant bookkeeping at all.' },
+      { id: 'sumDep', prompt: 'Sum of the departures, in ft', formula: 'l1*sin(toRad(a1)) + l2*sin(toRad(a2)) + l3*sin(toRad(a3)) + l4*sin(toRad(a4))', unit: 'ft', tolerance: 0.03,
+        explanation: 'Departure is length times the sine of the azimuth. In a perfectly closed traverse both sums would be zero.' },
+      { id: 'misclose', prompt: 'Linear misclosure, in ft', formula: 'sqrt(sumLat*sumLat + sumDep*sumDep)', unit: 'ft', tolerance: 0.005,
+        explanation: 'The closing line, from where you ended back to where you started. About a tenth of a foot here.' },
+      { id: 'precision', prompt: 'Precision denominator -- enter just the number', formula: '(l1+l2+l3+l4)/misclose', tolerance: 900,
+        explanation: 'Perimeter divided by misclosure, reported as 1:N and normally rounded down to a round figure. Most boundary work is specified at 1:10,000 or better.' },
+    ],
+    explanation: 'This is the whole traverse computation in four parts, and every one of them appears somewhere else on the exam. This one closes at about 1:13,000, which passes an ordinary 1:10,000 boundary specification. If the sums of latitude and departure are NOT near zero, look for a transposed digit or a course entered with the wrong azimuth before you reach for an adjustment -- a compass rule applied to a blunder just spreads it around.',
+  },
+  {
+    module: 10, difficulty: 'hard', tags: ['fs-module-10', 'area', 'coordinates', 'review'],
+    statement: 'A parcel has corners at A (1000.00, 1000.00), B (1284.50, 1092.30), C (1206.80, 1348.60) and D (958.40, 1276.10), given as (northing, easting) and taken in order. (a) What is the double area by the coordinate method? (b) What is the area in square feet? (c) In acres?',
+    given: { nA: 1000.00, eA: 1000.00, nB: 1284.50, eB: 1092.30, nC: 1206.80, eC: 1348.60, nD: 958.40, eD: 1276.10 },
+    steps: [
+      { id: 'doubleArea', prompt: 'Double area, in sq ft (enter the absolute value)', formula: 'abs(nA*eB - nB*eA + nB*eC - nC*eB + nC*eD - nD*eC + nD*eA - nA*eD)', unit: 'sq ft', tolerance: 60,
+        explanation: 'The cross-product sum, corner by corner around the figure and back to the start. Taking the absolute value removes the sign, which only tells you whether you went clockwise or anticlockwise.' },
+      { id: 'area', prompt: 'Area, in sq ft', formula: 'doubleArea/2', unit: 'sq ft', tolerance: 30,
+        explanation: 'Half the double area. The name is the reminder -- the cross-product sum is deliberately twice the area so the method needs no fractions until the last step.' },
+      { id: 'acres', prompt: 'Area, in acres', formula: 'area/43560', unit: 'acres', tolerance: 0.005,
+        explanation: '43,560 square feet to the acre. Worth memorising: it is 66 x 660, a chain by a furlong.' },
+    ],
+    explanation: 'The coordinate method is exact for any closed figure with straight sides, needs no bearings or distances, and is far less error-prone than DMD once you have coordinates. Go round the figure in one consistent direction and never skip the closing term back to the first corner.',
+  },
+  {
+    module: 10, difficulty: 'medium', tags: ['fs-module-10', 'leveling', 'review'],
+    statement: 'A level circuit runs from BM ALPHA at elevation 512.44 ft. The backsight on BM ALPHA is 6.28 ft. After three turning points the last foresight, onto BM BETA, reads 4.91 ft. The intermediate readings are: FS 3.17 / BS 7.02, FS 8.44 / BS 2.35, FS 5.60 / BS 9.18. (a) What is the sum of the backsights? (b) The sum of the foresights? (c) The elevation of BM BETA?',
+    given: { start: 512.44, bs1: 6.28, fs1: 3.17, bs2: 7.02, fs2: 8.44, bs3: 2.35, fs3: 5.60, bs4: 9.18, fs4: 4.91 },
+    steps: [
+      { id: 'sumBS', prompt: 'Sum of the backsights, in ft', formula: 'bs1+bs2+bs3+bs4', unit: 'ft', tolerance: 0.01,
+        explanation: 'Every backsight in the circuit. A backsight is taken on a point of KNOWN elevation and raises you to the height of instrument.' },
+      { id: 'sumFS', prompt: 'Sum of the foresights, in ft', formula: 'fs1+fs2+fs3+fs4', unit: 'ft', tolerance: 0.01,
+        explanation: 'Every foresight. A foresight is taken on a point whose elevation you are establishing.' },
+      { id: 'endElev', prompt: 'Elevation of BM BETA, in ft', formula: 'start + sumBS - sumFS', unit: 'ft', tolerance: 0.01,
+        explanation: 'Starting elevation, plus all backsights, minus all foresights. The turning points cancel out entirely -- you never need their elevations to get the answer.' },
+    ],
+    explanation: 'Sum-of-backsights minus sum-of-foresights is both the fastest way to the answer and the standard arithmetic check on a level run. If it disagrees with the elevation you carried forward point by point, the error is in the page, not in the field.',
+  },
+  {
+    module: 10, difficulty: 'hard', tags: ['fs-module-10', 'curves', 'stationing', 'review'],
+    statement: 'A horizontal curve has a radius of 1,145.92 ft and a central angle of 28 deg 30 min. The PI is at station 68+42.15. (a) What is the tangent distance? (b) The curve length? (c) The station of the PC? (d) The station of the PT? Give stations as plain numbers of feet -- 6,842.15 rather than 68+42.15.',
+    given: { R: 1145.92, delta: 28.5, piSta: 6842.15 },
+    steps: [
+      { id: 'T', prompt: 'Tangent distance, in ft', formula: 'R*tan(toRad(delta/2))', unit: 'ft', tolerance: 0.05,
+        explanation: 'T = R tan(delta/2). Half the central angle, not the whole one -- the single most-missed detail in curve work.' },
+      { id: 'L', prompt: 'Curve length, in ft', formula: 'R*toRad(delta)', unit: 'ft', tolerance: 0.05,
+        explanation: 'L = R x delta in RADIANS. In degrees it is pi R delta / 180, which is the same thing written out.' },
+      { id: 'pcSta', prompt: 'Station of the PC, in ft', formula: 'piSta - T', unit: 'ft', tolerance: 0.1,
+        explanation: 'PC = PI - T. You measure back along the tangent from the point of intersection.' },
+      { id: 'ptSta', prompt: 'Station of the PT, in ft', formula: 'pcSta + L', unit: 'ft', tolerance: 0.1,
+        explanation: 'PT = PC + L, going ALONG THE CURVE. Adding T to the PI instead is wrong, because the curve is shorter than the two tangents it replaces -- and the difference between those two answers is exactly the thing being tested.' },
+    ],
+    explanation: 'Stationing runs along the alignment, and the alignment follows the curve rather than the tangents. PT = PC + L, never PI + T. The two differ by 2T - L, which here is nearly 12 ft -- enough to put every station past the curve in the wrong place.',
+  },
+
+  // ══ MODULE 11 — business and professional practice ═════════════════════════════════════════
+  {
+    module: 11, difficulty: 'hard', tags: ['fs-module-11', 'economics', 'annual-cost'],
+    statement: 'A survey firm is weighing a $46,000 GNSS system with a 6 year life and a $9,000 salvage value, against renting equivalent equipment for $11,500 a year. Money is worth 7%. (a) What is the capital recovery factor? (b) What is the equivalent uniform annual cost of buying, treating the salvage as a sinking fund credit? (c) How much cheaper per year is the better option?',
+    given: { P: 46000, S: 9000, i: 0.07, n: 6, rent: 11500 },
+    steps: [
+      { id: 'crf', prompt: 'Capital recovery factor (A/P, 7%, 6)', formula: '(i*pow(1+i,n))/(pow(1+i,n)-1)', tolerance: 0.00005,
+        explanation: '(A/P, i, n) = i(1+i)^n / ((1+i)^n - 1). It converts a sum today into the equal annual payments that repay it with interest.' },
+      { id: 'sff', prompt: 'Sinking fund factor (A/F, 7%, 6)', formula: 'i/(pow(1+i,n)-1)', tolerance: 0.00005,
+        explanation: '(A/F, i, n) = i / ((1+i)^n - 1). It converts a future sum into the equal annual deposits that accumulate to it. Note that (A/P) - (A/F) = i exactly, which is a useful check.' },
+      { id: 'euac', prompt: 'Equivalent uniform annual cost of buying, in dollars', formula: 'P*crf - S*sff', unit: '$', tolerance: 20,
+        explanation: 'Capital recovery on the purchase price, less the annual credit the salvage value earns you.' },
+      { id: 'saving', prompt: 'Annual saving of the better option, in dollars', formula: 'abs(rent - euac)', unit: '$', tolerance: 20,
+        explanation: 'The difference between the two annual costs. Buying comes out lower here, so the saving is the rental cost less the EUAC.' },
+    ],
+    explanation: 'EUAC is how alternatives with different lives and different cash-flow shapes are compared fairly. Watch the sign on salvage: it is a credit, so it is subtracted. Adding it is the mistake, and it makes buying look worse than it is.',
+  },
+  {
+    module: 11, difficulty: 'medium', tags: ['fs-module-11', 'business', 'billing-rate'],
+    statement: 'A party chief is paid $32.50 an hour. The firm carries a payroll burden of 38% and an overhead rate of 155% of direct labour, and targets a 12% profit on total cost. (a) What is the fully burdened hourly cost? (b) What is the total cost per hour including overhead? (c) What is the billing rate? (d) What is the multiplier on raw salary?',
+    given: { wage: 32.50, burden: 0.38, overhead: 1.55, profit: 0.12 },
+    steps: [
+      { id: 'burdened', prompt: 'Fully burdened hourly cost, in dollars', formula: 'wage*(1+burden)', unit: '$', tolerance: 0.02,
+        explanation: 'Payroll burden covers taxes, insurance and paid leave -- the cost of employing somebody beyond what lands in their pay.' },
+      { id: 'totalCost', prompt: 'Total cost per hour including overhead, in dollars', formula: 'wage + wage*burden + wage*overhead', unit: '$', tolerance: 0.02,
+        explanation: 'Overhead here is quoted on DIRECT LABOUR -- the raw wage -- not on the burdened figure. Which base a rate is quoted on is the thing to check before using it.' },
+      { id: 'billing', prompt: 'Billing rate, in dollars per hour', formula: 'totalCost*(1+profit)', unit: '$', tolerance: 0.02,
+        explanation: 'Profit is taken on total cost. Note that a 12% profit on cost is not a 12% profit margin on revenue -- it works out at about 10.7% of what you bill.' },
+      { id: 'multiplier', prompt: 'Multiplier on raw salary', formula: 'billing/wage', tolerance: 0.01,
+        explanation: 'Billing rate divided by raw wage. Around 3.0 is typical for a survey firm, and a proposal priced far below it is usually one where overhead has been forgotten.' },
+    ],
+    explanation: 'Every figure here is quoted as a percentage OF SOMETHING, and getting the base wrong is the error that turns a profitable job into a loss. Overhead on direct labour and profit on total cost is the common convention, but it is a convention, not a law -- read the contract.',
+  },
+
 ];
 
 // ── check every problem before anything is written ──────────────────────────────────────────────
