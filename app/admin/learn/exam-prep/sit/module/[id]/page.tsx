@@ -610,7 +610,7 @@ export default function FSModulePage() {
             </p>
           </div>
         ) : activeTab === 'practice' ? (
-          <PracticePanel moduleId={moduleId} onProblemChange={reportProblem} />
+          <PracticePanel moduleId={moduleId} moduleNumber={module.module_number} onProblemChange={reportProblem} />
         ) : activeTab === 'flashcards' ? (
           <FlashcardsPanel moduleId={moduleId} moduleNumber={module.module_number} />
         ) : activeTab === 'formulas' && module.key_formulas && module.key_formulas.length > 0 ? (

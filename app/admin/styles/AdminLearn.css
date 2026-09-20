@@ -4300,3 +4300,107 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
     opacity: 1 !important;
   }
 }
+
+/* ══ ENDLESS DRILL ═══════════════════════════════════════════════════════════════════════════
+ * Owner, 2026-09-20: "Make sure we are able to generate new problems."
+ *
+ * The bar is quiet on purpose. Drilling is a rhythm, and the controls are something you reach for
+ * between repetitions rather than something you look at — so they sit above the problem, small,
+ * and get none of the page's colour. The problem is what should be loud. */
+.genprac { display: flex; flex-direction: column; gap: 0.85rem; }
+
+.genprac__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+
+.genprac__pick { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.genprac__pick-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.genprac__pick select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 7px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.genprac__actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.genprac__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.32rem 0.65rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--motion-fast, 160ms) var(--ease-out, ease), color var(--motion-fast, 160ms) var(--ease-out, ease);
+}
+.genprac__btn:hover { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
+
+.genprac__tally {
+  margin: 0 0 0 auto;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-secondary, #475569);
+}
+
+.genprac__problem { min-width: 0; }
+
+/* The seed. Deliberately faint — it is a reference number, not information you read while working,
+ * and it is only there so a question about one specific drill can be asked precisely. */
+.genprac__seed {
+  margin: 0;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--theme-fg-muted, #94A3B8);
+  text-align: right;
+}
+
+.genprac__error {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: var(--theme-danger-bg, #FEE2E2);
+  color: var(--theme-danger-fg, #991B1B);
+  font-size: 0.84rem;
+}
+.genprac__error p { margin: 0; }
+
+.genprac--empty {
+  padding: 1.1rem;
+  border: 1px dashed var(--theme-border, #CBD5E1);
+  border-radius: 10px;
+  color: var(--theme-fg-muted, #64748B);
+}
+.genprac--empty p { margin: 0; max-width: 62ch; font-size: 0.86rem; line-height: 1.6; }
+
+@media (max-width: 560px) {
+  /* The tally stops being pushed to the far right, which at phone width would leave it alone on
+   * its own line with a lake of space beside it. */
+  .genprac__tally { margin-left: 0; }
+}

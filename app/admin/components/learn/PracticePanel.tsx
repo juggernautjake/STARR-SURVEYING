@@ -12,6 +12,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, ArrowRight, Dumbbell } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 import MultiStepProblem from '@/app/admin/components/learn/MultiStepProblem';
+import GeneratedPractice from '@/app/admin/components/learn/GeneratedPractice';
+import { templatesForModule } from '@/lib/learn/problemTemplates';
 import type { ProblemStep } from '@/lib/learn/gradeSteps';
 
 type Kind = 'all' | 'knowledge' | 'problems';
@@ -21,13 +23,25 @@ interface Current { problem: ProblemData; answerToken: string }
 
 const DIFFS = ['', 'easy', 'medium', 'hard'] as const;
 
-export default function PracticePanel({ moduleId, onProblemChange }: {
+export default function PracticePanel({ moduleId, moduleNumber, onProblemChange }: {
   moduleId: string;
+  /** The module's NUMBER, not its uuid — the generated drills are keyed by number. */
+  moduleNumber?: number;
   /** Tells the page which problem is open and whether it has been attempted, so the tutor can hint
    *  rather than solve until the student has had a go (owner, 2026-09-19). */
   onProblemChange?: (p: { statement: string; attempted: boolean } | null) => void;
 }) {
   const [kind, setKind] = useState<Kind>('all');
+  /**
+   * Endless mode.
+   *
+   * Kept as its own flag rather than a fourth value of `kind` because it is not a filter over the
+   * question bank — it does not touch the bank at all. Folding it into `kind` would mean every
+   * fetch, every count and every queue index having to ask "unless it is the generated one", which
+   * is the shape a feature takes just before it starts breaking the thing it was bolted onto.
+   */
+  const [endless, setEndless] = useState(false);
+  const hasGenerated = moduleNumber !== undefined && templatesForModule(moduleNumber).length > 0;
   const [difficulty, setDifficulty] = useState('');
   const [queue, setQueue] = useState<string[]>([]);
   const [idx, setIdx] = useState(0);
@@ -132,14 +146,31 @@ export default function PracticePanel({ moduleId, onProblemChange }: {
       <div className="fs-practice__filters">
         <div className="fs-practice__chips" role="group" aria-label="Question kind">
           {(['all', 'knowledge', 'problems'] as Kind[]).map((k) => (
-            <button key={k} className={`fs-practice__chip ${kind === k ? 'is-active' : ''}`} onClick={() => setKind(k)}>
+            <button
+              key={k}
+              className={`fs-practice__chip ${kind === k && !endless ? 'is-active' : ''}`}
+              onClick={() => { setKind(k); setEndless(false); }}
+            >
               {k === 'all' ? `All${counts ? ` (${counts.total})` : ''}`
                 : k === 'knowledge' ? `Knowledge${counts ? ` (${counts.knowledge})` : ''}`
                 : `Problems${counts ? ` (${counts.problems})` : ''}`}
             </button>
           ))}
+          {hasGenerated && (
+            // The count is an infinity sign rather than a number because it genuinely is one: these
+            // are generated on demand, and there is no bank to have run out of.
+            <button
+              className={`fs-practice__chip ${endless ? 'is-active' : ''}`}
+              onClick={() => setEndless(true)}
+              data-testid="practice-endless"
+            >
+              Endless drill (∞)
+            </button>
+          )}
         </div>
-        <label className="fs-practice__diff">
+        {/* Difficulty filters the BANK. A generated drill has its own difficulty baked into the
+            template, so the control is hidden rather than left there doing nothing. */}
+        <label className="fs-practice__diff" hidden={endless}>
           Difficulty
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
             {DIFFS.map((d) => (
@@ -152,9 +183,11 @@ export default function PracticePanel({ moduleId, onProblemChange }: {
         </label>
       </div>
 
-      {error && <div className="ai-tutor__error" style={{ marginBottom: '.75rem' }}>{error}</div>}
+      {error && !endless && <div className="ai-tutor__error" style={{ marginBottom: '.75rem' }}>{error}</div>}
 
-      {loadingQueue || loadingProblem ? (
+      {endless ? (
+        <GeneratedPractice moduleNumber={moduleNumber} />
+      ) : loadingQueue || loadingProblem ? (
         <div className="fs-practice__loading"><Loader2 size={20} className="spin" /> Loading a problem…</div>
       ) : !queue.length ? (
         <div className="admin-empty" style={{ padding: '2rem' }}>
