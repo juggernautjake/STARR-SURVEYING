@@ -18,6 +18,7 @@
 import '../../styles/AdminCalls.css';
 import '../../styles/AdminReceptionistTest.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import IntakeBench from './IntakeBench';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
@@ -538,6 +539,12 @@ export default function ReceptionistTestPage(): React.ReactElement {
           </div>
           {phoneStatus && <div className="rtest__status" aria-live="polite">{phoneStatus.startsWith('Ringing') ? <span className="rtest__phone-icon" aria-hidden="true">📞</span> : null}{phoneStatus}</div>}
         </section>
+
+        {/* The voicemail intake interview (owner, 2026-09-21). Full width, above the chat,
+            because it is the thing currently being built and the thing being rehearsed. */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <IntakeBench />
+        </div>
 
         <section className="rtest__card" aria-labelledby="rt-chat" style={{ gridColumn: '1 / -1' }}>
           <h2 id="rt-chat">Text chat (full AI agent)</h2>
