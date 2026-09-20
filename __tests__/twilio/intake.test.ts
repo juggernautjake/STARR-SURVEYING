@@ -235,13 +235,18 @@ describe('choosing the next question', () => {
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 describe('the shape of the call', () => {
-  it('greets, then takes a message, then asks permission', () => {
+  it('opens by asking what they need, not by walking them into a message', () => {
+    // Changed 2026-09-21 after a test call. The old greeting said "leave a message after the tone,
+    // and stay on the line afterwards for a few questions" — which makes the message a STEP, and
+    // is why a caller who had already said everything was asked for one anyway.
     const greet = nextStep(state({}, { phase: 'greeting' }), T0);
     expect(greet.phase).toBe('message');
-    expect(greet.say).toMatch(/leave a message/i);
-    // The owner was specific that the caller is asked to STAY ON THE LINE in the greeting.
-    expect(greet.say).toMatch(/stay on the line/i);
+    expect(greet.say).toMatch(/what can I help you with/i);
+    expect(greet.say).toMatch(/tell me whatever you'd like about it/i);
+    expect(greet.say, 'still walks them into a recording').not.toMatch(/after the tone/i);
+  });
 
+  it('thanks them and asks to check the gaps, rather than starting an interview', () => {
     const after = nextStep(state({}, { phase: 'message' }), T0);
     expect(after.phase).toBe('consent');
     // Reassurance BEFORE the questions, so somebody who hangs up here has still been told what
@@ -328,8 +333,14 @@ describe('the fixed lines', () => {
   it('never promise a call back at a particular time', () => {
     // "Someone will call you within 24 hours" is a promise the agent cannot keep and nobody
     // authorised it to make.
+    //
+    // Matched against a CALLBACK phrase rather than against the bare words. The first version
+    // looked for "today" anywhere and flagged the greeting — "what can I help you with today?" —
+    // which promises nothing at all. A guard that fires on innocent copy gets the copy rewritten
+    // to suit the guard, which is exactly the wrong way round.
+    const PROMISE = /(call|ring|get back to|reach|hear from)[^.]{0,40}\b(24 hours|today|tomorrow|within an hour|this afternoon)\b/i;
     for (const [name, line] of Object.entries(intakeLines())) {
-      expect(line, `${name} promises a timeframe`).not.toMatch(/\b(24 hours|today|tomorrow|within an hour|this afternoon)\b/i);
+      expect(line, `${name} promises a timeframe`).not.toMatch(PROMISE);
     }
   });
 });

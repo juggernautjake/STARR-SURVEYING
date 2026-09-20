@@ -149,7 +149,10 @@ describe('the generated folder is current', () => {
     // A folder that has drifted from the data is worse than no folder: somebody acts out a script
     // that is no longer the one being tested.
     expect(fs.existsSync(DOCS), 'run: node scripts/write-test-scripts.mjs').toBe(true);
-    const files = fs.readdirSync(DOCS).filter((f) => f.endsWith('.md'));
+    // `~$…` is a Word lock file, left behind while somebody has a script OPEN — which is what this
+    // folder is for. Counting it failed the suite because a person was reading the documentation.
+    const files = fs.readdirSync(DOCS)
+      .filter((f) => f.endsWith('.md') && !f.startsWith('~$') && !f.startsWith('.'));
     expect(files).toContain('README.md');
     expect(files.length).toBe(TEST_SCRIPTS.length + 1);
   });

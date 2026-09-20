@@ -423,22 +423,29 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(p).toMatch(/a PHONE, not a person/);
   });
 
-  it('offers a message on every call and asks what else it can do afterwards', async () => {
+  it('offers a message when it is wanted, and NOT to somebody who has just said everything', async () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
-    // "Please make sure it give the caller to leave a message for Hank if they would like. After
-    //  they leave a message, it can ask them if it can help them with anything else."
-    expect(p).toMatch(/Offer to take a message for Hank\*\* on every call/);
+    // "Please make sure it give the caller to leave a message for Hank if they would like."
     expect(p).toMatch(/I can take a message for Hank if you'd like/);
     expect(p).toMatch(/Never interrupt a message/);
-    expect(p).toMatch(/anything else you can help with/);
+
+    // REVISED 2026-09-21. This test used to assert the prompt said "on every call", which is the
+    // sentence that caused the bug: Dana Whitfield opened with her name, number, address, lot size,
+    // the house and the fence — and was then asked whether she would like to leave a message.
+    //
+    // "If the caller leaves a message, then it shouldn't ask them again."
+    expect(p, 'still tells it to offer one unconditionally').not.toMatch(/on every call, plainly/);
+    expect(p).toMatch(/ALREADY LEFT THEIR MESSAGE/);
   });
 
   it('reads numbers, emails, names and addresses back before trusting them', async () => {
     const { agentPrompt } = await import('@/lib/receptionist/agent-prompt');
     const p = agentPrompt();
     // "It needs to be good at parsing numbers and emails and names and property addresses."
-    expect(p, 'a numbered procedure, not advice').toMatch(/Take the details one field at a time/);
+    expect(p, 'a numbered procedure, not advice').toMatch(/Fill the GAPS, one at a time/);
+    // And never for something they already said — the other half of the Dana fix.
+    expect(p).toMatch(/do not ask for it again/);
     expect(p).toMatch(/spell the last name/);
     expect(p).toMatch(/letter by letter/);
     expect(p).toMatch(/digit by digit/);
@@ -447,9 +454,13 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // published guidance that disagree with each other (see the module header).
     expect(p).toMatch(/Read it back in groups/);
     expect(p).toMatch(/one digit at a time/);
-    // Email is the field that breaks: username and domain as separate turns, and a yes/no close.
+    // Email is the field that breaks: username and domain as separate turns, then a confirmation.
     expect(p).toMatch(/part before the at sign first/);
-    expect(p).toMatch(/is that right, yes or no\?/);
+    // REVISED 2026-09-21. The prompt used to instruct "is that right, yes or no?" and the agent
+    // said exactly that on a test call. Nobody talks like that; it turns a friendly call into a
+    // form. The rising tone does the asking now.
+    expect(p, 'still demands a yes or a no').not.toMatch(/is that right, yes or no\?/);
+    expect(p).toMatch(/NEVER say "yes or no"/);
     // Confirm the set once at the end; on a correction, fix only the item that was wrong.
     expect(p).toMatch(/Confirm the whole set once, at the end/);
     expect(p).toMatch(/confirm only that one/);

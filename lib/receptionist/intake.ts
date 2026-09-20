@@ -311,9 +311,9 @@ export function impliedFrom(text: string): Implication[] {
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 export type Phase =
-  | 'greeting'     // hello, sorry we missed you, leave a message and stay on the line
-  | 'message'      // they are leaving it
-  | 'consent'      // thank you, someone will call back — would you answer a few questions?
+  | 'greeting'     // hello, sorry we missed you — what can I help with?
+  | 'message'      // they are saying their piece, in their own words
+  | 'consent'      // thanks, he will call back — may I check a couple of things?
   | 'interview'    // the questions, one at a time
   | 'documents'    // where to send a plat or deed
   | 'questions'    // anything you want to ask us?
@@ -465,14 +465,30 @@ function firstQuestion(state: IntakeState, _now: number): NextStep {
 // they should be reviewable in one place by somebody who does not read code. Business name, email
 // and website are substituted at the edge (see `intakeLines`), so this module stays pure.
 
+// ── THE OPENING CHANGED AFTER A TEST CALL (2026-09-21) ──────────────────────────────────────────
+//
+// It used to say "leave a message after the tone, and stay on the line afterwards for a few short
+// questions". That framing is what produced the failure the owner found: it makes the message a
+// STEP, so a caller who has already said everything gets asked for one anyway.
+//
+// Owner: "The first thing the agent should do is ask the caller to tell them what they can help
+// them with and if they have a job any info about it … the caller can leave a message style
+// recording if they want, but otherwise the agent will ask for specific info."
+//
+// So it opens by inviting them to talk, and a message is something they may ASK for rather than
+// something they are walked through.
 export const GREETING_TEMPLATE =
-  "Hi, thanks for calling {business}. I'm sorry, nobody's able to pick up right now. "
-  + "If you'd like to leave a message, go ahead after the tone — and if you can stay on the line "
-  + "afterwards, I have a few short questions that'll help us get back to you faster.";
+  "Hi, thanks for calling {business}. I'm sorry, nobody's able to pick up right now — but I can "
+  + "take everything down and get it straight to {owner}. What can I help you with today? "
+  + "If you've got a job, tell me whatever you'd like about it.";
 
 export const AFTER_MESSAGE_TEMPLATE =
-  "Thank you — I've got that, and someone will get back to you as soon as they can. "
-  + "Would you mind if I asked you a few quick questions about the job?";
+  "Thank you — I've got that, and {owner} will get back to you as soon as he can. "
+  + "Can I just check a couple of things so he has what he needs?";
+
+/** For a caller who plainly does not want to talk to a machine. Offered, never walked through. */
+export const MESSAGE_OFFER_TEMPLATE =
+  "Of course — go ahead whenever you're ready, I'm listening.";
 
 export const DOCUMENTS_TEMPLATE =
   'If you have a plat, a deed, or a previous survey, emailing it to {email} — or uploading it on '
