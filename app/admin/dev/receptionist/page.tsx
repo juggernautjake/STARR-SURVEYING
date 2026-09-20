@@ -26,6 +26,7 @@ import type { CallState } from '@/lib/receptionist/state';
 import { VERSION_LABELS, TEST_VERSION_LABELS, type ReceptionistVersion, type TestVersion } from '@/lib/receptionist/version';
 import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
 import { AGENT_VOICES, AGENT_VOICE_GROUPS, type AgentVoice } from '@/lib/receptionist/agent-voices';
+import { AGENT_MODELS, type AgentModel } from '@/lib/receptionist/agent-models';
 
 const RS = '';
 
@@ -49,9 +50,50 @@ export default function ReceptionistTestPage(): React.ReactElement {
   // ── recent test calls ─────────────────────────────────────────────────────────────────────────
   const [tests, setTests] = useState<PhoneCall[]>([]);
   const refresh = useCallback(() => {
-    fetch('/api/admin/calls?limit=100').then((r) => r.json()).then((j: { calls?: PhoneCall[] }) => setTests((j.calls ?? []).filter((c) => c.is_test))).catch((e: Error) => reportPageError(e));
+    // `scope=test` — not a client-side filter. When the calls API gained a scope on 2026-09-21 its
+    // default became `live`, so this panel was asking for a hundred LIVE calls and filtering them
+    // for test ones: always empty, with no error anywhere. Ask for the log you actually want.
+    fetch('/api/admin/calls?limit=100&scope=test')
+      .then((r) => r.json())
+      .then((j: { calls?: PhoneCall[] }) => setTests(j.calls ?? []))
+      .catch((e: Error) => reportPageError(e));
   }, [reportPageError]);
   useEffect(() => { refresh(); const t = setInterval(refresh, 10_000); return () => clearInterval(t); }, [refresh]);
+
+  // ── which speech model the ElevenLabs agent talks with (owner, 2026-09-21) ───────────────
+  //
+  // Read from ElevenLabs rather than remembered here, because the agent is the only thing that
+  // knows: a deploy, a script run, or somebody else's browser can all have changed it.
+  const [agentModel, setAgentModel] = useState<string | null>(null);
+  const [modelBusy, setModelBusy] = useState<string | null>(null);
+  const [modelNote, setModelNote] = useState<string | null>(null);
+
+  const loadModel = useCallback(() => {
+    fetch('/api/admin/receptionist-test/model')
+      .then((r) => r.json())
+      .then((j: { current?: { starr?: string | null } }) => setAgentModel(j.current?.starr ?? null))
+      .catch(() => { /* the picker shows nothing selected; the switch still works */ });
+  }, []);
+  useEffect(() => { loadModel(); }, [loadModel]);
+
+  const chooseModel = useCallback(async (m: AgentModel) => {
+    setModelBusy(m.id);
+    setModelNote(null);
+    try {
+      const r = await fetch('/api/admin/receptionist-test/model', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ modelId: m.id, agent: 'both' }),
+      });
+      const j = (await r.json()) as { error?: string };
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setAgentModel(m.id);
+      setModelNote(`Now speaking with ${m.name}. It takes effect on the next conversation.`);
+    } catch (e) {
+      setModelNote((e as Error).message);
+    } finally {
+      setModelBusy(null);
+    }
+  }, []);
 
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
   const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean } | null>(null);
@@ -59,6 +101,17 @@ export default function ReceptionistTestPage(): React.ReactElement {
   // Which version the owner is about to put in front of real callers, while they confirm it.
   const [confirmAgent, setConfirmAgent] = useState<ReceptionistVersion | null>(null);
   const [testVersion, setTestVersion] = useState<TestVersion>('agent');
+
+  /**
+   * Whether the version being tested speaks through ElevenLabs.
+   *
+   * This is what decides which voice list step 2 shows. The two lists are not interchangeable:
+   * `AGENT_VOICES` are ElevenLabs agent voices, `RECEPTIONIST_VOICES` are Twilio <Say> voices, and
+   * showing the wrong one was the single most confusing thing on this page — you could pick Riley
+   * for the answering machine, which cannot speak in Riley.
+   */
+  const usesElevenLabsVoice = testVersion === 'elevenlabs' || testVersion === 'intake';
+
   // The voice a test call is spoken in. Remembered, so auditioning one voice after another is quick.
   const [testVoice, setTestVoice] = useState<string>(DEFAULT_VOICE_ID);
   useEffect(() => { try { const v = localStorage.getItem('rtest-voice'); if (v) setTestVoice(v); } catch { /* private mode */ } }, []);
@@ -400,109 +453,174 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
       {/* ── TALK TO AN AGENT, RIGHT NOW ── */}
       {/* ── WHICH VERSION A TEST CALL RUNS ── */}
-      <section className="rtest__card" aria-labelledby="rt-version">
-        <h2 id="rt-version">Version to test</h2>
-        <div className="rtest__versions" role="radiogroup" aria-labelledby="rt-version">
-          {(['elevenlabs', 'agent', 'answering-machine', 'intake'] as TestVersion[])
-            .filter((v) => v !== 'elevenlabs' || live?.elevenLabsReady !== false)
-            .map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={testVersion === v}
-              className={`rtest__version${testVersion === v ? ' rtest__version--on' : ''}`}
-              onClick={() => setTestVersion(v)}
-              data-testid={`rtest-version-${v}`}
-            >
-              <b>{TEST_VERSION_LABELS[v].name}</b>
-              <span>{TEST_VERSION_LABELS[v].blurb}</span>
-              {live?.version === v && <em className="pill">Live now</em>}
-            </button>
-          ))}
-        </div>
-        {/* Which of the ways of testing below can actually run the version you picked. Said here
-            rather than left to be discovered by pressing a button and getting the wrong thing. */}
-        <p>
-          {testVersion === 'intake'
-            ? 'The intake interview runs in the bench below — type what a caller would say, or load one of the twenty-one scripts. It has no phone route yet, so the browser and phone call buttons still run the conversational agent.'
-            : testVersion === 'elevenlabs'
-              ? 'Browser and phone calls below run this, and so does “Talk to an agent now” — that one always goes straight to ElevenLabs.'
-              : 'Browser and phone calls below run this version. “Talk to an agent now” always goes straight to ElevenLabs, whatever is picked here, because it has no Twilio leg to put a different version on.'}
-          {live && !live.elevenLabsReady ? ' The ElevenLabs agent appears here once ELEVENLABS_SIP_URI is set.' : ''}
-        </p>
+      {/* ══ SET UP YOUR TEST ═══════════════════════════════════════════════════════════════════
+          Owner, 2026-09-21: the page "looks terrible and is hard to understand and use."
 
-        <h3 className="rtest__subhead">Voice</h3>
-        <div className="rtest__row">
-          <select className="rtest__input" value={testVoice} onChange={(e) => chooseVoice(e.target.value)} aria-label="Voice to test" data-testid="rtest-voice">
-            {(['ElevenLabs', 'Google', 'Amazon'] as const).map((prov) => (
-              <optgroup key={prov} label={prov === 'ElevenLabs' ? 'ElevenLabs (most natural, used by the live agent)' : prov === 'Google' ? 'Google Chirp 3 HD (no extra bill)' : 'Amazon Polly generative'}>
-                {RECEPTIONIST_VOICES.filter((v) => v.provider === prov).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          {voice.sample && <a className="rtest__btn rtest__btn--ghost" href={voice.sample} target="_blank" rel="noreferrer">Hear samples ↗</a>}
-          <button
-            type="button"
-            className="rtest__btn rtest__btn--ghost"
-            onClick={() => void saveLive({ voice: testVoice })}
-            disabled={liveBusy || live?.voice === testVoice}
-            data-testid="rtest-voice-live"
-          >
-            {live?.voice === testVoice ? 'This is the live voice' : 'Use this voice on live calls'}
-          </button>
-        </div>
-        <p>{voice.blurb}{voice.provider === 'ElevenLabs' ? ' The answering machine speaks through Twilio, which has no ElevenLabs voices, so it uses the closest Google voice.' : ''}</p>
-      </section>
+          The worst of it was two different things both called "voice", in two different cards, with
+          different lists: the ElevenLabs AGENT voice (Riley, Sarah…) and the Twilio <Say> voice used
+          by the answering machine and the relay. Which one mattered depended on a version control
+          in a third card, below both of them.
 
-      <div className="rtest__grid">
-      <section className="rtest__card" aria-labelledby="rt-voices" data-testid="rtest-voices">
-        <h2 id="rt-voices">Voices</h2>
-        <p>Press play to hear the voice say the receptionist&apos;s actual opening line. When you like one, put it on an agent and start a conversation — it takes effect on the next call, with no deploy.</p>
-        {voiceNote && <div className="rtest__status" aria-live="polite">{voiceNote}</div>}
-        {AGENT_VOICE_GROUPS.map((group) => {
-          const inGroup = AGENT_VOICES.filter((v) => v.group === group);
-          if (inGroup.length === 0) return null;
-          return (
-            <div key={group} className="rtest__voicegroup">
-              <h3 className="rtest__subhead">{group}</h3>
-              <ul className="rtest__voices">
-                {inGroup.map((v) => {
-                  const onStarr = agentVoices.starr === v.id;
-                  const onGeneric = agentVoices.generic === v.id;
-                  return (
-                    <li key={v.id} className={`rtest__voice${onStarr || onGeneric ? ' rtest__voice--on' : ''}`} data-testid={`rtest-voice-${v.id}`}>
-                      <button
-                        type="button"
-                        className="rtest__play"
-                        onClick={() => playSample(v)}
-                        aria-label={playing === v.id ? `Stop the ${v.name} sample` : `Play the ${v.name} sample`}
-                        data-testid={`rtest-voice-play-${v.id}`}
-                      >
-                        {playing === v.id ? '■' : '▶'}
-                      </button>
-                      <div className="rtest__voice-body">
-                        <b>{v.name}</b>
-                        {v.recommended && <span className="pill">Worth trying</span>}
-                        {onStarr && <span className="pill pill--ai">On the Starr agent</span>}
-                        {onGeneric && <span className="pill">On general chat</span>}
-                        <span>{v.blurb}</span>
-                      </div>
-                      <div className="rtest__voice-actions">
-                        <button type="button" className="rtest__btn rtest__btn--ghost" disabled={voiceBusy === v.id || onStarr} onClick={() => void assignVoice(v, 'starr')}>
-                          {onStarr ? 'In use' : 'Use for Starr'}
-                        </button>
-                        <button type="button" className="rtest__btn rtest__btn--ghost" disabled={voiceBusy === v.id} onClick={() => void assignVoice(v, 'both')}>
-                          Use for both
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+          So: one card, three numbered steps, left to right, and step 2 shows the voices of whatever
+          engine step 1 chose. You cannot pick a voice the thing you are testing will not speak in. */}
+      <section className="rtest__setup" aria-labelledby="rt-setup" data-testid="rtest-setup">
+        <h2 id="rt-setup" className="rtest__setup-title">Set up your test</h2>
+
+        <div className="rtest__setup-grid">
+          {/* ── 1 · WHICH RECEPTIONIST ────────────────────────────────────────────────────── */}
+          <div className="rtest__step">
+            <h3 className="rtest__step-head"><span className="rtest__step-n">1</span> Which receptionist</h3>
+            <div className="rtest__choices" role="radiogroup" aria-label="Which receptionist to test">
+              {(['elevenlabs', 'agent', 'answering-machine', 'intake'] as TestVersion[])
+                .filter((v) => v !== 'elevenlabs' || live?.elevenLabsReady !== false)
+                .map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={testVersion === v}
+                    className={`rtest__choice${testVersion === v ? ' rtest__choice--on' : ''}`}
+                    onClick={() => setTestVersion(v)}
+                    data-testid={`rtest-version-${v}`}
+                  >
+                    <span className="rtest__choice-name">
+                      {TEST_VERSION_LABELS[v].name}
+                      {live?.version === v && <em className="rtest__tag rtest__tag--live">Live now</em>}
+                      {v === 'intake' && <em className="rtest__tag">Bench only</em>}
+                    </span>
+                    <span className="rtest__choice-blurb">{TEST_VERSION_LABELS[v].blurb}</span>
+                  </button>
+                ))}
             </div>
-          );
-        })}
+            <p className="rtest__hint">
+              {testVersion === 'intake'
+                ? 'Runs in the bench further down — type what a caller would say, or load one of the twenty-one scripts.'
+                : testVersion === 'elevenlabs'
+                  ? 'Runs on a phone call, a browser call, or “Talk now” below.'
+                  : 'Runs on a phone call or a browser call below. “Talk now” always goes straight to ElevenLabs.'}
+            </p>
+          </div>
+
+          {/* ── 2 · VOICE ─────────────────────────────────────────────────────────────────── */}
+          <div className="rtest__step">
+            <h3 className="rtest__step-head"><span className="rtest__step-n">2</span> Voice</h3>
+
+            {usesElevenLabsVoice ? (
+              <>
+                <div className="rtest__voicelist" data-testid="rtest-voices">
+                  {AGENT_VOICE_GROUPS.map((group) => {
+                    const inGroup = AGENT_VOICES.filter((v) => v.group === group);
+                    if (inGroup.length === 0) return null;
+                    return (
+                      <div key={group}>
+                        <p className="rtest__grouphead">{group}</p>
+                        {inGroup.map((v) => {
+                          const on = agentVoices.starr === v.id;
+                          return (
+                            <div key={v.id} className={`rtest__voicerow${on ? ' rtest__voicerow--on' : ''}`} data-testid={`rtest-voice-${v.id}`}>
+                              <button
+                                type="button"
+                                className="rtest__play"
+                                onClick={() => playSample(v)}
+                                aria-label={playing === v.id ? `Stop the ${v.name} sample` : `Play the ${v.name} sample`}
+                                data-testid={`rtest-voice-play-${v.id}`}
+                              >
+                                {playing === v.id ? '■' : '▶'}
+                              </button>
+                              <button
+                                type="button"
+                                className="rtest__voicepick"
+                                aria-pressed={on}
+                                disabled={voiceBusy === v.id}
+                                onClick={() => void assignVoice(v, 'both')}
+                                title={v.blurb}
+                              >
+                                <span className="rtest__voicename">{v.name}</span>
+                                {on && <span className="rtest__tag rtest__tag--on">In use</span>}
+                                {!on && v.recommended && <span className="rtest__tag">Worth trying</span>}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+                {voiceNote && <p className="rtest__note" aria-live="polite">{voiceNote}</p>}
+                <p className="rtest__hint">Press ▶ to hear the receptionist&rsquo;s real opening line. Picking one changes it on the next conversation — no deploy.</p>
+              </>
+            ) : (
+              <>
+                <select
+                  className="rtest__select"
+                  value={testVoice}
+                  onChange={(e) => chooseVoice(e.target.value)}
+                  aria-label="Voice to test"
+                  data-testid="rtest-voice"
+                >
+                  {(['ElevenLabs', 'Google', 'Amazon'] as const).map((prov) => (
+                    <optgroup key={prov} label={prov === 'ElevenLabs' ? 'ElevenLabs' : prov === 'Google' ? 'Google Chirp 3 HD' : 'Amazon Polly generative'}>
+                      {RECEPTIONIST_VOICES.filter((v) => v.provider === prov).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                <p className="rtest__hint">{voice.blurb}</p>
+                <div className="rtest__rowbtns">
+                  {voice.sample && <a className="rtest__btn rtest__btn--ghost" href={voice.sample} target="_blank" rel="noreferrer">Hear samples ↗</a>}
+                  <button
+                    type="button"
+                    className="rtest__btn rtest__btn--ghost"
+                    onClick={() => void saveLive({ voice: testVoice })}
+                    disabled={liveBusy || live?.voice === testVoice}
+                    data-testid="rtest-voice-live"
+                  >
+                    {live?.voice === testVoice ? 'This is the live voice' : 'Use on live calls'}
+                  </button>
+                </div>
+                <p className="rtest__hint">
+                  This version speaks through Twilio, which has no ElevenLabs voices — so an ElevenLabs
+                  choice here falls back to the closest Google voice.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* ── 3 · SPEECH MODEL ──────────────────────────────────────────────────────────── */}
+          <div className="rtest__step">
+            <h3 className="rtest__step-head"><span className="rtest__step-n">3</span> Speech model</h3>
+            {usesElevenLabsVoice ? (
+              <>
+                <div className="rtest__choices" role="radiogroup" aria-label="Speech model">
+                  {AGENT_MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={agentModel === m.id}
+                      className={`rtest__choice${agentModel === m.id ? ' rtest__choice--on' : ''}`}
+                      disabled={modelBusy !== null}
+                      onClick={() => void chooseModel(m)}
+                      data-testid={`rtest-model-${m.id}`}
+                    >
+                      <span className="rtest__choice-name">
+                        {m.name}
+                        <em className="rtest__tag">{m.latency}</em>
+                      </span>
+                      <span className="rtest__choice-blurb">{m.blurb}</span>
+                      <span className="rtest__choice-cost">Costs you: {m.tradeoff}</span>
+                    </button>
+                  ))}
+                </div>
+                {modelNote && <p className="rtest__note" aria-live="polite">{modelNote}</p>}
+              </>
+            ) : (
+              <p className="rtest__hint">
+                Only the ElevenLabs agent has a speech model. The answering machine and the relay
+                version speak through Twilio, which uses the voice picked in step 2 and nothing else.
+              </p>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className={`rtest__card ${talkState === 'live' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-talk" data-testid="rtest-talk">
@@ -575,6 +693,8 @@ export default function ReceptionistTestPage(): React.ReactElement {
       </section>
 
       {/* ── VOICES: hear one, then put it on an agent ── */}
+      {/* The two call buttons, side by side — they are the same kind of thing. */}
+      <div className="rtest__grid">
         <section className={`rtest__card ${browserStatus === 'in call' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-browser">
           <h2 id="rt-browser">Call from this browser</h2>
           <p>Uses your microphone and speakers. Same voice and timing as the business line. Testing: <b>{TEST_VERSION_LABELS[testVersion].name}</b>.</p>

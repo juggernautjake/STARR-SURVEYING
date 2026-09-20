@@ -353,3 +353,200 @@
   font-size: 0.78rem;
   line-height: 1.5;
 }
+
+/* ══ SET UP YOUR TEST ════════════════════════════════════════════════════════════════════════
+ * Owner, 2026-09-21: the page "looks terrible and is hard to understand and use."
+ *
+ * The information architecture was the problem, not the paint. Three cards each held one third of
+ * a single decision — which receptionist, in which voice, on which model — and they were separated
+ * by two unrelated cards, in an order that did not match the order you make the choices in.
+ *
+ * So this is one panel, three numbered columns, left to right, above everything they govern. The
+ * numbers are load-bearing: they say there is an order, and that step 2 depends on step 1. */
+.rtest__setup {
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 14px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.rtest__setup-title {
+  margin: 0 0 .9rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.rtest__setup-grid {
+  display: grid;
+  /* Step 2 is the tallest (a scrolling voice list), so it gets the widest column. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.3rem;
+  align-items: start;
+}
+@media (max-width: 1000px) { .rtest__setup-grid { grid-template-columns: minmax(0, 1fr); gap: 1.6rem; } }
+
+.rtest__step { display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+.rtest__step-head {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.rtest__step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--theme-accent, #1D3095);
+  color: #FFFFFF;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* ── a choice: version, or speech model ──────────────────────────────────────────────────────
+ * Left border rather than a full fill when selected. A filled card at this size swamps the text
+ * inside it, and the text is the reason you are choosing. */
+.rtest__choices { display: flex; flex-direction: column; gap: .4rem; }
+.rtest__choice {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .55rem .7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-left: 3px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+.rtest__choice:hover:not(:disabled) { border-color: var(--theme-fg-muted, #94A3B8); }
+.rtest__choice:disabled { opacity: .55; cursor: default; }
+.rtest__choice--on {
+  border-color: var(--theme-accent, #1D3095);
+  border-left-color: var(--theme-accent, #1D3095);
+  background: var(--theme-brand-tint, #EEF2FF);
+}
+.rtest__choice-name {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  font-size: .87rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #0F172A);
+}
+.rtest__choice-blurb { font-size: .76rem; line-height: 1.5; color: var(--theme-fg-secondary, #475569); }
+/* What the option costs. Every real choice here has a price and saying it is the difference
+ * between a picker and a sales page. */
+.rtest__choice-cost { font-size: .73rem; line-height: 1.45; color: var(--theme-warning-fg, #92400E); }
+
+.rtest__tag {
+  padding: .05rem .35rem;
+  border-radius: 999px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  color: var(--theme-fg-muted, #64748B);
+  font-size: .64rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rtest__tag--live { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.rtest__tag--on { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+
+/* ── the voice list ──────────────────────────────────────────────────────────────────────────
+ * Scrolls rather than running the column to twice the height of its neighbours. Twelve voices is
+ * a list you skim; the two you care about are pinned by being in use or recommended. */
+.rtest__voicelist {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  max-height: 17rem;
+  overflow-y: auto;
+  padding-right: .2rem;
+}
+.rtest__grouphead {
+  margin: .5rem 0 .15rem;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #94A3B8);
+}
+.rtest__grouphead:first-child { margin-top: 0; }
+
+.rtest__voicerow { display: flex; align-items: center; gap: .4rem; }
+.rtest__play {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 50%;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: .62rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.rtest__play:hover { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
+
+.rtest__voicepick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+  padding: .3rem .5rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rtest__voicepick:hover:not(:disabled) { background: var(--theme-bg-elevated, #F1F5F9); }
+.rtest__voicepick:disabled { opacity: .55; cursor: default; }
+.rtest__voicerow--on .rtest__voicepick {
+  border-color: var(--theme-accent, #1D3095);
+  background: var(--theme-brand-tint, #EEF2FF);
+}
+.rtest__voicename { font-size: .84rem; font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
+
+.rtest__select {
+  width: 100%;
+  padding: .4rem .55rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: .85rem;
+}
+
+.rtest__rowbtns { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+.rtest__hint { margin: 0; font-size: .75rem; line-height: 1.55; color: var(--theme-fg-muted, #64748B); }
+.rtest__note {
+  margin: 0;
+  padding: .4rem .55rem;
+  border-radius: 7px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  font-size: .76rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #475569);
+}

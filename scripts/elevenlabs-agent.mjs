@@ -326,14 +326,36 @@ if (args.includes('--apply')) {
 
   const hook = initWebhook(env);
   console.log(hook ? `initiation webhook: ${hook.url.replace(/t=.*/, 't=…')}` : 'initiation webhook: OFF (no TWILIO_AUTH_TOKEN here) — the agent will not know who is calling');
-  const payload = agentPayload(built, { ...opts, placeholders: built.placeholders }, knowledgeBase, hook);
+  // ── WHATEVER THE OWNER PICKED ON THE BENCH SURVIVES THIS ─────────────────────────────────
+  //
+  // The voice and the speech model are switchable at /admin/dev/receptionist, and this script
+  // carries DEFAULTS for both. Without this read-back, every prompt update would silently reset
+  // them: somebody chooses Sarah and the fast model on Monday, somebody fixes a typo in the prompt
+  // on Tuesday, and the line is Riley on the expressive model again with nobody having decided
+  // that. An explicit --voice or --model still wins, because that IS a decision.
+  const liveCfg = existing ? await api('GET', `/v1/convai/agents/${existing.agent_id}`) : { ok: false, json: {} };
+  const liveTts = liveCfg.ok ? (liveCfg.json?.conversation_config?.tts ?? {}) : {};
+  const keep = {
+    ...opts,
+    voiceId: args.includes('--voice') ? opts.voiceId : (liveTts.voice_id || opts.voiceId),
+    ttsModel: args.includes('--tts-model') ? opts.ttsModel : (liveTts.model_id || opts.ttsModel),
+    placeholders: built.placeholders,
+  };
+  if (existing && !liveCfg.ok) {
+    console.log(`note: could not read the agent's current voice/model (HTTP ${liveCfg.status}) — applying the defaults`);
+  } else if (existing) {
+    const keptVoice = keep.voiceId !== DEFAULTS.voiceId || keep.ttsModel !== DEFAULTS.ttsModel;
+    if (keptVoice) console.log(`keeping the bench's choices: voice ${keep.voiceId} · tts ${keep.ttsModel}`);
+  }
+
+  const payload = agentPayload(built, keep, knowledgeBase, hook);
   const res = existing
     ? await api('PATCH', `/v1/convai/agents/${existing.agent_id}`, payload)
     : await api('POST', '/v1/convai/agents/create', payload);
   if (!res.ok) { console.error(existing ? 'update failed:' : 'create failed:', res.status, JSON.stringify(res.json).slice(0, 600)); process.exit(1); }
   const id = res.json?.agent_id ?? existing?.agent_id;
   console.log(`${existing ? 'updated' : 'created'} agent ${id}`);
-  console.log(`voice ${opts.voiceId} · tts ${opts.ttsModel} · llm ${opts.llm} · retention ${opts.retentionDays} days`);
+  console.log(`voice ${keep.voiceId} · tts ${keep.ttsModel} · llm ${keep.llm} · retention ${keep.retentionDays} days`);
   console.log('\nNext: put ELEVENLABS_AGENT_ID=' + id + ' in Vercel, then register the phone number:');
   console.log('  node scripts/elevenlabs-agent.mjs --sip +18338426971');
   process.exit(0);
