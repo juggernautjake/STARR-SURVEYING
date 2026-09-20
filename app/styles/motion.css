@@ -76,6 +76,24 @@
 @keyframes ui-pop  { from { transform: scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes ui-tick { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: none; } }
 
+/* Getting it wrong — a short lateral nudge, added 2026-09-20 for the learn area.
+ *
+ * Owner: "I want animations for failures and successes." Success already had `ui-tick` and
+ * `ui-pop`; failure had nothing, and a wrong answer that only changes colour is easy to miss when
+ * you are looking at your own working rather than at the badge.
+ *
+ * Deliberately SMALL — 4px, twice, and done in under a third of a second. A big shake reads as the
+ * app malfunctioning rather than as the answer being wrong, and anything that draws attention to
+ * itself for longer than the information it carries becomes something people learn to ignore.
+ *
+ * It lives here and not in AdminLearn.css because `motion.css` is the one home for keyframes and a
+ * ratchet test keeps it that way. */
+@keyframes ui-nudge {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
 /* Ongoing — the only animations allowed to loop */
 @keyframes ui-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes ui-pulse   { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }

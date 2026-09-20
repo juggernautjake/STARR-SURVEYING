@@ -1,31 +1,47 @@
 // app/admin/components/calculator/models/Ti30xa.tsx
 //
-// TI-30Xa emulator — reuses the TI-36X Pro algebraic engine with a
-// device-accurate keypad layout for the simpler single-line TI-30Xa.
+// TI-30Xa emulator.
 //
-// The 30Xa has a single-line LCD (no MathPrint), one 2nd shift modifier,
-// and the standard FS/PS-exam-relevant function set. Engine semantics
-// (tokenize → shunting-yard → RPN eval) are identical to the MultiView
-// and Pro, so the same engine module works. Distinct model_key keeps
-// saved state isolated per device.
+// ── IT USED TO BORROW THE 36X PRO ENGINE, AND THAT WAS WRONG (2026-09-20) ────────────────────
+//
+// The previous version of this file said the engine semantics were "identical to the MultiView and
+// Pro, so the same engine module works". They are not identical; they are opposite.
+//
+// The 36X Pro is a MathPrint machine — pressing SIN appends `sin(` to an expression you build up
+// and then evaluate with `=`. The TI-30Xa is IMMEDIATE EXECUTION: you type 45, press SIN, and
+// 0.7071 replaces the display at once.
+//
+// So this emulator was training `SIN 45` on the one calculator the owner sits the exam with, and
+// the real device would have answered a different question without saying so. It now runs
+// `lib/calculators/models/ti-30xa/engine.ts`, which is written for this machine and tested against
+// its actual behaviour.
+//
+// The keypad layout is unchanged — it was rebuilt from a device photograph and was already right.
 
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Keypad } from '../Keypad';
 import { Display } from '../Display';
-import { HistoryStrip } from '../HistoryStrip';
 import { useCalculator } from '../CalculatorProvider';
 import { useCalculatorKeyEvents } from '../useCalculatorKeyEvents';
 import { TI_30XA_KEYPAD, TI_30XA_GRID } from '@/lib/calculators/models/ti-30xa/keypad-data';
-import { dispatch, hydrate, initialState, serialize, type Ti36xState } from '@/lib/calculators/models/ti-36x-pro/engine';
+import {
+  press, hydrate, initialState, serialize,
+  storeTo, recallFrom, sumInto, exchangeWith,
+  type Ti30xaState,
+} from '@/lib/calculators/models/ti-30xa/engine';
 import type { KeyDef } from '@/lib/calculators/shared';
 
 const MODEL_KEY = 'ti-30xa' as const;
 
+/** STO and RCL take a digit afterwards, exactly as on the device. */
+type Awaiting = null | 'sto' | 'rcl' | 'sum' | 'exc';
+
 export function Ti30xa() {
   const { saveState, loadState } = useCalculator();
-  const [state, setState] = useState<Ti36xState>(initialState);
+  const [state, setState] = useState<Ti30xaState>(initialState);
+  const [awaiting, setAwaiting] = useState<Awaiting>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -44,28 +60,52 @@ export function Ti30xa() {
     saveState(MODEL_KEY, serialize(state));
   }, [state, hydrated, saveState]);
 
-  const onKey = useCallback((key: KeyDef) => {
-    setState(prev => dispatch(prev, { type: 'press', keyId: key.id }));
-  }, []);
+  const handle = useCallback((keyId: string) => {
+    setState((prev) => {
+      // A memory key is armed and then takes a digit — STO 1, RCL 2, 2nd SUM 3. Handled here
+      // rather than in the engine because it is a two-key gesture, and the engine deals in single
+      // presses so that it stays testable as a pure function of one key at a time.
+      if (awaiting && /^n[0-2]$/.test(keyId)) {
+        const slot = Number(keyId.slice(1)) as 0 | 1 | 2;
+        const next = awaiting === 'sto' ? storeTo(prev, slot)
+          : awaiting === 'rcl' ? recallFrom(prev, slot)
+          : awaiting === 'sum' ? sumInto(prev, slot)
+          : exchangeWith(prev, slot);
+        setAwaiting(null);
+        return next;
+      }
+      if (awaiting) setAwaiting(null);
 
-  useCalculatorKeyEvents(useCallback((keyId: string) => {
-    setState(prev => dispatch(prev, { type: 'press', keyId }));
-  }, []));
+      if (keyId === 'sto') { setAwaiting(prev.shift ? 'exc' : 'sto'); return { ...prev, shift: false }; }
+      if (keyId === 'rcl') { setAwaiting(prev.shift ? 'sum' : 'rcl'); return { ...prev, shift: false }; }
+
+      return press(prev, keyId);
+    });
+  }, [awaiting]);
+
+  const onKey = useCallback((key: KeyDef) => handle(key.id), [handle]);
+  useCalculatorKeyEvents(handle);
 
   const copyResult = useCallback(() => {
-    if (!state.result) return;
-    void navigator.clipboard?.writeText(state.result);
-  }, [state.result]);
+    void navigator.clipboard?.writeText(state.display);
+  }, [state.display]);
 
-  const statusBadges: string[] = [state.angleMode, state.displayMode];
-  if (state.shiftActive) statusBadges.push('2nd');
+  // The real device shows the angle mode and the 2nd indicator, and nothing else. Showing more
+  // would be a difference from the hardware in the direction of being more helpful, which is the
+  // wrong direction when the point is to practise on the thing you will actually sit the exam with.
+  const statusBadges: string[] = [state.mode];
+  if (state.shift) statusBadges.push('2nd');
+  if (awaiting) statusBadges.push(awaiting.toUpperCase());
+  if (state.data.length > 0) statusBadges.push(`n=${state.data.length}`);
 
   return (
     <div className="calc-model calc-model--ti-30xa">
-      <HistoryStrip rows={state.history.slice().reverse().map(h => ({ entry: h.entry, result: h.result }))} />
+      {/* No history strip. The 30Xa is a single-line calculator with no expression history, and
+          giving it one here would be the same category of error as the engine swap this replaced:
+          a convenience the real device does not have, practised until it is relied on. */}
       <Display
-        entry={state.entry}
-        result={state.result}
+        entry=""
+        result={state.display}
         statusBadges={statusBadges}
         onCopyResult={copyResult}
       />
@@ -74,7 +114,7 @@ export function Ti30xa() {
         rows={TI_30XA_GRID.rows}
         cols={TI_30XA_GRID.cols}
         onKey={onKey}
-        shiftActive={state.shiftActive}
+        shiftActive={state.shift}
       />
     </div>
   );
