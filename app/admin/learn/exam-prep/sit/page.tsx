@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Target, ClipboardCheck, Zap, Info, BookOpen } from 'lucide-react';
+import { Loader2, Target, ClipboardCheck, Zap, Info, BookOpen, Calculator } from 'lucide-react';
 import Link from 'next/link';
 import { usePageError } from '../../../hooks/usePageError';
 
@@ -142,6 +142,9 @@ export default function FSPrepHubPage() {
         </p>
         <Link href="/admin/learn/references" className="admin-module-detail__back" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
           <BookOpen size={15} style={{ verticalAlign: '-2px' }} /> Manage the tutor&apos;s reference library
+        </Link>
+        <Link href="/admin/learn/exam-prep/sit/calculator" className="admin-module-detail__back" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+          <Calculator size={15} style={{ verticalAlign: '-2px' }} /> Calculator reference and keystroke practice
         </Link>
       </div>
 

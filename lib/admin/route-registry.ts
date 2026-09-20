@@ -766,6 +766,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Knowledge. The exam-prep tracks are destinations a student picks; the authoring tools are reached
   // from Manage Content.
   { href: '/admin/learn/exam-prep/sit',   label: 'SIT Exam Prep',    workspace: 'knowledge', iconName: 'FileCheck',  description: 'Surveyor-in-Training exam preparation.', keywords: ['fs', 'sit', 'fundamentals', 'license'] },
+  { href: '/admin/learn/exam-prep/sit/calculator', label: 'Calculator Reference', workspace: 'knowledge', iconName: 'Calculator', description: 'Every TI-30Xa key, guided keystroke practice, and the NCEES-approved list.', showInRail: false, keywords: ['ti-30xa', 'keys', 'keystrokes', 'ncees', 'approved', 'drill'] },
   { href: '/admin/learn/exam-prep/sit/mock-exam', label: 'SIT Mock Exam', workspace: 'knowledge', iconName: 'Timer',  description: 'Full-length timed SIT practice exam.', showInRail: false, keywords: ['practice', 'timed', 'simulator'] },
   { href: '/admin/learn/exam-prep/rpls',  label: 'RPLS Exam Prep',   workspace: 'knowledge', iconName: 'FileCheck',  description: 'Registered Professional Land Surveyor exam preparation.', keywords: ['rpls', 'license', 'professional'] },
   { href: '/admin/learn/flashcards/create', label: 'New Flashcard Deck', workspace: 'knowledge', iconName: 'Plus',   description: 'Build a flashcard deck.', showInRail: false, keywords: ['create', 'deck'] },

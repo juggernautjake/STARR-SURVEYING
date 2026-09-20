@@ -3882,3 +3882,227 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .gcalc__btn:hover { border-color: var(--theme-accent, #1D3095); color: var(--theme-accent, #1D3095); }
 .gcalc__nudge { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
 .gcalc__missing { margin: 0; font-size: 0.85rem; color: var(--theme-fg-muted, #64748B); }
+
+/* ══ CALCULATOR REFERENCE ════════════════════════════════════════════════════════════════════
+ * Owner, 2026-09-20: "We need to catalogue all of the commands and everything for whatever
+ * calculators we use … I need to become very familiar and quick with the calculator."
+ *
+ * A reference is scanned, not read, so the design work is all in making one key findable among
+ * forty: a fixed-width key face on the left that the eye can run down, and the prose indented off
+ * it. Nothing here is a card with a shadow — forty shadowed cards is a texture, not a hierarchy. */
+.calcref { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.calcref__head { display: flex; flex-direction: column; gap: 0.4rem; }
+.calcref__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #0F172A);
+}
+.calcref__lede { margin: 0; max-width: 62ch; font-size: 0.92rem; line-height: 1.6; color: var(--theme-fg-secondary, #475569); }
+
+.calcref__tabs { display: flex; gap: 0.35rem; flex-wrap: wrap; border-bottom: 1px solid var(--theme-border, #E2E8F0); }
+.calcref__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--theme-fg-muted, #64748B);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--motion-fast, 160ms) var(--ease-out, ease), border-color var(--motion-fast, 160ms) var(--ease-out, ease);
+}
+.calcref__tab:hover { color: var(--theme-fg-primary, #0F172A); }
+.calcref__tab--on { color: var(--theme-accent, #1D3095); border-bottom-color: var(--theme-accent, #1D3095); }
+
+.calcref__panel { display: flex; flex-direction: column; gap: 1.1rem; }
+.calcref__panel-lede { margin: 0; max-width: 66ch; font-size: 0.88rem; line-height: 1.65; color: var(--theme-fg-secondary, #475569); }
+
+.calcref__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 9px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-muted, #64748B);
+}
+.calcref__search:focus-within { border-color: var(--theme-accent, #1D3095); }
+.calcref__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  font-size: 0.88rem;
+}
+.calcref__search-input:focus { outline: none; }
+.calcref__search-count { font-size: 0.76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.calcref__empty { margin: 0; max-width: 60ch; font-size: 0.88rem; line-height: 1.6; color: var(--theme-fg-muted, #64748B); }
+
+.calcref__group { display: flex; flex-direction: column; gap: 0.5rem; }
+.calcref__group-title {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.calcref__keys { display: flex; flex-direction: column; }
+
+.calcref__key {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--theme-border, #E2E8F0);
+}
+.calcref__key:first-child { border-top: none; }
+/* Digits and operators. Their whole meaning is the label, so they get one line and no padding. */
+.calcref__key--plain { padding: 0.35rem 0; }
+.calcref__key--plain .calcref__does { font-size: 0.82rem; color: var(--theme-fg-muted, #64748B); }
+
+.calcref__key-face { display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-start; }
+.calcref__kbd {
+  display: inline-block;
+  min-width: 2.6rem;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+  color: var(--theme-fg-primary, #0F172A);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+/* The yellow second function, in the colour it is actually printed in on the device. */
+.calcref__kbd--2nd {
+  border-color: var(--theme-warning-fg, #B7791F);
+  background: var(--theme-warning-bg, #FEF3C7);
+  color: var(--theme-warning-fg, #92400E);
+  font-size: 0.72rem;
+}
+
+.calcref__key-body { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.calcref__does { margin: 0; font-size: 0.87rem; line-height: 1.6; color: var(--theme-fg-primary, #0F172A); }
+.calcref__second { margin: 0; font-size: 0.82rem; line-height: 1.55; color: var(--theme-fg-secondary, #475569); }
+.calcref__example {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--theme-fg-secondary, #475569);
+}
+.calcref__example code {
+  padding: 0.18rem 0.45rem;
+  border-radius: 5px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+.calcref__use { margin: 0; font-size: 0.82rem; line-height: 1.55; color: var(--theme-fg-secondary, #475569); }
+.calcref__trap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--theme-warning-fg, #92400E);
+}
+
+/* ── guided practice list ─────────────────────────────────────────────────────────────────── */
+.calcref__routines { display: flex; flex-direction: column; gap: 0.5rem; }
+.calcref__routine {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.calcref__routine-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-primary, #0F172A);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.calcref__routine-title { flex: 1; min-width: 0; font-size: 0.93rem; font-weight: 600; }
+.calcref__routine-steps { font-size: 0.74rem; font-variant-numeric: tabular-nums; color: var(--theme-fg-muted, #64748B); white-space: nowrap; }
+.calcref__chev { color: var(--theme-fg-muted, #64748B); transition: transform var(--motion-fast, 160ms) var(--ease-out, ease); }
+.calcref__chev--open { transform: rotate(90deg); }
+.calcref__routine-why { margin: 0.3rem 0 0; font-size: 0.82rem; line-height: 1.55; color: var(--theme-fg-secondary, #475569); }
+.calcref__routine-body {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--theme-border, #E2E8F0);
+  animation: ui-rise var(--motion-normal, 260ms) var(--ease-out, ease) both;
+}
+
+/* ── which calculator ─────────────────────────────────────────────────────────────────────── */
+.calcref__entry-models { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.7rem; }
+.calcref__entry {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.calcref__entry-title { margin: 0 0 0.35rem; font-size: 0.9rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.calcref__entry-how { margin: 0 0 0.45rem; font-size: 0.82rem; line-height: 1.6; color: var(--theme-fg-secondary, #475569); }
+.calcref__entry-watch {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--theme-warning-fg, #92400E);
+}
+
+.calcref__approved { display: flex; flex-direction: column; }
+.calcref__model { padding: 0.85rem 0; border-top: 1px solid var(--theme-border, #E2E8F0); }
+.calcref__model:first-child { border-top: none; }
+.calcref__model-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.calcref__model-title { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.calcref__badge {
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.calcref__badge--immediate { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+.calcref__badge--expression { background: var(--theme-brand-tint, #EEF2FF); color: var(--theme-accent, #1D3095); }
+.calcref__badge--rpn { background: var(--theme-warning-bg, #FEF3C7); color: var(--theme-warning-fg, #92400E); }
+.calcref__badge--audited { background: var(--theme-bg-elevated, #F1F5F9); color: var(--theme-fg-secondary, #475569); }
+.calcref__model-notes { margin: 0 0 0.3rem; max-width: 70ch; font-size: 0.85rem; line-height: 1.6; color: var(--theme-fg-primary, #0F172A); }
+.calcref__model-rule { margin: 0; max-width: 70ch; font-size: 0.79rem; line-height: 1.55; color: var(--theme-fg-muted, #64748B); }
+
+@media (max-width: 560px) {
+  /* The key face stops being a column and sits above the prose. A 5.5rem gutter on a 400px
+   * screen leaves the explanation in a ribbon too narrow to read. */
+  .calcref__key { grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
+  .calcref__key-face { flex-direction: row; align-items: center; }
+}

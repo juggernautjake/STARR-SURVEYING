@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 283,
+  "count": 285,
   "byArea": {
     "public": 43,
-    "admin": 189,
+    "admin": 191,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -492,6 +492,12 @@
       "file": "app/admin/learn/exam-prep/sit"
     },
     {
+      "route": "/admin/learn/exam-prep/sit/calculator",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/exam-prep/sit/calculator"
+    },
+    {
       "route": "/admin/learn/exam-prep/sit/mock-exam",
       "area": "admin",
       "dynamic": false,
@@ -652,6 +658,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/login"
+    },
+    {
+      "route": "/admin/map",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/map"
     },
     {
       "route": "/admin/marketing",
