@@ -45,6 +45,9 @@ interface TimeLog {
   entered_by: string | null;
   /** Minutes at lunch, reported at clock-out. NULL = never asked; 0 = asked, none taken. seeds/650. */
   lunch_minutes: number | null;
+  /** When these hours were paid out, and by whom. NULL = not yet. seeds/651. */
+  paid_at: string | null;
+  paid_by: string | null;
   /**
    * What an approver DECIDED this entry is worth, when they decided anything.
    *
@@ -618,6 +621,32 @@ export default function HoursApprovalPage() {
     setSelected(new Set<string>(pendingIds));
   };
 
+  /** Mark the chosen entries paid, or put that back.
+   *
+   *  Owner, 2026-09-19: "I want it so that we can mark hours as approved and as paid."
+   *
+   *  The route refuses anything not already approved and says how many — the check belongs there,
+   *  where it cannot be skipped by a second client, rather than being duplicated into a disabled
+   *  button here that would then have to stay in step with it.
+   *
+   *  Undoing is deliberately as easy as doing: marking the wrong week paid is the obvious mistake,
+   *  and a one-way action would make the fix a database job. */
+  const setPaid = async (paid: boolean) => {
+    if (selected.size === 0) return;
+    const res = await fetch('/api/admin/time-logs/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [...selected], action: paid ? 'mark_paid' : 'mark_unpaid' }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setEntryNotice(body.error ?? 'Those hours could not be updated.');
+      return;
+    }
+    setSelected(new Set());
+    await loadData();
+  };
+
   const bulkApprove = async () => {
     if (selected.size === 0) return;
 
@@ -910,11 +939,12 @@ export default function HoursApprovalPage() {
   // The grouping, the counting and the ordering all live in `lib/hours/by-employee.ts`, where they
   // are tested without a page. What stays here is what to DO with the result.
   //
-  // `isPaid` is not passed, and that is not an oversight. Nothing marks a single time log as paid:
-  // paid-ness is a running per-person balance (`lib/payroll/owed.ts`), so a per-row or per-week
-  // "paid hours" figure would be invented. The balance itself is shown on the header instead,
-  // which is the number that actually answers "have they been paid".
-  const employeeGroups = groupByEmployee(logs);
+  // `isPaid` now has a real answer. It did not until 2026-09-19: nothing marked a single time log
+  // as paid, so the header showed the running balance and the gap was written down rather than
+  // filled with cents ÷ rate. The owner then asked for it — "I want it so that we can mark hours as
+  // approved and as paid" — and seeds/651 is the linkage. The balance stays on the header too; the
+  // two answer different questions, and "paid for these hours" is not "square with this person".
+  const employeeGroups = groupByEmployee(logs, { isPaid: (l) => Boolean(l.paid_at) });
 
   // Counted off the WEEK, not the filtered view: the tab badge answers "is there anything waiting",
   // and it must not read zero merely because you are currently looking at approved days.
@@ -1202,7 +1232,10 @@ export default function HoursApprovalPage() {
       {!loading && (tab === 'pending' || tab === 'history') && (
         <div className="tl-approval-section">
           {/* Bulk actions */}
-          {tab === 'pending' && pendingCount > 0 && (
+          {/* Paying happens AFTER approval, when the pending count is often zero. A bar that only
+              appeared while something was pending would hide the Paid buttons exactly when they
+              are wanted, so a live selection keeps it open too. */}
+          {tab === 'pending' && (pendingCount > 0 || selected.size > 0) && (
             <div className="tl-bulk-actions">
               <button className="tl-btn tl-btn--sm" onClick={selectAll}>Select All Pending</button>
               {selected.size > 0 && (
@@ -1210,6 +1243,12 @@ export default function HoursApprovalPage() {
                   <span className="tl-bulk-actions__count">{selected.size} selected</span>
                   <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={bulkApprove}>Approve Selected</button>
                   <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={bulkReject}>Reject Selected</button>
+                  {/* Paying is a separate act from approving, so it is a separate button — not a
+                      second meaning bolted onto Approve. Undo sits beside it because marking the
+                      wrong week paid is the obvious mistake and the fix should not be a database
+                      job. (Owner, 2026-09-19.) */}
+                  <button className="tl-btn tl-btn--sm" onClick={() => void setPaid(true)} data-testid="tl-mark-paid">Mark Paid</button>
+                  <button className="tl-btn tl-btn--sm" onClick={() => void setPaid(false)} data-testid="tl-mark-unpaid">Mark Unpaid</button>
                 </>
               )}
             </div>
@@ -1251,6 +1290,7 @@ export default function HoursApprovalPage() {
                     </span>
                     <span className="tl-stat"><strong>{group.loggedHours.toFixed(1)}h</strong><em>logged</em></span>
                     <span className="tl-stat"><strong>{group.approvedHours.toFixed(1)}h</strong><em>approved</em></span>
+                    <span className="tl-stat"><strong>{group.paidHours.toFixed(1)}h</strong><em>paid</em></span>
                     {/* Lunch across the range. `—` when nobody was ever asked, which is a different
                         thing from nobody having taken one — see seeds/650. */}
                     <span className="tl-stat"><strong>{group.lunchDays > 0 ? formatLunch(group.lunchMinutes) : '—'}</strong><em>lunch</em></span>
@@ -1318,6 +1358,16 @@ export default function HoursApprovalPage() {
                           {log.entered_by && (
                             <span className="tl-badge tl-badge--office" title={`Entered by ${log.entered_by} — not submitted by the employee`}>
                               office
+                            </span>
+                          )}
+                          {/* Paid is not a status — an entry is approved AND paid — so it reads as
+                              its own badge rather than replacing the one beside it. */}
+                          {log.paid_at && (
+                            <span
+                              className="tl-badge tl-badge--paid"
+                              title={`Marked paid${log.paid_by ? ` by ${log.paid_by}` : ''} on ${formatDate(log.paid_at.slice(0, 10))}`}
+                            >
+                              paid
                             </span>
                           )}
                         </div>

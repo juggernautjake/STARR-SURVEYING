@@ -213,7 +213,16 @@ export default function MyHoursPanel() {
   // banner; the people the lock actually constrains did not.
   const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
 
-  const [grain, setGrain] = useState<Grain>('week');
+  // ── ALL TIME IS A WINDOW, NOT A GRAIN (owner, 2026-09-19) ────────────────────────────────────
+  // "They need to be able to see their hours for all time, yearly, monthly, weekly and daily."
+  //
+  // Four of those five are grains — how the rows are bucketed. "All time" is not: it is the same
+  // yearly bucketing with the date bound taken off. Adding it to `Grain` in lib/hours/summarise.ts
+  // would have put a window into a type that means something else, and every switch over Grain in
+  // that tested module would have grown a case that made no sense there.
+  const [grain, setGrain] = useState<Grain | 'all'>('week');
+  /** What `summariseHours` is actually asked for. */
+  const bucketGrain: Grain = grain === 'all' ? 'year' : grain;
   const [rangeLogs, setRangeLogs] = useState<TimeLog[] | null>(null);
   const [rangeLoading, setRangeLoading] = useState(false);
 
@@ -304,7 +313,7 @@ export default function MyHoursPanel() {
    * "by day" means the last few weeks of days, "by year" means the years you have worked here. A
    * single unbounded fetch would grow without limit on a phone.
    */
-  const RANGE_DAYS: Record<Grain, number> = { day: 45, week: 180, month: 730, year: 3650 };
+  const RANGE_DAYS: Record<Grain | 'all', number | null> = { day: 45, week: 180, month: 730, year: 3650, all: null };
 
   useEffect(() => {
     if (tab !== 'totals') return;
@@ -313,15 +322,19 @@ export default function MyHoursPanel() {
       setRangeLoading(true);
       try {
         const to = new Date();
-        const from = new Date(to.getTime() - RANGE_DAYS[grain] * 86_400_000);
+        const days = RANGE_DAYS[grain];
         // No `status` param at all. The route treats `status` as a literal value or comma list, so
         // `status=all` would filter to entries whose status is the string "all" and return nothing —
         // the approval page handles its "All Statuses" option client-side for the same reason.
         // Omitting it is what actually means "every status".
-        const params = new URLSearchParams({
-          date_from: from.toISOString().slice(0, 10),
-          date_to: to.toISOString().slice(0, 10),
-        });
+        // No bounds at all for "all time" — the whole point of it. Every other grain keeps its
+        // window, because an unbounded fetch on a phone grows without limit and the day view does
+        // not need 2019.
+        const params = new URLSearchParams();
+        if (days !== null) {
+          params.set('date_from', new Date(to.getTime() - days * 86_400_000).toISOString().slice(0, 10));
+          params.set('date_to', to.toISOString().slice(0, 10));
+        }
         const res = await fetch(`/api/admin/time-logs?${params.toString()}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
@@ -340,8 +353,8 @@ export default function MyHoursPanel() {
   }, [tab, grain, reportPageError]);
 
   const buckets = useMemo(
-    () => summariseHours((rangeLogs ?? []) as SummarisableLog[], grain),
-    [rangeLogs, grain],
+    () => summariseHours((rangeLogs ?? []) as SummarisableLog[], bucketGrain),
+    [rangeLogs, bucketGrain],
   );
   const rangeTotal = useMemo(() => totalOf(buckets), [buckets]);
 
@@ -637,6 +650,22 @@ export default function MyHoursPanel() {
         <button className={`tl-tabs__btn ${tab === 'advances' ? 'tl-tabs__btn--active' : ''}`} onClick={() => setTab('advances')}>
           Pay Advances
         </button>
+        {/* ── LOG MORE HOURS (owner, 2026-09-19) ────────────────────────────────────────────────
+            "They also need a button to log more hours, so make sure that is available."
+            
+            Shown on every tab EXCEPT the one it goes to, where it would be a button pointing at the
+            page you are already on. Pushed to the right so it reads as an action rather than as a
+            fifth tab. */}
+        {tab !== 'log' && (
+          <button
+            className="tl-btn tl-btn--sm tl-btn--primary"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setTab('log')}
+            data-testid="myhours-log-more"
+          >
+            + Log hours
+          </button>
+        )}
       </div>
 
       {loading && <div className="tl-loading">Loading...</div>}
@@ -878,13 +907,20 @@ export default function MyHoursPanel() {
       {tab === 'totals' && (
         <div className="tl-history-section">
           <div className="tl-tabs" style={{ marginBottom: '0.75rem' }}>
-            {(['day', 'week', 'month', 'year'] as Grain[]).map((g) => (
+            {([
+              { g: 'day' as const, label: 'By day' },
+              { g: 'week' as const, label: 'By week' },
+              { g: 'month' as const, label: 'By month' },
+              { g: 'year' as const, label: 'By year' },
+              { g: 'all' as const, label: 'All time' },
+            ]).map(({ g, label }) => (
               <button
                 key={g}
                 className={`tl-tabs__btn ${grain === g ? 'tl-tabs__btn--active' : ''}`}
                 onClick={() => setGrain(g)}
+                data-testid={`myhours-grain-${g}`}
               >
-                {g === 'day' ? 'By day' : g === 'week' ? 'By week' : g === 'month' ? 'By month' : 'By year'}
+                {label}
               </button>
             ))}
           </div>
@@ -900,7 +936,7 @@ export default function MyHoursPanel() {
               <div className="tl-history-day">
                 <div className="tl-history-day__header">
                   <span className="tl-history-day__title">
-                    All {buckets.length} {grain === 'day' ? 'days' : `${grain}s`}
+                    {grain === 'all' ? 'Everything you have logged' : `All ${buckets.length} ${bucketGrain === 'day' ? 'days' : `${bucketGrain}s`}`}
                   </span>
                   <span className="tl-history-day__total">
                     {rangeTotal.hours.toFixed(1)}h · {formatCurrency(rangeTotal.pay)}
@@ -912,7 +948,7 @@ export default function MyHoursPanel() {
                 {buckets.map((b) => (
                   <div key={b.key} className="tl-history-day">
                     <div className="tl-history-day__header">
-                      <span className="tl-history-day__title">{labelFor(b, grain)}</span>
+                      <span className="tl-history-day__title">{labelFor(b, bucketGrain)}</span>
                       <span className="tl-history-day__total">
                         {b.hours.toFixed(1)}h · {formatCurrency(b.pay)}
                       </span>

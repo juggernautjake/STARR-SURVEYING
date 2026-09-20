@@ -1238,3 +1238,11 @@
   color: var(--theme-fg-muted, #6B7280);
   font-style: italic;
 }
+
+/* Paid is not a status — an entry is approved AND paid — so it gets its own badge beside the
+ * status rather than replacing it. Green because it is the end of the road for that row, and the
+ * only badge on this screen that means "nothing further is owed here". */
+.tl-badge--paid {
+  background: var(--theme-success-bg, #DCFCE7);
+  color: var(--theme-success-fg, #166534);
+}

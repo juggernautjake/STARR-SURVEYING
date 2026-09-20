@@ -113,7 +113,7 @@ describe('an adjustment is reflected everywhere the hours are counted', () => {
     // This asserts the delegation rather than the arithmetic, because the arithmetic now has its
     // own tests (__tests__/admin/hours-by-employee.test.ts, 'prefers what the approver decided')
     // and asserting it twice in two styles is how the second copy comes to be wrong.
-    expect(s, 'the page must not re-implement the grouping').toMatch(/groupByEmployee\(logs\)/);
+    expect(s, 'the page must not re-implement the grouping').toMatch(/groupByEmployee\(logs[,)]/);
     const helper = src('lib/hours/by-employee.ts');
     expect(helper, 'and the module it delegates to must not re-implement the rule')
       .toMatch(/import \{ effectiveHours \} from '\.\/hours-flags'/);
