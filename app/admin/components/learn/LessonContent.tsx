@@ -12,6 +12,7 @@
 
 import { splitDemos, numberProp, type DemoDirective } from '@/lib/learn/demos';
 import QuadrantPicker from './QuadrantPicker';
+import GuidedCalculator from './GuidedCalculator';
 
 export interface LessonContentProps {
   /** The raw markdown of the section or chunk. */
@@ -33,6 +34,10 @@ function Demo({ demo }: { demo: DemoDirective }) {
       // 192° is the owner's own example, and it is a good default: it is in the south-west, which
       // is the quadrant a bare TAN⁻¹ is least likely to hand you.
       return <QuadrantPicker azimuth={numberProp(demo.props, 'azimuth', 192)} />;
+    case 'calculator':
+      // `routine` names one of TI_30XA_GUIDED. An unknown id renders the component's own "not
+      // available" line rather than nothing, so a typo is visible to the author here too.
+      return <GuidedCalculator routineId={demo.props.routine ?? 'inverse-distance'} />;
     default:
       return null;
   }

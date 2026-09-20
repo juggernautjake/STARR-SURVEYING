@@ -16,9 +16,19 @@ interface KeypadProps {
   onKey?: (key: KeyDef) => void;
   /** Whether the 2nd / shift modifier is currently armed (changes label color). */
   shiftActive?: boolean;
+  /**
+   * Guided practice: the key the student should press next.
+   *
+   * Only ONE key is ever pointed at, deliberately. Highlighting the whole remaining sequence would
+   * let somebody copy a pattern off the screen without reading a word of what the keys do, which is
+   * the opposite of the point.
+   */
+  nextKey?: string | null;
+  /** A key just pressed in error, so it can say so and settle. */
+  wrongKey?: string | null;
 }
 
-export function Keypad({ keys, rows, cols, onKey, shiftActive }: KeypadProps) {
+export function Keypad({ keys, rows, cols, onKey, shiftActive, nextKey, wrongKey }: KeypadProps) {
   return (
     <div
       className="calc-keypad"
@@ -31,13 +41,19 @@ export function Keypad({ keys, rows, cols, onKey, shiftActive }: KeypadProps) {
         <button
           key={k.id}
           type="button"
-          className={`calc-key calc-key--${k.tone || 'soft'}${shiftActive && k.kind === 'shift' ? ' calc-key--armed' : ''}`}
+          className={[
+            'calc-key',
+            `calc-key--${k.tone || 'soft'}`,
+            shiftActive && k.kind === 'shift' ? 'calc-key--armed' : '',
+            nextKey === k.id ? 'calc-key--next' : '',
+            wrongKey === k.id ? 'calc-key--wrong' : '',
+          ].filter(Boolean).join(' ')}
           style={{
             gridRow: `${k.row} / span ${k.rowSpan ?? 1}`,
             gridColumn: `${k.col} / span ${k.colSpan ?? 1}`,
           }}
           onClick={onKey ? () => onKey(k) : undefined}
-          aria-label={k.label}
+          aria-label={nextKey === k.id ? `${k.label} — press this next` : k.label}
           tabIndex={onKey ? 0 : -1}
         >
           {k.shiftLabel && (

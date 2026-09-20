@@ -451,6 +451,34 @@
   outline: 2px solid #fff;
   outline-offset: 1px;
 }
+/* ── GUIDED PRACTICE: the one key to press next ──────────────────────────────
+ * The emulator's keys are dark plastic on a dark body, so the pointer has to be a ring rather
+ * than a fill — a filled key would lose its own printed label, which is the thing being learned.
+ *
+ * `ui-breathe` pulses the ring via --motion-ring. It is one of the few animations allowed to
+ * loop, and this is exactly the case it exists for: a target that must stay findable while
+ * somebody reads a paragraph and then looks back down. */
+.calc-key--next {
+  --motion-ring: rgba(96, 165, 250, 0.9);
+  outline: 2px solid rgba(96, 165, 250, 0.95);
+  outline-offset: 2px;
+  animation: ui-breathe 1.8s ease-in-out infinite;
+  z-index: 1;
+}
+/* The key you pressed instead. Shakes once and stays marked until the next press, so a glance
+ * away and back still shows which one it was. */
+.calc-key--wrong {
+  outline: 2px solid rgba(248, 113, 113, 0.95);
+  outline-offset: 2px;
+  animation: ui-nudge 300ms var(--ease-out, ease) both;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The outline alone still says where to press — which is the test for every animation here:
+   * take the motion away and the information has to survive. */
+  .calc-key--next, .calc-key--wrong { animation: none !important; }
+}
+
 /* Accent — enter ring */
 .calc-key--accent {
   background: linear-gradient(180deg, #5b6471 0%, #353c46 100%);
