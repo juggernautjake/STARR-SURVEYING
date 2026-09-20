@@ -13,6 +13,8 @@
 import { splitDemos, numberProp, type DemoDirective } from '@/lib/learn/demos';
 import QuadrantPicker from './QuadrantPicker';
 import GuidedCalculator from './GuidedCalculator';
+import TurnAngle from './TurnAngle';
+import NorthUp from './NorthUp';
 
 export interface LessonContentProps {
   /** The raw markdown of the section or chunk. */
@@ -34,6 +36,24 @@ function Demo({ demo }: { demo: DemoDirective }) {
       // 192° is the owner's own example, and it is a good default: it is in the south-west, which
       // is the quadrant a bare TAN⁻¹ is least likely to hand you.
       return <QuadrantPicker azimuth={numberProp(demo.props, 'azimuth', 192)} />;
+    case 'turn-angle':
+      // `deflection=yes` switches to measuring from the extension of the back line, which is the
+      // distinction the demo exists to teach. Anything other than "yes" means a plain turned angle.
+      return (
+        <TurnAngle
+          backsight={numberProp(demo.props, 'backsight', 90)}
+          angle={numberProp(demo.props, 'angle', 87.25)}
+          direction={demo.props.direction === 'left' ? 'left' : 'right'}
+          deflection={demo.props.deflection === 'yes'}
+        />
+      );
+    case 'north-up':
+      return (
+        <NorthUp
+          startRotation={numberProp(demo.props, 'rotation', 128)}
+          lineAzimuth={numberProp(demo.props, 'bearing', 64)}
+        />
+      );
     case 'calculator':
       // `routine` names one of TI_30XA_GUIDED. An unknown id renders the component's own "not
       // available" line rather than nothing, so a typo is visible to the author here too.

@@ -33,7 +33,7 @@
 // Pure, and tested in __tests__/learn/demos.test.ts.
 
 /** The demos a lesson may embed. Adding one here is what makes the directive legal. */
-export const DEMO_NAMES = ['quadrant', 'calculator'] as const;
+export const DEMO_NAMES = ['quadrant', 'calculator', 'turn-angle', 'north-up'] as const;
 export type DemoName = (typeof DEMO_NAMES)[number];
 
 export interface DemoDirective {

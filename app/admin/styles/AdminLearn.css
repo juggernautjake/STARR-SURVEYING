@@ -4106,3 +4106,197 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
   .calcref__key { grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
   .calcref__key-face { flex-direction: row; align-items: center; }
 }
+
+/* ══ THE DRAGGABLE DIALS ═════════════════════════════════════════════════════════════════════
+ * Owner, 2026-09-20: "turning an instrument in the right direction, or reorienting a drawing to
+ * the correct north."
+ *
+ * Both are SVG you grab and turn, so both need `touch-action: none` — without it a phone scrolls
+ * the page instead of turning the dial, and the demo is simply broken on the device most likely
+ * to be in a surveyor's hand.
+ *
+ * They share no classes. The two are a similar shape and a different thing, and a `.dial` base
+ * class shared between them would mean every later change to one had to be checked against the
+ * other. Two hundred lines of honest duplication beats one abstraction that fits neither. */
+
+/* ── turning an angle ──────────────────────────────────────────────────────────────────────── */
+.turn { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.turn__ask {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.turn__dial {
+  width: 280px;
+  height: 280px;
+  max-width: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.turn__dial:active { cursor: grabbing; }
+.turn__dial:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 3px; border-radius: 50%; }
+.turn__dial--wrong { animation: ui-nudge 300ms var(--ease-out, ease) both; }
+
+.turn__face { fill: var(--theme-bg-elevated, #F8FAFC); stroke: var(--theme-border, #CBD5E1); stroke-width: 1.5; }
+.turn__tick { stroke: var(--theme-border, #CBD5E1); stroke-width: 1.5; }
+.turn__cardinal { font-size: 12px; font-weight: 700; fill: var(--theme-fg-secondary, #475569); }
+
+/* The backsight: a reference, not an answer, so it is dashed and grey. */
+.turn__back { stroke: var(--theme-fg-muted, #94A3B8); stroke-width: 2; stroke-dasharray: 6 5; }
+.turn__back-label { font-size: 10px; font-weight: 700; fill: var(--theme-fg-muted, #64748B); letter-spacing: 0.05em; }
+
+/* The correct line, revealed only after committing. */
+.turn__target {
+  stroke: var(--theme-success-fg, #166534);
+  stroke-width: 2.5;
+  stroke-dasharray: 4 4;
+  animation: ui-fade-in 300ms var(--ease-out, ease) both;
+}
+
+.turn__aim { stroke: var(--theme-accent, #1D3095); stroke-width: 3.5; stroke-linecap: round; }
+.turn__aim--right { stroke: var(--theme-success-fg, #166534); }
+.turn__aim--wrong { stroke: var(--theme-danger-fg, #991B1B); }
+.turn__handle { fill: var(--theme-accent, #1D3095); stroke: var(--theme-bg-surface, #FFFFFF); stroke-width: 2; }
+.turn__hub { fill: var(--theme-fg-primary, #0F172A); }
+
+.turn__readout { margin: 0; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--theme-fg-secondary, #475569); }
+
+.turn__actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; justify-content: center; }
+.turn__btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.turn__btn--primary { border-color: var(--theme-accent, #1D3095); background: var(--theme-accent, #1D3095); color: #FFFFFF; }
+.turn__hint { font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
+
+.turn__verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+}
+.turn__verdict--right { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+.turn__verdict--wrong { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.turn__verdict-icon { display: flex; animation: ui-tick 300ms var(--ease-out, ease) both; }
+.turn__why { margin: 0.25rem 0 0; font-size: 0.81rem; line-height: 1.6; opacity: 0.92; }
+.turn__again {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── north up ──────────────────────────────────────────────────────────────────────────────── */
+.northup { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.northup__ask {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.northup__sheet {
+  width: 280px;
+  height: 280px;
+  max-width: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.northup__sheet:active { cursor: grabbing; }
+.northup__sheet:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 3px; border-radius: 8px; }
+.northup__sheet--wrong { animation: ui-nudge 300ms var(--ease-out, ease) both; }
+
+/* The page does not turn. Everything else does. */
+.northup__page { fill: var(--theme-bg-elevated, #F8FAFC); stroke: var(--theme-border, #CBD5E1); stroke-width: 1.5; }
+.northup__up { stroke: var(--theme-fg-muted, #94A3B8); stroke-width: 2; stroke-dasharray: 4 4; }
+.northup__up-label { font-size: 9px; font-weight: 700; fill: var(--theme-fg-muted, #94A3B8); letter-spacing: 0.06em; }
+
+.northup__parcel {
+  fill: var(--theme-brand-tint, #EEF2FF);
+  stroke: var(--theme-fg-secondary, #475569);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.northup__line { stroke: var(--theme-accent, #1D3095); stroke-width: 3; stroke-linecap: round; }
+.northup__arrow { stroke: var(--theme-fg-primary, #0F172A); stroke-width: 2; }
+.northup__arrow-head { fill: var(--theme-fg-primary, #0F172A); }
+.northup__arrow-label { font-size: 13px; font-weight: 700; fill: var(--theme-fg-primary, #0F172A); }
+
+.northup__readout { margin: 0; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--theme-fg-secondary, #475569); }
+
+.northup__actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; justify-content: center; }
+.northup__btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.northup__btn--primary { border-color: var(--theme-accent, #1D3095); background: var(--theme-accent, #1D3095); color: #FFFFFF; }
+.northup__hint { font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
+
+.northup__verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+}
+.northup__verdict--right { background: var(--theme-success-bg, #DCFCE7); color: var(--theme-success-fg, #166534); }
+.northup__verdict--wrong { background: var(--theme-danger-bg, #FEE2E2); color: var(--theme-danger-fg, #991B1B); }
+.northup__verdict-icon { display: flex; animation: ui-tick 300ms var(--ease-out, ease) both; }
+.northup__why { margin: 0.25rem 0 0; font-size: 0.81rem; line-height: 1.6; opacity: 0.92; }
+.northup__again {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn__dial--wrong, .turn__target, .turn__verdict-icon,
+  .northup__sheet--wrong, .northup__verdict-icon {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
