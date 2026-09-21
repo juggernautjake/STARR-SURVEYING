@@ -109,8 +109,9 @@ export type CountyProfileView = Omit<CountyProfile, 'module'> & { curated: boole
 
 import { BELL_PROFILE } from './bell/profile.js';
 import { MILAM_PROFILE } from './milam/profile.js';
+import { WILLIAMSON_PROFILE } from './williamson/profile.js';
 
-const CURATED: CountyProfile[] = [BELL_PROFILE, MILAM_PROFILE];
+const CURATED: CountyProfile[] = [BELL_PROFILE, MILAM_PROFILE, WILLIAMSON_PROFILE];
 const CURATED_BY_KEY = new Map(CURATED.map((p) => [p.key, p]));
 
 export function listCuratedProfiles(): CountyProfile[] {

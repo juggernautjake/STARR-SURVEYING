@@ -65,7 +65,30 @@ export const BIS_CONFIGS: Record<string, BisConfig> = {
   milam:       { baseUrl: 'https://esearch.milamad.org',          name: 'Milam CAD',           gisBaseUrl: 'https://maps.pandai.com/milamad/', gisParcelLayerUrls: [
     'https://gisdata.pandai.com/pamaps01/rest/services/Milam/MilamCADPublic/MapServer/0',
   ] },
-  williamson:  { baseUrl: 'https://esearch.wilcotx.gov',          name: 'Williamson CAD',      gisBaseUrl: 'https://gis.bisclient.com/wilcotx/' },
+  // ── WILLIAMSON REMOVED, 2026-09-21 — IT IS NOT A BIS COUNTY AND THE HOST NEVER EXISTED ───────
+  //
+  //   williamson: { baseUrl: 'https://esearch.wilcotx.gov', gisBaseUrl: 'https://gis.bisclient.com/wilcotx/' }
+  //
+  // Two things wrong, and the second one hid the first.
+  //
+  // `esearch.wilcotx.gov` returns NXDOMAIN from public DNS. Not blocked, not geo-fenced, not
+  // Cloudflare — there is no such hostname and there is no evidence there ever was. Job 26144's
+  // run spent 33 seconds failing against it twice, once by direct fetch ("[network] fetch failed")
+  // and once through the Browserbase tunnel ("net::ERR_TUNNEL_CONNECTION_FAILED"), and both
+  // readings looked like a network problem. A proxy cannot open a tunnel to a host that does not
+  // resolve either, so the two errors were the same NXDOMAIN wearing different coats.
+  //
+  // And Williamson is not a BIS county at all. Its district is WCAD, at `search.wcad.org`, running
+  // True Automation / Tyler PublicAccess on DNN — a different vendor with different URL shapes,
+  // a different search contract and a JSON API this file knows nothing about.
+  //
+  // `gis.bisclient.com` does answer, but it has no Williamson service tree: `/wilcotx/...` 404s at
+  // every path probed. That entry was a guess from the same wrong-vendor assumption.
+  //
+  // Removed rather than repointed, for the reason Coryell was removed from the Kofile table: this
+  // registry holds BIS sites and a non-BIS county in it is a promise the adapter cannot keep. The
+  // real endpoints live in counties/williamson/config/endpoints.ts and the client in
+  // counties/williamson/wcad.ts.
   burnet:      { baseUrl: 'https://esearch.burnet-cad.org',       name: 'Burnet CAD',          gisBaseUrl: 'https://gis.bisclient.com/burnetcad/' },
   lampasas:    { baseUrl: 'https://esearch.lampasascad.org',      name: 'Lampasas CAD',        gisBaseUrl: 'https://gis.bisclient.com/lampasascad/' },
   // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────

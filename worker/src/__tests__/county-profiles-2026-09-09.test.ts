@@ -23,7 +23,8 @@ describe('every Texas county resolves to exactly one profile', () => {
     const all = listCountyProfiles();
     expect(all).toHaveLength(254);
     const counts = tierCounts(all);
-    expect(counts.curated).toBe(2);
+    // Bell, Milam, Williamson (2026-09-21).
+    expect(counts.curated).toBe(3);
     expect(counts.curated + counts['vendor-default'] + counts.fallback).toBe(254);
     expect(all[0].tier).toBe('curated');
     expect(all[all.length - 1].tier).toBe('fallback');
@@ -68,22 +69,21 @@ describe('curated profiles agree with the modules they name', () => {
 });
 
 describe('an uncurated county gets the vendor-default fallback, stated as such', () => {
-  it('Williamson: BIS appraisal site + Tyler Eagle clerk known → vendor-default with both sites', () => {
-    const p = resolveCountyProfile('Williamson');
+  it('Burnet: a BIS appraisal site is known, nobody has driven it → vendor-default', () => {
+    // This was Williamson until 2026-09-21, when Williamson was curated — its sites driven by
+    // hand after a run discovered that the BIS host in its config, esearch.wilcotx.gov, returns
+    // NXDOMAIN and that the county is not a BIS county at all. Burnet takes its place as the
+    // example: a county whose vendor is known and whose sites nobody has opened.
+    const p = resolveCountyProfile('Burnet');
     expect(p.tier).toBe('vendor-default');
     expect(p.module).toBeUndefined();
     expect(p.sites.find((s) => s.role === 'appraisal')?.vendor).toBe('bis');
-    // The clerk vendor is whatever the registry routes — Williamson is a Tyler Eagle portal — and
-    // the URL is the one that vendor's own table names, so the profile cannot disagree with the adapter.
-    expect(getClerkSystem(p.fips)).toBe('tyler');
-    const clerk = p.sites.find((s) => s.role === 'clerk');
-    expect(clerk?.vendor).toBe('tyler_eagle');
-    expect(clerk?.url).toBe('https://williamsoncountytx-web.tylerhost.net/williamsonweb/');
     expect(p.statement).toContain('not curated');
-    expect(p.recipe.join(' ')).toContain('BIS eSearch');
     expect(p.golden).toEqual([]);
+    // The absence of a verified date is what "nobody has driven this" MEANS in a profile.
     for (const s of p.sites) expect(s.verifiedAt).toBeUndefined();
   });
+
   it('a county with no known portal is a fallback on the aggregator', () => {
     // Loving County: no BIS row, no clerk vendor in any registry.
     const p = resolveCountyProfile('Loving');
@@ -95,9 +95,26 @@ describe('an uncurated county gets the vendor-default fallback, stated as such',
 
 describe('the router dispatches from the resolver — assert the CALLER', () => {
   it('the module list is derived, not hand-kept', () => {
-    expect(getCountiesWithModules()).toEqual(listCuratedProfiles().map((p) => p.key));
+    // ── CURATED IS NOT THE SAME AS "HAS A MODULE" (2026-09-21) ────────────────────────────────
+    //
+    // This asserted the two were identical, and Williamson broke it by being curated without a
+    // runner. The router dispatches on `profile.module`, so the equality was never the invariant
+    // the router relied on — and enforcing it meant a county could not be curated until somebody
+    // had time to write a module, which is exactly the delay that left Williamson pointed at a
+    // hostname that does not exist.
+    //
+    // The one-way implication is the real rule: a module implies curation.
+    const withModules = getCountiesWithModules();
+    const curated = listCuratedProfiles().map((p) => p.key);
+    for (const k of withModules) expect(curated, `${k} has a module but is not curated`).toContain(k);
+
     expect(hasCountySpecificModule('Milam County')).toBe(true);
+    expect(hasCountySpecificModule('Bell')).toBe(true);
+    // Curated, driven by hand, and deliberately running the generic pipeline until a runner earns
+    // its place. `hasCountySpecificModule` asks whether there is a MODULE, not whether the county
+    // is known.
     expect(hasCountySpecificModule('Williamson')).toBe(false);
+    expect(resolveCountyProfile('Williamson').tier).toBe('curated');
   });
   it('runCountyResearch asks the profile for the module and no longer names counties in the switch', () => {
     const router = read('counties/router.ts');

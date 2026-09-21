@@ -164,15 +164,35 @@ export type UnifiedResearchResult = CountySpecificResult | GenericPipelineResult
  * These get full county-specific scraping, analysis, and reporting.
  */
 /**
- * Counties with dedicated research modules — DERIVED from the curated profiles (2026-09-09), so a
- * county cannot be listed here without a profile, and a profile cannot exist without being routed.
+ * Counties with dedicated research modules — DERIVED from the profiles (2026-09-09), so a county
+ * cannot be listed here without a profile, and a module cannot exist without being routed.
+ *
+ * ── CURATED IS NOT THE SAME AS "HAS A MODULE" (2026-09-21) ──────────────────────────────────────
+ *
+ * This read `tier === 'curated'` until Williamson was curated without one, and then it lied: the
+ * router dispatches on `profile.module`, so Williamson went to the generic pipeline while this
+ * function told every caller it had a dedicated one.
+ *
+ * `module` is optional on a CountyProfile and always was. The two states are genuinely different
+ * and both are useful:
+ *
+ *   curated WITH a module      Bell, Milam — somebody drove the sites AND wrote a runner.
+ *   curated WITHOUT a module   Williamson — somebody drove the sites; the generic pipeline runs,
+ *                              but with verified endpoints instead of guessed ones.
+ *
+ * The invariant worth keeping is the one-way implication: a module implies curation. The converse
+ * was never true and asserting it stopped a county from being curated until someone had time to
+ * write a runner — which is precisely the delay that left Williamson pointed at a hostname that
+ * does not exist.
+ *
+ * So this now asks the question its own name asks.
  */
 export function hasCountySpecificModule(county: string): boolean {
-  return resolveCountyProfile(county).tier === 'curated';
+  return Boolean(resolveCountyProfile(county).module);
 }
 
 export function getCountiesWithModules(): string[] {
-  return listCuratedProfiles().map((p) => p.key);
+  return listCuratedProfiles().filter((p) => p.module).map((p) => p.key);
 }
 
 // ── Bell County Auto-Detection ──────────────────────────────────────
