@@ -137,6 +137,35 @@ export interface ClerkSearchPlan {
 const clean = (v: string | null | undefined) => (v ?? '').replace(/\s+/g, ' ').trim();
 
 /**
+ * `08/29/1985 12:00 AM` → `1985-08-29`.
+ *
+ * Every other clerk adapter in this repo hands the pipeline `YYYY-MM-DD`, and Williamson was
+ * handing it a US date with a meaningless midnight stapled on. Nothing crashed — it sorts as text,
+ * so a chain of title ordered by date came out ordered by MONTH, putting 1990-08 before 1985-08
+ * and 1988-11 before 1988-08. A date that is wrong only when you sort it is the kind that survives
+ * a long time.
+ *
+ * The time is dropped rather than kept: the county writes 12:00 AM on every pre-2000 row, so it
+ * carries no information, and a timestamp that is always midnight invites being read as one.
+ * An unparseable value is returned as it came, because inventing a date is worse than an odd one.
+ */
+export function isoDate(raw: string | null | undefined): string | null {
+  const s = clean(raw);
+  if (!s) return null;
+
+  const mdy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/.exec(s);
+  if (mdy) return `${mdy[3]}-${mdy[1]!.padStart(2, '0')}-${mdy[2]!.padStart(2, '0')}`;
+
+  // Already ISO, possibly with a time on it. No `\b` after the day: in "2015-09-08T00:00:00" the
+  // boundary between "8" and "T" does not exist, both being word characters — so the guard that
+  // looks like it is being careful is the thing that makes the branch unreachable.
+  const iso = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  if (iso) return iso[1]!;
+
+  return s;
+}
+
+/**
  * Decide how to search, cheapest and most certain first.
  *
  * The order is the point and it is the reverse of Bell's:
@@ -298,7 +327,7 @@ export function parseClerkRow(rowText: string): ClerkRecord | null {
   return {
     instrument,
     documentType: parts[1] ?? null,
-    recordedAt: parts[2] ?? null,
+    recordedAt: isoDate(parts[2]),
     book: bookNumber,
     page: pageMatch ? pageMatch[1]! : null,
     grantors: after('Grantor'),

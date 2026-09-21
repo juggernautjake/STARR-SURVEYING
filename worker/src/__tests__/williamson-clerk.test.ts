@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   planClerkSearch, parseClerkRow, totalResults, searchRan, suggestUrl, nameFieldSelectors,
-  NAME_FIELDS, TEXT_FIELDS, RESULT_ROW_SELECTOR,
+  NAME_FIELDS, TEXT_FIELDS, RESULT_ROW_SELECTOR, isoDate,
 } from '../counties/williamson/clerk.js';
 
 describe('the distinction the whole module exists for', () => {
@@ -163,7 +163,9 @@ describe('reading a result row', () => {
   it('reads the header', () => {
     expect(r.instrument).toBe('19764027DRA');
     expect(r.documentType).toBe('DEED');
-    expect(r.recordedAt).toBe('03/10/1976 12:00 AM');
+    // Normalised, like every other clerk adapter in this repo. Left as the county wrote it, a
+    // chain of title sorted by this string sorts by MONTH.
+    expect(r.recordedAt).toBe('1976-03-10');
   });
 
   it('takes the book NUMBER, not the book TYPE', () => {
@@ -235,5 +237,35 @@ describe('the result count', () => {
 describe('the row selector is recorded in one place', () => {
   it('so a Tyler class rename breaks one constant, not the parser', () => {
     expect(RESULT_ROW_SELECTOR).toBe('.ss-search-row');
+  });
+});
+
+describe('isoDate', () => {
+  it('normalises the county date and drops its meaningless midnight', () => {
+    expect(isoDate('08/29/1985 12:00 AM')).toBe('1985-08-29');
+    expect(isoDate('1/6/1995 12:00 AM')).toBe('1995-01-06');
+    expect(isoDate('10/06/2022 11:23 AM')).toBe('2022-10-06');
+  });
+
+  it('sorts correctly, which the raw form does not', () => {
+    const raw = ['08/10/1990 12:00 AM', '11/21/1988 12:00 AM', '08/02/1988 12:00 AM'];
+    // As text, the county's form puts 1990-08 first and 1988-11 before 1988-08.
+    expect([...raw].sort()).toEqual([
+      '08/02/1988 12:00 AM', '08/10/1990 12:00 AM', '11/21/1988 12:00 AM',
+    ]);
+    expect(raw.map(isoDate).sort()).toEqual(['1988-08-02', '1988-11-21', '1990-08-10']);
+  });
+
+  it('leaves an already-ISO date alone', () => {
+    expect(isoDate('2015-09-08T00:00:00.000')).toBe('2015-09-08');
+    expect(isoDate('2015-09-08')).toBe('2015-09-08');
+  });
+
+  it('returns nothing for nothing, and never invents a date', () => {
+    expect(isoDate(null)).toBeNull();
+    expect(isoDate('')).toBeNull();
+    expect(isoDate('   ')).toBeNull();
+    // Unrecognised stays as it came — an odd string beats a fabricated date.
+    expect(isoDate('RECORDED AT THE COUNTER')).toBe('RECORDED AT THE COUNTER');
   });
 });
