@@ -86,7 +86,25 @@ export const TYLER_FIELDS = {
   startDate: 'field_RecDateID_DOT_StartDate',
   endDate: 'field_RecDateID_DOT_EndDate',
   docNumber: 'field_DocNumID',
+  /**
+   * THE BOOK TYPE, NOT THE BOOK NUMBER — do not put a citation's first half here.
+   *
+   * The three boxes read Book, Volume, Page, and the obvious mapping of "1236/435" onto Book and
+   * Page is wrong on every Eagle portal: `Book` takes the TYPE code (`OR`, `DEED`, `NONE`) that a
+   * result row shows as the FIRST `B:` in `B: OR B: 1236 P: 435`. The number belongs in `volume`.
+   *
+   * A number here matches nothing, returns no error, and reads exactly like a parcel with no
+   * recorded conveyance. Measured on Williamson, 2026-09-21, each search in its own session:
+   * Book 1236 + Page 435 → 0 rows; Volume 1236 + Page 435 → the 1985 deed. The same mistake lived
+   * in the Williamson planner for weeks and cost every book/page search that county ever ran.
+   *
+   * `tyler-eagle-adapter.ts` gets this right — it searches on `volume`. This key is here because
+   * the field exists on the form, and is documented because the next person to wire an Eagle
+   * county (McLennan, Burnet, Hamilton, Hill, Mills, Erath, Navarro, Somervell) will read the
+   * labels and reach for it.
+   */
   book: 'field_BookVolPageID_DOT_Book',
+  /** The book NUMBER. This is what the first half of a citation means, whatever it is called. */
   volume: 'field_BookVolPageID_DOT_Volume',
   page: 'field_BookVolPageID_DOT_Page',
   docTypes: 'field_selfservice_documentTypes',

@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { rowCouldBeThisParcel, placeTokens } from '../counties/williamson/parcel-match.js';
 
 const PARCEL = 'SOUTH CREEK SEC 16 AMENDED, BLOCK A, LOT 14';
@@ -78,5 +80,25 @@ describe('rowCouldBeThisParcel', () => {
   it('explains itself either way, because a run log is read by a person', () => {
     expect(rowCouldBeThisParcel('LT 14 BK A SOUTHCREEK S-16A AMND', PARCEL).why)
       .toMatch(/SOUTHCREEK.*matches.*SOUTH/);
+  });
+});
+
+/**
+ * The same form serves nine counties.
+ *
+ * Williamson's planner put a citation's number in the Book box, which matches nothing and reports
+ * no error. The shared Tyler Eagle adapter — McLennan, Burnet, Hamilton, Hill, Mills, Erath,
+ * Navarro, Somervell — drives the same form, so this holds it to the same rule.
+ */
+describe('every Tyler Eagle county searches on Volume, not Book', () => {
+  const adapter = fs.readFileSync(
+    path.join(process.cwd(), 'src/adapters/tyler-eagle-adapter.ts'), 'utf8');
+
+  it('the volume/page search uses the volume field', () => {
+    expect(adapter).toContain('TYLER_FIELDS.volume');
+  });
+
+  it('never fills the book field, which holds a type code', () => {
+    expect(adapter).not.toContain('TYLER_FIELDS.book');
   });
 });
