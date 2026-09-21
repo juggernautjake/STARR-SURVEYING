@@ -13,7 +13,8 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Browser } from 'playwright';
-import { searchWilliamsonClerk } from '../counties/williamson/clerk-driver.js';
+import { searchWilliamsonClerk, sessionGroups } from '../counties/williamson/clerk-driver.js';
+import { planClerkSearch } from '../counties/williamson/clerk.js';
 import { WILLIAMSON_ENDPOINTS } from '../counties/williamson/config/endpoints.js';
 
 const DISCLAIMER_TEXT =
@@ -198,5 +199,65 @@ describe('the clerk gate', () => {
     const search = trace.visited.findIndex((u) => u === WILLIAMSON_ENDPOINTS.clerk.search);
     expect(gate).toBeGreaterThanOrEqual(0);
     expect(search).toBeGreaterThan(gate);
+  });
+});
+
+/**
+ * A submitted name outlives its search.
+ *
+ * The county keeps it on the SESSION and re-renders the chip on the next page load, so every
+ * citation searched afterwards goes out as "book/page AND that name" and comes back empty. In the
+ * live pipeline this read as four consecutive deeds vanishing — no error, just holes in a chain of
+ * title. Emptying the text boxes does not help: the chip is not a text box.
+ */
+describe('sessions', () => {
+  const plansFor = (qs: Array<Record<string, string>>) => qs.map((q) => planClerkSearch(q as never));
+
+  it('gives a name search its own session, and starts fresh after it', () => {
+    const plans = plansFor([
+      { bothNames: 'AMH 2015-2 BORROWER LLC' },
+      { volume: '2661', page: '0944' },
+      { volume: '2368', page: '030' },
+    ]);
+    // The name ends session one; the citations run in a session that never heard the name.
+    expect(sessionGroups(plans)).toEqual([[0], [1, 2]]);
+  });
+
+  it('keeps citations together — one session, which is the cheap case', () => {
+    const plans = plansFor([
+      { volume: '2661', page: '0944' },
+      { volume: '2368', page: '030' },
+      { volume: '2131', page: '765' },
+    ]);
+    expect(sessionGroups(plans)).toEqual([[0, 1, 2]]);
+  });
+
+  it('separates two name searches from each other', () => {
+    const plans = plansFor([
+      { bothNames: 'SMITH JOHN' },
+      { bothNames: 'JONES MARY' },
+    ]);
+    expect(sessionGroups(plans)).toEqual([[0], [1]]);
+  });
+
+  it('never drops or reorders a query', () => {
+    const plans = plansFor([
+      { volume: '1', page: '1' },
+      { bothNames: 'SMITH JOHN' },
+      { volume: '2', page: '2' },
+      { bothNames: 'JONES MARY' },
+      { volume: '3', page: '3' },
+    ]);
+    const groups = sessionGroups(plans);
+    expect(groups.flat()).toEqual([0, 1, 2, 3, 4]);
+    // A name is always last in its group — nothing runs behind it on a poisoned session.
+    for (const g of groups) {
+      const namesAt = g.filter((i) => plans[i]!.kind === 'name');
+      if (namesAt.length) expect(namesAt).toEqual([g[g.length - 1]]);
+    }
+  });
+
+  it('handles an empty list', () => {
+    expect(sessionGroups([])).toEqual([]);
   });
 });

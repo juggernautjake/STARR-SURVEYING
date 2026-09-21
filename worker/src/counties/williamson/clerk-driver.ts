@@ -127,15 +127,78 @@ export async function searchWilliamsonClerkMany(
   const log = opts.log ?? (() => {});
   const plans = queries.map((q) => planClerkSearch(q));
 
-  // Not a failure and not an empty result — a query we declined to send. Saying so plainly keeps
-  // it out of the "this property has no documents" bucket.
-  const declined = (plan: ClerkSearchPlan) => empty(plan, {
-    kind: 'bad_query' as const, aboutUs: false, retryable: false,
-    message: `No clerk search was made: ${plan.why}.`, remedy: null,
-  });
-
   if (plans.every((p) => !p.runnable)) return plans.map(declined);
 
+  // ── A SUBMITTED NAME OUTLIVES ITS SEARCH ───────────────────────────────────────────────────────
+  //
+  // Emptying the text boxes is enough to stop one citation leaking into the next. It is NOT enough
+  // after a name search: once a name has been SUBMITTED the county remembers it on the session and
+  // re-renders the chip on the next page load, and since a chip IS a search term, every later
+  // citation goes out as "book/page AND that name" and comes back empty.
+  //
+  // Proven on 2026-09-21. A name search returning 10 rows, then a reload, then citation 2661/0944:
+  // the holder came back carrying "AMH 2015-2 BORROWER LLC" and the citation returned 0 rows where
+  // the same citation alone returns 1. In the live pipeline this read as four consecutive deeds
+  // vanishing — no error, no warning, just a chain of title with holes in it.
+  //
+  // The chip carries no remove control of its own, so rather than hunt for a way to un-say it, a
+  // name search gets its own session. Criteria memory is per session; a new one cannot inherit
+  // what the last one was told. Two sessions is still far below the six that draw the bot wall.
+  const groups = sessionGroups(plans);
+  if (groups.length > 1) {
+    log('info',
+      `[WilliamsonClerk] Running ${groups.length} sessions: a submitted name stays on the session ` +
+      'and would silently narrow every citation searched after it.');
+  }
+
+  const results: ClerkSearchOutcome[] = new Array(plans.length);
+  for (const group of groups) {
+    const groupPlans = group.map((i) => plans[i]!);
+    const out = await runSession(browser, groupPlans, opts, log);
+    group.forEach((planIndex, k) => { results[planIndex] = out[k]!; });
+  }
+  return results;
+}
+
+/**
+ * Not a failure and not an empty result — a query we declined to send. Saying so plainly keeps it
+ * out of the "this property has no documents" bucket.
+ */
+const declined = (plan: ClerkSearchPlan) => empty(plan, {
+  kind: 'bad_query' as const, aboutUs: false, retryable: false,
+  message: `No clerk search was made: ${plan.why}.`, remedy: null,
+});
+
+/**
+ * Split the plans into the sessions they must run in, preserving order.
+ *
+ * One rule: a name search ends its session. Everything up to and including a name goes together —
+ * the name is the last thing that session does — and what follows starts fresh. Searches with no
+ * name at all stay in a single session, which is the common case and the cheap one.
+ */
+export function sessionGroups(plans: readonly ClerkSearchPlan[]): number[][] {
+  const groups: number[][] = [];
+  let current: number[] = [];
+
+  for (let i = 0; i < plans.length; i++) {
+    current.push(i);
+    if (plans[i]!.kind === 'name') {
+      groups.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length > 0) groups.push(current);
+  return groups;
+}
+
+/** Run a set of plans down one browser session. */
+async function runSession(
+  browser: Browser,
+  plans: readonly ClerkSearchPlan[],
+  opts: ClerkDriverOptions,
+  log: (level: 'info' | 'warn', message: string) => void,
+): Promise<ClerkSearchOutcome[]> {
   // A COMPLETE user-agent. Several adapters in this repo carry a malformed one missing both
   // "(KHTML, like Gecko)" and the trailing "Safari/537.36", and the common browser-detection
   // libraries match Chrome by `Chrome/(\d+)` FOLLOWED BY `Safari/` — so the short string falls
@@ -317,10 +380,14 @@ async function runOneSearch(
     // criteria forward and ANDs them into this one, which turns a correct query into a silent
     // zero — and, worse, once made a WRONG field look right because the right one still held the
     // value from the search before.
-    // The chip lists need NO clearing, and trying to clear them broke the page. They do not
-    // survive a page load — verified on 2026-09-21 by selecting "SCOTT RALPH", reloading, and
-    // finding the holder empty — while the text fields DO. That asymmetry is the whole rule:
-    // reload handles the chips, and only the text boxes need emptying by hand.
+    // Chips are not cleared here, and the reason is NOT that they cannot outlive a page load —
+    // an earlier version of this comment said that, on the strength of a probe that selected a
+    // chip, reloaded, and found the holder empty. That probe never pressed Search. A chip that has
+    // only been SELECTED does die with the page; a chip that has been SUBMITTED comes back, because
+    // the county keeps it on the session. The distinction cost four deeds in a live run.
+    //
+    // So the rule is: within a session, only the text boxes need emptying, and a name search never
+    // has anything running behind it — `sessionGroups` ends its session. See the note there.
     //
     // The first attempt at this clicked every `<a>` inside each chip holder. A chip carries no
     // anchor, so that removed nothing; what it did hit was the holder's OTHER link —
