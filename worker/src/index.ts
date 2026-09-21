@@ -1084,15 +1084,41 @@ app.get('/health', async (_req: Request, res: Response) => {
       + `regardless of CAPSOLVER_API_KEY (provider=${process.env.CAPTCHA_PROVIDER ?? 'stub'})`,
   };
 
+  // ── CREDENTIALS MATTER WHENEVER AN ADAPTER IS PROMOTED, NOT ONLY WHEN THE DEFAULT IS REMOTE ────
+  //
+  // `BROWSERBASE_ENABLED_ADAPTERS` works in BOTH directions (see browser-factory.ts): with
+  // `BROWSER_BACKEND=browserbase` it GATES adapters down to local, and with `BROWSER_BACKEND=local`
+  // — which is what this worker runs — it PROMOTES the named ones up to Browserbase.
+  //
+  // This check only knew the first half. On a `local` worker it reported "ok, backend=local" and
+  // never looked at the credentials, so a named adapter with no API key is a run that fails every
+  // time under a health check that says nothing is wrong. That is the shape of fault this file
+  // exists to prevent, and it sits directly in the path of the next change anyone will make here:
+  // adding `tyler-clerk` so Williamson stops meeting the county's bot wall from a datacentre IP.
   const browserBackend = process.env.BROWSER_BACKEND ?? 'local';
+  const enabledAdapters = (process.env.BROWSERBASE_ENABLED_ADAPTERS ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  const haveBrowserbase = !!(process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID);
+
   if (browserBackend === 'browserbase') {
-    const ok = !!(process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID);
-    const enabled = process.env.BROWSERBASE_ENABLED_ADAPTERS ?? '';
-    checks.browser_factory = ok
-      ? { status: 'ok',      detail: `backend=browserbase enabled=${enabled || '(none — gates all callers to local)'}` }
+    checks.browser_factory = haveBrowserbase
+      ? { status: 'ok',      detail: `backend=browserbase enabled=${enabledAdapters.join(',') || '(none — gates all callers to local)'}` }
       : { status: 'warning', detail: 'backend=browserbase but BROWSERBASE_API_KEY or BROWSERBASE_PROJECT_ID missing' };
+  } else if (enabledAdapters.length > 0 && !haveBrowserbase) {
+    checks.browser_factory = {
+      status: 'warning',
+      detail:
+        `backend=${browserBackend}, but ${enabledAdapters.length} adapter(s) are named in ` +
+        `BROWSERBASE_ENABLED_ADAPTERS (${enabledAdapters.join(',')}) and BROWSERBASE_API_KEY or ` +
+        'BROWSERBASE_PROJECT_ID is missing. Naming an adapter PROMOTES it to Browserbase even when ' +
+        'the default backend is local, so every run through those adapters fails.',
+    };
   } else {
-    checks.browser_factory = { status: 'ok', detail: `backend=${browserBackend}` };
+    checks.browser_factory = {
+      status: 'ok',
+      detail: `backend=${browserBackend}` +
+        (enabledAdapters.length > 0 ? ` promoted=${enabledAdapters.join(',')}` : ''),
+    };
   }
 
   const storageBackend = process.env.STORAGE_BACKEND ?? 'local';
