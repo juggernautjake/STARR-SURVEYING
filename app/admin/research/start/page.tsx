@@ -28,6 +28,8 @@ import { notFound, redirect } from 'next/navigation';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { researchPrefillFromJob, type JobForResearch } from '@/lib/research/from-job';
+import { offerJobFiles, describeOffer, type JobFileForResearch } from '@/lib/research/job-documents';
+import { loadMapLibrary } from '@/lib/jobs/property-map-server';
 import StartResearchConfirm from './StartResearchConfirm';
 import './StartResearch.css';
 
@@ -97,13 +99,33 @@ export default async function StartResearchPage(
 
   const existing = (priorRows ?? []) as PriorProject[];
 
-  // How many files the job has, so the confirm screen can say what "documents" means concretely
-  // rather than promising to carry something that may not exist.
-  const { count: fileCount } = await supabaseAdmin
-    .from('job_files')
-    .select('id', { count: 'exact', head: true })
-    .eq('job_id', jobId)
-    .is('deleted_at', null);
+  // The job's files, so the confirm screen can offer the documents rather than promising to carry
+  // something vague.
+  //
+  // `is_deleted`, NOT `deleted_at`. Every other table in this feature soft-deletes with a
+  // timestamp; `job_files` uses a boolean, and asking it for `deleted_at` is an error from
+  // Postgres, not an empty list — so the first version of this page would have 500'd on every job
+  // with a file. Caught by reading the actual columns rather than assuming the convention held.
+  // `loadMapLibrary` rather than a fresh query: it already reads every file on a job and bulk-signs
+  // both the file and its generated thumbnail, per bucket, in one round trip. Writing a second
+  // loader here would mean a second place for the signing TTL and the `is_deleted` vs `deleted_at`
+  // difference to be got wrong — and the second one has already been got wrong once today.
+  //
+  // `mapId` is null because assignment to map points is irrelevant to research; the field comes
+  // back empty and is ignored.
+  const library = await loadMapLibrary(jobId, null);
+
+  const jobFiles: JobFileForResearch[] = library.map((f) => ({
+    id: f.id,
+    name: f.name,
+    contentType: f.mimeType,
+    section: f.section,
+    sizeBytes: f.sizeBytes,
+    thumbUrl: f.thumbUrl,
+    url: f.url,
+  }));
+
+  const offered = offerJobFiles(jobFiles);
 
   const jobLabel = [job.job_number, job.name].filter(Boolean).join(' — ') || jobId;
 
@@ -154,13 +176,7 @@ export default async function StartResearchPage(
               ? 'This is the client who ordered the survey. If they are not the record owner — a title company, a realtor, a lender — change it once the run opens.'
               : null}
           />
-          <Fact
-            label="Documents"
-            value={fileCount ? `${fileCount} file${fileCount === 1 ? '' : 's'} on the job` : null}
-            caveat={fileCount
-              ? 'Attach the ones worth reading from the run’s upload step — they are not copied automatically, so the run does not start by ingesting every photo on the job.'
-              : null}
-          />
+          <Fact label="Files on the job" value={jobFiles.length ? describeOffer(jobFiles) : null} />
         </dl>
       </section>
 
@@ -177,7 +193,7 @@ export default async function StartResearchPage(
         </section>
       )}
 
-      <StartResearchConfirm jobId={jobId} prefill={prefill} />
+      <StartResearchConfirm jobId={jobId} prefill={prefill} files={offered} />
     </main>
   );
 }

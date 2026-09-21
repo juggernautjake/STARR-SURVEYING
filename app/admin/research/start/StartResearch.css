@@ -155,6 +155,56 @@
   color: var(--theme-fg-muted, rgb(100 116 139));
 }
 
+/* ── THE CHOSEN FILES ────────────────────────────────────────────────────────
+ * A summary, not the picker — the picker is a dialog (FilePicker.css). Eight rows then a count,
+ * because a job with seventy selected photos should not push the Start button off the page. */
+.startres__chosen {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.startres__chosenitem { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+
+.startres__chosenthumb {
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 1.7rem;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--theme-bg-elevated, rgb(241 245 249));
+}
+.startres__chosenthumb--none { display: block; }
+
+.startres__chosenname {
+  font-size: 0.85rem;
+  color: var(--theme-fg-primary, rgb(15 23 42));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.startres__chosenmore { font-size: 0.78rem; color: var(--theme-fg-muted, rgb(100 116 139)); }
+
+.startres__filebar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+
+.startres__choose {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--theme-accent, rgb(29 48 149));
+  border-radius: 8px;
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  color: var(--theme-accent, rgb(29 48 149));
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.startres__choose:hover:not(:disabled) { background: var(--theme-brand-tint, rgb(238 242 255)); }
+.startres__choose:disabled { opacity: 0.6; cursor: default; }
+
 /* ── THE ACTION ────────────────────────────────────────────────────────────────────────────────*/
 .startres__actions {
   display: flex;

@@ -235,7 +235,21 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     county: rawCounty || autoCounty,
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
-    ownerName: body.ownerName || undefined,
+    // ── THE OWNER FALLS BACK TO THE PROJECT (2026-09-21) ────────────────────────────────────
+    //
+    // This read `body.ownerName` alone. The UI happens to send it — the project page resolves
+    // `projectOwnerName(project)` out of `analysis_metadata` and passes it down — so the field
+    // arrived on every run started by a person and on none started any other way. A project
+    // created by the job's "Research this Property" button, or by the API, or by a re-run that
+    // omitted the field, reached the worker with no owner at all, and the clerk scraper branches
+    // on `if (input.ownerName)` to decide whether to search the grantor/grantee index.
+    //
+    // Losing that silently is the expensive kind: the run completes, reports no conveyance found,
+    // and nothing anywhere says it never looked.
+    ownerName:
+      body.ownerName
+      || ((project.analysis_metadata as { owner_name?: string | null } | null)?.owner_name ?? undefined)
+      || undefined,
     // Plan H3 — the worker reads `body.supplemental` for the early buy's volume/page + instrument targets.
     supplemental,
     // ── SEED 625 — THE CASCADE FINALLY GETS A STARTING DOCUMENT ─────────────────────────────

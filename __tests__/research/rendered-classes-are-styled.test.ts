@@ -49,6 +49,13 @@ const SHEETS = [
   'app/admin/styles/AdminAssistant.css', 'app/admin/styles/AdminResearch.css',
   'app/admin/components/AddressAutocomplete.css',
   'app/admin/research/components/ui/primitives.css',
+  // `/admin/research/start` — the job's "Research this Property" screen and its file picker
+  // (2026-09-21). Both are imported by the components that render these classes, so they load on
+  // the route exactly as the sheets above do. Listed here rather than raising the baseline: the
+  // header is explicit that the number may only shrink, and "my new screen is styled" is not a
+  // reason to let three more unstyled classes through somewhere else.
+  'app/admin/research/start/StartResearch.css',
+  'app/admin/research/start/FilePicker.css',
 ];
 
 /**
