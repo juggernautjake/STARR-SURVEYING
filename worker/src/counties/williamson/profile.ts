@@ -91,6 +91,30 @@ export const WILLIAMSON_PROFILE: CountyProfile = {
         'FeatureServer was found — the Socrata datasets cover the gap.',
     },
     {
+      role: 'plats',
+      vendor: 'texasfile',
+      url: 'https://www.texasfile.com/search/texas/williamson-county/plat-records/',
+      egress: 'direct',
+      verifiedAt: '2026-09-21',
+      notes:
+        'PAID plats, since the county has no free repository. Plat maps 1854-02-18 to 2026-09-11, ' +
+        'searchable by subdivision name — which the WCAD legal description and the county’s own ' +
+        'Subdivisions dataset both supply, so the search is well-formed by the time it runs. ' +
+        'Driven by adapters/texasfile-plats.ts.',
+    },
+    {
+      role: 'historic_index',
+      vendor: 'texasfile',
+      url: 'https://www.texasfile.com/search/texas/williamson-county/county-clerk-records/',
+      egress: 'direct',
+      verifiedAt: '2026-09-21',
+      notes:
+        'Deed images, full index 1848-09-14 to 2026-09-11. This county lands on TexasFile’s ' +
+        'STRONGEST search rather than its weakest: texasfile-buy.ts records that instrument numbers ' +
+        'return empty there while book/vol/page works, and WCAD cites deeds by book and page. The ' +
+        'chain is property id → Sales dataset → book/page → TexasFile → buy.',
+    },
+    {
       role: 'tax',
       vendor: 'county_portal',
       url: 'https://tax.wilco.org/',
@@ -115,7 +139,9 @@ export const WILLIAMSON_PROFILE: CountyProfile = {
     'Identify the parcel: the WCAD free-text search, tried as the operator typed it, then with the street type dropped, then with a geocoder’s correction if there is one. It tolerates a MISSING street type but not a wrong one — "1007 Cushing Dirve" returns nothing, "1007 Cushing" returns the parcel.',
     'Read the detail page by label for legal description, account, map number, acreage, improvement size and year built.',
     'Pull the subdivision out of the legal description and look it up in the Socrata subdivision index for its code, lot count, file date and polygon — unless the description is metes and bounds, in which case skip it.',
-    'Deeds: take book/page from the Socrata Sales dataset and search the clerk by book/page. Use the name search only as a fallback, and only with the autocomplete interaction the page requires.',
+    'Deeds, free: take book/page from the Socrata Sales dataset and search the Tyler clerk by book/page. Use the name search only as a fallback, and only with the autocomplete interaction the page requires.',
+    'Deeds, paid images: the same book/page against TexasFile, which is this county’s strongest search — instrument numbers return empty there, book/vol/page does not.',
+    'Plats: there is no free repository. Search TexasFile plat records by the subdivision name taken from the legal description. Skip entirely for a metes-and-bounds parcel.',
     'Overhead views: Google satellite, plus the ArcGIS Experience app keyed by the property id.',
     'FEMA flood zone, the tax block, then AI reading unless this is a gather run.',
   ],

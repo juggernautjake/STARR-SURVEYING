@@ -182,6 +182,81 @@ export const WILLIAMSON_CLERK_NAME_RULE =
  */
 export const WILLIAMSON_CLERK_BRIDGE = 'volume_page' as const;
 
+/**
+ * ── WHERE THE ACTUAL DOCUMENTS COME FROM ────────────────────────────────────────────────────────
+ *
+ * Driven and verified 2026-09-21. Four questions, four answers.
+ *
+ * **Deeds — the free index.** The Tyler Eagle clerk above. Indexed 1838→2026, free to search, and
+ * it returns grantor, grantee, legal description, book/page and document type. Images cost money at
+ * the counter; the INDEX is free and is most of what a run needs.
+ *
+ * **Deeds — the paid images.** TexasFile, `/search/texas/williamson-county/county-clerk-records/`.
+ * Full index 1848-09-14 → 2026-09-11. The existing `texasfile-buy.ts` already drives this form, and
+ * its own header records the fact that matters here: *"Bell's own INSTRUMENT NUMBER returns empty
+ * on TexasFile — name and book/vol/page are the [ones that work]"*. Williamson's appraisal data
+ * cites deeds by BOOK AND PAGE, so this county lands on TexasFile's strongest search rather than
+ * its weakest. The chain is: WCAD property id → Sales dataset → book/page → TexasFile bvp search →
+ * buy. Nothing new has to be built for it.
+ *
+ * **Plats.** No free repository — Bell's county-portal PDF index has no Williamson equivalent, and
+ * `PLAT_REPO_REGISTRY` correctly has no entry. TexasFile does carry them:
+ * `/search/texas/williamson-county/plat-records/`, plat maps 1854-02-18 → 2026-09-11, searchable by
+ * subdivision name, volume/cabinet, page/slide or file number. See `adapters/texasfile-plats.ts`.
+ * The subdivision name comes free from the WCAD legal description and the county's own Subdivisions
+ * dataset, so the search is always well-formed by the time it runs.
+ *
+ * **Kofile — NOT a source here, and this is worth stating plainly.** `williamson.tx.publicsearch.us`
+ * exists and answers 200, and on 2026-09-21 its department selector was driven: the ONLY department
+ * is *Commissioners Court*. There are no land records on it at all. A deed search there returns an
+ * empty page, which reads as "this property has no deeds" — a reachable portal for the wrong index,
+ * which is worse than no portal. It is excluded from `services/clerk-registry.ts` and was removed
+ * from `bell-clerk.ts`'s KOFILE_CONFIGS for the same reason.
+ */
+export const WILLIAMSON_DOCUMENTS = {
+  /** Free to search, images at the counter. */
+  clerkIndex: {
+    source: 'tyler_eagle',
+    url: 'https://williamsoncountytx-web.tylerhost.net/williamsonweb/search/DOCSEARCH149S1',
+    free: true,
+    coverage: { from: '1838-12-08', to: '2026-09-14' },
+  },
+  /** Paid images, and the search this county is best served by. */
+  deedImages: {
+    source: 'texasfile',
+    url: 'https://www.texasfile.com/search/texas/williamson-county/county-clerk-records/',
+    free: false,
+    searchBy: ['name', 'book/volume/page', 'legal (subdivision, lot, block, survey, abstract)'],
+    coverage: { from: '1848-09-14', to: '2026-09-11' },
+  },
+  plats: {
+    source: 'texasfile',
+    url: 'https://www.texasfile.com/search/texas/williamson-county/plat-records/',
+    free: false,
+    searchBy: ['subdivision name', 'volume/cabinet', 'page/slide/sleeve', 'file number'],
+    coverage: { from: '1854-02-18', to: '2026-09-11' },
+  },
+  /** Recorded so nobody wires it up. See the block above. */
+  kofile: {
+    source: 'kofile',
+    url: 'https://williamson.tx.publicsearch.us/',
+    usable: false,
+    why: 'Only department is Commissioners Court — no land records. Verified 2026-09-21.',
+  },
+  /** The office, for anything that has to be ordered by hand. */
+  clerkOffice: {
+    name: 'Williamson County Clerk — Nancy E. Rister',
+    // Two addresses appear on two official sites; both are recorded rather than one being guessed
+    // at as canonical.
+    addresses: [
+      '405 Martin Luther King St., Georgetown, TX 78626-4901',
+      '1848 Texas Trail, Georgetown, TX 78626',
+    ],
+    phone: '(512) 943-1515',
+    email: 'nrister@wilco.org',
+  },
+} as const;
+
 /** Name formats the clerk states on its own page. */
 export const WILLIAMSON_NAME_FORMAT = {
   individual: 'Last First — "Smith James". Broader: last name plus first initial.',

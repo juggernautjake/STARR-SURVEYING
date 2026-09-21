@@ -645,6 +645,28 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       propertyResult = await lookupByPropertyId(input.county, input.propertyId, logger);
     }
 
+    // ── Path A2: a county with its own appraisal client ──────────────────────────────────────
+    //
+    // `searchBisCad` is the only CAD lookup this pipeline has, and it is correct for the thirty-odd
+    // BIS counties and useless everywhere else. Williamson runs True Automation, and until
+    // 2026-09-21 it was configured as BIS on a hostname that does not resolve — so Stage 1 spent 33
+    // seconds failing twice and reported "Cannot reach" about a site that was never addressed.
+    //
+    // This runs BEFORE the BIS path rather than after it, because for a county with its own client
+    // the BIS attempt is not a fallback, it is a wrong turn: it would generate address variants for
+    // a search box that does not exist and report their failure as evidence about the property.
+    //
+    // One `if` per such county is honest at this size. When there are four, this becomes a lookup
+    // on the profile — and the profile is already the right place for it, since `counties/
+    // williamson/profile.ts` is what knows the vendor.
+    if (!propertyResult && /williamson/i.test(input.county)) {
+      const { williamsonStage1 } = await import('../counties/williamson/stage1.js');
+      propertyResult = await williamsonStage1(input.address, logger, {
+        // The geocoder's corrected line, tried only after the operator's own words fail.
+        canonical: normalized.canonical ?? null,
+      });
+    }
+
     // Path B: Address-based CAD search (tries HTTP → Playwright → Vision OCR layers)
     // Owner name and property ID are passed as options so searchBisCad can use them
     // as fallback search methods internally (owner name tab, property ID tab, etc.).
@@ -909,6 +931,25 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       const readiness = visualReadiness(identified);
       logger.info('Stage1.5', 'Drawings, plats and overhead views — before the documents');
       logger.info('Stage1.5', `  ${readiness.statement}`);
+
+      // ── WHERE A PLAT CAN BE BOUGHT WHEN THERE IS NO FREE ONE ────────────────────────────────
+      //
+      // `platSourceStatement` above answers "is there a FREE plat repository", and for most
+      // counties the answer is no. Until now the run said so and stopped, which left a platted
+      // parcel with a known subdivision name and nowhere to go — exactly what happened to job
+      // 26144, whose property is Lot 1 of a recorded subdivision the run called metes and bounds.
+      //
+      // This does not fetch or buy anything. It states, before the documents stage, whether a paid
+      // plat search is possible and what it would search on — so the operator sees a real option
+      // rather than a dead end, and the purchase step has a well-formed query when it gets there.
+      if (!platRepo && identified.subdivisionName) {
+        const { planPlatSearch, platCoverageStatement } = await import('../adapters/texasfile-plats.js');
+        const plan = planPlatSearch(input.county, { subdivision: identified.subdivisionName });
+        if (plan.runnable) {
+          logger.info('Stage1.5', `  No free plat repository — ${plan.description} can be bought.`);
+          logger.info('Stage1.5', `  ${platCoverageStatement(input.county)}`);
+        }
+      }
       try {
         await input.onPropertyIdentified(identified);
       } catch (err) {
