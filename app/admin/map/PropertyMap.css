@@ -26,7 +26,7 @@
  * amber utility from the tan fence still reads "7", a lightning bolt, and "Meter at the drive".
  */
 
-/* ── THE FOURTEEN PIN COLOURS, ON A LIGHT GROUND ─────────────────────────────────────────────── */
+/* ── THE EIGHTEEN PIN COLOURS, ON A LIGHT GROUND ─────────────────────────────────────────────── */
 .pmap {
   --map-pin-generic:    rgb(71 85 105);
   --map-pin-boundary:   var(--theme-accent, rgb(29 48 149));
@@ -43,7 +43,21 @@
   --map-pin-easement:   rgb(107 33 168);
   --map-pin-hazard:     rgb(194 65 12);
 
-  /* The ink that sits ON a pin. White on every one of the fourteen above, which is why they were
+  /* ── THE FOUR THAT ARRIVE ──────────────────────────────────────────────────────────────────
+   * Photo, video, pinned note and imported point (2026-09-21). Eighteen distinguishable colours
+   * over aerial photography is past what the eye can hold, and pretending otherwise would be
+   * worse than admitting it: these four lean on their ICONS to separate them, and the colours
+   * only have to keep them apart from the fourteen placed types near them.
+   *
+   * Magenta and violet are the two hues nothing above uses. Note yellow sits nearest utility
+   * amber, and CSV cyan nearest water teal — both pairs are unlikely to share a map, and both
+   * carry obviously different icons when they do. */
+  --map-pin-photo:      rgb(219 39 119);
+  --map-pin-video:      rgb(124 58 237);
+  --map-pin-note:       rgb(161 98 7);
+  --map-pin-csv:        rgb(8 145 178);
+
+  /* The ink that sits ON a pin. White on every one of the eighteen above, which is why they were
    * chosen dark enough to carry it. */
   --pmap-pin-ink: rgb(255 255 255);
   --pmap-glow: rgb(15 23 42 / 0.28);
@@ -65,7 +79,7 @@
   --pmap-fab-clear: 6.25rem;
 }
 
-/* ── THE SAME FOURTEEN, ON THE FOUR DARK SKINS ───────────────────────────────────────────────── */
+/* ── THE SAME EIGHTEEN, ON THE FOUR DARK SKINS ───────────────────────────────────────────────── */
 [data-theme="starr-dark"] .pmap,
 [data-theme="slate-dark"] .pmap,
 [data-theme="forest-dark"] .pmap,
@@ -84,6 +98,12 @@
   --map-pin-vegetation: rgb(163 184 74);
   --map-pin-easement:   rgb(192 132 252);
   --map-pin-hazard:     rgb(251 146 60);
+
+  /* The four that arrive, lightened to carry dark ink like everything else on a dark skin. */
+  --map-pin-photo:      rgb(244 114 182);
+  --map-pin-video:      rgb(167 139 250);
+  --map-pin-note:       rgb(250 204 21);
+  --map-pin-csv:        rgb(103 232 249);
 
   /* Light pins want dark ink, not white — the same reason the values above were lightened. */
   --pmap-pin-ink: rgb(9 14 30);
@@ -2721,8 +2741,8 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   color: var(--theme-fg-muted, rgb(107 114 128));
 }
 
-/* ── THE FOURTEEN KINDS, AS THEMSELVES ───────────────────────────────────────────────────────── */
-/* A <select> of fourteen labels loses the colour and the hint, which between them ARE the choice.
+/* ── THE EIGHTEEN KINDS, AS THEMSELVES ───────────────────────────────────────────────────────── */
+/* A <select> of eighteen labels loses the colour and the hint, which between them ARE the choice.
  * Two columns at panel width, one on a phone. */
 .pmap__types {
   display: grid;

@@ -105,7 +105,21 @@ export interface PointMedia {
 export type PointTypeId =
   | 'generic' | 'boundary' | 'monument_found' | 'monument_set' | 'building' | 'utility'
   | 'fence' | 'street_view' | 'access' | 'encroachment' | 'water' | 'vegetation'
-  | 'easement' | 'hazard';
+  | 'easement' | 'hazard'
+  // ── THE FOUR THAT ARRIVE RATHER THAN GET PLACED ──────────────────────────────────────────────
+  // Owner, 2026-09-21, choosing between a layer per media kind and a type per media kind: "Point
+  // types."
+  //
+  // The reason it went this way: a layer is a SHEET somebody made and named, and `pointType` is a
+  // CLASSIFICATION — the distinction argued at seeds/645:11-24 and just below in this file. "All
+  // the photos" is a classification, so putting it on the sheet axis would have meant a photo on
+  // the "Pictures" layer could not ALSO be on "Fence line", because `layer_id` is a single FK.
+  // That constraint is the only reason duplicating points between layers ever came up.
+  //
+  // As types, both axes work at once: a photo can sit on whatever sheet it belongs to and still be
+  // hidden by one click of the legend. Nothing is duplicated because nothing needs to be in two
+  // places.
+  | 'photo' | 'video' | 'note' | 'csv_point';
 
 export interface PointType {
   id: PointTypeId;
@@ -130,6 +144,15 @@ export const POINT_TYPES: readonly PointType[] = [
   { id: 'vegetation',     label: 'Vegetation',        hint: 'Heavy brush, tree line, a clearing problem for the crew.',    token: '--map-pin-vegetation', icon: 'Trees' },
   { id: 'easement',       label: 'Easement',          hint: 'A recorded easement, where it actually runs on the ground.',  token: '--map-pin-easement',  icon: 'Route' },
   { id: 'hazard',         label: 'Hazard',            hint: 'Dog, bull, unstable ground, live wire. Crew safety.',         token: '--map-pin-hazard',    icon: 'ShieldAlert' },
+
+  // The fourteen above are PLACED — somebody stood somewhere, decided it mattered, and dropped a
+  // pin. These four ARRIVE: from a camera, from a collector, from a file. The person sorts them
+  // afterwards rather than choosing them up front, which is why their hints describe where they
+  // came from instead of when to reach for them.
+  { id: 'photo',          label: 'Photo',             hint: 'A photograph, placed where it was taken from its own GPS.',   token: '--map-pin-photo',     icon: 'Image' },
+  { id: 'video',          label: 'Video',             hint: 'A clip, placed where it started. A walk becomes a path.',     token: '--map-pin-video',     icon: 'Video' },
+  { id: 'note',           label: 'Pinned note',       hint: 'Something written down and dropped at a spot on the ground.', token: '--map-pin-note',      icon: 'StickyNote' },
+  { id: 'csv_point',      label: 'Imported point',    hint: 'From a point file or a collector, not placed by hand.',       token: '--map-pin-csv',       icon: 'CircleDot' },
 ];
 
 export const DEFAULT_POINT_TYPE: PointTypeId = 'generic';
