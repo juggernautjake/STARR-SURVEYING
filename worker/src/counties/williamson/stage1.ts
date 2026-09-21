@@ -80,6 +80,28 @@ export async function williamsonStage1(
   logger.info('Stage1', `WCAD: ${describeAttempts(found.attempts)}`);
 
   if (!found.hit) {
+    // ── DID WE ACTUALLY GET AN ANSWER? ────────────────────────────────────────────────────────
+    //
+    // The sentence below used to be printed unconditionally, and it asserts something it never
+    // checked: "this is an answer rather than a failure to reach the site". When every attempt
+    // came back 429 — which this machine managed simply by testing Williamson hard for a day —
+    // the run reported that the county has no property at an address the county certainly has.
+    //
+    // A parcel that cannot be looked up is not a parcel that does not exist, and the difference
+    // decides whether a surveyor re-runs the job or believes the address is wrong.
+    const reached = found.attempts.filter((a) => !a.error);
+    if (found.attempts.length > 0 && reached.length === 0) {
+      const why = found.attempts[found.attempts.length - 1]!.error ?? 'unknown error';
+      logger.warn(
+        'Stage1',
+        `WCAD never answered — ${found.attempts.length} attempt(s), all of them failed (${why}). ` +
+        'This says NOTHING about the property: it was never looked up. A 429 here means the ' +
+        'appraisal district is rate limiting this address; wait and re-run rather than treating ' +
+        'the parcel as missing.',
+      );
+      return null;
+    }
+
     const many = found.attempts.some((a) => a.hits > 1);
     logger.warn(
       'Stage1',

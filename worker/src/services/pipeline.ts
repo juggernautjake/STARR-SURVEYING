@@ -1993,7 +1993,10 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           subdivisionName: extractSubdivisionName(propertyResult?.legalDescription ?? '') ?? null,
         });
         if (added && added.length > 0) {
-          documents.push(...(added as typeof documents));
+          // `fileNow`, never a raw push: a purchased document is a document the operator is waiting
+          // for, and the rule that everything is handed over the moment it is found applies to the
+          // ones we paid for most of all.
+          fileNow(documents, input.onDocument, ...(added as typeof documents));
           logger.info('Stage2.5', `${added.length} purchased document(s) joined the run before analysis.`);
         }
       } catch (err) {
