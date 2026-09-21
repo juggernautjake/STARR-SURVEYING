@@ -379,6 +379,85 @@ export async function wcadSales(
   return { sales, error };
 }
 
+export interface WcadParcel {
+  parcelId: string;
+  propertyId: string | null;
+  siteAddress: string | null;
+  ownerName: string | null;
+  /** `S4633 - South Creek Sec 16 Amended` — the subdivision, ALREADY RESOLVED. See below. */
+  conveyanceName: string | null;
+  useDescription: string | null;
+  /** GeoJSON MultiPolygon. The parcel boundary. */
+  geometry: unknown | null;
+}
+
+/**
+ * One parcel, with its boundary.
+ *
+ * ── THIS CLOSES TWO GAPS AT ONCE ────────────────────────────────────────────────────────────────
+ *
+ * The county profile said "no public parcel polygon service" and I wrote that after failing to find
+ * a FeatureServer. It was wrong: the Socrata Parcels dataset carries a GeoJSON `MultiPolygon` on
+ * every row. Job 26144's parcel is a nine-vertex polygon spanning 30.49974–30.50066 N.
+ *
+ * And `cnvyname` is the subdivision, already resolved to a code — `S4633 - South Creek Sec 16
+ * Amended`. That matters more than it looks, because the standalone Subdivisions index is
+ * INCOMPLETE: it holds "SOUTH CREEK SEC 10" and "SEC 12" and has no entry for the "SEC 16" this
+ * parcel is in. Searching it by a name parsed out of a legal description therefore returns nothing
+ * for a perfectly ordinary platted lot — which reads as "not in a subdivision".
+ *
+ * So the parcel row is the authority on its own subdivision, and the index is the fallback rather
+ * than the first move.
+ */
+export async function wcadParcel(
+  propertyId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ parcel: WcadParcel | null; error: string | null }> {
+  const { rows, error } = await wcadData<Record<string, unknown>>(
+    WILLIAMSON_ENDPOINTS.data.datasets.parcels,
+    { propertyid: propertyId, $limit: 1 },
+    fetchImpl,
+  );
+  const r = rows[0];
+  if (!r) return { parcel: null, error };
+
+  return {
+    parcel: {
+      parcelId: String(r.parcelid ?? '').trim(),
+      propertyId: text(r.propertyid),
+      siteAddress: text(r.siteaddress),
+      ownerName: text(r.ownernme1),
+      conveyanceName: text(r.cnvyname),
+      useDescription: text(r.usedscrp),
+      geometry: r.geometry ?? null,
+    },
+    error,
+  };
+}
+
+export interface ConveyanceSubdivision {
+  code: string | null;
+  name: string;
+}
+
+/**
+ * Split `S4633 - South Creek  Sec 16  Amended` into its code and its name.
+ *
+ * The double spaces are the district's, not a typo here — the field is assembled from fixed-width
+ * columns and carries their padding. Collapsing them is why this exists rather than a split on
+ * `' - '` at the call site.
+ */
+export function parseConveyanceName(raw: string | null | undefined): ConveyanceSubdivision | null {
+  const v = (raw ?? '').replace(/\s+/g, ' ').trim();
+  if (!v) return null;
+
+  const m = /^([A-Z]\d{3,6})\s*-\s*(.+)$/i.exec(v);
+  if (m) return { code: m[1]!.toUpperCase(), name: m[2]!.trim().toUpperCase() };
+
+  // No code prefix — still a usable name.
+  return { code: null, name: v.toUpperCase() };
+}
+
 export interface WcadSubdivision {
   name: string;
   code: string | null;

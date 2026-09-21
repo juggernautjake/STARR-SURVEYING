@@ -645,6 +645,22 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       propertyResult = await lookupByPropertyId(input.county, input.propertyId, logger);
     }
 
+    // ── EVERY PROPERTY SEARCH IS A HEALTH CHECK FOR ITS COUNTY ──────────────────────────────
+    //
+    // Owner, 2026-09-21: "There should be a health check every time a property is searched in a
+    // county for that county, and if there is an issue that comes up, then it needs to be flagged
+    // and recorded."
+    //
+    // The run IS the probe. It already searches the appraisal district with a real address, the
+    // clerk with a real name and the open-data portal with a real id — better evidence than any
+    // synthetic check could gather, against live queries, with an operator watching.
+    //
+    // What was missing is that the evidence evaporated: a run said "cannot reach
+    // esearch.wilcotx.gov", the next run said it again, and nobody ever aggregated fifty identical
+    // failures into "this endpoint has never once worked".
+    const { observe: observeSite, hostOf: healthHostOf } = await import('../research/county-health.js');
+    const countyObservations: Array<ReturnType<typeof observeSite>> = [];
+
     // ── Path A2: a county with its own appraisal client ──────────────────────────────────────
     //
     // `searchBisCad` is the only CAD lookup this pipeline has, and it is correct for the thirty-odd
@@ -722,6 +738,18 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     } else {
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
+    // What the appraisal district actually did for us on this run.
+    countyObservations.push(observeSite({
+      county: input.county,
+      role: 'appraisal',
+      host: healthHostOf(cadConfig?.baseUrl ?? null),
+      found: propertyResult ? 1 : 0,
+      latencyMs: Date.now() - stage1Start,
+      verdict: searchDiagnostics?.cadSiteError
+        ? (await import('../research/site-rejection.js')).readTransportError(new Error(searchDiagnostics.cadSiteError))
+        : null,
+    }));
+
     logger.info('Stage1', `Stage 1 completed in ${Date.now() - stage1Start}ms`);
 
     // ── Bell County Cascading Enrichment ──────────────────────────────────────
@@ -1340,6 +1368,8 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // The driver also asks the county's own index how it spells the name. Six spellings of one
     // housing authority live in there, including one the index truncated to "AUTHORIT", and all of
     // them ride in a single search.
+    // The clerk host, named once so the health record and the driver cannot drift apart.
+    const WILLIAMSON_CLERK_HOST = 'https://williamsoncountytx-web.tylerhost.net/williamsonweb/';
     let williamsonDocs: DocumentResult[] | null = null;
     if (!instrumentSearchSucceeded && ownerForClerk && /williamson/i.test(input.county)) {
       try {
@@ -1383,8 +1413,21 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         })) as DocumentResult[];
 
         logger.info('Stage2', `Williamson clerk: ${williamsonDocs.length} index row(s) for "${ownerForClerk}"`);
+
+        countyObservations.push(observeSite({
+          county: input.county,
+          role: 'clerk',
+          host: healthHostOf(WILLIAMSON_CLERK_HOST),
+          found: williamsonDocs.length,
+          verdict: outcome.verdict.kind === 'ok' ? null : outcome.verdict,
+        }));
       } catch (e) {
         logger.warn('Stage2', `Williamson clerk driver failed: ${e instanceof Error ? e.message : String(e)}`);
+        const { readTransportError } = await import('../research/site-rejection.js');
+        countyObservations.push(observeSite({
+          county: input.county, role: 'clerk', host: healthHostOf(WILLIAMSON_CLERK_HOST),
+          verdict: readTransportError(e),
+        }));
       }
     }
 
@@ -2780,6 +2823,62 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       if (sourcesWithUrls > 0) {
         logger.info('Pipeline', `Source URLs collected: ${finalProcessedDocs.filter(d => d.ref.url).map(d => d.ref.url!).slice(0, 5).join(', ')}${sourcesWithUrls > 5 ? ` …+${sourcesWithUrls - 5} more` : ''}`);
       }
+    }
+
+    // ── THIS COUNTY'S HEALTH, FROM WHAT THIS RUN ACTUALLY SAW ────────────────────────────────
+    //
+    // Printed at the END rather than the start, because that is when the evidence exists. A health
+    // line before the run is a memory of last time.
+    //
+    // A refusal is flagged as a defect somebody has to clear; an empty result is not. That split is
+    // the whole point: a county clerk with nothing for a name is making a statement about the
+    // property, and a county clerk refusing our address is making a statement about us.
+    try {
+      const { summariseCounty, healthLines, needsAttention } = await import('../research/county-health.js');
+      const health = summariseCounty(input.county, countyObservations);
+
+      for (const line of healthLines(health)) {
+        logger.info('Health', line);
+      }
+
+      const attention = countyObservations.filter(needsAttention);
+      if (attention.length > 0) {
+        logger.warn('Health',
+          `${attention.length} source(s) in ${input.county} REFUSED us and will keep refusing until ` +
+          'somebody acts — this is a configuration or egress defect, not an outage.');
+        for (const remedy of health.remedies) logger.warn('Health', `  → ${remedy}`);
+      }
+
+      // ── A HOST THAT DOES NOT EXIST GETS A SEARCH FOR THE ONE THAT DOES ────────────────────
+      //
+      // Only for `no_such_host`, and deliberately so. That failure can never self-heal — the name
+      // is wrong and will still be wrong tomorrow — so it is the one case where spending a handful
+      // of requests to propose a replacement is worth it. A timeout or a 403 might be gone in an
+      // hour and a sweep would be noise.
+      //
+      // This is the loop closed on the bug that started it: esearch.wilcotx.gov sat in the config
+      // for months, and one sweep finds search.wcad.org and says what software is on it.
+      const ghost = countyObservations.find((o) => o.verdict?.kind === 'no_such_host');
+      if (ghost) {
+        logger.warn('Health',
+          `${ghost.host ?? 'a configured host'} does not exist. Searching for the county's real site…`);
+        try {
+          const { discoverCounty } = await import('../research/county-discovery.js');
+          const found = await discoverCounty(input.county, { maxCandidates: 8, timeoutMs: 10_000 });
+          logger.warn('Health', `  ${found.statement}`);
+          for (const f of found.found) {
+            logger.warn('Health',
+              `  CANDIDATE ${f.probe.host} — ${f.probe.fingerprint!.vendor} ` +
+              `(${(f.probe.fingerprint!.confidence * 100).toFixed(0)}% — ${f.probe.fingerprint!.evidence.join(', ')})`);
+          }
+          for (const step of found.nextSteps.slice(0, 5)) logger.warn('Health', `  → ${step}`);
+        } catch (e) {
+          logger.warn('Health', `  The search failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    } catch (e) {
+      // Health reporting must never fail a run that otherwise succeeded.
+      logger.warn('Health', `Could not summarise county health: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     const result: PipelineResult = {

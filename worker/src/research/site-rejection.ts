@@ -84,7 +84,31 @@ const NEEDS_SESSION = /session (has )?expired|please log ?in|sign in to continue
  * different words and neither says "the hostname is wrong".
  */
 export function readTransportError(err: unknown): RejectionVerdict {
-  const msg = (err instanceof Error ? err.message : String(err ?? '')).trim();
+  // ── THE CAUSE CHAIN IS WHERE THE ANSWER LIVES ───────────────────────────────────────────────
+  //
+  // Node's fetch (undici) reports EVERY transport failure as the bare string "fetch failed" and
+  // puts the real error on `.cause`. That is precisely why job 26144's log read
+  // "[network] fetch failed" instead of naming a hostname that does not exist — and why the first
+  // version of this function, reading only `.message`, classified a dead host as a server error.
+  //
+  // Found by probing esearch.wilcotx.gov through this very function and watching it answer
+  // "server_error". The cause chain is walked to a small depth, because undici nests one level and
+  // a runaway loop on a circular cause would be a worse bug than the one being fixed.
+  const messages: string[] = [];
+  let cursor: unknown = err;
+  for (let depth = 0; depth < 4 && cursor; depth += 1) {
+    if (cursor instanceof Error) {
+      messages.push(cursor.message);
+      const code = (cursor as { code?: string }).code;
+      if (code) messages.push(code);
+      cursor = (cursor as { cause?: unknown }).cause;
+    } else {
+      messages.push(String(cursor));
+      break;
+    }
+  }
+
+  const msg = messages.filter(Boolean).join(' · ').trim() || String(err ?? '');
   const m = msg.toLowerCase();
 
   // A hostname that does not resolve. This is the one that cost 33 seconds and two misleading log
