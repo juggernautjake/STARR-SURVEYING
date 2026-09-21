@@ -430,7 +430,21 @@ export interface ValidationResult {
   bearingSanity: boolean;
   distanceSanity: boolean;
   referenceComplete: boolean;
-  overallQuality: 'excellent' | 'good' | 'fair' | 'poor' | 'failed';
+  /**
+   * How good the BOUNDARY is — not how the run went.
+   *
+   * `no_boundary` is separate from `failed` because they are opposite findings. `failed` means a
+   * boundary was extracted and it does not hold up: the traverse will not close, the bearings are
+   * nonsense, the acreage fights the appraisal district. `no_boundary` means none was extracted at
+   * all, which on a free index-row run is the NORMAL outcome — a clerk index gives parties, dates
+   * and book/page, and never contained a metes-and-bounds description to begin with.
+   *
+   * They were one value until 2026-09-21, and a production run that found a parcel, its polygon,
+   * its subdivision and six recorded documents reported `Quality: failed` because nobody had
+   * bought a deed image. The run status was already `partial` and correct; it was this word,
+   * printed in the run summary, that told the operator their run had failed.
+   */
+  overallQuality: 'excellent' | 'good' | 'fair' | 'poor' | 'failed' | 'no_boundary';
   flags: string[];
   /** Traverse points computed from boundary calls (for drawing) */
   traversePoints?: Array<{ x: number; y: number }>;

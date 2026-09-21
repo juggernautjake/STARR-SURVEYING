@@ -39,6 +39,34 @@ export type BrowserBackend = 'local' | 'browserbase' | 'stub';
  * Adding a new adapter: add its stem here AND make sure the adapter passes
  * its own stem as `adapterId` to getBrowser/withBrowser/acquireBrowser.
  */
+/**
+ * Adapters whose portal REFUSES a datacentre address — measured, not assumed.
+ *
+ * Distinct from `BROWSERBASE_ENABLED_ADAPTERS`, which is the operator choosing to spend money for
+ * a better session. This is the smaller set where not spending it produces a WRONG ANSWER: the run
+ * completes, reports what it managed to fetch, and a partial chain of title reads exactly like the
+ * county's complete record.
+ *
+ * ── THE EVIDENCE FOR EACH ENTRY ────────────────────────────────────────────────────────────────
+ *
+ * `tyler-clerk` — Williamson County's clerk (Tyler Eagle). Measured 2026-09-21, all from real runs:
+ *
+ *     From a clean residential address    9 of 9 citations, no wall
+ *     From the same address, hours later  5 of 9  — reputation is cumulative across runs
+ *     From the PRODUCTION worker          1 of 9  — walled on the second search
+ *
+ * The production number is the one that matters. A fresh browser context per search made it worse
+ * (the driver now shares one session); pacing helped (2s between searches); neither is enough from
+ * a datacentre IP. The wall is not subtle — the page says "Let's confirm you are human."
+ *
+ * Nothing else is in here yet, on purpose. Coryell and Lampasas (eDocTec) were driven live the same
+ * day and answered every search from an ordinary address with no wall at all, so adding them would
+ * be paying for a session to solve a problem they do not have.
+ */
+export const RESIDENTIAL_REQUIRED_ADAPTERS = new Set<string>([
+  'tyler-clerk',
+]);
+
 export const KNOWN_ADAPTER_IDS = [
   // Read / clerk adapters
   'bell-clerk',
@@ -486,6 +514,31 @@ export function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
     const enabled = parseEnabledAdapters(process.env.BROWSERBASE_ENABLED_ADAPTERS);
     if (enabled.has(opts.adapterId)) {
       console.log(`[browser-factory] adapter "${opts.adapterId}" promoted → browserbase (named in BROWSERBASE_ENABLED_ADAPTERS)`);
+      return 'browserbase';
+    }
+
+    // ── PORTALS THAT CANNOT WORK FROM A DATACENTRE ADDRESS ───────────────────────────────────
+    //
+    // The list above is the operator's opt-in and stays that way. This is a narrower thing: a
+    // handful of portals where running from a datacentre IP does not degrade, it FAILS — and
+    // failing costs more than the session does, because the run finishes and reports a partial
+    // chain of title as though that were the county's whole record.
+    //
+    // Entry requires evidence from a real run, not a suspicion. Authorised by the owner on
+    // 2026-09-21 after the production worker was walled on the SECOND search of a nine-citation
+    // walk and lost eight deeds. See RESIDENTIAL_REQUIRED_ADAPTERS for what is in it and why.
+    //
+    // Guarded on the credentials existing, so a developer with no Browserbase account still gets
+    // a local browser instead of a crash, and on an explicit off switch.
+    if (
+      RESIDENTIAL_REQUIRED_ADAPTERS.has(opts.adapterId)
+      && process.env.BROWSERBASE_RESIDENTIAL_REQUIRED !== '0'
+      && process.env.BROWSERBASE_API_KEY
+      && process.env.BROWSERBASE_PROJECT_ID
+    ) {
+      console.log(
+        `[browser-factory] adapter "${opts.adapterId}" promoted → browserbase ` +
+        '(this portal walls datacentre addresses; set BROWSERBASE_RESIDENTIAL_REQUIRED=0 to override)');
       return 'browserbase';
     }
   }

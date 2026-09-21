@@ -23,7 +23,7 @@ import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
 import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
-import { validateBoundary } from './validation.js';
+import { validateBoundary, describeBoundaryQuality } from './validation.js';
 import { readSurvey, unambiguousRecordedYear } from './survey-reading.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
@@ -2706,7 +2706,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
 
     logger.info('Stage4', '═══ STAGE 4: Validation ═══');
     const validation = validateBoundary(boundary, propertyResult?.acreage ?? null, logger);
-    logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
+    logger.info('Stage4', `Boundary: ${describeBoundaryQuality(validation.overallQuality)}. Flags: ${validation.flags.length}`);
 
     // ── The boundary read as a SURVEY, not as a record ────────────────────────────────────────
     //
@@ -3063,7 +3063,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       retrievalFailures: retrievalFailures.length > 0 ? [...retrievalFailures] : undefined,
     };
 
-    await updateStatus(input.projectId, status, `Pipeline ${status} in ${(duration_ms / 1000).toFixed(1)}s — Quality: ${validation.overallQuality}`, {
+    await updateStatus(input.projectId, status, `Pipeline ${status} in ${(duration_ms / 1000).toFixed(1)}s — ${describeBoundaryQuality(validation.overallQuality)}`, {
       propertyId: propertyResult?.propertyId,
       ownerName: propertyResult?.ownerName,
       quality: validation.overallQuality,

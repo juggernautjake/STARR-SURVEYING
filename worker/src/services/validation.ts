@@ -96,6 +96,33 @@ function computeCurveEndpoint(
  * @param cadAcreage  CAD-reported acreage for comparison (null if unknown)
  * @param logger      Optional logger — used to emit structured Stage 4 log entries
  */
+/**
+ * The boundary verdict in words, for a line a person reads.
+ *
+ * `Quality: failed` was printed into the run summary of a run that had succeeded — it found the
+ * parcel, its polygon, its subdivision and six recorded documents, and simply never had a boundary
+ * description to validate. The bare enum name is fine in a database column and wrong in a sentence,
+ * because "failed" is the word the operator takes away.
+ */
+export function describeBoundaryQuality(q: ValidationResult['overallQuality']): string {
+  switch (q) {
+    case 'no_boundary':
+      return 'no boundary description was found in the documents (nothing to validate)';
+    case 'failed':
+      return 'a boundary was extracted but it does not hold up';
+    case 'poor':
+      return 'boundary quality poor';
+    case 'fair':
+      return 'boundary quality fair';
+    case 'good':
+      return 'boundary quality good';
+    case 'excellent':
+      return 'boundary quality excellent';
+    default:
+      return String(q);
+  }
+}
+
 export function validateBoundary(
   data: ExtractedBoundaryData | null,
   cadAcreage: number | null,
@@ -118,8 +145,18 @@ export function validateBoundary(
   };
 
   if (!data) {
-    result.flags.push('No boundary data to validate');
-    logger?.warn('Stage4', 'validateBoundary: no boundary data — quality=failed');
+    // Nothing was extracted, which is NOT the same as something that failed validation — see the
+    // note on `overallQuality`. Reported at info, not warn: on a free index-row run this is the
+    // expected outcome, and a warning here put a yellow flag on a run that did nothing wrong.
+    result.overallQuality = 'no_boundary';
+    result.flags.push(
+      'No boundary description was extracted, so there was nothing to validate. This is the normal ' +
+      'result when the documents are free index rows — those carry parties, dates and book/page, ' +
+      'never a metes-and-bounds call list.',
+    );
+    logger?.info('Stage4',
+      'validateBoundary: no boundary description was extracted — nothing to validate. Not a failure: ' +
+      'a boundary that fails validation and a run that never had one are different findings.');
     return result;
   }
 
