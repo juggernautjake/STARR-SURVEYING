@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   wcadQuickSearch, wcadDetailUrl, parseWcadDetail, wcadSales, wcadSubdivision, subdivisionFromLegal,
+  withoutStreetType,
 } from '../counties/williamson/wcad.js';
 import { WILLIAMSON_ENDPOINTS, WILLIAMSON_CLERK_BRIDGE } from '../counties/williamson/config/endpoints.js';
 import { WILLIAMSON_COUNTY_CITIES, williamsonCityCode, isWilliamsonCity } from '../counties/williamson/config/towns.js';
@@ -379,5 +380,46 @@ describe('the towns list', () => {
     expect(isWilliamsonCity('hutto')).toBe(true);
     expect(isWilliamsonCity('Belton')).toBe(false);
     expect(isWilliamsonCity('')).toBe(false);
+  });
+});
+
+/**
+ * The street type lives in the street, not at the end of the line.
+ *
+ * `withoutStreetType` dropped the last word of the WHOLE line. That is the street type only when
+ * the caller passed a bare street address; given a full one it dropped the STATE and left the
+ * street type — the one word it exists to remove — exactly where it was.
+ *
+ * Measured against the live district on 2026-09-21, which is what makes this worth a test rather
+ * than an opinion:
+ *
+ *     "1007 Cushing Drive, Round Rock, TX"        0 hits
+ *     "1007 Cushing, Round Rock, TX"              1 hit  → R075105, CITY OF ROUND ROCK
+ *
+ * Job 26144 is that parcel, and its research had been searching for the client instead.
+ */
+describe('withoutStreetType', () => {
+  it('drops the street type from a FULL address, keeping city and state', () => {
+    expect(withoutStreetType('1007 Cushing Drive, Round Rock, TX')).toBe('1007 Cushing, Round Rock, TX');
+    expect(withoutStreetType('2119 Jasmine Path, Round Rock, TX 78664')).toBe('2119 Jasmine, Round Rock, TX 78664');
+  });
+
+  it('still works on a bare street address, which is what it was written for', () => {
+    expect(withoutStreetType('1007 Cushing Dirve')).toBe('1007 Cushing');
+  });
+
+  it('refuses when there is no street type to drop', () => {
+    // A word is REMOVED here, never guessed — so anything that is not plainly a numbered street
+    // address with a trailing type returns null rather than a mangled query.
+    expect(withoutStreetType('1007 Cushing')).toBeNull();
+    expect(withoutStreetType('Cushing Drive, Round Rock, TX')).toBeNull();
+    expect(withoutStreetType('')).toBeNull();
+    expect(withoutStreetType('   ')).toBeNull();
+  });
+
+  it('never returns the line it was given', () => {
+    for (const s of ['1007 Cushing Drive, Round Rock, TX', '1007 Cushing Dirve']) {
+      expect(withoutStreetType(s)).not.toBe(s);
+    }
   });
 });

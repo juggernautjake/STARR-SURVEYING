@@ -151,12 +151,33 @@ export interface FindResult {
  * Returns null when there is nothing to drop, so the caller does not repeat a query it just ran.
  */
 export function withoutStreetType(line: string): string | null {
-  const words = (line ?? '').trim().split(/\s+/);
+  const raw = (line ?? '').trim();
+  if (!raw) return null;
+
+  // ── THE STREET TYPE IS IN THE STREET, NOT AT THE END OF THE LINE ──────────────────────────────
+  //
+  // This dropped the last word of the WHOLE line, which is only the street type when the caller
+  // passed a bare street address. Given a full one — "1007 Cushing Drive, Round Rock, TX" — the
+  // last word is the state, so the fallback produced "…Round Rock," and left the misspelled or
+  // over-long street type exactly where it was.
+  //
+  // Measured on 2026-09-21 against the live district: "1007 Cushing Drive, Round Rock, TX" returns
+  // nothing and "1007 Cushing Dr, Round Rock, TX 78664" returns R075105, owned by CITY OF ROUND
+  // ROCK. The whole point of this function is to bridge that gap, and it could not reach it.
+  const comma = raw.indexOf(',');
+  const street = (comma >= 0 ? raw.slice(0, comma) : raw).trim();
+  const rest = comma >= 0 ? raw.slice(comma) : '';
+
+  const words = street.split(/\s+/);
   // Need at least a number and two more words for there to be a droppable type.
   if (words.length < 3) return null;
   if (!/^\d/.test(words[0]!)) return null;
+
   const trimmed = words.slice(0, -1).join(' ');
-  return trimmed.length > 2 && trimmed !== line.trim() ? trimmed : null;
+  if (trimmed.length <= 2) return null;
+
+  const out = `${trimmed}${rest}`.trim();
+  return out !== raw ? out : null;
 }
 
 /**
