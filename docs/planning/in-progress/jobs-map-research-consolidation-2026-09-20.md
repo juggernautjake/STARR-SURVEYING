@@ -351,12 +351,17 @@ Four parallel systems, zero rows between them.
 | Delete | Rows | Why it is safe |
 |---|---|---|
 | `job_field_data` + `FieldWorkView` + `/api/admin/jobs/field-data` + the dashboard widget | 0 | A fourth points table with its own hand-drawn N/E plot. Duplicates `instrument_points` exactly. |
-| `instrument_points`, `ingest_batches`, `instrument_sources` + `CollectorArrivals` + `field-ingest` | 0 | Collector ingest. Never used. And it cannot go on a Google map without §3.1. |
+| ~~`instrument_points`, `ingest_batches`, `instrument_sources` + `CollectorArrivals` + `field-ingest`~~ | 0 | **RETRACTED — see §10. Do not delete this.** It is the foundation of the point-streaming feature, and it is empty because it was never switched on, not because it failed. |
 | `/admin/jobs/[id]/field` + its four API routes | 0 | Field Captures. Keep the manifest/ZIP question open — see §2.1. |
 | `field_data_points`, `field_media` | 0 | **Careful.** The mobile app writes here. Empty because nobody has used the mobile capture flow yet, not because it is dead. |
 
-That last row is the one to be slow about. The others are genuinely abandoned; `field_media` is the
-target of a live code path in `mobile/`.
+That last row is the one to be slow about — `field_media` is the target of a live code path in
+`mobile/`.
+
+**And the second row was a mistake, retracted in §10.** It is recorded here rather than quietly
+edited out, because the reasoning that produced it is the thing to watch for: "zero rows" was read
+as "abandoned", when for that stack it means "built, tested, and never given credentials". Emptiness
+is evidence of disuse, not of failure, and the two want opposite decisions.
 
 ---
 
@@ -509,6 +514,127 @@ layer; they have nothing else in common.
 
 ---
 
+## Part 10 — The point-streaming page was never deleted, and half the feature is already built
+
+Owner, 2026-09-20: *"At some point we had a whole page built out for point streaming and stuff, and
+we hid it. Can we find it and explore it?"*
+
+Found. **It was absorbed, then hidden from navigation — not removed.** This part corrects §5 above.
+
+### 10.1 Where it went
+
+`app/admin/field-data/page.tsx` is now a forward:
+
+> *"absorbed by the Jobs & Projects portal (C7). The route stays and forwards. Deleting it would
+> break every bookmark — and here in particular, a field upload notification links straight here."*
+
+And `lib/admin/route-registry.ts:483` takes it out of the rail and out of search:
+
+```ts
+{ href: '/admin/field-data', label: 'Field Data', internalOnly: true, showInRail: false,
+  description: 'Field data records. Absorbed into Jobs; the row remains so
+                /admin/field-data/[id] keeps its bundle gate.' }
+```
+
+**The live surface is `/admin/jobs?tab=field-data`** (`app/admin/jobs/page.tsx:64`, `:165`). The
+default tab is `projects`, so it never appears on arrival. It is reachable, working, and invisible
+unless you already know it is there. Restoring a nav entry is a one-line change.
+
+Its three components moved to `app/admin/jobs/_tabs/` in commit `2946c745c` (2026-08-25) and their
+header comments still name the old path — worth fixing while we are in here.
+
+### 10.2 The Trimble poller already exists
+
+`lib/field-ingest/trimble-connect.ts` — **235 lines, complete, tested, and never switched on.**
+
+- `pollTrimbleConnect()` (`:90`) — cursor-based. Lists files changed since a cursor, filters by
+  extension, sorts oldest-first, downloads each, calls `ingestArrival`, and advances the high-water
+  mark **only after** the points are saved.
+- Endpoints: `GET {base}/files?projectId=…&modifiedAfter=…` and
+  `GET {base}/files/fs/{fileId}/downloadurl`, base
+  `TRIMBLE_CONNECT_API_URL ?? https://app.connect.trimble.com/tc/api/2.0`.
+- Auth: `Bearer ${TRIMBLE_CONNECT_TOKEN}`; throws `TrimbleConnectNotConfigured` when absent.
+- `OVERLAP_SECONDS = 120` rewind on every poll; `poll_seconds` default 300.
+
+**Why it is dark:** zero production callers (only `__tests__/field-ingest/ingest.test.ts`), no cron
+entry in `vercel.json`, no watched-folder agent anywhere in `scripts/`/`server/`/`worker/`, and
+neither `TRIMBLE_CONNECT_TOKEN` nor `TRIMBLE_CONNECT_API_URL` appears in any `.env` file. Its own
+header says why: *"Credentials are owner-gated, the poller is not. Nobody here has one, so this
+cannot be tested against the live API."*
+
+The client is deliberately a stub rather than a guess (`:192-209`): *"a plausible-looking wrong
+implementation is worse than an honest gap — it would look built, fail in production, and be
+debugged by somebody who assumed it had been tested."*
+
+### 10.3 There is already a completed spec for exactly this
+
+`docs/planning/completed/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md` — **"spec complete; implementation
+deferred"**, owner Jacob Maddux, 2026-04-30. Its §1 user story is the request almost verbatim:
+
+> *"Jacob walks the boundary, shoots a fence corner at 9:42 AM. By 9:46 AM, Hank's office screen
+> shows the new point on the map. He notices it's 0.4 ft off from the deed call and texts Jacob:
+> 'want to recheck that one?'"*
+
+**It is blocked on three things, none of them code:**
+
+1. a Trimble Connect **Business subscription**;
+2. **TID OAuth client credentials**;
+3. a device for real-hardware testing.
+
+Note the spec proposes a separate Python FastAPI + APScheduler service and a Leaflet map. Both are
+now redundant — we have a Next.js poller written and a Google map live, so that part of the spec
+should be re-costed rather than followed.
+
+Related: `docs/planning/completed/AI_PLAT_DRAWING_SYSTEM_PLAN.md:700` (Phase 2, not started) ranks
+four approaches — hot-folder via Connect, LAN file share, Trimble dev APIs, **custom Access
+plugin** — and sketches incremental drafting where each arriving point extends linework live.
+
+### 10.4 What the earlier audit concluded, and where §9 goes further
+
+`docs/planning/completed/PLATFORM_AUDIT_AND_LAUNCH_QUESTIONS_2026-07-29.md` §3d (lines 689–786) is
+the origin of all of this, prompted by the same question: *"I would love it if when a data collector
+stores a point, that point shows up on the app shortly thereafter. I don't know if this is
+possible."* It carries a vendor verdict table — Trimble ✅ viable, Topcon ⚠️ partner-mediated,
+Leica/GeoMax ❌ closed, Spectra ⚠️ file-only — and one directive worth keeping:
+
+> ***"Do not promise 'instant, any brand.'** Promise 'Trimble near-live; everything else lands on
+> sync or import.' Under-promising here is cheap; a firm that switches on the strength of a demo and
+> then loses a day's shots in a dead zone is not a customer we get back."*
+
+§3d's conclusion — *"no vendor emits an event on Store"* — is what `seeds/522` repeats. **That
+conclusion was about the cloud path, and §9.2 of this document shows it does not hold for the
+on-controller plugin path.** `tsc_IDatabaseMonitor::OnEntityAppended` is that event. §3d listed a
+custom Access plugin as an option but does not appear to have researched it to this depth.
+
+So the state of play is better than either document alone suggests:
+
+| Piece | State |
+|---|---|
+| Ingest parsers (LandXML, GSI, RW5, JobXML, CSV) | **Built, tested** |
+| Idempotent content-hash batching, two clocks | **Built, tested** |
+| Trimble Connect cursor poller | **Built, tested, no credentials** |
+| Live feed UI (15s poll, cursor-based, pauses when hidden) | **Built, hidden from nav** |
+| Collector drag-and-drop upload | **Built, hidden from nav** |
+| A scheduler to call the poller | **Missing** — no cron entry |
+| Credentials + subscription | **Missing** — the actual blocker |
+| N/E → lat/lng projection | **Missing** — §3.1, and the hard one |
+| Writing arrivals into `job_map_points` | **Missing** — the map and the feed share nothing |
+
+**Two of the nine are code we would write. One is a purchase. One is arithmetic nobody has chosen a
+library for.**
+
+### 10.5 What this changes about the plan
+
+- **§5's delete recommendation is withdrawn** for the ingest stack. Deleting it would throw away
+  the majority of the feature being asked for.
+- The honest framing of "can we stream points?" is **not** "can we build this" but **"do we want to
+  buy a Trimble Connect Business subscription and get OAuth credentials?"** That is a decision for
+  the owner, and everything downstream waits on it.
+- The remaining engineering is smaller than it looks: a scheduler, a projection decision, and a
+  bridge from `instrument_points` into the map's layer/point model.
+
+---
+
 ## Phase 2 — the questions
 
 1. **Layers vs point types** (§4.1) — duplicate rows, many-to-many, or use the point-type axis that
@@ -531,3 +657,7 @@ layer; they have nothing else in common.
    now) or "as he shoots it" (a TASDK partner plugin, separate product)?
 10. **If Route A** (§9.2) — is opening a partner conversation with Trimble something you want to
     start now, given the transport question is unresolved until they answer?
+11. **The actual blocker** (§10.3) — do we buy a Trimble Connect Business subscription and get TID
+    OAuth credentials? Everything in §10 waits on this and nothing else.
+12. **The hidden page** (§10.1) — restore a nav entry for `/admin/jobs?tab=field-data` now, or leave
+    it hidden until there is data flowing into it?
