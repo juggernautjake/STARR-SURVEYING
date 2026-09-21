@@ -24,6 +24,15 @@ export type PurchaseVendor =
 
 export type PurchaseStatus =
   | 'purchased'
+  /**
+   * Found, priced, and shown to the operator — not bought (owner, 2026-09-21).
+   *
+   * The state a research run leaves every paid document in. Distinct from `budget_exceeded`, which
+   * means the run wanted to buy and could not afford to; an offer carries no such intent. It is not
+   * a failure and must never be rendered as one: the run did exactly what it is meant to do, and a
+   * priced list of what else exists is worth more to a surveyor than most of what a run retrieves.
+   */
+  | 'offered'
   | 'failed'
   | 'already_owned'
   | 'not_available'
@@ -112,6 +121,15 @@ export interface PurchaseOrchestratorConfig {
   /** The other-sources budget (non-TexasFile paid vendors), metered on its own — plan B2's second
    *  budget. Absent → the $2 floor applies. */
   otherBudgetUsd?: number;
+  /**
+   * A PERSON asked for this document, having seen its price and its first page.
+   *
+   * The only way money is spent (owner, 2026-09-21). A research run never sets it: it records what
+   * is purchasable and moves on, so a scraper cannot spend the firm's money at the one moment it
+   * knows least — before the free record exists, unable to tell whether the document duplicates one
+   * it is about to get for nothing. Set only by the endpoint behind the purchase button.
+   */
+  operatorApproved?: boolean;
   autoReanalyze: boolean;
   /** If true (default), always try free/watermarked images before paid */
   tryFreeFirst?: boolean;

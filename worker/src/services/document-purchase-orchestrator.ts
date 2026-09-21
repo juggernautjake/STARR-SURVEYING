@@ -88,6 +88,48 @@ export class DocumentPurchaseOrchestrator {
 
   // ── Main Entry Point ────────────────────────────────────────────────────
 
+  /**
+   * What a run gets back instead of a purchase: everything it would have bought, marked `offered`,
+   * with nothing charged.
+   *
+   * A truthful report rather than an empty one, because the caller's next line usually counts what
+   * happened — and a run that found five buyable documents and reports zero of anything has told
+   * the operator that none exist, which is the opposite of what it learned.
+   */
+  private offerOnlyReport(
+    recommendations: PurchaseRecommendation[],
+    config: PurchaseOrchestratorConfig,
+  ): PurchaseReport {
+    return {
+      status: 'no_purchases_needed',
+      projectId: 'offer-only',
+      purchases: recommendations.map((rec) => ({
+        instrument: rec.instrument,
+        documentType: rec.documentType,
+        source: rec.source,
+        status: 'offered',
+        pages: 0,
+        costPerPage: 0,
+        totalCost: 0,
+        paymentMethod: 'account_balance',
+        transactionId: null,
+        downloadedImages: [],
+        imageQuality: { format: 'unknown', hasWatermark: true, qualityScore: 0 },
+        // No `error` field at all. The run did exactly what it is now supposed to do, and an
+        // empty error string still renders as a row with a problem in it.
+      })),
+      reanalysis: { status: 'skipped', documentReanalyses: [], discrepanciesResolved: [] },
+      updatedReconciliation: null,
+      billing: {
+        totalDocumentCost: 0, taxOrFees: 0, totalCharged: 0,
+        paymentMethod: 'account_balance', remainingBalance: config.budget, invoicePath: '',
+      },
+      timing: { totalMs: 0, purchaseMs: 0, downloadMs: 0, reanalysisMs: 0 },
+      aiCalls: 0,
+      errors: [],
+    };
+  }
+
   async executePurchases(
     projectId: string,
     recommendations: PurchaseRecommendation[],
@@ -108,6 +150,33 @@ export class DocumentPurchaseOrchestrator {
     if (!projectId) {
       projectId = 'unknown-project';
       this.logger.warn('Purchase', 'executePurchases called with empty projectId — using sentinel');
+    }
+
+    // ── A RUN NEVER BUYS. A PERSON BUYS. (owner, 2026-09-21) ──────────────────────────────────
+    //
+    // "we only download and post the free files, but we make the purchasable files available to be
+    //  purchased individually if the researcher wants to do that... This way we will not run into
+    //  unnecessary purchases or over spending against the budget or purchasing a document that is a
+    //  duplicate of a free document we already have."
+    //
+    // The rule is enforced HERE because this is the only function in the worker that spends money.
+    // Putting it at the three call sites instead would mean three places to get it right and a
+    // fourth that is added later and does not.
+    //
+    // What went wrong without it: on job 26144 the early pass called this before a single clerk
+    // search had run — the moment it knew least, unable to tell whether the plat it was buying
+    // duplicated one the free pass was about to fetch for nothing. It bought a $10 plat against a
+    // $2 run ceiling, the cost watchdog fired, and the run died before reading anything. The
+    // purchase was correct. Nobody had asked for it.
+    //
+    // `operatorApproved` is set only by the endpoint behind the purchase button, where a person has
+    // seen the document's price and its first page. Everything else gets a report saying what it
+    // WOULD have bought, having bought nothing.
+    if (!config.operatorApproved) {
+      this.logger.info('Purchase',
+        `${recommendations.length} document(s) are purchasable and none were bought — a run does not ` +
+        'spend. They are offered to the operator, who buys the ones they want.');
+      return this.offerOnlyReport(recommendations, config);
     }
 
     const startTime = Date.now();

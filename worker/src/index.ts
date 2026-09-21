@@ -37,7 +37,7 @@ import { buildPhase7Document, writePhase7Document } from './research/phase7-brid
 import { lookupCountyFIPS } from './lib/county-fips.js';
 import { assessPurchaseReadiness } from './research/purchase-readiness.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
-import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
+import { DocumentPurchaseOrchestrator, parseEstimatedCost } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker, clampRunMinutes } from './research/run-phases.js';
@@ -1571,23 +1571,237 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         .success(0, 'Free-first: nothing was paid-exclusive; the free gather captures the rest.');
       return;
     }
-    handshakeLogger.attempt('[Purchase]', 'info', 'Buying documents (early)',
-      `${recs.length} paid-exclusive/operator target(s), ceiling $${ceiling.toFixed(2)}`)
-      .success(recs.length, `Buying up to ${recs.length} document(s) EARLY from TexasFile within the $${ceiling.toFixed(2)} budget.`);
-    const orchestrator = new DocumentPurchaseOrchestrator(projectId);
-    const purchaseResult = await orchestrator.executePurchases(
-      projectId, recs,
-      {
-        texasfileCredentials: process.env.TEXASFILE_USERNAME ? { username: process.env.TEXASFILE_USERNAME, password: process.env.TEXASFILE_PASSWORD!, accountType: 'pay_per_page' } : undefined,
-        budget: ceiling, otherBudgetUsd: runSettings.otherBudgetUsd, autoReanalyze: false, runId: activePipelines.get(projectId)?.runId ?? null,
-      },
-      countyFIPS, county ?? '',
+    // ── THE RUN DOES NOT BUY (owner, 2026-09-21) ───────────────────────────────────────────────
+    //
+    // "This way we only download and post the free files, but we make the purchasable files
+    //  available to be purchased individually if the researcher wants to do that... This way we
+    //  will not run into unnecessary purchases or over spending against the budget or purchasing a
+    //  document that is a duplicate of a free document we already have."
+    //
+    // This block used to call `executePurchases` here, before a single clerk search had run. On
+    // job 26144 that bought the 1979 VILLAGE GREEN plat for $10 — a correct document, correctly
+    // identified — and because that $10 was charged against a $2 run ceiling the watchdog killed
+    // the run before the free clerk index was ever searched. Ten dollars, 2m21s, nothing read.
+    //
+    // The deeper problem was not the accounting. It was that NOBODY HAD ASKED. A decision to spend
+    // was being made by a scraper at the one moment it knew least: before the free record existed,
+    // so it could not know whether the document it was buying was a duplicate of one we were about
+    // to get for nothing.
+    //
+    // Both passes now record OFFERS. The run gathers and posts the free files; the paid ones are
+    // listed with a price, a thumbnail and a purchase button, and a person decides. See
+    // `recordOffers` below and seeds/656_purchase_offers.sql.
+    await recordOffers(
+      recs.map((r) => ({
+        costUsd: parseEstimatedCost(r.estimatedCost),
+        reason: r.reason,
+        cluster: {
+          instrument: r.instrument, docType: r.documentType,
+          book: r.book, page: r.page, recordingDate: r.recordingDate,
+        },
+        source: { previewRef: r.vendorRef, sourceId: r.source },
+      })),
+      county ?? '',
     );
-    const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
-    const spent = purchaseResult.billing?.totalCharged ?? 0;
-    handshakeLogger.attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Early purchase finished',
-      `${bought.length} bought, $${spent.toFixed(2)}`)
-      .success(bought.length, `${bought.length} document(s) purchased EARLY from TexasFile for $${spent.toFixed(2)}. ${purchaseResult.purchases.length - bought.length} were not obtained.`);
+
+    const offered = recs.reduce((sum, r) => sum + parseEstimatedCost(r.estimatedCost), 0);
+    handshakeLogger.attempt('[Purchase]', 'info', 'Offered, not bought',
+      `${recs.length} document(s), about $${offered.toFixed(2)}`)
+      .success(recs.length,
+        `${recs.length} document(s) are available only behind a paywall — about $${offered.toFixed(2)} for ` +
+        'all of them. Nothing was bought. They are listed with a purchase button so you can pick the ' +
+        'ones you actually want, after the free record is in and you can see what it already covers.');
+  }
+
+  // ── THE SECOND PASS: DECIDE ONCE THE FREE SOURCES HAVE ANSWERED ────────────────────────────────
+  //
+  // Owner, 2026-09-21: "catalogue all of the found materials from the paid sources and the free
+  // sources, then cross compare, then determine if we can get the documents without paying, and
+  // whatever documents we need to pay for we do."
+  //
+  // The early pass above cannot do that, and the reason is only timing. It runs from
+  // `onPropertyIdentified`, before a single clerk search, so the `knownFreeDocuments` it compares
+  // against is the appraisal district's deed history — a list of CITATIONS rather than a list of
+  // what we hold. It still belongs there: a buy placed after the whole free pass used to never fire
+  // at all, and TexasFile was charged $0 while $5 of AI was spent.
+  //
+  // This is the same engine with the one input that was missing. It runs between Stage 2 and
+  // Stage 3 — after the free record is in, before anything reads it — because a document bought
+  // after the analysis stage is a document nobody analysed.
+  //
+  // ── WHAT COUNTS AS "WE ALREADY HAVE IT" ────────────────────────────────────────────────────────
+  //
+  // Not "Stage 2 returned a row for it". A free clerk index row carries parties, a date and a
+  // book/page and NO document — on job 26144 six deeds came back and Stage 3 reported "0/6 have
+  // image/pages". Treating those as held concludes that nothing is worth buying, which is exactly
+  // backwards: the image is the part we do not have and the only part TexasFile sells.
+  //
+  // So a document is known-free only when it arrived WITH CONTENT. A metadata-only row is the gap.
+  async function runGapFillPurchase(found: {
+    documents: Array<{
+      instrumentNumber: string | null; volume: string | null; page: string | null;
+      documentType: string | null; recordingDate: string | null;
+      hasText: boolean; hasImage: boolean;
+    }>;
+    county: string;
+    subdivisionName: string | null;
+  }): Promise<null> {
+    if (!projectId) return null;
+
+    const withContent = found.documents.filter((d) => d.hasText || d.hasImage);
+    const gap = found.documents.filter((d) => !d.hasText && !d.hasImage);
+
+    handshakeLogger.attempt('[Purchase]', 'info', 'Second pass',
+      `${found.documents.length} free document(s) in hand; ${gap.length} metadata only`)
+      .success(gap.length,
+        `Free record is in: ${found.documents.length} document(s), ${withContent.length} with readable ` +
+        `content and ${gap.length} index row(s) carrying no document. Comparing the gap against TexasFile.`);
+
+    if (gap.length === 0) {
+      handshakeLogger.attempt('[Purchase]', 'info', 'Nothing to fill', 'every free document arrived with content')
+        .success(0, 'Every document the free sources returned carries its own content — nothing to buy.');
+      return null;
+    }
+
+    const permission = await resolvePurchasePermission(projectId);
+    if (!permission.allowed) {
+      handshakeLogger.attempt('[Purchase]', 'info', 'Second pass skipped', permission.reason)
+        .success(0, `${gap.length} document(s) could be bought, but ${permission.reason}`);
+      return null;
+    }
+
+    // ── THE BUDGET DOES NOT GATE CATALOGUING ────────────────────────────────────────────────────
+    //
+    // It used to, because finding and buying were one step: no money meant no search. They are
+    // separate now, and a budget is a limit on SPENDING, not on knowing. A run that has spent its
+    // last dollar should still come back and tell the operator that four more documents exist and
+    // what they cost — that list is worth more than most of what a run retrieves, because it turns
+    // "I wonder what else is out there" into a priced, thumbnailed decision.
+    //
+    // So the catalogue is complete regardless of budget. `planAcquisition` is given a ceiling high
+    // enough not to truncate it, because here it is deciding what is PAID-ONLY, not what to spend.
+    const CATALOGUE_CEILING_USD = 100_000;
+
+    try {
+      const knownFree = withContent.map((d) => clerkDocToManifest(
+        { instrumentNumber: d.instrumentNumber, documentType: d.documentType, recordingDate: d.recordingDate },
+        'clerk-free', found.county,
+      ));
+
+      const target = buildDiscoveryTarget({
+        county: found.county,
+        ownerName: researchInput.ownerName,
+        subdivision: found.subdivisionName ?? undefined,
+        supplemental: {},
+        knownInstruments: gap.map((d) => d.instrumentNumber ?? '').filter((x) => x.length > 0),
+      });
+
+      const engineSearch = makeSourceSearch({
+        county: found.county, texasfileEnabled: true, knownFreeDocuments: knownFree,
+        log: (m) => console.log(`[Purchase:gapfill] ${projectId}: ${m}`),
+      });
+
+      const discovery = await discoverAcrossSources(
+        found.county, selectionsToWants(resolveGatherSelections(runSettings)), target, engineSearch,
+        { paidEnabled: true });
+      const clusters = await clusterEntries(discovery.entries);
+      const plan = planAcquisition(clusters, { paidBudgetUsd: CATALOGUE_CEILING_USD });
+
+      const toBuy = plan.actions.filter((a) => a.kind === 'purchase');
+      if (toBuy.length === 0) {
+        handshakeLogger.attempt('[Purchase]', 'info', 'Nothing paid-exclusive', 'the free record covers it')
+          .success(0, 'Cross-compared the gap against TexasFile: nothing it sells adds to what we hold free.');
+        return null;
+      }
+
+      // ── OFFERED, NOT BOUGHT (owner, 2026-09-21) ────────────────────────────────────────────
+      //
+      // "let's make it so that we find the documents that can be purchased, but we will not
+      // purchase them... we will list them when the research run is done, and next to them we will
+      // have a purchase button."
+      //
+      // Research and spending were the same breath until now, and they are different decisions.
+      // Finding a document, pricing it and showing its first page is research: it should be free,
+      // exhaustive, and never gated by a budget. Buying it is spending, and spending should be a
+      // click by somebody who can see what they are getting.
+      //
+      // So nothing is bought here. The run records an offer per document — with the vendor's GUID,
+      // so a click tomorrow buys THIS document rather than re-running the search and taking the
+      // first hit — and carries on with the free sources. See seeds/656_purchase_offers.sql.
+      await recordOffers(toBuy, found.county);
+
+      const priced = toBuy.reduce((sum, a) => sum + (Number(a.costUsd) || 0), 0);
+      handshakeLogger.attempt('[Purchase]', 'info', 'Offered, not bought',
+        `${toBuy.length} document(s), about $${priced.toFixed(2)}`)
+        .success(toBuy.length,
+          `${toBuy.length} document(s) exist only behind a paywall and fill a gap in the free record — ` +
+          `about $${priced.toFixed(2)} for all of them. Nothing was bought: they are listed with a ` +
+          'purchase button so you can choose. The run carries on with the free sources.');
+
+      return null;
+    } catch (e) {
+      // A failed buy must never take down a run that already has a free record.
+      handshakeLogger.attempt('[Purchase]', 'warn', 'Second pass failed', String(e))
+        .warn(`The paid gap-fill did not complete: ${e instanceof Error ? e.message : String(e)}. ` +
+              'The free record is unaffected.');
+      return null;
+    }
+  }
+
+  /**
+   * Write one OFFER per document the run found but did not buy.
+   *
+   * ── WHY `vendor_ref` IS THE POINT ──────────────────────────────────────────────────────────────
+   *
+   * Everything else here is description. `vendor_ref` is TexasFile's own GUID for the document, and
+   * it is what makes a purchase button pressed tomorrow buy THIS document rather than re-running
+   * the search and taking whatever comes back first — which, for a common surname or a subdivision
+   * with fifty plats, is a different document with the same label. `live-source-adapters.ts` has
+   * carried it as `previewRef` since it was written and nothing has ever stored it.
+   *
+   * Written through the same ledger as everything else that happens to a document, so "what became
+   * of this one" has a single place to look. See seeds/656_purchase_offers.sql.
+   */
+  async function recordOffers(
+    actions: ReadonlyArray<{
+      costUsd?: number;
+      reason?: string;
+      cluster: { instrument?: string; docType?: string; book?: string; page?: string; recordingDate?: string };
+      source: { previewRef?: string; sourceId?: string };
+    }>,
+    countyName: string,
+  ): Promise<void> {
+    if (actions.length === 0) return;
+    try {
+      const supabase = await getSupabase();
+      if (!supabase) {
+        console.warn(`[Purchase:offer] ${projectId}: no database — ${actions.length} offer(s) not recorded`);
+        return;
+      }
+      const now = new Date().toISOString();
+      const rows = actions.map((a) => ({
+        research_project_id: projectId,
+        run_id: activePipelines.get(projectId!)?.runId ?? null,
+        county_fips: lookupCountyFIPS(countyName, state ?? 'TX'),
+        instrument_raw: a.cluster.instrument ?? null,
+        document_type: a.cluster.docType ?? null,
+        platform_id: a.source.sourceId ?? 'texasfile',
+        pages: 0,
+        cost_usd: Number(a.costUsd) || 0,
+        status: 'offered',
+        vendor_ref: a.source.previewRef ?? null,
+        offered_at: now,
+        failure_reason: (a.reason ?? 'Found behind a paywall; not bought.').slice(0, 500),
+      }));
+      const { error } = await (supabase as unknown as {
+        from: (t: string) => { insert: (r: unknown) => Promise<{ error: { message: string } | null }> };
+      }).from('research_document_purchases').insert(rows);
+      if (error) console.warn(`[Purchase:offer] ${projectId}: offers not recorded — ${error.message}`);
+      else console.log(`[Purchase:offer] ${projectId}: recorded ${rows.length} offer(s)`);
+    } catch (e) {
+      // An offer that fails to save costs the operator a list, not a document. Never fatal.
+      console.warn(`[Purchase:offer] ${projectId}: could not record offers — ${String(e)}`);
+    }
   }
 
   const researchInput: CountyResearchInput = {

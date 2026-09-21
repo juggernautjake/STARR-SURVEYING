@@ -59,10 +59,16 @@ describe('purchases carry their run and check what earlier rounds hold', () => {
     expect(read('src/types/purchase.ts')).toContain('runId?: string | null;');
     const index = read('src/index.ts');
     const sites = index.split('orchestrator.executePurchases(').length - 1;
-    expect(sites).toBe(4); // three in-run + the standalone endpoint
-    // The early plats-first pass reads the run id inline; the two final-pass sites (one
-    // finalPurchasePass, 2026-09-07) pass the local `runId` beside `alreadyBought`.
-    expect((index.match(/autoReanalyze: false,\s*runId: activePipelines\.get\(projectId\)\?\.runId \?\? null,/g) ?? []).length).toBe(1);
+    // THREE since 2026-09-21: two in-run + the standalone endpoint. The early plats-first pass no
+    // longer calls this at all — a run never buys, it records offers, and the one function that
+    // spends refuses without `operatorApproved` (see a-run-never-buys.test.ts). The remaining
+    // in-run sites are harmless for the same reason: they get an offer-only report back.
+    expect(sites).toBe(3);
+    // The early plats-first pass used to read the run id inline here; it buys nothing now, so that
+    // form is gone. The two final-pass sites (one finalPurchasePass, 2026-09-07) still pass the
+    // local `runId` beside `alreadyBought`, which is what a ledger row needs when a purchase DOES
+    // happen — an operator-approved one.
+    expect((index.match(/autoReanalyze: false,\s*runId: activePipelines\.get\(projectId\)\?\.runId \?\? null,/g) ?? []).length).toBe(0);
     expect((index.match(/autoReanalyze: false,\s*runId,\s*alreadyBought,/g) ?? []).length).toBe(2);
   });
   it('the orchestrator loads the project library itself when no held index was passed', () => {

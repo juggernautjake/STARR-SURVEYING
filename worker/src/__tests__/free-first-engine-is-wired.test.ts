@@ -42,10 +42,17 @@ describe('the early buy runs the free-first engine (plan 1.4)', () => {
     expect(fn).toContain("a.kind === 'purchase'");
   });
 
-  it('it still buys through the orchestrator (ledger + library + gate)', () => {
+  it('it OFFERS rather than buys, and still asks the gate first (owner, 2026-09-21)', () => {
+    // "we only download and post the free files, but we make the purchasable files available to be
+    //  purchased individually if the researcher wants to do that."
+    //
+    // This used to assert the opposite — that the early pass buys here. It did, before any clerk
+    // search had run, which is the one moment it knew least: it could not tell whether the document
+    // it was buying duplicated one the free pass was about to fetch for nothing. On job 26144 it
+    // bought a $10 plat against a $2 run ceiling and the watchdog killed the run.
     expect(fn).toContain('resolvePurchasePermission(projectId)');
-    expect(fn).toContain('new DocumentPurchaseOrchestrator(projectId)');
-    expect(fn).toContain('.executePurchases(');
+    expect(fn).toContain('await recordOffers(');
+    expect(fn, 'the run itself never spends').not.toContain('.executePurchases(');
   });
 
   it('it builds the discovery target from owner + supplemental + CAD instruments', () => {

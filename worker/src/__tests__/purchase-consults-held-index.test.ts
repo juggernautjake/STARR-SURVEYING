@@ -42,7 +42,10 @@ const REC: PurchaseRecommendation = {
   roi: 2,
 };
 
-const CONFIG = { budget: 25, autoReanalyze: false };
+// `operatorApproved` because these tests exercise the BUYING path. A run never buys (see
+// a-run-never-buys.test.ts); what is tested here is the rule that still matters once a person has
+// clicked purchase — never charge for a document the free pass already returned.
+const CONFIG = { budget: 25, autoReanalyze: false, operatorApproved: true };
 
 function heldIndexWith(instrument: string, date: string): DocumentIndex {
   const index = new DocumentIndex();

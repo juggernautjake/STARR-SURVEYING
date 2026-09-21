@@ -191,7 +191,14 @@ describe('every place the worker spends money consults the gate', () => {
     // call only ASKS: the readiness route reports whether a run would be allowed, without buying.
     // SEVEN since A7.5: the EARLY buy (runEarlyChecklistPurchase, fired from onPropertyIdentified so a
     // Bell run buys before it is cut short) is a real spend site and consults the gate before buying.
+    //
+    // EIGHT since 2026-09-21: the second pass (`runGapFillCatalogue`, fired between Stage 2 and
+    // Stage 3) asks the gate before cataloguing what is purchasable. Note what it is NOT — that
+    // site does not spend, and neither does the early pass any more. A run never buys; the rule is
+    // enforced in the orchestrator, which is the only function that spends (see
+    // a-run-never-buys.test.ts). The gate is still consulted at both, because "may this firm buy
+    // documents at all" decides whether it is honest to OFFER them.
     const calls = index.match(/await resolvePurchasePermission\(projectId\)/g) ?? [];
-    expect(calls.length).toBe(7);
+    expect(calls.length).toBe(8);
   });
 });

@@ -32,9 +32,13 @@ describe('the orchestrator meters non-TexasFile vendors on the other-sources bud
 
 describe('the run hands the other-sources budget to every in-run purchase site', () => {
   const src = read('index.ts');
-  it('passes otherBudgetUsd at the three in-run executePurchases sites', () => {
+  it('passes otherBudgetUsd at the in-run executePurchases sites', () => {
+    // TWO since 2026-09-21. The early plats-first pass no longer calls executePurchases — a run
+    // records offers and never buys (see a-run-never-buys.test.ts), so it has no budget to hand
+    // over. The remaining two still pass it, because the meter has to be right the moment an
+    // operator-approved purchase runs through them.
     const count = src.split('otherBudgetUsd: runSettings.otherBudgetUsd').length - 1;
-    expect(count).toBe(3);
+    expect(count).toBe(2);
   });
   it('settles both meters from the ledger at run finish, onto the run record', () => {
     // Scoped to THIS run's rows since 2026-09-07 — the whole-project sum reported a previous run's
