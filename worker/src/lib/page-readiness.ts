@@ -106,6 +106,23 @@ export const RESULTS_SETTLED = `() => {
   return /no results found|0 results|returned no results|error while running search/i.test(t);
 }`;
 
+/**
+ * The site SAYS it matched nothing.
+ *
+ * Deliberately separate from `RESULTS_SETTLED`, which lumps this together with the site's own error
+ * message because for SETTLING they are the same — both mean "stop waiting". For CLASSIFYING they
+ * are opposites: one is a fact about the property, the other is a fact about the site.
+ *
+ * Needed because a results page with no rows also has no table, so a parser that decides "can I
+ * read this?" by looking for column headers finds none and reports an unreadable table. That turns
+ * an honest empty search into a fault — the exact mirror of reporting a refusal as "no records",
+ * and it fills a health check with alarms about counties that are working correctly.
+ */
+export const NO_RESULTS_TEXT = /no results found|0 results|returned no results/i;
+
+/** The site says its own search failed. NOT an empty result, and never to be reported as one. */
+export const SEARCH_ERROR_TEXT = /error while running search/i;
+
 /** A search form that is not merely present but usable. `page.fill` timed out on Travis and Madison
  *  against an input that existed and was still disabled. */
 export const SEARCH_FORM_USABLE = `() => {

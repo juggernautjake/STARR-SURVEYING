@@ -28,7 +28,7 @@ import {
   parseResults,
   type GroupedDocument,
 } from './edoctec-results-parser.js';
-import { RESULTS_SETTLED, SEARCH_FORM_USABLE, waitWithRetry } from '../lib/page-readiness.js';
+import { RESULTS_SETTLED, SEARCH_FORM_USABLE, NO_RESULTS_TEXT, SEARCH_ERROR_TEXT, waitWithRetry } from '../lib/page-readiness.js';
 import { resolveAdapter } from '../infra/adapter-registry.js';
 
 /** The host every known deployment shares. It is named for McLennan because that is where eDocTec
@@ -238,6 +238,31 @@ export class EdocTecClerkAdapter extends ClerkAdapter {
     console.log(`[eDocTec/${this.countyName}] ${this.lastParseSummary}`);
 
     if (report.unusable) {
+      // ── AN EMPTY RESULT HAS NO TABLE, AND THAT IS NOT THE SAME AS AN UNREADABLE ONE ───────────
+      //
+      // `unusable` is decided by whether the required COLUMNS are present. A search that matched
+      // nothing renders no table at all, so every column reads as missing and a perfectly healthy
+      // county gets reported as unparseable.
+      //
+      // Found on 2026-09-21 by searching Lampasas for "CITY OF COPPERAS COVE" — a Coryell city,
+      // with no Lampasas records — and concluding the county's adapter was broken. It was not.
+      // Searching "CITY OF LAMPASAS" returned 20 rows a minute later.
+      //
+      // The distinction is narrow on purpose. To read as empty, ALL of this must hold: no headers,
+      // no rows, the page says so in its own words, and it does NOT also report an error. Anything
+      // else still refuses to answer, because answering "no records" from a table we could not read
+      // is the failure this whole adapter is built to avoid.
+      const bodyText = await page.innerText('body').catch(() => '');
+      const saysEmpty = NO_RESULTS_TEXT.test(bodyText) && !SEARCH_ERROR_TEXT.test(bodyText);
+
+      if (table.headers.length === 0 && table.rows.length === 0 && saysEmpty) {
+        this.lastParseSummary =
+          `${this.countyName}: the search ran and the county reported no matching records. ` +
+          'No table was rendered, which is what an empty result looks like here — not a parse failure.';
+        console.log(`[eDocTec/${this.countyName}] ${this.lastParseSummary}`);
+        return [];
+      }
+
       // Refusing to answer beats answering "no records" from a table we could not read.
       throw new Error(this.lastParseSummary);
     }
