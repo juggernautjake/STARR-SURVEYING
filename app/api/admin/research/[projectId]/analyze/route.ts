@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { mayBuyDocuments, paidDocumentsNotice } from '@/lib/research/paid-documents';
+import { deferredNotice, offerable, type DeferredPurchase } from '@/lib/research/deferred-purchases';
 import { analyzeProject, getAnalysisStatus, type FinalizeStage } from '@/lib/research/analysis.service';
 import { withAiLedger } from '@/lib/research/ai-client';
 
@@ -244,9 +245,48 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     hasVendorCredentials: Boolean(process.env.TEXASFILE_USERNAME),
   });
 
+  // ── WHAT THE RUN FOUND AND DID NOT BUY (owner, 2026-09-21) ─────────────────────────────────
+  //
+  // "It should list other found documents that can be purchased, but it should not purchase them
+  // unless the user wants to after the run is complete."
+  //
+  // The worker has always written these rows — the purchase orchestrator stops at the ceiling and
+  // records everything past it as `budget_exceeded` — and nothing has ever read them. The count
+  // above deliberately excludes that status, because it is a different thing from "you told us not
+  // to spend": the run HAD permission and ran out of money, which is the one an operator can act
+  // on. Job 26144 found five buyable documents, could afford one, and reported the other four
+  // nowhere at all.
+  const { data: deferredRows } = await supabaseAdmin
+    .from('research_document_purchases')
+    .select('instrument_raw, document_type, platform_id, pages, status')
+    .eq('research_project_id', projectId)
+    .in('status', ['budget_exceeded', 'paid_disabled'])
+    .limit(200);
+
+  const deferred: DeferredPurchase[] = (deferredRows ?? []).map((r: unknown) => {
+    const row = r as {
+      instrument_raw: string | null; document_type: string | null;
+      platform_id: string | null; pages: number | null; status: string;
+    };
+    const pages = Number(row.pages) || 0;
+    return {
+      label: row.instrument_raw ?? row.document_type ?? 'Document',
+      documentType: row.document_type,
+      instrument: row.instrument_raw,
+      source: row.platform_id ?? 'unknown',
+      // TexasFile bills $1 a page. A row with no page count gets null rather than a guess — see
+      // `deferredTotalUsd`, which refuses a total it cannot vouch for.
+      estimatedCostUsd: pages > 0 ? pages : null,
+      reason: row.status === 'budget_exceeded' ? 'budget_exceeded' : 'paid_disabled',
+    };
+  });
+
   return NextResponse.json({
     ...status,
     paidDocumentsNotice: paidDocumentsNotice(decision, skippedCount ?? 0),
+    /** Found, priced, and NOT bought — the operator buys these after the run, or not at all. */
+    deferredPurchases: offerable(deferred),
+    deferredNotice: deferredNotice(deferred),
   });
 }, { routeName: 'research/analyze/status' });
 
