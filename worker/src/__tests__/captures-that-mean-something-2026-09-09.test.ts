@@ -54,7 +54,11 @@ describe('B — one picture, one file: same-frame bands and the rendered county 
     const report = await runCaptures(plan, {
       screenshot: async (item: PlannedCaptureItem) => item.kind === 'aerial_close'
         ? { sameFrameAs: 'Aerial — subject parcel', detail: 'Same picture as "Aerial — subject parcel" — one frame twice.' }
-        : { bytes: Buffer.from('png'), width: 1, height: 1, text: 'x' },
+        // A realistic stub, not a 3-byte one. The runner gained a usefulness gate on 2026-09-21
+        // that drops blank or error captures before they reach storage, and a 1×1 "png" is exactly
+        // what that gate exists to reject. This test is about same-frame behaviour, so the bytes
+        // just need to look like a real screenshot; the gate has its own tests.
+        : { bytes: Buffer.alloc(64_000, 7), width: 1440, height: 900, text: 'Grantor SMITH Legal Description LOT 4 BLOCK 2' },
       store: async (item: PlannedCaptureItem) => { stored.push(item.kind); return { storagePath: `p/${item.kind}`, publicUrl: null }; },
       file: async () => ({ outcome: 'new', id: 'd' } as never),
     } as never, { projectId: 'p', runId: null, county: 'Bell' });

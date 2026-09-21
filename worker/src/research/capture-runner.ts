@@ -32,6 +32,7 @@
 // An OCR failure never fails the capture. A screenshot with no text extracted is still the
 // screenshot, and losing the image because the reader had a bad day would be the worse trade.
 
+import { assessCapture, usefulnessLine, type VisionJudge } from './capture-usefulness.js';
 import type { CapturePlan, PlannedCaptureItem } from './capture-plan.js';
 import type { ImagerySource } from '../services/imagery-plan.js';
 import { provenanceForCapture, captionForCapture } from './capture-plan.js';
@@ -80,13 +81,21 @@ export interface CaptureRunnerDeps {
   store: StoreFn;
   file: FileFn;
   log?: CaptureLogFn;
+  /**
+   * Ask a model whether an image is worth keeping.
+   *
+   * OPTIONAL, and the whole gate degrades gracefully without it: the byte and text checks still
+   * run, and anything they cannot settle is kept. A deployment with no model key files exactly
+   * what it filed before, minus the blank pages and the error screens.
+   */
+  judgeCapture?: VisionJudge;
 }
 
 export interface CaptureOutcome {
   key: string;
   label: string;
   kind: PlannedCaptureItem['kind'];
-  status: 'filed' | 'already-held' | 'flagged' | 'capture-failed' | 'store-failed' | 'file-failed' | 'same-frame';
+  status: 'filed' | 'already-held' | 'flagged' | 'capture-failed' | 'store-failed' | 'file-failed' | 'same-frame' | 'not-useful';
   /** Readable, always. A capture that did not happen must say what happened instead. */
   detail: string;
   ocrChars?: number;
@@ -155,6 +164,40 @@ export async function runCaptures(
         // Never fatal. The picture is worth more than the text on it.
         log('warn', `[Capture] ${item.label}: OCR failed (${String(e)}) — the image is still filed.`);
       }
+    }
+
+    // ── IS IT WORTH FILING? ────────────────────────────────────────────────────────────────────
+    //
+    // Owner, 2026-09-21: "A lot of times we are getting back screenshots of pages or websites where
+    // nothing was found or it didn't load or something, and those images are useless."
+    //
+    // Checked HERE — after OCR, before the upload — for two reasons. The OCR text is the cheapest
+    // and most decisive evidence there is, and it exists by this point; and a capture judged
+    // useless never reaches storage, so the library does not accumulate pictures of error pages
+    // that somebody has to scroll past in a report.
+    //
+    // The gates are ordered so the free ones decide most cases: file size, then the page's own
+    // words, and only then a vision call. See research/capture-usefulness.ts.
+    //
+    // It leans towards KEEPING on doubt. A wrongly-dropped aerial cannot be recovered; a
+    // wrongly-kept one can be ignored.
+    const useful = await assessCapture({
+      bytes: { byteLength: shot.bytes.length },
+      pageText: ocrText,
+      imageBase64: deps.judgeCapture ? shot.bytes.toString('base64') : null,
+      mimeType: 'image/png',
+      label: item.label,
+      judge: deps.judgeCapture,
+    });
+
+    if (useful.verdict === 'useless') {
+      outcomes.push({
+        key: item.key, label: item.label, kind: item.kind,
+        status: 'not-useful',
+        detail: useful.why,
+      });
+      log('info', `[Capture] ${usefulnessLine(item.label, useful)}`);
+      continue;
     }
 
     // ── Store ──────────────────────────────────────────────────────────────────────────────────

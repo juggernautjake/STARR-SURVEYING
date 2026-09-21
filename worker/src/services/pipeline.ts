@@ -683,6 +683,25 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
       if (searchDiagnostics?.siteUnreachable) {
         const cadName = cadConfig?.name ?? `${input.county} CAD`;
         const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+
+        // ── WHOSE PROBLEM IS THIS? ──────────────────────────────────────────────────────────
+        //
+        // "UNREACHABLE" covers four different things with four different remedies, and saying the
+        // same word for all of them is how job 26144 spent 33 seconds on a hostname that does not
+        // exist while the log read like a county website being down.
+        //
+        //   a hostname that does not resolve   → nothing to retry; fix the config
+        //   a proxy refusing a tunnel          → try the other egress
+        //   a 403 from the site                → relay or residential session
+        //   a genuine outage                   → retry later
+        //
+        // `readTransportError` names which, and `rejectionLine` marks it OUR PROBLEM when it is.
+        if (searchDiagnostics.cadSiteError) {
+          const { readTransportError, rejectionLine } = await import('../research/site-rejection.js');
+          const verdict = readTransportError(new Error(searchDiagnostics.cadSiteError));
+          logger.warn('Stage1', `  ↳ ${rejectionLine(verdict)}`);
+        }
+
         logger.warn('Stage1', `⚠ ${cadName} (${cadUrl}) is UNREACHABLE — continuing research with alternative sources`);
         logger.warn('Stage1', `  ↳ Alternatives: ${input.county} County Clerk records${kofile ? ` (${kofileBase})` : ''}, plat repository${platRepo ? ' (available)' : ' (none)'}, user-uploaded documents`);
         if (searchDiagnostics.cadSiteError) {
