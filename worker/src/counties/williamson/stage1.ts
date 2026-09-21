@@ -21,12 +21,13 @@
  * useful number and decoration.
  */
 
-import type { PropertyIdResult } from '../../types/index.js';
+import type { PropertyIdResult, DeedHistoryEntry } from '../../types/index.js';
 import type { PipelineLogger } from '../../lib/logger.js';
 import {
-  wcadFindProperty, wcadDetailUrl, parseWcadDetail, subdivisionFromLegal, wcadSubdivision,
-  type FindAttempt,
+  wcadFindProperty, wcadDetailUrl, parseWcadDetail, fetchWcadDetail, subdivisionFromLegal,
+  wcadSubdivision, wcadSales, wcadParcel, parseConveyanceName, wcadData, type FindAttempt,
 } from './wcad.js';
+import { WILLIAMSON_ENDPOINTS } from './config/endpoints.js';
 
 export interface WilliamsonStage1Options {
   /** The geocoder's corrected line, when Stage 0 produced one. */
@@ -109,40 +110,161 @@ export async function williamsonStage1(
   let acreage: number | null = null;
   let mapId: string | undefined;
   let mailing: string | undefined;
+  let propertyType: string | null = null;
 
-  if (opts.detailText) {
-    const d = parseWcadDetail(hit.propertyQuickRefId, opts.detailText);
+  // ── THE DETAIL PAGE IS FETCHED, NOT HOPED FOR ────────────────────────────────────────────────
+  //
+  // This used to run only when a caller passed `detailText`, and no caller ever did. So every
+  // Williamson run returned a property id and an owner and then reported no legal description, no
+  // acreage and no subdivision — the three most valuable fields on the page — with nothing
+  // failing anywhere. Found by looking for the caller of an option that had none.
+  const detail = opts.detailText
+    ? { detail: parseWcadDetail(hit.propertyQuickRefId, opts.detailText), error: null }
+    : await fetchWcadDetail(hit.propertyQuickRefId, hit.partyQuickRefId, opts.fetchImpl ?? fetch);
+
+  if (detail.error) {
+    // Not fatal: the parcel is already identified and the run can proceed on the id and the owner.
+    // But it must be SAID, because the difference between "this parcel has no legal description"
+    // and "we did not fetch the page that carries it" is the whole value of the field.
+    logger.warn('Stage1', `WCAD: the detail page could not be read (${detail.error}) — the parcel is identified but its legal description, acreage and subdivision are unknown for this run.`);
+    notes.push(`The detail page was not readable: ${detail.error}`);
+  } else if (detail.detail) {
+    const d = detail.detail;
     legal = d.legalDescription;
     acreage = d.acres;
     mapId = d.mapNumber ?? undefined;
     mailing = d.mailingAddress ?? undefined;
+    propertyType = d.propertyType;
+
+    logger.info('Stage1',
+      `WCAD detail: ${[
+        d.account ? `account ${d.account}` : null,
+        legal ? `legal "${legal}"` : 'no legal description on the page',
+        acreage !== null ? `${acreage} acres` : null,
+        d.improvementSqFt ? `${d.improvementSqFt} sq ft built ${d.yearBuilt ?? '?'}` : null,
+        d.mapNumber ? `map ${d.mapNumber}` : null,
+      ].filter(Boolean).join(' · ')}`);
 
     const sub = subdivisionFromLegal(legal);
     if (sub) {
-      const { matches } = await wcadSubdivision(sub, opts.fetchImpl ?? fetch);
-      if (matches.length > 0) {
+      const { matches, error } = await wcadSubdivision(sub, opts.fetchImpl ?? fetch);
+      if (error) {
+        logger.warn('Stage1', `WCAD: the subdivision index could not be searched (${error}).`);
+        notes.push(`The subdivision index was unreachable: ${error}`);
+      } else if (matches.length > 0) {
         const m = matches[0]!;
         notes.push(
           `Platted: ${m.name}${m.code ? ` (${m.code})` : ''}${m.hasGeometry ? ', polygon on file' : ''}.`,
         );
-        logger.info('Stage1', `WCAD: subdivision ${m.name}${m.code ? ` code ${m.code}` : ''}`);
+        logger.info('Stage1',
+          `WCAD: subdivision "${m.name}"${m.code ? ` code ${m.code}` : ''}` +
+          `${m.lots ? `, ${m.lots} lots` : ''}${m.hasGeometry ? ', polygon on file' : ''}` +
+          `${matches.length > 1 ? ` (${matches.length - 1} other near match(es))` : ''}`);
       } else {
-        notes.push(`Legal description names "${sub}" but the county's subdivision index has no match.`);
+        // The index is genuinely incomplete — it holds SOUTH CREEK SEC 10 and SEC 12 and no SEC 16
+        // — so a miss here is not evidence the parcel is unplatted.
+        logger.info('Stage1',
+          `WCAD: the subdivision index has no entry for "${sub}". The index is known to be ` +
+          'incomplete, so this is not evidence the parcel is unplatted — the legal description ' +
+          'says it is.');
+        notes.push(`Legal description names "${sub}"; the county's subdivision index has no entry for it.`);
       }
     } else if (legal) {
+      logger.info('Stage1', 'WCAD: metes and bounds — no subdivision to look up.');
       notes.push('Metes and bounds — no subdivision to look up.');
     }
   }
 
+  // ── THE CLERK BRIDGE ─────────────────────────────────────────────────────────────────────────
+  //
+  // This county cites deeds by BOOK AND PAGE and publishes no instrument numbers at all, so the
+  // route into the clerk is: property id → Sales dataset → book/page. That chain was designed,
+  // written, tested — and never called, which meant Stage 2 fell back to searching the owner's
+  // NAME: slower, less precise, and on this clerk it needs a browser and a chip-list interaction
+  // that a book/page search does not.
+  //
+  // `deedHistory` carries volume and page, so the citations travel on the shape the pipeline
+  // already understands and nothing downstream needs to know which county produced them.
+  //
+  // The Sales datasets key on the NUMERIC property id, not the `R…` quick-ref. They are different
+  // keys and passing the wrong one returns an empty list that looks exactly like a property with
+  // no sales history — so the numeric id is looked up rather than assumed.
+  const deedHistory: DeedHistoryEntry[] = [];
+  try {
+    const { rows } = await wcadData<Record<string, unknown>>(
+      WILLIAMSON_ENDPOINTS.data.datasets.propertyCertified,
+      { quickrefid: hit.propertyQuickRefId, $select: 'propertyid', $limit: 1 },
+      opts.fetchImpl ?? fetch,
+    );
+    const numericId = rows[0] ? String(rows[0].propertyid ?? '') : '';
+
+    if (!numericId) {
+      logger.info('Stage1', `WCAD: no numeric property id for ${hit.propertyQuickRefId}, so no sales history could be looked up.`);
+    } else {
+      const { sales, error } = await wcadSales(numericId, { fetchImpl: opts.fetchImpl });
+      if (error) {
+        logger.warn('Stage1', `WCAD: the sales dataset could not be read (${error}).`);
+        notes.push(`The sales history was unreachable: ${error}`);
+      } else if (sales.length === 0) {
+        // A real finding on exempt or long-held property — job 26144's parcel has none across all
+        // five sales datasets — and NOT the same as the dataset being unavailable.
+        logger.info('Stage1',
+          `WCAD: no recorded transfers for property ${numericId}. Common on exempt or long-held ` +
+          'land; the clerk will have to be searched by name rather than by book and page.');
+        notes.push('The appraisal district records no transfers for this parcel.');
+      } else {
+        for (const s of sales) {
+          deedHistory.push({
+            deedDate: s.deedDate ?? undefined,
+            type: s.instrumentTypeCode ?? undefined,
+            volume: s.book ?? s.volume ?? undefined,
+            page: s.page ?? undefined,
+          });
+        }
+        const citable = deedHistory.filter((d) => d.volume && d.page);
+        logger.info('Stage1',
+          `WCAD: ${sales.length} recorded transfer(s), ${citable.length} citing a book and page — ` +
+          `${citable.slice(0, 4).map((d) => `${d.volume}/${d.page}`).join(', ')}` +
+          `${citable.length > 4 ? ` and ${citable.length - 4} more` : ''}. ` +
+          'These are what the clerk should be searched on; the name search is the fallback.');
+      }
+    }
+  } catch (e) {
+    logger.warn('Stage1', `WCAD: the sales lookup threw (${e instanceof Error ? e.message : String(e)}).`);
+  }
+
+  // ── THE PARCEL BOUNDARY ──────────────────────────────────────────────────────────────────────
+  //
+  // Recorded because it exists and was declared missing: the profile said this county had no public
+  // parcel polygon service, and the Socrata Parcels dataset carries a GeoJSON MultiPolygon on every
+  // row. The conveyance name on that row also names the subdivision WITH its code, which matters
+  // because the standalone subdivision index is incomplete.
+  try {
+    const { parcel } = await wcadParcel(hit.propertyQuickRefId, opts.fetchImpl ?? fetch);
+    if (parcel?.geometry) {
+      logger.info('Stage1', `WCAD: parcel boundary on file for ${parcel.parcelId}.`);
+      notes.push('A parcel boundary polygon is published for this property.');
+    }
+    const conv = parseConveyanceName(parcel?.conveyanceName);
+    if (conv) {
+      logger.info('Stage1',
+        `WCAD: the parcel row names its subdivision directly — ${conv.code ? `${conv.code} ` : ''}${conv.name}.`);
+      notes.push(`Subdivision per the parcel record: ${conv.code ? `${conv.code} — ` : ''}${conv.name}.`);
+    }
+  } catch (e) {
+    logger.warn('Stage1', `WCAD: the parcel lookup threw (${e instanceof Error ? e.message : String(e)}).`);
+  }
+
   return {
     propertyId: hit.propertyQuickRefId,
+    deedHistory: deedHistory.length ? deedHistory : undefined,
     // WCAD's account number is the closest thing it has to Bell's geo id — the number printed on a
     // notice, and what a person will quote back.
     geoId: hit.propertyNumber,
     ownerName: hit.ownerName,
     legalDescription: legal,
     acreage,
-    propertyType: null,
+    propertyType,
     situsAddress: hit.situsAddress,
     source: 'Williamson CAD (WCAD)',
     layer: 'wcad-quick-search',

@@ -200,6 +200,16 @@ export async function runCaptures(
       continue;
     }
 
+    // A KEPT capture says why it was kept, and by which gate. Logging only the rejections leaves a
+    // reader unable to tell a picture that was examined and passed from one nothing looked at —
+    // and when a gate starts misfiring, the silent passes are where the evidence is.
+    //
+    // Only when a gate actually decided: the default-keep path is the ordinary case and a line per
+    // capture saying "nothing decided this" is noise that would bury the two that matter.
+    if (useful.decidedBy !== 'default') {
+      log('info', `[Capture] ${usefulnessLine(item.label, useful)}`);
+    }
+
     // ── Store ──────────────────────────────────────────────────────────────────────────────────
     let stored: { storagePath: string; publicUrl: string | null } | null = null;
     try {

@@ -1376,8 +1376,35 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         const { withBrowser } = await import('../lib/browser-factory.js');
         const { searchWilliamsonClerk, toDocumentRefs } = await import('../counties/williamson/clerk-driver.js');
 
+        // ── BOOK AND PAGE FIRST, THE NAME AS A FALLBACK ──────────────────────────────────────
+        //
+        // The reverse of every other county here, and the reason is the data: Williamson's
+        // appraisal district publishes no instrument numbers at all, only book and page, and on
+        // this clerk a book/page search is a plain fill while a NAME search needs a browser and a
+        // chip-list interaction. So the cheap, precise route is also the one the data supports.
+        //
+        // Stage 1 puts the citations on `deedHistory`. Using the newest is deliberate: it is the
+        // controlling conveyance, and following it back is what a chain of title is.
+        const citations = (propertyResult?.deedHistory ?? [])
+          .filter((d) => d.volume && d.page);
+
+        const clerkQuery = citations.length > 0
+          ? { book: citations[0]!.volume!, page: citations[0]!.page! }
+          : { bothNames: ownerForClerk };
+
+        if (citations.length > 0) {
+          logger.info('Stage2',
+            `Williamson clerk: searching by book/page ${citations[0]!.volume}/${citations[0]!.page} ` +
+            `(the newest of ${citations.length} the appraisal district cites) rather than by name — ` +
+            'precise, and it needs no dropdown interaction.');
+        } else {
+          logger.info('Stage2',
+            `Williamson clerk: the appraisal district cites no book/page for this parcel, so the ` +
+            `clerk is searched by name ("${ownerForClerk}") with the county's own spellings expanded.`);
+        }
+
         const outcome = await withBrowser({ adapterId: 'tyler-clerk' }, (session) =>
-          searchWilliamsonClerk(session.browser, { bothNames: ownerForClerk }, {
+          searchWilliamsonClerk(session.browser, clerkQuery, {
             log: (level, message) => logger[level === 'warn' ? 'warn' : 'info']('Stage2', message),
           }));
 

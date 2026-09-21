@@ -379,6 +379,76 @@ export async function wcadSales(
   return { sales, error };
 }
 
+/**
+ * Turn the detail page's HTML into the line-per-field text `parseWcadDetail` reads.
+ *
+ * ── WHY THIS EXISTS RATHER THAN A BROWSER ───────────────────────────────────────────────────────
+ *
+ * The detail page is ASP.NET WebForms — the content is in the HTML, not behind JavaScript — so a
+ * browser would cost several seconds per property to render something already present in the first
+ * response. `parseWcadDetail` wants text laid out as label-line then value-line, which is exactly
+ * what innerText gives and what this reproduces.
+ *
+ * The block-level tags are what create the line breaks. Getting that wrong collapses "Legal
+ * Description" and its value onto one line and every label lookup silently returns the wrong field
+ * — so the tag list is explicit rather than a catch-all.
+ */
+export function htmlToFieldText(html: string): string {
+  return String(html ?? '')
+    // Script and style carry text that is not content and would land between a label and its value.
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    // Every block boundary becomes a line break. `br` and `tr` matter most: this page lays a label
+    // and its value out as adjacent table rows.
+    .replace(/<\/?(br|tr|td|th|div|p|li|h[1-6]|table|tbody|thead|section|span)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    // The entities this page actually uses. `&nbsp;` is the important one — it is what sits in an
+    // empty value cell, and left as-is it makes a blank field look like it has content.
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_m, d: string) => String.fromCharCode(Number(d)))
+    // Collapse horizontal whitespace but KEEP the line structure — the whole point of the above.
+    .split('\n')
+    .map((l) => l.replace(/[^\S\n]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * Fetch and read a property's detail page.
+ *
+ * ── THE BUG THIS FIXES ──────────────────────────────────────────────────────────────────────────
+ *
+ * `williamsonStage1` could parse a detail page since it was written and was never handed one — the
+ * pipeline passed no `detailText`, so every Williamson run returned a property id and an owner and
+ * then reported `legalDescription: null`, `acreage: null` and no subdivision. The three most
+ * valuable fields on the page, absent from every run, with nothing failing.
+ *
+ * Found by grepping for the caller of an option that had no caller.
+ */
+export async function fetchWcadDetail(
+  propertyQuickRefId: string,
+  partyQuickRefId?: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ detail: WcadDetail | null; error: string | null }> {
+  const url = wcadDetailUrl(propertyQuickRefId, partyQuickRefId);
+  try {
+    const res = await fetchImpl(url, {
+      headers: { Accept: 'text/html', 'User-Agent': UA },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return { detail: null, error: `WCAD detail returned ${res.status}` };
+    const html = await res.text();
+    return { detail: parseWcadDetail(propertyQuickRefId, htmlToFieldText(html)), error: null };
+  } catch (e) {
+    return { detail: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export interface WcadParcel {
   parcelId: string;
   propertyId: string | null;
@@ -410,12 +480,28 @@ export interface WcadParcel {
  * than the first move.
  */
 export async function wcadParcel(
-  propertyId: string,
+  id: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ parcel: WcadParcel | null; error: string | null }> {
+  const key = (id ?? '').trim();
+  if (!key) return { parcel: null, error: 'no id to look up' };
+
+  // ── TWO KEYS, AND PICKING THE WRONG ONE RETURNS SILENCE ────────────────────────────────────
+  //
+  // This dataset carries BOTH `parcelid` (`R093992`) and `propertyid` (`144999`), and they are not
+  // interchangeable. The first version always queried `propertyid` while every caller had the
+  // `R…` quick-ref to hand, so it returned an empty list — for every property, forever, with no
+  // error. The parcel-boundary log line simply never appeared and nobody noticed, because an
+  // absent boundary is indistinguishable from a county that does not publish them.
+  //
+  // Found by watching the live Stage 1 log and asking why one line was missing.
+  //
+  // The shape decides: `R` followed by digits is a quick-ref; anything else is the numeric id.
+  const field = /^[A-Z]\d+$/i.test(key) ? 'parcelid' : 'propertyid';
+
   const { rows, error } = await wcadData<Record<string, unknown>>(
     WILLIAMSON_ENDPOINTS.data.datasets.parcels,
-    { propertyid: propertyId, $limit: 1 },
+    { [field]: key, $limit: 1 },
     fetchImpl,
   );
   const r = rows[0];
