@@ -147,28 +147,30 @@ export const WILLIAMSON_PROFILE: CountyProfile = {
   ],
   golden: [
     {
-      propertyId: 'R075105',
-      address: '1007 Cushing Dr, Round Rock, TX 78664',
+      propertyId: 'R093992',
+      address: '2119 Jasmine Path, Round Rock, TX 78664',
       expect: {
-        owner_name: 'CITY OF ROUND ROCK',
-        legal_description: 'VILLAGE GREEN (EXEMPT), LOT 1, ACRES 2.82',
-        account: 'R-16-5591-EX00-0001',
+        owner_name: 'AMH 2015-2 BORROWER LLC',
+        legal_description: 'SOUTH CREEK SEC 16 AMENDED, BLOCK A, LOT 14',
+        account: 'R-16-5376-000A-0014',
         map_number: '3-5927',
-        acreage: 2.82,
-        year_built: 2002,
+        acreage: 0.088384,
+        subdivision_code: 'S4633',
       },
       verifiedAt: '2026-09-21',
       notes:
-        'Read off the live detail page. A WEAK fixture and knowingly so: exempt city property, so ' +
-        'no market value, no photo, no sketch, and its sales history is not representative. It is ' +
-        'here because it is the parcel the failing run was about and every field above was ' +
-        'verified. Replace it with an ordinary homesteaded parcel that has a real sale and a ' +
-        'recorded deed — that drill would be worth something.',
+        'The real drill, and it exercises every part of this county that can break. An ordinary ' +
+        'platted residence: a subdivision the Socrata index does NOT list (so it proves the ' +
+        '"missing from the index is not evidence of unplatted" rule), a parcel polygon on file, ' +
+        'an LLC owner, and nine book/page citations that the clerk answers with a complete chain ' +
+        'of title running 1985 to 1995 — including a 1988 trustee deed, so the chain survives a ' +
+        'foreclosure. A full live run on 2026-09-21 returned 9 documents from 9 searches, every ' +
+        'grantee matching the next grantor.',
     },
   ],
   statement:
     'Williamson is curated as of 2026-09-21: the appraisal search, the open-data portal and the ' +
-    'clerk were each driven by hand. The previous configuration pointed at a hostname that does ' +
-    'not exist and named the wrong vendor. No dedicated module yet, and the golden parcel is ' +
-    'exempt city property rather than an ordinary residence.',
+    'clerk were each driven by hand, and the clerk was then driven end to end by the pipeline ' +
+    'itself until it returned a complete chain of title. The previous configuration pointed at a ' +
+    'hostname that does not exist and named the wrong vendor. No dedicated module yet.',
 };
