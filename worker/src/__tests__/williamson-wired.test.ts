@@ -97,6 +97,22 @@ describe('Stage 2 reaches the county\'s own clerk driver', () => {
     expect(pipeline).toContain('mergedRecords');
   });
 
+  it('adds a name search when transfers carry a date but no citation', () => {
+    // This county stopped recording by book/page around 2000, so the deed that vests the CURRENT
+    // owner is unreachable by citation. Book/page alone stopped twenty years short of the present.
+    expect(pipeline).toContain('const uncited');
+    expect(pipeline).toContain('searchByName');
+    expect(pipeline).toContain('queries.push({ bothNames: ownerForClerk })');
+  });
+
+  it('filters name-search rows to this parcel, and only those', () => {
+    // A company that owns hundreds of houses answers a name search with all of them.
+    expect(pipeline).toContain("await import('../counties/williamson/parcel-match.js')");
+    expect(pipeline).toContain('rowCouldBeThisParcel(');
+    // Citations are parcel-specific by construction, so the filter must not touch them.
+    expect(pipeline).toContain("o.plan.kind !== 'name'");
+  });
+
   it('uses a real browser, through the shared factory', () => {
     // The name fields are chip lists; the term is the selected entry, not the typed text. No
     // amount of fetch gets there.

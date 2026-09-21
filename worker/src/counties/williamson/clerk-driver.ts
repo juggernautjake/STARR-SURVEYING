@@ -70,6 +70,15 @@ export interface ClerkDriverOptions {
    * and answers it in one call. This is only how long we are willing to sit still first.
    */
   acceptTimeoutMs?: number;
+  /**
+   * Wait this long between searches down one session. Default 2s.
+   *
+   * Not politeness for its own sake — this county runs a WAF that watches pace, and ten searches
+   * inside a minute is not a pace a person searching a deed index produces. A walk that pauses
+   * finishes; a walk that sprints gets "Let's confirm you are human" part-way through and loses
+   * the rest of the chain. Two seconds across nine citations costs under twenty seconds.
+   */
+  pauseMs?: number;
   log?: (level: 'info' | 'warn', message: string) => void;
 }
 
@@ -243,6 +252,7 @@ export async function searchWilliamsonClerkMany(
       // Back to a clean form. The navigation alone does NOT clear the previous search — this site
       // keeps the criteria — so the fields are emptied explicitly below.
       if (i > 0) {
+        await page.waitForTimeout(opts.pauseMs ?? 2_000).catch(() => {});
         await page.goto(WILLIAMSON_ENDPOINTS.clerk.search, { waitUntil: 'domcontentloaded', timeout: 45_000 })
           .catch(() => {});
 
@@ -349,24 +359,39 @@ async function runOneSearch(
       // Wait for the dropdown the typing triggered.
       await page.waitForSelector(`${sel.list} li`, { timeout: 8_000 }).catch(() => {});
 
-      const picked = await page.evaluate(
+      // ── CLICK EACH NAME ONCE, THEN CHECK WHAT ACTUALLY STUCK ─────────────────────────────────
+      //
+      // The dropdown lists a name TWICE — once as the highlighted `acItem-selected` row and once
+      // as an ordinary `acItem`. Clicking every row whose text matches therefore clicks the same
+      // name twice, and the second click TOGGLES THE CHIP BACK OFF. The search then goes out with
+      // no term at all and the county answers "your search could not be completed", which is the
+      // one refusal on this site most easily misread as "this owner owns nothing".
+      //
+      // Observed live on 2026-09-21 against "AMH 2015-2 BORROWER LLC": the suggestion endpoint
+      // returned the name, the variant ranking kept it, the dropdown showed it — and the search
+      // was still refused, because we had selected and then deselected it.
+      await page.evaluate(
         ({ listSel, want }: { listSel: string; want: string[] }) => {
           const list = document.querySelector(listSel);
-          if (!list) return [] as string[];
-          const chosen: string[] = [];
-          const wantUpper = want.map((w) => w.toUpperCase());
+          if (!list) return;
+          const wantUpper = new Set(want.map((w) => w.toUpperCase()));
+          const clicked = new Set<string>();
           for (const li of Array.from(list.querySelectorAll('li'))) {
             const text = (li.textContent || '').replace(/\s+/g, ' ').trim();
-            if (!text) continue;
-            if (!wantUpper.includes(text.toUpperCase())) continue;
+            const key = text.toUpperCase();
+            if (!text || !wantUpper.has(key) || clicked.has(key)) continue;
             const clickable = (li.querySelector('a') as HTMLElement | null) ?? (li as HTMLElement);
             clickable.click();
-            chosen.push(text);
+            clicked.add(key);
           }
-          return chosen;
         },
         { listSel: sel.list, want: wanted },
-      ).catch(() => [] as string[]);
+      ).catch(() => {});
+
+      // The chips are the search term, so the chips are the truth. Reading them back turns "we
+      // clicked something" into "the form now holds these names" — the difference between the two
+      // is exactly the bug above.
+      const picked = await readChips(page, sel.holder);
 
       namesUsed.push(...picked);
 
@@ -399,7 +424,26 @@ async function runOneSearch(
     const pageText = await page.innerText('body').catch(() => '');
     const rowTexts = await page.$$eval(RESULT_ROW_SELECTOR, (els) => els.map((e) => (e as HTMLElement).innerText));
 
-    const verdict = readSearchPage(pageText, { rowCount: rowTexts.length });
+    let verdict = readSearchPage(pageText, { rowCount: rowTexts.length });
+
+    // `readSearchPage` reads text and cannot see which search produced it, so its "could not be
+    // completed" message explains the usual cause: a chip-list name that was typed and never
+    // selected. On a BOOK/PAGE search there is no chip list, so that explanation sends the reader
+    // after a bug that cannot exist — seen live on citation 1729/712, where the real cause was the
+    // county's bot wall closing in on the next request. The driver does know the plan, so it says
+    // so here rather than passing on a confident wrong diagnosis.
+    if (verdict.kind === 'bad_query' && plan.kind !== 'name') {
+      verdict = {
+        ...verdict,
+        message:
+          `The clerk refused the ${plan.description} search as incomplete. This was not a name ` +
+          'search, so the usual cause — a name typed but never picked from the dropdown — does ' +
+          'not apply. A refusal on a plain book/page fill usually means the form was not the form ' +
+          'we thought it was, which is what the county serves just before a bot wall.',
+        remedy: 'Re-run this citation in a fresh session; if it repeats, check for a wall.',
+      };
+    }
+
     if (verdict.kind !== 'ok') {
       log('warn', `[WilliamsonClerk] ${verdict.message}`);
       return { ...empty(plan, verdict), namesUsed };
@@ -487,6 +531,32 @@ async function waitForCookie(ctx: CookieJar, name: string, timeoutMs: number): P
     if (Date.now() >= deadline) return false;
     await new Promise((r) => setTimeout(r, 150));
   }
+}
+
+/**
+ * Read the names currently in a chip list.
+ *
+ * A chip is an `<li class="cblist-input-list …">` holding just the name — no anchor, which is why
+ * an earlier attempt to remove chips by clicking their links removed nothing. The holder also
+ * contains the "Contains Any" toggle and the input row, so those two are skipped by class.
+ */
+async function readChips(
+  page: { evaluate: <A, R>(fn: (arg: A) => R | Promise<R>, arg: A) => Promise<R> },
+  holderSel: string,
+): Promise<string[]> {
+  return page.evaluate((sel: string) => {
+    const holder = document.querySelector(sel);
+    if (!holder) return [] as string[];
+    const names: string[] = [];
+    for (const li of Array.from(holder.querySelectorAll('li'))) {
+      if (li.classList.contains('cblist-input-toggle')) continue;
+      if (li.classList.contains('autoCompleteList')) continue;
+      if (li.className.includes('acItem')) continue;
+      const text = (li.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text) names.push(text);
+    }
+    return names;
+  }, holderSel).catch(() => [] as string[]);
 }
 
 /**

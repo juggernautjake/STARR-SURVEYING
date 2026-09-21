@@ -148,6 +148,25 @@ export const WILLIAMSON_ENDPOINTS = {
      */
     acceptCookie: 'disclaimerAccepted',
 
+    /**
+     * ── THIS SITE RUNS A WAF, AND IT WATCHES PACE ────────────────────────────────────────────
+     *
+     * Past a certain rate it stops serving pages and answers "Let's confirm you are human.
+     * Complete the security check before continuing." Two things move that line:
+     *
+     *   1. SESSIONS. A fresh browser context per search tripped it around the sixth; one session
+     *      reused across searches walked nine citations untouched. The driver does the latter.
+     *   2. THE ADDRESS. Reputation accumulates across runs, not just within one. A datacentre IP
+     *      that has run the county hard for an hour starts getting walls on the first search
+     *      while the same code from a clean address does not.
+     *
+     * (2) is why `tyler-clerk` is worth naming in `BROWSERBASE_ENABLED_ADAPTERS` on the worker —
+     * it is already in `KNOWN_ADAPTER_IDS`, so it is one environment variable and no code, and it
+     * routes this county through a residential session. As of 2026-09-21 the deployed worker
+     * enables only cad, plat-repo and bell-clerk, so Williamson runs from the datacentre address.
+     */
+    residentialAdapterId: 'tyler-clerk',
+
     /** Stated by the site: "indexed from Dec 8, 1838 through Sep 14, 2026". */
     indexedFrom: '1838-12-08',
 

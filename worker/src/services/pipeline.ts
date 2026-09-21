@@ -1400,11 +1400,33 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         const MAX_CITATIONS = 12;
         const toSearch = citations.slice(0, MAX_CITATIONS);
 
-        const queries: Array<Record<string, string>> = toSearch.length > 0
+        // ── THE MODERN END OF THE CHAIN HAS NO CITATION ──────────────────────────────────────────
+        //
+        // Williamson stopped recording by book and page around 2000 and switched to instrument
+        // numbers — which the appraisal district does not publish. So its sales list carries the
+        // recent transfers with a DATE and nothing to search on:
+        //
+        //     2015-09-08  SWD    ← how the current owner took title
+        //     2014-10-07  STD
+        //     2010-04-08  GWDVL
+        //
+        // The citation walk can never reach those, and it is the 2015 deed that vests the CURRENT
+        // owner — the single most relevant document on the parcel. Book/page alone returned a
+        // complete 1985-1995 chain and stopped twenty years short of the present.
+        //
+        // The owner's name is the only key we hold for them, so the name search stops being a
+        // fallback and becomes the other half of the job: citations for the history, the name for
+        // the part the citations cannot express.
+        const uncited = (propertyResult?.deedHistory ?? [])
+          .filter((d) => !(d.volume && d.page));
+
+        const queries: Array<Record<string, string>> = toSearch
           // `volume`, not `book`: on this clerk the Book box holds a TYPE code (`OR`, `DEED`) and
           // the number belongs in Volume. A number in Book matches nothing and reports no error.
-          ? toSearch.map((d) => ({ volume: d.volume!, page: d.page! }))
-          : [{ bothNames: ownerForClerk }];
+          .map((d) => ({ volume: d.volume!, page: d.page! }));
+
+        const searchByName = ownerForClerk && (toSearch.length === 0 || uncited.length > 0);
+        if (searchByName) queries.push({ bothNames: ownerForClerk });
 
         if (toSearch.length > 0) {
           logger.info('Stage2',
@@ -1412,7 +1434,17 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
             `district — ${toSearch.map((d) => `${d.volume}/${d.page}`).join(', ')}` +
             (citations.length > toSearch.length ? ` (${citations.length - toSearch.length} more not searched)` : '') +
             '. Book/page is a plain fill and needs no dropdown interaction.');
-        } else {
+        }
+
+        if (searchByName && toSearch.length > 0) {
+          const dates = uncited.map((d) => (d.deedDate ?? '').slice(0, 10)).filter(Boolean);
+          logger.info('Stage2',
+            `Williamson clerk: ${uncited.length} transfer(s) carry a date but no book/page` +
+            (dates.length ? ` (${dates.slice(0, 5).join(', ')})` : '') +
+            ' — this county switched to instrument numbers around 2000 and the appraisal district ' +
+            `does not publish them. Adding a name search for "${ownerForClerk}" so the modern end ` +
+            'of the chain, including the deed that vests the current owner, is not missed.');
+        } else if (searchByName) {
           logger.info('Stage2',
             `Williamson clerk: the appraisal district cites no book/page for this parcel, so the ` +
             `clerk is searched by name ("${ownerForClerk}") with the county's own spellings expanded.`);
@@ -1449,12 +1481,43 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           }
         }
 
+        // ── A NAME SEARCH CAN RETURN SOMEBODY ELSE'S HOUSE ───────────────────────────────────────
+        //
+        // A book/page citation names one document, so its rows are about this parcel by
+        // construction. A name search names a COMPANY, and this one owns hundreds of houses:
+        // "AMH 2015-2 BORROWER LLC" returned ten documents, of which three were for Hutto Parke,
+        // Georgetown Crossing and Mallard Park. Filing those here would put other people's
+        // property in a survey report, which is worse than missing a document because it reads as
+        // evidence.
+        //
+        // Rows with no legal description survive the filter deliberately — see parcel-match.ts.
+        const { rowCouldBeThisParcel } = await import('../counties/williamson/parcel-match.js');
+        const parcelLegal = propertyResult?.legalDescription ?? '';
+        const dropped: string[] = [];
+
+        const keptByOutcome = outcomes.map((o) => {
+          if (o.plan.kind !== 'name') return o.records;
+          return o.records.filter((r) => {
+            const m = rowCouldBeThisParcel(r.legalDescription, parcelLegal);
+            if (!m.keep) dropped.push(`${r.instrument ?? '?'} (${m.why})`);
+            return m.keep;
+          });
+        });
+
+        if (dropped.length > 0) {
+          logger.info('Stage2',
+            `Williamson clerk: set aside ${dropped.length} row(s) from the name search that name a ` +
+            `different subdivision than "${parcelLegal}" — ${dropped.slice(0, 5).join('; ')}` +
+            (dropped.length > 5 ? `; and ${dropped.length - 5} more` : '') +
+            '. A company that owns many parcels answers a name search with all of them.');
+        }
+
         // One deed can be cited by several sales rows, and a name search can return a document the
         // book/page walk already found. De-duplicate on the instrument number, falling back to the
         // citation for the rare row that carries none.
         const seenDocs = new Set<string>();
-        const mergedRecords = outcomes
-          .flatMap((o) => o.records)
+        const mergedRecords = keptByOutcome
+          .flat()
           .filter((r) => {
             const key = r.instrument || `${r.book ?? ''}/${r.page ?? ''}`;
             if (!key.replace('/', '') || seenDocs.has(key)) return false;
@@ -1486,7 +1549,10 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           extractedData: null,
         })) as DocumentResult[];
 
-        logger.info('Stage2', `Williamson clerk: ${williamsonDocs.length} index row(s) for "${ownerForClerk}"`);
+        logger.info('Stage2',
+          `Williamson clerk: ${williamsonDocs.length} index row(s) from ` +
+          `${toSearch.length} citation search(es)` +
+          (searchByName ? ` and a name search for "${ownerForClerk}"` : '') + '.');
 
         countyObservations.push(observeSite({
           county: input.county,
