@@ -183,8 +183,24 @@ describe('what is honestly not built', () => {
     try {
       createTrimbleConnectClient();
     } catch (e) {
+      const msg = (e as Error).message;
+
       // …and points at the path that DOES work today.
-      expect((e as Error).message).toMatch(/watched folder/);
+      //
+      // This used to require the phrase "watched folder", and on 2026-09-21 that turned out to be
+      // pointing people at something that does not exist: there is no watched-folder agent in
+      // scripts/, server/ or worker/ — only comments describing one. The error was recommending a
+      // feature nobody built, which is a worse failure than the one it was written to prevent.
+      //
+      // The working path is the collector upload on the field data tab, which is built and tested.
+      expect(msg).toMatch(/collector upload/i);
+
+      // And it names what is actually required, so somebody can go and get it rather than filing a
+      // bug. All three came from Trimble's published access rules (2026-09-21): a paid licence, a
+      // corporate-domain Trimble ID, and credentials from the request form.
+      expect(msg, 'must say a free/personal subscription will not work').toMatch(/personal|free/i);
+      expect(msg, 'must say the Trimble ID needs a corporate domain').toMatch(/corporate/i);
+      expect(msg, 'must name the credentials step').toMatch(/credential/i);
     }
     if (prev) process.env.TRIMBLE_CONNECT_TOKEN = prev;
   });

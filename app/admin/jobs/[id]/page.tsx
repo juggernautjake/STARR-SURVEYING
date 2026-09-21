@@ -7,7 +7,7 @@ import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
-  Camera, Video, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
+  Camera, Video, DollarSign, History, MessageSquare, Trash2, Download, Files,
   Circle, Upload, Map as MapIcon, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
@@ -100,11 +100,21 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   { key: 'files', label: 'Files', Icon: Folder, tip: 'Every file for this job in its standard folders — Research, CAD, Photos, Videos, Documents. Upload into a folder, open anything in the viewer, or view all files across the folders at once. Research notes live under Research; drawings under CAD.' },
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
   // ── Property Map (interactive-property-map-2026-09-16) ────────────────────────────────────
-  // Owner: *"There should just be a button in each job page that first says, 'Create Interactive
-  // Map' and then once it has been created, it can say, 'View Interactive Map'."* The tab asks the
-  // summary endpoint — which exists so this button never pays for the whole map, its points and
-  // sixty signed URLs just to decide which of two words to say.
-  { key: 'propertymap', label: 'Property Map', Icon: MapIcon, tip: 'An aerial of the property with numbered points of interest on it. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.' },
+  // Owner, 2026-09-16: *"There should just be a button in each job page that first says, 'Create
+  // Interactive Map' and then once it has been created, it can say, 'View Interactive Map'."*
+  //
+  // SUPERSEDED 2026-09-21: *"now that we are using google maps for the interactive map, it should
+  // just say 'View interactive map' instead of 'Create interactive map'."*
+  //
+  // The two labels made sense when arriving without a map meant uploading an aerial photograph and
+  // georeferencing it against two anchors — there was a real act of creation to name. The Google
+  // rebuild removed it: the imagery is already there, and a job with no map row gets one the moment
+  // somebody drops a point. All four doors now say the same thing.
+  //
+  // The summary endpoint stays. It no longer decides which of two words to say, but it still
+  // carries the point count, and it exists so this never pays for the whole map, its points and
+  // sixty signed URLs to render a badge.
+  { key: 'propertymap', label: 'Property Map', Icon: MapIcon, tip: 'The property on satellite imagery, with points of interest on it. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
@@ -539,27 +549,58 @@ export default function JobDetailPage() {
                 It was a tab — one of eight, which is the same mistake the Files tab made in August
                 and got fixed the same way. A header action is visible from every tab, says which of
                 the two things it does, and carries the point count when there is one. */}
+            {/* ── ONE LABEL, BECAUSE THERE IS ONLY ONE DESTINATION (owner, 2026-09-20) ──────────
+                "now that we are using google maps for the interactive map, it should just say
+                'View interactive map' instead of 'Create interactive map'."
+
+                The old label branched on whether a map row existed, from the era when arriving
+                without one meant uploading an aerial photograph and georeferencing it. Since the
+                Google rebuild there is nothing to create — the satellite imagery is already there,
+                and a job with no map row gets one the moment somebody drops a point. So the two
+                labels described a distinction that no longer exists. The point count still appears
+                when there is one, because a number is what tells you whether it is worth a click. */}
             <Link
               href={`/admin/map?job=${jobId}`}
               className="job-detail__action job-detail__action--ghost"
-              title={propertyMap?.exists
-                ? 'Open the aerial with the numbered points of interest on it'
-                : 'Upload an aerial of the property and start marking points of interest on it'}
+              title="Open this property on the satellite map — points, photos, layers and walked paths"
               data-testid="job-property-map-header"
             >
-              <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-              {propertyMap?.exists ? 'Interactive map' : 'Create interactive map'}
+              <MapIcon size={14} strokeWidth={2} aria-hidden /> View interactive map
               {propertyMap?.exists && propertyMap.points > 0 && (
                 <span className="job-detail__filesbtn-count">{propertyMap.points}</span>
               )}
             </Link>
+            {/* ── RESEARCH THIS PROPERTY (owner, 2026-09-20) ────────────────────────────────────
+                "on jobs in projects we need to be able to run research runs for the jobs. Do we
+                currently have a 'Research this Property' button of some kind in the job panel …?
+                If not, then we need to create one and put it next to the create interactive map
+                button."
+
+                We did not. The only route from a job to research was buried in the Files tab's
+                Research folder, and it carried nothing but the job id — so somebody re-typed the
+                address, the county and the owner's name that the job already knew.
+
+                "it should inherit all of the information for the job such as any documents,
+                address, property id, customer name, etc, and it should use that to auto fill info
+                for the research run."
+
+                So this sends the job id to a route that reads the job server-side and fills the
+                run from it. The id travels in the URL; the DATA does not — a query string carrying
+                a client's name and address would end up in logs, in history, and in any referrer
+                the next page sends. */}
             <Link
-              href={`/admin/jobs/${jobId}/field`}
+              href={`/admin/research/start?job=${jobId}`}
               className="job-detail__action job-detail__action--ghost"
-              title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
+              title="Start a property research run, pre-filled from this job's address, parcel, owner and documents"
+              data-testid="job-research-header"
             >
-              <MapPin size={14} strokeWidth={2} aria-hidden /> View field captures →
+              <Search size={14} strokeWidth={2} aria-hidden /> Research this Property
             </Link>
+            {/* The "View field captures" link stood here until 2026-09-21. Owner: "we can get rid
+                of the view field captures button altogether. I want to fold all of the view
+                captures and points streaming stuff into the interactive map page." The page it
+                pointed at still exists and still forwards — see app/admin/jobs/[id]/field — so any
+                bookmark and the field-upload notification that links straight there both survive. */}
             {/* job-soft-delete Slice 1 — delete with a warning; the job
                 is recoverable for 30 days from Jobs → "Deleted". */}
             <button
@@ -1036,7 +1077,7 @@ export default function JobDetailPage() {
                     data-testid="job-property-map-photos-btn"
                   >
                     <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-                    {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+                    {'View Interactive Map'}
                   </Link>
                 </div>
               ),
@@ -1078,7 +1119,7 @@ export default function JobDetailPage() {
                       data-testid="job-property-map-files-btn"
                     >
                       <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-                      {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+                      {'View Interactive Map'}
                     </Link>
                   </div>
                   {/* The other direction of the same link (2026-08-19). The File Explorer carries the
@@ -1195,7 +1236,7 @@ export default function JobDetailPage() {
               data-testid="job-property-map-link"
             >
               <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-              {propertyMap?.exists ? 'View Interactive Map' : 'Create Interactive Map'}
+              {'View Interactive Map'}
             </Link>
           </div>
         )}

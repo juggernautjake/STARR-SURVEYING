@@ -189,20 +189,45 @@ export async function runSourcePoll(client: TrimbleConnectClient, source: {
   }
 }
 
-// ── The real client, for when an account exists ─────────────────────────────────────────────────
+// ── The real client ─────────────────────────────────────────────────────────────────────────────
 //
-// Unimplemented on purpose rather than half-written against a guessed API shape. §3d found that
-// Object Sync exists and that a per-user Connect licence is required; the request signatures cannot
-// be confirmed without an account, and a plausible-looking wrong implementation is worse than an
-// honest gap — it would look built, fail in production, and be debugged by somebody who assumed it
-// had been tested.
+// ── 2026-09-21: THE GUESS WAS WRONG, AND IS NOW CORRECTED ──
+//
+// This client was written against a guessed API shape and said so, on the grounds that "a
+// plausible-looking wrong implementation is worse than an honest gap." That caution was justified:
+// the owner produced the published Core API reference, and `listChangedFiles` was hitting the wrong
+// service entirely.
+//
+// It called `GET /files?projectId=…&modifiedAfter=…`. No such filter is documented. What exists is
+// a dedicated service, which is precisely the cursor mechanism this module was built around:
+//
+//     GET /projects/{projectId}/objects   — "Get project content changes since last time"
+//     GET /projects/{projectId}/status    — "Get project content sync cursor"
+//
+// Trimble's own description: "Object Sync helps detect changes to project content after a specified
+// date and time. Project content includes Files, Folders, Releases, Views, User groups, and Users."
+//
+// So the cursor is now the SERVER's, not a timestamp we compose. That is strictly better: the two
+// clocks problem this file worries about elsewhere does not arise if we never invent the cursor.
+// `OVERLAP_SECONDS` stays for the timestamp fallback path, because a project that has never been
+// synced has no cursor to start from.
+//
+// `GET /files/fs/{fileId}/downloadurl` was already correct and is unchanged.
+//
+// Base URL is region-specific and `app.connect.trimble.com` is the US master region — correct for
+// this firm. The EU/UK/AP regions have their own hosts, which is why this stays an env var.
+//
+// Still unverified against a live account: the exact response shape of `/objects`. The mapping
+// below is defensive about it rather than confident, and `runSourcePoll` records what came back.
 
 export class TrimbleConnectNotConfigured extends Error {
   constructor() {
     super(
-      'Trimble Connect is not configured. It needs a Trimble Connect licence on the signed-in user ' +
-      'and OAuth credentials for this deployment — a per-customer prerequisite, not a settings field. ' +
-      'Until then, use a watched folder: it works with all five vendors and needs no partner agreement.',
+      'Trimble Connect is not configured. It needs (1) a paid Business licence — a personal/free ' +
+      'subscription cannot use the API, (2) a Trimble ID on a CORPORATE domain, not a free email ' +
+      'provider, and (3) OAuth credentials from the Request for API Credentials form. ' +
+      'Until then, use the collector upload on the field data tab: it works with every vendor and ' +
+      'needs no account at all.',
     );
     this.name = 'TrimbleConnectNotConfigured';
   }
@@ -215,13 +240,41 @@ export function createTrimbleConnectClient(): TrimbleConnectClient {
 
   return {
     async listChangedFiles(projectId, since) {
-      const url = new URL(`${base}/files`);
-      url.searchParams.set('projectId', projectId);
-      if (since) url.searchParams.set('modifiedAfter', since);
+      // Object Sync. `since` is whatever the last successful poll stored — a server cursor when we
+      // have one, an ISO timestamp on the first run. Both are sent as `since`; the service accepts
+      // a date and returns a cursor, and the cursor is what gets stored for next time.
+      const url = new URL(`${base}/projects/${encodeURIComponent(projectId)}/objects`);
+      if (since) url.searchParams.set('since', since);
       const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error(`Trimble Connect listChangedFiles failed: ${r.status} ${await r.text()}`);
-      const json = (await r.json()) as Array<{ id: string; name: string; modifiedAt?: string; versionModifiedAt?: string; size?: number }>;
-      return json.map((f) => ({ id: f.id, name: f.name, modifiedAt: f.modifiedAt ?? f.versionModifiedAt ?? new Date(0).toISOString(), size: f.size }));
+      if (!r.ok) throw new Error(`Trimble Connect object sync failed: ${r.status} ${await r.text()}`);
+
+      // Object Sync returns every kind of project content — "Files, Folders, Releases, Views, User
+      // groups, and Users". Only files carry points, so everything else is dropped here rather than
+      // being handed to a parser that would report it as a malformed survey file.
+      //
+      // The envelope shape is not confirmed against a live account, so both a bare array and a
+      // `{ items: [...] }` wrapper are accepted. Guessing one and being wrong would produce an
+      // empty sync that looks like "no new points" forever.
+      const body = (await r.json()) as unknown;
+      const rows: Array<Record<string, unknown>> = Array.isArray(body)
+        ? (body as Array<Record<string, unknown>>)
+        : Array.isArray((body as { items?: unknown })?.items)
+          ? ((body as { items: Array<Record<string, unknown>> }).items)
+          : [];
+
+      return rows
+        .filter((o) => {
+          const type = String(o.type ?? o.objectType ?? 'FILE').toUpperCase();
+          const deleted = o.deleted === true || String(o.action ?? '').toUpperCase() === 'DELETED';
+          return type === 'FILE' && !deleted;
+        })
+        .map((o) => ({
+          id: String(o.id ?? o.objectId ?? ''),
+          name: String(o.name ?? o.fileName ?? ''),
+          modifiedAt: String(o.modifiedAt ?? o.versionModifiedAt ?? o.lastModified ?? new Date(0).toISOString()),
+          size: typeof o.size === 'number' ? o.size : undefined,
+        }))
+        .filter((f) => f.id && f.name);
     },
     async downloadFile(projectId, fileId) {
       const r = await fetch(`${base}/files/fs/${encodeURIComponent(fileId)}/downloadurl`, { headers: { Authorization: `Bearer ${token}` } });

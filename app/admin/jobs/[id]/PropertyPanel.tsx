@@ -240,8 +240,12 @@ export default function PropertyPanel({ jobId, job, onSave, mapsUrl }: Props) {
           <div className="prop__links">
             {/* The owner's actual request: this button goes to the property, not to Belton. The map
                 reads jobs.latitude/longitude, which is what the address lookup now fills in. */}
+            {/* Same words as the header action (2026-09-21). Two controls, one destination, and
+                they used to read "Interactive map" here and "Create interactive map" there — so the
+                job page said two different things about the same link, and one of them implied work
+                that no longer exists. */}
             <Link className="prop__btn prop__btn--primary" href={`/admin/map?job=${jobId}`} data-testid="job-property-map">
-              <MapPin size={13} aria-hidden /> Interactive map
+              <MapPin size={13} aria-hidden /> View interactive map
             </Link>
             {mapsUrl && (
               <a className="prop__btn" href={mapsUrl} target="_blank" rel="noopener noreferrer" title="Open this property in your navigation app">

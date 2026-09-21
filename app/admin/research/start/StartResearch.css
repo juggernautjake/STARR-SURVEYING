@@ -1,0 +1,198 @@
+/* app/admin/research/start/StartResearch.css — the "Research this property" confirm screen.
+ *
+ * One column, three cards, one button. The page exists to be read in about eight seconds and then
+ * acted on, so it has no navigation of its own and nothing that competes with the primary action.
+ *
+ * Colours come from theme tokens with rgb() fallbacks. Hex literals are what the inline-style
+ * ratchet exists to stop, and a stylesheet is not far enough away from that rule to be exempt. */
+
+.startres {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.startres__back {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  color: var(--theme-fg-muted, rgb(100 116 139));
+  text-decoration: none;
+}
+.startres__back:hover { color: var(--theme-accent, rgb(29 48 149)); text-decoration: underline; }
+
+.startres__head { display: flex; flex-direction: column; gap: 0.3rem; }
+
+.startres__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, rgb(15 23 42));
+  text-wrap: balance;
+}
+
+.startres__sub {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--theme-fg-secondary, rgb(71 85 105));
+}
+
+/* ── CARDS ─────────────────────────────────────────────────────────────────────────────────────
+ * Border and surface only. No shadow: three stacked cards with lifts read as three competing
+ * objects, and these are one thing in three parts. */
+.startres__card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--theme-border, rgb(226 232 240));
+  border-radius: 12px;
+  background: var(--theme-bg-surface, rgb(255 255 255));
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* A prior project is information, not a warning — it gets an accent edge rather than a colour wash,
+ * because "you have done this before" should not look like "something is wrong". */
+.startres__card--prior { border-left: 3px solid var(--theme-accent, rgb(29 48 149)); }
+
+/* The gaps card IS a caution, and says so quietly. */
+.startres__card--gap { border-left: 3px solid var(--theme-warning-fg, rgb(146 64 14)); }
+
+.startres__cardtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, rgb(100 116 139));
+}
+
+/* ── WHAT IT INHERITS ──────────────────────────────────────────────────────────────────────────
+ * A definition list, because that is what it is. Label left, value right on a wide screen; stacked
+ * on a phone, where a 9rem label column would leave nothing for the address. */
+.startres__facts { margin: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+
+.startres__fact {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--theme-border-subtle, rgb(241 245 249));
+}
+.startres__fact:first-child { border-top: 0; }
+@media (max-width: 560px) {
+  .startres__fact { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; }
+}
+
+.startres__factlabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, rgb(100 116 139));
+}
+
+.startres__factvalue {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--theme-fg-primary, rgb(15 23 42));
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* An absent value is stated, not left blank. A blank row reads as a rendering bug. */
+.startres__fact--empty .startres__factvalue { color: var(--theme-fg-muted, rgb(148 163 184)); }
+.startres__none { font-style: italic; }
+
+/* The caveat under a value — the title-company warning, the documents note. Small, but present
+ * every time, because it is the thing somebody has to disagree with before the run starts. */
+.startres__caveat {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--theme-warning-fg, rgb(146 64 14));
+}
+
+/* ── LISTS ─────────────────────────────────────────────────────────────────────────────────────*/
+.startres__priorlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.startres__priorlist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+
+.startres__priorlink {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--theme-accent, rgb(29 48 149));
+  text-decoration: none;
+}
+.startres__priorlink:hover { text-decoration: underline; }
+
+.startres__priormeta { font-size: 0.78rem; color: var(--theme-fg-muted, rgb(100 116 139)); }
+
+.startres__missing {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, rgb(71 85 105));
+}
+
+.startres__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, rgb(100 116 139));
+}
+
+/* ── THE ACTION ────────────────────────────────────────────────────────────────────────────────*/
+.startres__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.startres__go {
+  padding: 0.6rem 1.2rem;
+  border: 0;
+  border-radius: 9px;
+  background: var(--theme-accent, rgb(29 48 149));
+  color: rgb(255 255 255);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.startres__go:hover:not(:disabled) { opacity: 0.9; }
+.startres__go:disabled { opacity: 0.6; cursor: default; }
+
+.startres__cancel {
+  font-size: 0.88rem;
+  color: var(--theme-fg-muted, rgb(100 116 139));
+  text-decoration: none;
+}
+.startres__cancel:hover { text-decoration: underline; }
+
+.startres__error {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: var(--theme-danger-bg, rgb(254 226 226));
+  color: var(--theme-danger-fg, rgb(153 27 27));
+  font-size: 0.85rem;
+  line-height: 1.5;
+}

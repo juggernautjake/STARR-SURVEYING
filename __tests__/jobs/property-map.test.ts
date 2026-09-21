@@ -331,13 +331,41 @@ describe('a person can actually find it', () => {
 
   it('is a header action, visible from every tab', () => {
     expect(job).toContain('data-testid="job-property-map-header"');
-    expect(job, 'and it says which of the two things it does').toMatch(/propertyMap\?\.exists \? 'Interactive map' : 'Create interactive map'/);
+    expect(job, 'and it says the one thing it does').toContain('View interactive map');
   });
 
   it('is at the top of the job’s files, and in the Photos folder where the question comes up', () => {
     expect(job).toContain('data-testid="job-property-map-files-btn"');
     expect(job).toContain('data-testid="job-property-map-photos-btn"');
-    expect(job, 'the owner’s own words for the two states').toMatch(/View Interactive Map' : 'Create Interactive Map/);
+    expect(job, 'the owner’s own words, 2026-09-21').toContain("{'View Interactive Map'}");
+  });
+
+  it('ALL FOUR doors say the same thing, and none of them offers to create anything', () => {
+    // Owner, 2026-09-21: "now that we are using google maps for the interactive map, it should just
+    // say 'View interactive map' instead of 'Create interactive map'."
+    //
+    // The conditional label made sense when arriving without a map meant uploading an aerial and
+    // georeferencing it — there was an act of creation to name. On Google imagery there is not.
+    //
+    // This asserts the absence rather than the presence, because the failure being guarded is a
+    // fifth door added later that reintroduces the old wording, or three doors updated and one
+    // missed — which is exactly what had happened here: the header said "Create interactive map"
+    // while the files and photos buttons said "Create Interactive Map" in different capitals.
+    // Comments are stripped first. The owner's instruction is QUOTED in two of them, and a ratchet
+    // that counts the reasoning as a violation is a ratchet that gets deleted the first time it
+    // cries wolf — the same correction the keyframe ratchet needed on 2026-09-20.
+    const code = job
+      // Block comments first, so a JSX `{/* … */}` quoting the owner's instruction across several
+      // lines is removed whole. Line-prefix filtering alone missed those: the continuation lines
+      // start with a quote mark, not with a comment token.
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join('\n');
+
+    expect(code, 'no door offers to CREATE a map any more').not.toMatch(/Create [Ii]nteractive [Mm]ap'/);
+    expect((code.match(/View [Ii]nteractive [Mm]ap/g) ?? []).length,
+      'four doors: header, files, photos, and the property panel tab').toBeGreaterThanOrEqual(4);
   });
 
   it('still has its own tab', () => {
