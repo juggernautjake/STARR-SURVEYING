@@ -97,6 +97,18 @@ describe('Stage 2 reaches the county\'s own clerk driver', () => {
     expect(pipeline).toContain('mergedRecords');
   });
 
+  it('orders the walk so a wall takes the oldest deed, not the newest', () => {
+    // The county cuts long walks short, so the last query is the one that never runs. Ordering is
+    // therefore a decision about what we are willing to lose.
+    expect(pipeline).toContain(".sort((a, b) => (b.deedDate ?? '').localeCompare(a.deedDate ?? ''))");
+    // And the name search — the only route to the current owner's vesting deed — goes FIRST.
+    const name = pipeline.indexOf('queries.push({ bothNames: ownerForClerk })');
+    const cites = pipeline.indexOf('for (const d of toSearch) queries.push(');
+    expect(name).toBeGreaterThan(0);
+    expect(cites).toBeGreaterThan(0);
+    expect(name).toBeLessThan(cites);
+  });
+
   it('adds a name search when transfers carry a date but no citation', () => {
     // This county stopped recording by book/page around 2000, so the deed that vests the CURRENT
     // owner is unreachable by citation. Book/page alone stopped twenty years short of the present.

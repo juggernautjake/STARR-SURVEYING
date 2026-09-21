@@ -1383,10 +1383,21 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         // this clerk a book/page search is a plain fill while a NAME search needs a browser and a
         // chip-list interaction. So the cheap, precise route is also the one the data supports.
         //
-        // Stage 1 puts the citations on `deedHistory`. Using the newest is deliberate: it is the
-        // controlling conveyance, and following it back is what a chain of title is.
+        // ── ORDER MATTERS, BECAUSE THE WALK CAN BE CUT SHORT ─────────────────────────────────────
+        //
+        // The county's WAF stops serving pages part-way through a long walk, so whatever is
+        // searched LAST is what gets lost. That makes the order a decision about which documents
+        // we are willing to lose, and the answer is the oldest ones: a 1985 deed is history, the
+        // most recent conveyance is what controls the parcel today.
+        //
+        // This was not sorted at all before, and the log claimed it was. It said "the newest of 9"
+        // while searching whatever the appraisal district happened to return first — which on the
+        // test parcel was the row with a NULL deed date, the 1985 deed, the oldest of the nine. A
+        // log that names an intention the code does not carry out is worse than no log.
         const citations = (propertyResult?.deedHistory ?? [])
-          .filter((d) => d.volume && d.page);
+          .filter((d) => d.volume && d.page)
+          // Newest first; an undated citation sorts last, since it cannot be shown to be recent.
+          .sort((a, b) => (b.deedDate ?? '').localeCompare(a.deedDate ?? ''));
 
         // ── EVERY CITATION, NOT JUST THE NEWEST ──────────────────────────────────────────────────
         //
@@ -1420,20 +1431,27 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         const uncited = (propertyResult?.deedHistory ?? [])
           .filter((d) => !(d.volume && d.page));
 
-        const queries: Array<Record<string, string>> = toSearch
-          // `volume`, not `book`: on this clerk the Book box holds a TYPE code (`OR`, `DEED`) and
-          // the number belongs in Volume. A number in Book matches nothing and reports no error.
-          .map((d) => ({ volume: d.volume!, page: d.page! }));
-
         const searchByName = ownerForClerk && (toSearch.length === 0 || uncited.length > 0);
+
+        // The name search goes FIRST, not last. It is the only route to the deed that vests the
+        // current owner, and under a wall the last query is the one that never runs — so running
+        // it last meant the single most important document was the first thing lost. Verified the
+        // hard way: three consecutive runs walled after 6-8 searches, and the name search was at
+        // position 10 in every one of them.
+        const queries: Array<Record<string, string>> = [];
         if (searchByName) queries.push({ bothNames: ownerForClerk });
+
+        // `volume`, not `book`: on this clerk the Book box holds a TYPE code (`OR`, `DEED`) and
+        // the number belongs in Volume. A number in Book matches nothing and reports no error.
+        for (const d of toSearch) queries.push({ volume: d.volume!, page: d.page! });
 
         if (toSearch.length > 0) {
           logger.info('Stage2',
             `Williamson clerk: walking ${toSearch.length} book/page citation(s) from the appraisal ` +
-            `district — ${toSearch.map((d) => `${d.volume}/${d.page}`).join(', ')}` +
+            `district, newest first — ${toSearch.map((d) => `${d.volume}/${d.page}`).join(', ')}` +
             (citations.length > toSearch.length ? ` (${citations.length - toSearch.length} more not searched)` : '') +
-            '. Book/page is a plain fill and needs no dropdown interaction.');
+            '. Newest first because the county can cut a long walk short, and the oldest deed is ' +
+            'the one worth losing. Book/page is a plain fill and needs no dropdown interaction.');
         }
 
         if (searchByName && toSearch.length > 0) {
