@@ -288,6 +288,60 @@ export function manualParse(raw: string): ParsedAddress {
 
 // ━━ VARIANT GENERATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/**
+ * Search variants built from the GEOCODER'S corrected street, appended after the operator's own.
+ *
+ * Returns nothing — which is the common case — when the geocoder produced no canonical form, when
+ * it agrees with what was typed, or when only the city or ZIP differ. See the call site in
+ * `normalizeAddress` for why only the street name is taken.
+ *
+ * Priorities are pushed past the operator's so these are tried last. `isPartial` is set so any
+ * caller that treats partial matches more cautiously keeps doing so: this IS a derived form, not
+ * something a person stated.
+ */
+export function canonicalStreetVariants(
+  result: { canonical?: string | null; parsed: ParsedAddress; variants: AddressVariant[] },
+  rawAddress?: string,
+): AddressVariant[] {
+  const canonical = (result.canonical ?? '').trim();
+  if (!canonical) return [];
+
+  // "1007 CUSHING DR, ROUND ROCK, TX, 78664" → "1007 CUSHING DR"
+  const line = canonical.split(',')[0]?.trim() ?? '';
+  if (!line) return [];
+
+  const m = /^(\d+[A-Za-z]?)\s+(.+)$/.exec(line);
+  if (!m) return [];
+  const [, number, street] = m;
+  if (!number || !street) return [];
+
+  // The number must agree. A geocoder that changed 1007 to 1009 has found a DIFFERENT PROPERTY,
+  // and searching for it would answer a question nobody asked — quietly, and with a real parcel.
+  if (result.parsed.streetNumber && number !== result.parsed.streetNumber) return [];
+
+  const already = new Set(
+    result.variants.map((v) => `${v.streetNumber}|${v.streetName}`.toUpperCase()),
+  );
+  const key = `${number}|${street}`.toUpperCase();
+  if (already.has(key)) return [];
+
+  // Also skip when it differs from the typed street only by case or spacing — that is the same
+  // search, and a duplicate costs a request against a county site.
+  const typed = `${result.parsed.streetNumber} ${result.parsed.streetName} ${result.parsed.streetType ?? ''}`;
+  const squash = (s: string) => s.toUpperCase().replace(new RegExp('[^A-Z0-9]', 'g'), '');
+  if (squash(typed) === squash(line)) return [];
+  if (rawAddress && squash(rawAddress.split(',')[0] ?? '') === squash(line)) return [];
+
+  const base = result.variants.reduce((n, v) => Math.max(n, v.priority ?? 0), 0);
+  return [{
+    streetNumber: number,
+    streetName: street,
+    format: 'geocoded',
+    priority: base + 1,
+    isPartial: true,
+  }];
+}
+
 export function generateVariants(parsed: ParsedAddress, rawAddress?: string): AddressVariant[] {
   const tx = detectTexasRoad(parsed.streetName);
   if (tx) return generateTexasRoadVariants(parsed.streetNumber, tx, parsed.preDirection);
@@ -599,6 +653,36 @@ export async function normalizeAddress(
   console.log(tag + '   Number: "' + p.streetNumber + '" Name: "' + p.streetName + '" Type: "' + p.streetType + '" PreDir: "' + (p.preDirection || '') + '"');
 
   result.variants = generateVariants(result.parsed, rawAddress);
+
+  // ── WHAT THE GEOCODER CORRECTED IS ALSO WORTH SEARCHING (2026-09-21) ─────────────────────────
+  //
+  // Job 26144's address is "1007 Cushing Dirve" — a typo for Drive. Stage 0B resolved it correctly
+  // to "1007 CUSHING DR, ROUND ROCK, TX 78664", printed that to the console, and then every
+  // downstream search used the typo: `variants` is built from `result.parsed` and `rawAddress`, and
+  // `result.canonical` was read by exactly one line in the whole repository — the log statement
+  // that showed it to the operator.
+  //
+  // So the run spent Stage 1 and Stage 2 asking two county systems about a street called Dirve.
+  //
+  // The operator's own words still come FIRST. Seed 624 established that for a good reason — the
+  // app's composed strings were worse than what a person typed, and a geocoder's guess must not
+  // overwrite a field somebody filled in deliberately. That is untouched. These are APPENDED at a
+  // lower priority, so the typed form is tried first and the corrected form is tried when it finds
+  // nothing, instead of the correction being discarded.
+  //
+  // Only the street NAME is taken. City and ZIP disagreements are deliberately left to
+  // `compareAddress`, which reports rather than resolves them, because those cannot distinguish a
+  // typo from a rural mailing-address convention. A street name that a single confident geocode
+  // rewrote is not that ambiguous case.
+  const corrected = canonicalStreetVariants(result, rawAddress);
+  if (corrected.length) {
+    result.variants = [...result.variants, ...corrected];
+    logger?.info?.(
+      'Stage0',
+      `The address resolved to "${result.canonical}" — searching what you typed first, then the corrected form.`,
+    );
+  }
+
   console.log(tag + ' Generated ' + result.variants.length + ' search variants:');
   for (const v of result.variants) {
     console.log(tag + '   [p' + v.priority + '|' + (v.format || '') + '] "' + v.streetNumber + '" + "' + v.streetName + '"');

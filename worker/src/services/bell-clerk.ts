@@ -42,7 +42,27 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   // generic pipeline is C2 — the run's clerk search is Kofile-only, which leaves every non-Kofile
   // county without one.
   milam:       { subdomain: 'milam.tx.publicsearch.us', name: 'Milam County Clerk' },
-  williamson:  { subdomain: 'williamson.tx.publicsearch.us', name: 'Williamson County Clerk' },
+  // ── WILLIAMSON REMOVED, 2026-09-21 — THE SAME MISTAKE AS CORYELL ABOVE, ONE ROW DOWN ────────
+  //
+  // Williamson's Kofile portal answers 200 and exposes ONLY Commissioners Court. There are no land
+  // records on it at all. `services/clerk-registry.ts:81-84` has excluded it since plan R38/R39 and
+  // says why, verbatim: "A reachable portal for the WRONG index is worse than no portal."
+  //
+  // This table was missed, exactly as it was for Coryell, and it is the one that matters: the
+  // generic pipeline never calls `getClerkAdapter` — it reads `hasKofileConfig()` from here. So the
+  // router ANNOUNCED Tyler Eagle while the run SEARCHED the court-minutes portal.
+  //
+  // Measured on job 26144 (Williamson, 2026-09-21): three name searches and four address searches
+  // against williamson.tx.publicsearch.us, every one returning an empty result set, reported to the
+  // operator as "No documents found". The property has deeds. We were asking the minutes of the
+  // Commissioners Court about them.
+  //
+  // Removed rather than repointed, for the same reason as Coryell: this table holds Kofile
+  // subdomains and Williamson's land records are on Tyler Eagle, a different vendor with a
+  // different adapter. A Williamson run now correctly reports having no Kofile clerk source instead
+  // of confidently reporting that a property has no recorded conveyance.
+  //
+  //   williamson: { subdomain: 'williamson.tx.publicsearch.us', … }   ← never restore this
   // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────
   san_saba:    { subdomain: 'sansaba.tx.publicsearch.us', name: 'San Saba County Clerk' },
   // ── Ring 3: (~60-100 mi) ─────────────────────────────────────────

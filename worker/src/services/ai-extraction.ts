@@ -19,6 +19,43 @@ const BASE_RETRY_DELAY_MS = 2_000;
 const CONFIDENCE_THRESHOLD_RERUN = 0.80;
 const MAX_VERIFICATION_PASSES = 3;
 
+// ── HOW LONG ONE MODEL CALL MAY TAKE ────────────────────────────────────────────────────────────
+//
+// Job 26144's run, 2026-09-21, stopped producing log lines at "doc-2 … verification pass 1" and
+// never produced another. The operator watched five minutes of silence, pressed Cancel, and
+// nothing happened; the run had to be killed.
+//
+// There was no timeout here and no abort signal. The call relied entirely on the Anthropic SDK's
+// own 10-minute default, and MAX_RETRIES = 4 with backoff means the worst case for ONE verification
+// pass was about fifty minutes — with MAX_VERIFICATION_PASSES = 3 allowed per document.
+//
+// Worse, the silence was structural rather than incidental: the only log line in a verification
+// pass is written AFTER `verifyExtraction` returns, so a hang inside it is invisible by
+// construction. And Stage 3 sits between the pipeline's `stopIfAborted` checkpoints, so the
+// operator's Cancel had nothing to act on.
+//
+// Four minutes is chosen from what the successful calls in that same run actually took: the slowest
+// completed extraction was 22 API calls in 79 seconds. A single call past four minutes is not slow,
+// it is stuck.
+const AI_CALL_TIMEOUT_MS = 4 * 60_000;
+
+/**
+ * Did this error come from our own timer rather than from the model?
+ *
+ * The SDK surfaces both an abort and its own timeout as errors whose names and messages vary by
+ * version, so this matches on the several shapes rather than one — a missed match would put the
+ * generic "crash" wording back on a timeout, which is the confusion this exists to remove.
+ */
+function abortedByTimeout(err: unknown): boolean {
+  if (!err) return false;
+  const name = (err as { name?: string }).name ?? '';
+  const msg = err instanceof Error ? err.message : String(err);
+  return name === 'AbortError'
+    || name === 'APIUserAbortError'
+    || name === 'APIConnectionTimeoutError'
+    || /\baborted\b|\btimed? ?out\b/i.test(msg);
+}
+
 // ── Document Screening Keywords ────────────────────────────────────────────
 
 const PRIMARY_KEYWORDS = [
@@ -169,13 +206,26 @@ async function callClaudeWithRetry(
       const Anthropic = (await import('@anthropic-ai/sdk')).default;
       const client = new Anthropic({ apiKey: anthropicApiKey });
 
-      const response = await client.messages.create({
-        model: AI_MODEL,
-        max_tokens: maxTokens,
-        ...samplingFor(AI_MODEL),
-        system: systemPrompt,
-        messages: messages as Parameters<typeof client.messages.create>[0]['messages'],
-      });
+      // `timeout` bounds the SDK's own wait; `signal` is what lets an operator's Cancel reach a
+      // call already in flight. Both, because they answer different questions — the first stops a
+      // stuck request, the second stops a healthy one somebody no longer wants.
+      const abort = new AbortController();
+      const bell = setTimeout(() => abort.abort(), AI_CALL_TIMEOUT_MS);
+
+      let response;
+      try {
+        response = await client.messages.create({
+          model: AI_MODEL,
+          max_tokens: maxTokens,
+          ...samplingFor(AI_MODEL),
+          system: systemPrompt,
+          messages: messages as Parameters<typeof client.messages.create>[0]['messages'],
+        }, { timeout: AI_CALL_TIMEOUT_MS, signal: abort.signal });
+      } finally {
+        // Cleared on every path. A four-minute timer left running holds the process open and, on a
+        // fast success, fires against an AbortController nobody is listening to any more.
+        clearTimeout(bell);
+      }
 
       // R4b — priced against the ambient run, before the response is read.
       void recordAmbientAiCall('ai-extraction', AI_MODEL, {
@@ -192,6 +242,20 @@ async function callClaudeWithRetry(
       return textBlock.text;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
+
+      // ── A TIMEOUT SAYS SO, LOUDLY ──────────────────────────────────────────────────────────
+      //
+      // Job 26144's operator saw five minutes of nothing and had no way to tell a slow call from a
+      // dead one. An abort surfaces as a generic "Request was aborted" that reads like a crash, so
+      // it is named here as what it is, with the limit that produced it.
+      if (abortedByTimeout(err)) {
+        logger.warn(
+          'Stage3',
+          `${label}: no response in ${Math.round(AI_CALL_TIMEOUT_MS / 1000)}s — giving up on this attempt. ` +
+          'The call was cut off rather than left hanging; the run continues with whatever is already extracted.',
+        );
+        continue;
+      }
 
       // Use shared credit guard to detect and flag credit depletion
       try {
@@ -1164,17 +1228,33 @@ export async function extractDocuments(
     let result = extracted;
     let passCount = 0;
 
+    // ── EVERY PASS SAYS WHEN IT FINISHED, NOT ONLY WHEN IT STARTED ─────────────────────────────
+    //
+    // The "verification pass N" line below was the LAST thing job 26144's operator saw. It is
+    // written before the call and there was nothing after it, so a pass that hung looked exactly
+    // like a pass that was working — for five minutes, until they gave up and cancelled.
+    //
+    // A closing line costs one log entry per pass and converts "is it stuck?" from a guess into a
+    // fact. The elapsed time is included because that is the number that distinguishes the two.
+    const runPass = async (why: string) => {
+      passCount++;
+      logger.info('Stage3', `${label}: ${why} — verification pass ${passCount} of at most ${MAX_VERIFICATION_PASSES}…`);
+      const startedAt = Date.now();
+      result = await verifyExtraction(text, result, anthropicApiKey, logger, label, passCount);
+      logger.info(
+        'Stage3',
+        `${label}: verification pass ${passCount} finished in ${((Date.now() - startedAt) / 1000).toFixed(1)}s — confidence ${result.confidence.toFixed(2)}`,
+      );
+    };
+
     // Run verification if confidence is below threshold
     while (result.confidence < CONFIDENCE_THRESHOLD_RERUN && passCount < MAX_VERIFICATION_PASSES) {
-      passCount++;
-      logger.info('Stage3', `${label} confidence ${result.confidence.toFixed(2)} < ${CONFIDENCE_THRESHOLD_RERUN} — verification pass ${passCount}`);
-      result = await verifyExtraction(text, result, anthropicApiKey, logger, label, passCount);
+      await runPass(`confidence ${result.confidence.toFixed(2)} < ${CONFIDENCE_THRESHOLD_RERUN}`);
     }
 
     // Mandatory verification for metes_and_bounds with calls (regardless of confidence)
     if (result.type === 'metes_and_bounds' && result.calls.length > 0 && passCount === 0) {
-      passCount++;
-      result = await verifyExtraction(text, result, anthropicApiKey, logger, label, passCount);
+      await runPass('metes and bounds with calls — always verified');
     }
 
     return result;
