@@ -19,6 +19,9 @@ export interface CallAnalysis {
   caller_type: 'customer' | 'existing_client' | 'vendor' | 'personal' | 'spam' | 'unknown';
   intent: string;
   urgency: 'low' | 'normal' | 'high';
+  /** The date the caller named, when there is one. The receptionist promises on the call that Hank
+   *  is told straight away, so this has to travel as far as the text message. */
+  deadline?: string | null;
   sentiment: 'positive' | 'neutral' | 'frustrated';
   action_items: string[];
   follow_up: string;

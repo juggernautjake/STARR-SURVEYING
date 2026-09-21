@@ -15,13 +15,14 @@ const SYSTEM = `You analyze phone calls to ${BUSINESS_NAME}, a licensed land sur
   "caller_type": "customer" | "existing_client" | "vendor" | "personal" | "spam" | "unknown",
   "intent": "one short phrase, e.g. 'boundary survey quote for a residential lot'",
   "urgency": "low" | "normal" | "high",
+  "deadline": "the date the caller named and what it is for, in a few words — e.g. 'closing Friday 26 Sep', 'permit deadline Oct 1'" or null,
   "sentiment": "positive" | "neutral" | "frustrated",
   "action_items": ["concrete next steps for the owners, each starting with a verb"],
   "follow_up": "who should call back and by when, in plain words",
   "suggested_project": { "name": "short project name like 'Boundary survey - 123 Main St, Belton'", "service": "...", "address": "...", "notes": "..." } or null if this is not survey work,
   "questions_asked": ["questions the caller asked that the owners should be ready to answer"]
 }
-Be specific and honest. If the transcript is thin, say so in the summary rather than inventing detail. "contact" holds only what the caller actually said on this call (a voicemail is often the only place a name and number appear; listen for them, and for spelled-out names, numbers said digit by digit, and emails said with "at" and "dot"); when a number is said in pieces, join the digits; never copy the caller ID into "phone" unless they read it out; leave every unknown field null. Urgency is high only when the caller said so or a deadline (closing, construction start, court date) is near.`;
+Be specific and honest. If the transcript is thin, say so in the summary rather than inventing detail. "contact" holds only what the caller actually said on this call (a voicemail is often the only place a name and number appear; listen for them, and for spelled-out names, numbers said digit by digit, and emails said with "at" and "dot"); when a number is said in pieces, join the digits; never copy the caller ID into "phone" unless they read it out; leave every unknown field null. Urgency is high only when the caller said so or a deadline (closing, construction start, court date) is near. When urgency is high there should almost always be a "deadline" too: a high-urgency call whose date nobody captured is the one the owner most needs to see, so say what you have even if it is vague ("closing sometime next week").`;
 
 export function transcriptText(turns: CallTurn[] | null | undefined, voicemail?: string | null): string {
   const lines = (turns ?? []).map((t) => `${t.role === 'caller' ? 'Caller' : t.role === 'owner' ? 'Hank' : 'Receptionist'}: ${t.text}`);
@@ -42,6 +43,7 @@ export function parseAnalysis(text: string): CallAnalysis | null {
       caller_type: pick(j.caller_type, ['customer', 'existing_client', 'vendor', 'personal', 'spam', 'unknown'] as const, 'unknown'),
       intent: typeof j.intent === 'string' ? j.intent : '',
       urgency: pick(j.urgency, ['low', 'normal', 'high'] as const, 'normal'),
+      deadline: typeof j.deadline === 'string' && j.deadline.trim() ? j.deadline.trim() : null,
       sentiment: pick(j.sentiment, ['positive', 'neutral', 'frustrated'] as const, 'neutral'),
       action_items: Array.isArray(j.action_items) ? j.action_items.filter((x): x is string => typeof x === 'string').slice(0, 8) : [],
       follow_up: typeof j.follow_up === 'string' ? j.follow_up : '',

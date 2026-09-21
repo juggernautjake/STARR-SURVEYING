@@ -110,9 +110,30 @@ export function callLink(o: Pick<CallOutcome, 'callId' | 'facts'>): string | nul
   return null;
 }
 
+/**
+ * A deadline the caller named, when the analysis found one and called the call urgent.
+ *
+ * ── WHY THIS IS AT THE TOP OF THE MESSAGE AND NOT IN THE SUMMARY ────────────────────────────────
+ *
+ * The receptionist now asks every caller whether anything has a date on it, and when there is one
+ * she says out loud that ${OWNER} is being told straight away. That is a promise the firm makes on
+ * a recorded line, so the text he gets has to keep it — a closing on Friday buried in the third
+ * sentence of a summary, in a message that looks like every other message, is not being told.
+ *
+ * `urgency` has been on the analysis all along and changed nothing about what was sent.
+ */
+function urgentPrefix(o: CallOutcome): string | null {
+  if (o.call?.analysis?.urgency !== 'high') return null;
+  const when = (o.call?.analysis?.deadline ?? '').trim();
+  return when ? `URGENT — ${when}` : 'URGENT';
+}
+
 export function outcomeText(o: CallOutcome): string {
   const f = mergedFacts(o);
-  const lines: string[] = [`${BUSINESS_NAME}: ${headline(o, f)}`];
+  const urgent = urgentPrefix(o);
+  const lines: string[] = [
+    urgent ? `${urgent}\n${BUSINESS_NAME}: ${headline(o, f)}` : `${BUSINESS_NAME}: ${headline(o, f)}`,
+  ];
 
   // Who, and how to reach them.
   const callback = f.phone && f.phone !== o.from ? f.phone : o.from;
