@@ -50,10 +50,33 @@ import { WILLIAMSON_ENDPOINTS } from './config/endpoints.js';
 export const NAME_FIELDS = ['BothNamesID', 'GrantorID', 'GranteeID'] as const;
 export type NameField = (typeof NAME_FIELDS)[number];
 
-/** Plain text inputs — fill and submit. */
+/**
+ * Plain text inputs — fill and submit.
+ *
+ * ── THE BOOK FIELD IS NOT THE BOOK NUMBER ───────────────────────────────────────────────────────
+ *
+ * The form's three boxes are labelled Book, Volume and Page, and the obvious reading — that a
+ * citation like "1236/435" goes in Book and Page — is WRONG and fails silently. Proven on
+ * 2026-09-21 with each search in its own session:
+ *
+ *     Book 1236  Page 435   →  0 rows
+ *     Volume 1236 Page 435  →  1 row: 1985032996 DEED 08/29/1985, SOUTH CK 16
+ *     Book 2661  Page 944   →  0 rows
+ *     Volume 2661 Page 944  →  1 row: 1995001014 DEED 01/06/1995
+ *
+ * `Book` holds the book TYPE — the `OR`, `DEED` or `NONE` code that `parseClerkRow` already reads
+ * off the first `B:` in a result row. The NUMBER lives in `Volume`. A number put in `Book` matches
+ * nothing, returns no error, and reads exactly like a property with no recorded conveyance.
+ *
+ * (The first probe made Book 2661/944 look like it worked. It did not: the criteria from the
+ * previous search were still on the session, so Volume was already 2661. Every search here gets a
+ * fresh context for that reason.)
+ */
 export const TEXT_FIELDS = {
   instrument: 'field_DocNumID',
-  book: 'field_BookVolPageID_DOT_Book',
+  /** The book TYPE code — `OR`, `DEED`, `NONE`. Never a number. */
+  bookType: 'field_BookVolPageID_DOT_Book',
+  /** The book NUMBER, whatever the form calls it. This is what a citation's first half means. */
   volume: 'field_BookVolPageID_DOT_Volume',
   page: 'field_BookVolPageID_DOT_Page',
   recordedFrom: 'field_RecDateID_DOT_StartDate',
@@ -149,12 +172,19 @@ export function planClerkSearch(q: ClerkQuery): ClerkSearchPlan {
   const volume = clean(q.volume);
   const page = clean(q.page);
   if ((book || volume) && page) {
-    if (book) textFields[TEXT_FIELDS.book] = book;
-    if (volume) textFields[TEXT_FIELDS.volume] = volume;
+    // Both callers' "book" and "volume" mean the same thing — the number before the slash — and
+    // that number goes in the VOLUME box whichever name it arrived under. See TEXT_FIELDS.
+    const number = volume || book;
+    textFields[TEXT_FIELDS.volume] = number;
+
+    // A non-numeric book is a TYPE code (`OR`, `DEED`), which is the one thing the Book box does
+    // take. It narrows an otherwise ambiguous citation rather than voiding it.
+    if (book && !/^\d+$/.test(book) && book !== number) textFields[TEXT_FIELDS.bookType] = book;
+
     textFields[TEXT_FIELDS.page] = page;
     return {
       kind: 'book_page', needsInteraction: false, textFields, nameFields,
-      description: `book/volume ${book || volume} page ${page}`,
+      description: `book/volume ${number} page ${page}`,
       runnable: true,
       why: "book/page is a plain fill, and it is what WCAD's Sales dataset gives us — the workhorse for this county",
     };

@@ -137,6 +137,17 @@ export const WILLIAMSON_ENDPOINTS = {
     searchButton: '#searchButton',
     acceptButton: 'I Accept',
 
+    /**
+     * What acceptance actually IS: a cookie the server sets on the POST behind "I Accept",
+     * alongside the JSESSIONID that was already there. Observed live on 2026-09-21.
+     *
+     * Worth naming because the page gives no other reliable signal. The button is a jQuery Mobile
+     * submit, so the transition runs through a hash change that no load state waits on — code that
+     * waits for the page instead of for this cookie proceeds before acceptance lands and gets
+     * bounced back to the gate with a 200.
+     */
+    acceptCookie: 'disclaimerAccepted',
+
     /** Stated by the site: "indexed from Dec 8, 1838 through Sep 14, 2026". */
     indexedFrom: '1838-12-08',
 

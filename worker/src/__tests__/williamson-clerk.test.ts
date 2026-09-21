@@ -46,8 +46,27 @@ describe('planning: cheapest and most certain first', () => {
     const p = planClerkSearch({ book: '630', page: '298' });
     expect(p.kind).toBe('book_page');
     expect(p.needsInteraction).toBe(false);
-    expect(p.textFields[TEXT_FIELDS.book]).toBe('630');
+
+    // The NUMBER goes in the Volume box even though the caller called it a book. Live proof on
+    // 2026-09-21: Book 1236 / Page 435 returned 0 rows, Volume 1236 / Page 435 returned the deed.
+    expect(p.textFields[TEXT_FIELDS.volume]).toBe('630');
     expect(p.textFields[TEXT_FIELDS.page]).toBe('298');
+
+    // And the Book box — which holds a type code — is left alone. A number in it matches nothing.
+    expect(p.textFields[TEXT_FIELDS.bookType]).toBeUndefined();
+  });
+
+  it('keeps a book TYPE code, which is the one thing that box takes', () => {
+    const p = planClerkSearch({ book: 'OR', volume: '1236', page: '435' });
+    expect(p.textFields[TEXT_FIELDS.volume]).toBe('1236');
+    expect(p.textFields[TEXT_FIELDS.bookType]).toBe('OR');
+  });
+
+  it('never sends the same number to both boxes', () => {
+    // `{ book: '1236', volume: '1236' }` is one citation said twice, not a type plus a number.
+    const p = planClerkSearch({ book: '1236', volume: '1236', page: '435' });
+    expect(p.textFields[TEXT_FIELDS.volume]).toBe('1236');
+    expect(p.textFields[TEXT_FIELDS.bookType]).toBeUndefined();
   });
 
   it('a volume works in place of a book', () => {

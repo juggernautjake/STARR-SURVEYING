@@ -68,7 +68,12 @@ const verdict = (
 const BROWSER_WALL = /outdatedbrowser\.com|update your browser|browser is (out of date|not supported|unsupported)|upgrade your browser/i;
 
 /** Bot walls. */
-const BOT_WALL = /cloudflare|cf-ray|just a moment|checking your browser|perimeterx|px-captcha|incapsula|imperva|akamai|datadome|recaptcha|hcaptcha|are you a robot|unusual traffic/i;
+// The last five alternatives are the wording Williamson County's clerk actually used on
+// 2026-09-21 — "Let's confirm you are human. Complete the security check before continuing. This
+// step verifies that you are not a bot." Not one of the vendor names above appears in it, so the
+// wall was classified as a session problem and the log recommended checking a cookie. A bot wall
+// names itself in plain English far more often than it names its vendor.
+const BOT_WALL = /cloudflare|cf-ray|just a moment|checking your browser|perimeterx|px-captcha|incapsula|imperva|akamai|datadome|recaptcha|hcaptcha|are you a robot|unusual traffic|confirm you are human|verify(ing)? (that )?you are human|you are not a bot|security check before continuing|human verification/i;
 
 /** Outright refusals of the client. */
 const IP_BLOCK = /access denied|forbidden|your ip|ip address has been|blocked|not authorized to view|403 forbidden|request blocked/i;
@@ -126,6 +131,24 @@ export function readTransportError(err: unknown): RejectionVerdict {
       `A proxy refused to open a tunnel — ${msg}.`,
       'Try the direct path, or a different egress. .gov hosts are commonly blocklisted by ' +
       'residential proxy pools.', true);
+  }
+
+  // ── A MISCONFIGURED BROWSER IS OURS, NOT THE SITE'S ─────────────────────────────────────────
+  //
+  // The first live pipeline run reported the Williamson clerk as "down or slow" when the real
+  // message was "[browser-factory:stub] newContext() called on stub browser" — BROWSER_BACKEND was
+  // unset, so the factory handed back a stub and the driver never opened a page.
+  //
+  // Health-wise those are opposite conclusions. A site being slow is weather that fixes itself; a
+  // stub browser is a deployment that will never work until somebody sets a variable. Classified
+  // before the connection errors below because the stub's message mentions neither a host nor a
+  // refusal and would otherwise fall through to the generic bucket.
+  if (/browser-factory|stub browser|BROWSER_BACKEND|newContext\(\) called on stub/i.test(msg)) {
+    return verdict('ip_blocked', true,
+      `The browser was not available — ${msg}`,
+      'Set BROWSER_BACKEND=local for a local Chromium, or browserbase with credentials. Until ' +
+      'then every step that needs a page is skipped, and the sites it would have reached are ' +
+      'untested rather than unreachable.', false);
   }
 
   if (/econnrefused|err_connection_refused/.test(m)) {

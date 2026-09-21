@@ -121,6 +121,19 @@ describe('search result pages — the hardest distinction', () => {
     expect(v.message).toMatch(/never ran/i);
   });
 
+  it('recognises a bot wall that names no vendor', () => {
+    // Williamson County's clerk, verbatim, 2026-09-21. It says "bot" and "human" and nothing
+    // else — no Cloudflare, no CAPTCHA vendor, no "just a moment". The first version of this
+    // list matched none of it, so the wall was reported as a session problem and the remedy
+    // told whoever read the log to go check a cookie.
+    const v = readSearchPage(
+      "Let's confirm you are human. Complete the security check before continuing. " +
+      'This step verifies that you are not a bot, which helps to protect your account.');
+    expect(v.kind).toBe('bot_wall');
+    expect(v.aboutUs).toBe(true);
+    expect(v.message).toMatch(/never ran/i);
+  });
+
   it('a disclaimer instead of results is a session problem', () => {
     const v = readSearchPage('Disclaimer Content — you must accept the terms to continue');
     expect(v.kind).toBe('needs_session');

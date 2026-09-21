@@ -1374,7 +1374,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     if (!instrumentSearchSucceeded && ownerForClerk && /williamson/i.test(input.county)) {
       try {
         const { withBrowser } = await import('../lib/browser-factory.js');
-        const { searchWilliamsonClerk, toDocumentRefs } = await import('../counties/williamson/clerk-driver.js');
+        const { searchWilliamsonClerkMany, toDocumentRefs } = await import('../counties/williamson/clerk-driver.js');
 
         // ── BOOK AND PAGE FIRST, THE NAME AS A FALLBACK ──────────────────────────────────────
         //
@@ -1388,39 +1388,86 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         const citations = (propertyResult?.deedHistory ?? [])
           .filter((d) => d.volume && d.page);
 
-        const clerkQuery = citations.length > 0
-          ? { book: citations[0]!.volume!, page: citations[0]!.page! }
-          : { bothNames: ownerForClerk };
+        // ── EVERY CITATION, NOT JUST THE NEWEST ──────────────────────────────────────────────────
+        //
+        // The newest conveyance is the controlling one, but a survey needs the CHAIN: who held the
+        // parcel before, and under what legal description. The appraisal district hands us the
+        // whole list — 9 citations on the test parcel — and searching only the first threw eight
+        // of them away. Each is one cheap plain-fill search.
+        //
+        // Capped, because the list is county data and a pathological parcel should not turn one
+        // job into a hundred page loads.
+        const MAX_CITATIONS = 12;
+        const toSearch = citations.slice(0, MAX_CITATIONS);
 
-        if (citations.length > 0) {
+        const queries: Array<Record<string, string>> = toSearch.length > 0
+          // `volume`, not `book`: on this clerk the Book box holds a TYPE code (`OR`, `DEED`) and
+          // the number belongs in Volume. A number in Book matches nothing and reports no error.
+          ? toSearch.map((d) => ({ volume: d.volume!, page: d.page! }))
+          : [{ bothNames: ownerForClerk }];
+
+        if (toSearch.length > 0) {
           logger.info('Stage2',
-            `Williamson clerk: searching by book/page ${citations[0]!.volume}/${citations[0]!.page} ` +
-            `(the newest of ${citations.length} the appraisal district cites) rather than by name — ` +
-            'precise, and it needs no dropdown interaction.');
+            `Williamson clerk: walking ${toSearch.length} book/page citation(s) from the appraisal ` +
+            `district — ${toSearch.map((d) => `${d.volume}/${d.page}`).join(', ')}` +
+            (citations.length > toSearch.length ? ` (${citations.length - toSearch.length} more not searched)` : '') +
+            '. Book/page is a plain fill and needs no dropdown interaction.');
         } else {
           logger.info('Stage2',
             `Williamson clerk: the appraisal district cites no book/page for this parcel, so the ` +
             `clerk is searched by name ("${ownerForClerk}") with the county's own spellings expanded.`);
         }
 
-        const outcome = await withBrowser({ adapterId: 'tyler-clerk' }, (session) =>
-          searchWilliamsonClerk(session.browser, clerkQuery, {
+        // One browser session for the whole walk. Each search still gets its own context inside
+        // the driver — proven necessary, because this site REMEMBERS the previous search's
+        // criteria and silently ANDs them into the next one.
+        // ONE session for the whole walk, not one per citation. A context per citation trips the
+        // county's bot wall — "Let's confirm you are human" — around the sixth search: nine rapid
+        // sessions from one address look like a bot because that is what a bot does. Measured:
+        // 5 of 9 citations reached that way, 8 of 9 down a single session, and faster.
+        const outcomes = await withBrowser({ adapterId: 'tyler-clerk' }, (session) =>
+          searchWilliamsonClerkMany(session.browser, queries as never, {
             log: (level, message) => logger[level === 'warn' ? 'warn' : 'info']('Stage2', message),
           }));
 
-        if (outcome.namesUsed.length > 1) {
-          logger.info('Stage2', `Williamson clerk: searched ${outcome.namesUsed.length} spellings at once — ${outcome.namesUsed.join(' · ')}`);
+        const outcome = outcomes[0]!;
+
+        for (const o of outcomes) {
+          if (o.namesUsed.length > 1) {
+            logger.info('Stage2', `Williamson clerk: searched ${o.namesUsed.length} spellings at once — ${o.namesUsed.join(' · ')}`);
+          }
         }
 
         // The distinction this whole feature turns on. A refusal is not an empty result, and only
-        // one of the two is a finding about the property.
-        if (outcome.verdict.kind !== 'ok') {
-          const { rejectionLine } = await import('../research/site-rejection.js');
-          logger.warn('Stage2', rejectionLine(outcome.verdict));
-          retrievalFailures.push(outcome.verdict.message);
+        // one of the two is a finding about the property. Reported per citation, because one
+        // citation being unreachable says nothing about the other eight.
+        const { rejectionLine } = await import('../research/site-rejection.js');
+        for (const [i, o] of outcomes.entries()) {
+          if (o.verdict.kind !== 'ok') {
+            logger.warn('Stage2', `${o.plan.description}: ${rejectionLine(o.verdict)}`);
+            retrievalFailures.push(o.verdict.message);
+          }
         }
 
-        williamsonDocs = toDocumentRefs(outcome.records).map((ref) => ({
+        // One deed can be cited by several sales rows, and a name search can return a document the
+        // book/page walk already found. De-duplicate on the instrument number, falling back to the
+        // citation for the rare row that carries none.
+        const seenDocs = new Set<string>();
+        const mergedRecords = outcomes
+          .flatMap((o) => o.records)
+          .filter((r) => {
+            const key = r.instrument || `${r.book ?? ''}/${r.page ?? ''}`;
+            if (!key.replace('/', '') || seenDocs.has(key)) return false;
+            seenDocs.add(key);
+            return true;
+          });
+
+        const found = outcomes.filter((o) => o.records.length > 0).length;
+        logger.info('Stage2',
+          `Williamson clerk: ${mergedRecords.length} distinct document(s) from ` +
+          `${found}/${outcomes.length} search(es) that returned rows.`);
+
+        williamsonDocs = toDocumentRefs(mergedRecords).map((ref) => ({
           ref: {
             instrumentNumber: ref.instrumentNumber,
             volume: ref.volume,

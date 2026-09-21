@@ -31,7 +31,7 @@
 import type { Browser } from 'playwright';
 import { WILLIAMSON_ENDPOINTS } from './config/endpoints.js';
 import {
-  planClerkSearch, parseClerkRow, totalResults, nameFieldSelectors,
+  planClerkSearch, parseClerkRow, totalResults, nameFieldSelectors, TEXT_FIELDS,
   RESULT_ROW_SELECTOR, type ClerkQuery, type ClerkRecord, type ClerkSearchPlan,
 } from './clerk.js';
 import { variantsToSearch, readSuggestions } from './name-variants.js';
@@ -63,6 +63,13 @@ export interface ClerkDriverOptions {
    * exact.
    */
   expandVariants?: boolean;
+  /**
+   * How long to wait for the acceptance cookie before going on to look at the page anyway.
+   *
+   * Going on is deliberate: step 2b asks the better question — is the search form actually here —
+   * and answers it in one call. This is only how long we are willing to sit still first.
+   */
+  acceptTimeoutMs?: number;
   log?: (level: 'info' | 'warn', message: string) => void;
 }
 
@@ -72,26 +79,53 @@ const empty = (plan: ClerkSearchPlan, verdict: RejectionVerdict): ClerkSearchOut
 /**
  * Run one clerk search.
  *
- * The browser is passed in rather than acquired, so the caller owns the session and one page can
- * serve several searches — the disclaimer is accepted once per session, and re-accepting it for
- * every name is both slower and a different session each time.
+ * A thin wrapper over the many-search form, so a caller with one question does not have to build
+ * an array. Both open exactly one session.
  */
 export async function searchWilliamsonClerk(
   browser: Browser,
   query: ClerkQuery,
   opts: ClerkDriverOptions = {},
 ): Promise<ClerkSearchOutcome> {
-  const log = opts.log ?? (() => {});
-  const plan = planClerkSearch(query);
+  return (await searchWilliamsonClerkMany(browser, [query], opts))[0]!;
+}
 
-  if (!plan.runnable) {
-    // Not a failure and not an empty result — a query we declined to send. Saying so plainly keeps
-    // it out of the "this property has no documents" bucket.
-    return empty(plan, {
-      kind: 'bad_query', aboutUs: false, retryable: false,
-      message: `No clerk search was made: ${plan.why}.`, remedy: null,
-    });
-  }
+/**
+ * Run several clerk searches down ONE session.
+ *
+ * ── WHY THIS EXISTS, AND WHY IT IS NOT A LOOP AROUND THE SINGLE VERSION ─────────────────────────
+ *
+ * Walking a chain of title means one search per book/page citation — nine on the test parcel. The
+ * obvious implementation opens a fresh browser context per citation, and it fails in production:
+ * on the sixth search the county stops serving pages and answers
+ *
+ *     "Let's confirm you are human — Complete the security check before continuing."
+ *
+ * Nine rapid sessions from one address look exactly like a bot, because that is what a bot does.
+ * Measured on 2026-09-21: a context per search reached 5 of 9 citations before the wall; ONE
+ * session reusing one page reached 8 of 9 with no wall at all, and faster.
+ *
+ * The catch, and the reason the loop has to be careful: this site REMEMBERS the previous search's
+ * criteria and silently ANDs them into the next one. An early probe made a wrong field look
+ * correct for exactly this reason. So every search clears the whole form before filling its own —
+ * navigating back to the search page is NOT enough.
+ */
+export async function searchWilliamsonClerkMany(
+  browser: Browser,
+  queries: readonly ClerkQuery[],
+  opts: ClerkDriverOptions = {},
+): Promise<ClerkSearchOutcome[]> {
+  const log = opts.log ?? (() => {});
+  const plans = queries.map((q) => planClerkSearch(q));
+
+  // Not a failure and not an empty result — a query we declined to send. Saying so plainly keeps
+  // it out of the "this property has no documents" bucket.
+  const declined = (plan: ClerkSearchPlan) => empty(plan, {
+    kind: 'bad_query' as const, aboutUs: false, retryable: false,
+    message: `No clerk search was made: ${plan.why}.`, remedy: null,
+  });
+
+  if (plans.every((p) => !p.runnable)) return plans.map(declined);
 
   // A COMPLETE user-agent. Several adapters in this repo carry a malformed one missing both
   // "(KHTML, like Gecko)" and the trailing "Safari/537.36", and the common browser-detection
@@ -108,25 +142,186 @@ export async function searchWilliamsonClerk(
     const base = WILLIAMSON_ENDPOINTS.clerk.home.replace(/\/$/, '');
 
     // ── 1 · THE GATE ───────────────────────────────────────────────────────────────────────────
-    await page.goto(`${base}/user/disclaimer`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    const accept = page.getByRole('button', { name: WILLIAMSON_ENDPOINTS.clerk.acceptButton });
-    if (await accept.count()) {
-      await accept.first().click();
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
+    //
+    // Waiting on a LOAD STATE here is the bug that cost a whole live run. The site is jQuery
+    // Mobile: the accept button is a real `type=submit`, but jQuery Mobile intercepts the submit
+    // and does an AJAX page transition, so the navigation trace reads
+    //
+    //     /user/disclaimer  →  /user/disclaimer#/williamsonweb/  →  /williamsonweb/
+    //
+    // The middle step is a HASH CHANGE, not a document load — so `waitForLoadState` resolves
+    // instantly against the document already sitting there, and the code races on while the POST
+    // that grants acceptance is still in flight. The search page then redirects straight back to
+    // the disclaimer, every field is absent, and the driver spends 30 seconds clicking a button
+    // that was never on the page before reporting "no documents" for a property that has twelve.
+    //
+    // So wait for the THING ITSELF: the cookie the server sets when it accepts the acceptance.
+    // Two attempts, because the gate fails INTERMITTENTLY. Walking nine citations in one run, the
+    // first seven sailed through and the last two were bounced — the same code, the same session
+    // settings, a different answer. Whatever the county does under repeated rapid acceptance, a
+    // second try costs one page load and turns a reported fault back into a document.
+    let cookieSeen = false;
+    let gateText = '';
+    let onForm = false;
+
+    for (let attempt = 1; attempt <= 2 && !onForm; attempt++) {
+      if (attempt > 1) {
+        log('info', '[WilliamsonClerk] The search form did not appear; accepting the disclaimer again.');
+        await page.waitForTimeout(1_500);
+      }
+
+      await page.goto(`${base}/user/disclaimer`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      const accept = page.getByRole('button', { name: WILLIAMSON_ENDPOINTS.clerk.acceptButton });
+      if (await accept.count()) {
+        await accept.first().click();
+        cookieSeen = await waitForCookie(
+          context, WILLIAMSON_ENDPOINTS.clerk.acceptCookie, opts.acceptTimeoutMs ?? 20_000);
+      }
+
+      // ── 2 · THE SEARCH PAGE ──────────────────────────────────────────────────────────────────
+      await page.goto(WILLIAMSON_ENDPOINTS.clerk.search, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+
+      // A wall here means nothing below will work, and it is OUR problem rather than the county's.
+      gateText = await page.innerText('body').catch(() => '');
+      const gate = readSearchPage(gateText);
+      if (gate.kind === 'browser_wall' || gate.kind === 'bot_wall') {
+        log('warn', `[WilliamsonClerk] ${gate.message}`);
+        return plans.map((p) => empty(p, gate));
+      }
+
+      // ── 2b · ARE WE ACTUALLY ON THE SEARCH PAGE? ─────────────────────────────────────────────
+      //
+      // Never fill, click and read a page we have not confirmed is the form. When acceptance does
+      // not stick the server answers 200 with the DISCLAIMER — a success status carrying the
+      // wrong page — and every step after this reads as "the property has no documents" instead
+      // of "we never got in". One cheap assertion converts a silent false negative into a named
+      // fault.
+      onForm = await page.locator(WILLIAMSON_ENDPOINTS.clerk.searchButton).count() > 0;
     }
 
-    // ── 2 · THE SEARCH PAGE ────────────────────────────────────────────────────────────────────
-    await page.goto(WILLIAMSON_ENDPOINTS.clerk.search, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-
-    // A wall here means nothing below will work, and it is OUR problem rather than the county's.
-    const gateText = await page.innerText('body').catch(() => '');
-    const gate = readSearchPage(gateText);
-    if (gate.kind === 'browser_wall' || gate.kind === 'bot_wall') {
-      log('warn', `[WilliamsonClerk] ${gate.message}`);
-      return empty(plan, gate);
+    // The wall the citation walk actually hits. `readSearchPage` classifies it, but only if it is
+    // asked — and until 2026-09-21 this text reached the "no search form" branch instead and was
+    // reported as a session problem with a remedy about cookies. Ask first.
+    if (!onForm) {
+      const wall = readSearchPage(gateText);
+      if (wall.kind === 'bot_wall' || wall.kind === 'browser_wall' || wall.kind === 'rate_limited') {
+        log('warn', `[WilliamsonClerk] ${wall.message}`);
+        return plans.map((p) => empty(p, wall));
+      }
     }
 
-    // ── 3 · THE PLAIN FIELDS ───────────────────────────────────────────────────────────────────
+    if (!onForm) {
+      // Say what was actually there. The first version of this message asserted the disclaimer had
+      // bounced us, and printed a "came back as" URL identical to the one requested — which told
+      // whoever read the log nothing and was not even true. What the page HELD is the evidence.
+      const looksLikeDisclaimer = /indemnify and hold harmless|does not certify the authenticity/i
+        .test(gateText);
+      const heading = gateText.replace(/\s+/g, ' ').trim().slice(0, 160);
+
+      const verdict: RejectionVerdict = {
+        kind: 'needs_session', aboutUs: true, retryable: true,
+        message:
+          'The clerk served no search form, twice. The acceptance cookie was ' +
+          `${cookieSeen ? 'set' : 'NOT set'}, and the page it returned ` +
+          (looksLikeDisclaimer ? 'was the disclaimer again' : `began "${heading}"`) + '.',
+        remedy: cookieSeen
+          ? 'Acceptance worked, so the gate is not what we failed. Something else is between us ' +
+            'and the form — read the page text above; it usually names itself.'
+          : 'Acceptance is a cookie the server sets on the POST behind "I Accept". Confirm the ' +
+            `"${WILLIAMSON_ENDPOINTS.clerk.acceptCookie}" cookie is present before navigating; a ` +
+            'page load state is not enough, because jQuery Mobile transitions by hash.',
+      };
+      log('warn', `[WilliamsonClerk] ${verdict.message}`);
+      return plans.map((p) => empty(p, verdict));
+    }
+
+    // ── 3 · EVERY SEARCH, DOWN THE ONE SESSION ─────────────────────────────────────────────────
+    const results: ClerkSearchOutcome[] = [];
+    for (const [i, plan] of plans.entries()) {
+      if (!plan.runnable) { results.push(declined(plan)); continue; }
+
+      // Back to a clean form. The navigation alone does NOT clear the previous search — this site
+      // keeps the criteria — so the fields are emptied explicitly below.
+      if (i > 0) {
+        await page.goto(WILLIAMSON_ENDPOINTS.clerk.search, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+          .catch(() => {});
+
+        // A wall can appear part-way through a walk. Everything from here on is unreachable, and
+        // saying so once is better than nine identical failures.
+        if (await page.locator(WILLIAMSON_ENDPOINTS.clerk.searchButton).count() === 0) {
+          const midText = await page.innerText('body').catch(() => '');
+          const mid = readSearchPage(midText);
+          const verdict: RejectionVerdict = mid.kind === 'ok'
+            ? {
+                kind: 'needs_session', aboutUs: true, retryable: true,
+                message:
+                  `The clerk stopped serving the search form after ${i} of ${plans.length} ` +
+                  `search(es). The page began "${midText.replace(/\s+/g, ' ').trim().slice(0, 120)}".`,
+                remedy: 'Re-run the remaining citations in a new session, more slowly.',
+              }
+            : mid;
+          log('warn', `[WilliamsonClerk] ${verdict.message}`);
+          for (const rest of plans.slice(i)) results.push(empty(rest, verdict));
+          return results;
+        }
+      }
+
+      results.push(await runOneSearch(page, plan, opts, log));
+    }
+
+    return results;
+  } catch (e) {
+    // A thrown navigation is classified the same way a failed fetch is, so a DNS error and a
+    // refused tunnel do not both read as "the clerk is down".
+    const verdict = readTransportError(e);
+    log('warn', `[WilliamsonClerk] ${verdict.message}`);
+    return plans.map((p) => empty(p, verdict));
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
+/**
+ * Fill the form and read the answer. The session is already open and the form is already on
+ * screen — this function's whole job is one query.
+ */
+async function runOneSearch(
+  page: {
+    fill(sel: string, value: string, opts?: { timeout?: number }): Promise<void>;
+    click(sel: string, opts?: { timeout?: number }): Promise<void>;
+    type(sel: string, text: string, opts?: { delay?: number }): Promise<void>;
+    innerText(sel: string): Promise<string>;
+    waitForSelector(sel: string, opts?: { timeout?: number }): Promise<unknown>;
+    waitForTimeout(ms: number): Promise<void>;
+    evaluate: <A, R>(fn: (arg: A) => R | Promise<R>, arg: A) => Promise<R>;
+    $$eval: (sel: string, fn: (els: Element[]) => string[]) => Promise<string[]>;
+  },
+  plan: ClerkSearchPlan,
+  opts: ClerkDriverOptions,
+  log: (level: 'info' | 'warn', message: string) => void,
+): Promise<ClerkSearchOutcome> {
+  try {
+    // ── 3a · A CLEAN FORM ──────────────────────────────────────────────────────────────────────
+    //
+    // Not optional, and not achievable by navigating. The county carries the previous search's
+    // criteria forward and ANDs them into this one, which turns a correct query into a silent
+    // zero — and, worse, once made a WRONG field look right because the right one still held the
+    // value from the search before.
+    // The chip lists need NO clearing, and trying to clear them broke the page. They do not
+    // survive a page load — verified on 2026-09-21 by selecting "SCOTT RALPH", reloading, and
+    // finding the holder empty — while the text fields DO. That asymmetry is the whole rule:
+    // reload handles the chips, and only the text boxes need emptying by hand.
+    //
+    // The first attempt at this clicked every `<a>` inside each chip holder. A chip carries no
+    // anchor, so that removed nothing; what it did hit was the holder's OTHER link —
+    // `a.advancedSearch`, an ordinary href to /search/advancedSearchPres/… — which navigated off
+    // the search page before a single query ran, and every search then timed out looking for a
+    // button that was no longer there.
+    for (const id of Object.values(TEXT_FIELDS)) {
+      await page.fill(`#${id}`, '', { timeout: 5_000 }).catch(() => {});
+    }
+
+    // ── 3b · THE PLAIN FIELDS ──────────────────────────────────────────────────────────────────
     for (const [id, value] of Object.entries(plan.textFields)) {
       await page.fill(`#${id}`, value).catch(() => {});
     }
@@ -193,7 +388,10 @@ export async function searchWilliamsonClerk(
     }
 
     // ── 5 · GO ─────────────────────────────────────────────────────────────────────────────────
-    await page.click(WILLIAMSON_ENDPOINTS.clerk.searchButton);
+    // An explicit, short timeout. The default 30 seconds is time spent waiting for an element that
+    // step 2b has already proven is on the page — if it is not clickable within a few seconds it
+    // is covered or disabled, and the sooner that reads as a fault the better.
+    await page.click(WILLIAMSON_ENDPOINTS.clerk.searchButton, { timeout: 10_000 });
     await page.waitForSelector(`${RESULT_ROW_SELECTOR}, .ss-utility-box`, { timeout: 25_000 }).catch(() => {});
     await page.waitForTimeout(800);
 
@@ -219,15 +417,13 @@ export async function searchWilliamsonClerk(
 
     return { records, total, namesUsed, plan, verdict };
   } catch (e) {
-    // A thrown navigation is classified the same way a failed fetch is, so a DNS error and a
-    // refused tunnel do not both read as "the clerk is down".
+    // One search failing does not end the walk — the caller keeps going with the next citation.
     const verdict = readTransportError(e);
-    log('warn', `[WilliamsonClerk] ${verdict.message}`);
+    log('warn', `[WilliamsonClerk] ${plan.description}: ${verdict.message}`);
     return empty(plan, verdict);
-  } finally {
-    await context.close().catch(() => {});
   }
 }
+
 
 /**
  * The county's rows as the pipeline's document shape.
@@ -269,6 +465,28 @@ export function toDocumentRefs(
     url: WILLIAMSON_ENDPOINTS.clerk.search,
     legalDescription: r.legalDescription,
   }));
+}
+
+/** Just enough of a Playwright context to read its cookie jar. */
+interface CookieJar {
+  cookies(): Promise<Array<{ name: string }>>;
+}
+
+/**
+ * Wait until the server has actually granted something, rather than until the page looks settled.
+ *
+ * Returns whether the cookie arrived. The caller does NOT branch on it: step 2b asks the better
+ * question — is the search form on the page — and a cookie that is present but rejected would
+ * pass this check and fail that one. This exists to stop the race, not to judge it.
+ */
+async function waitForCookie(ctx: CookieJar, name: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const jar = await ctx.cookies().catch(() => [] as Array<{ name: string }>);
+    if (jar.some((c) => c.name === name)) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((r) => setTimeout(r, 150));
+  }
 }
 
 /**

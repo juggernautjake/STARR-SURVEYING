@@ -50,13 +50,14 @@ describe('Stage 1 reaches the county\'s own appraisal client', () => {
 describe('Stage 2 reaches the county\'s own clerk driver', () => {
   const pipeline = code('services/pipeline.ts');
 
-  it('calls searchWilliamsonClerk', () => {
+  it('calls the county driver, in its many-search form', () => {
     expect(pipeline).toContain("await import('../counties/williamson/clerk-driver.js')");
-    expect(pipeline).toContain('searchWilliamsonClerk(');
+    // Many, not one per citation: a fresh context per book/page trips the county's bot wall.
+    expect(pipeline).toContain('searchWilliamsonClerkMany(');
   });
 
   it('runs it BEFORE the Kofile driver', () => {
-    const mine = pipeline.indexOf('searchWilliamsonClerk(');
+    const mine = pipeline.indexOf('searchWilliamsonClerkMany(');
     const kofile = pipeline.indexOf('searchClerkRecords(input.county, ownerForClerk');
     expect(mine).toBeGreaterThan(0);
     expect(kofile).toBeGreaterThan(0);
@@ -70,8 +71,30 @@ describe('Stage 2 reaches the county\'s own clerk driver', () => {
   });
 
   it('classifies a refusal instead of filing it as an empty result', () => {
-    expect(pipeline).toContain('outcome.verdict.kind !== ');
-    expect(pipeline).toContain('rejectionLine(outcome.verdict)');
+    // Every clerk search is checked, not just the first — the citation walk runs one search per
+    // book/page, and one of them being refused says nothing about the others.
+    expect(pipeline).toContain('.verdict.kind !== ');
+    expect(pipeline).toContain('rejectionLine(o.verdict)');
+    expect(pipeline).toContain('retrievalFailures.push(o.verdict.message)');
+  });
+
+  it('walks every book/page the appraisal district cites, not only the newest', () => {
+    // Nine citations on the test parcel. Searching one and stopping threw away eight, and a chain
+    // of title is exactly the part that was being thrown away.
+    expect(pipeline).toContain('MAX_CITATIONS');
+    expect(pipeline).toContain('citations.slice(0, MAX_CITATIONS)');
+    expect(pipeline).toContain('searchWilliamsonClerkMany(session.browser, queries');
+  });
+
+  it('sends the citation number to Volume, never to Book', () => {
+    // The Book box on this clerk holds a TYPE code. A number in it matches nothing, silently.
+    expect(pipeline).toContain('volume: d.volume!, page: d.page!');
+    expect(pipeline).not.toContain('book: citations[0]');
+  });
+
+  it('de-duplicates, because one deed can be cited by several sales rows', () => {
+    expect(pipeline).toContain('seenDocs');
+    expect(pipeline).toContain('mergedRecords');
   });
 
   it('uses a real browser, through the shared factory', () => {
