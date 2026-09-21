@@ -61,6 +61,20 @@
 .rtest__live--loading { border-color: var(--theme-border, #E2E8F0); }
 .rtest__live-now { font-size: 1rem !important; opacity: 1 !important; color: var(--theme-fg-primary, #0F172A) !important; }
 
+/* The setting above says what we CHOSE; this says what actually answered the last few callers.
+   It is loud on purpose: for five days from 2026-09-16 this card reported the conversational agent
+   while every caller left a voicemail, and the only trace was a line in a serverless log. */
+.rtest__live-fallback {
+  margin: .5rem 0 0;
+  padding: .6rem .75rem;
+  border-left: 3px solid var(--theme-danger-fg, #991B1B);
+  border-radius: 4px;
+  background: var(--theme-danger-bg, #FEF2F2);
+  color: var(--theme-danger-fg, #991B1B);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
 /* Option cards: the live-version switch and the "which agent to talk to" pair. */
 .rtest__versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .5rem; }
 .rtest__version {

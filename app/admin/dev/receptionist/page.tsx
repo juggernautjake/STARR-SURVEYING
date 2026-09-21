@@ -100,7 +100,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
   }, []);
 
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
-  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean } | null>(null);
+  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean; fallback?: { silentFallback: boolean; statement: string } } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
   // Which version the owner is about to put in front of real callers, while they confirm it.
   const [confirmAgent, setConfirmAgent] = useState<ReceptionistVersion | null>(null);
@@ -440,6 +440,20 @@ export default function ReceptionistTestPage(): React.ReactElement {
               When Hank doesn&apos;t pick up, callers get: <b data-testid="rtest-live-version">{VERSION_LABELS[live.version].name}</b>
             </p>
             <p>{VERSION_LABELS[live.version].blurb}</p>
+
+            {/* ── WHAT ACTUALLY ANSWERED ────────────────────────────────────────────────────────
+                The line above is the SETTING. For five days from 2026-09-16 it said callers were
+                reaching the conversational agent while every one of them left a voicemail: the SIP
+                trunk refused each INVITE and the fallback did its job silently. A screen that
+                reports an intention and never checks the outcome is how that lasted five days. */}
+            {live.fallback?.silentFallback ? (
+              <p className="rtest__live-fallback" role="alert" data-testid="rtest-live-fallback">
+                <b>Callers are NOT reaching this receptionist.</b> {live.fallback.statement}
+              </p>
+            ) : live.fallback?.statement ? (
+              <p className="rtest__status" data-testid="rtest-live-answered">{live.fallback.statement}</p>
+            ) : null}
+
             <p className="rtest__status">Voice: <b>{(RECEPTIONIST_VOICES.find((v) => v.id === (live.voice ?? DEFAULT_VOICE_ID)) ?? RECEPTIONIST_VOICES[0]).name}</b></p>
             {live.updatedBy && <small className="rtest__status">Set by {live.updatedBy}{live.updatedAt ? ` · ${fmtWhen(live.updatedAt)}` : ''}</small>}
             <div className="rtest__row">

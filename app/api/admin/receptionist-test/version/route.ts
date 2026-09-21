@@ -14,6 +14,7 @@ import { parseVersion } from '@/lib/receptionist/version';
 import { readLiveVersion, writeLiveSettings } from '@/lib/receptionist/version-server';
 import { voiceById } from '@/lib/receptionist/voices';
 import { elevenLabsConfigured } from '@/lib/receptionist/elevenlabs';
+import { readAnswerMix, judgeFallback } from '@/lib/receptionist/fallback-watch';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,15 @@ export const GET = withErrorHandler(async () => {
   const gate = await requireAdmin();
   if (gate.error) return gate.error;
   // `elevenLabsReady` tells the test bench whether to offer the ElevenLabs agent as a test option.
-  return NextResponse.json({ ...(await readLiveVersion(supabaseAdmin)), elevenLabsReady: elevenLabsConfigured() });
+  const live = await readLiveVersion(supabaseAdmin);
+
+  // WHAT ANSWERED, not what was chosen. The page used to report the setting alone, and for five
+  // days it said callers were reaching the conversational agent while every one of them was
+  // leaving a voicemail — the SIP trunk refused each call and the fallback quietly did its job.
+  // See lib/receptionist/fallback-watch.ts.
+  const fallback = judgeFallback(live.version, await readAnswerMix(supabaseAdmin as never));
+
+  return NextResponse.json({ ...live, elevenLabsReady: elevenLabsConfigured(), fallback });
 }, { routeName: 'admin/receptionist-test/version' });
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
