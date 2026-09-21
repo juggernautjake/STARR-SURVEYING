@@ -69,11 +69,27 @@ describe('a job has no owner, only a client — and the briefing says so', () =>
     // This is the load-bearing assertion in the file. The run feeds owner_name to a clerk
     // grantor/grantee search. A realtor's name produces an empty result, and an empty result read
     // as fact becomes "no conveyance recorded" — a wrong answer about somebody's property.
+    //
+    // The wording moved into describeOwnerCandidates on 2026-09-21; the requirement did not.
     const notes = researchPrefillFromJob(job()).intakeNotes;
-    expect(notes).toMatch(/CLIENT who ordered the survey/i);
-    expect(notes).toMatch(/not necessarily the record owner/i);
-    expect(notes).toMatch(/title company|realtor|lender|developer/i);
-    expect(notes).toMatch(/not as an established fact/i);
+    expect(notes).toContain('Dana Whitfield');
+    expect(notes).toMatch(/may or may not be the record owner/i);
+  });
+
+  it('when the job TITLE names an organisation, that goes first', () => {
+    // Job 26144, 2026-09-21. The run searched the clerk three times for the contact and found
+    // nothing, while the owner sat in the job's own title.
+    const p = researchPrefillFromJob(job({
+      name: 'ROUND ROCK HOUSING AUTHORITY CUSHING DRIVE',
+      client_name: 'EBBY GREEN',
+      client_company: null,
+      client_email: 'ebby@roundrockha.org',
+    }));
+    expect(p.ownerName).toBe('ROUND ROCK HOUSING AUTHORITY');
+    expect(p.supplemental.ownerNames, 'the contact is still searchable, just not first')
+      .toEqual(['ROUND ROCK HOUSING AUTHORITY', 'EBBY GREEN']);
+    expect(p.intakeNotes).toMatch(/FIRST/);
+    expect(p.intakeNotes, 'and the work domain is named as evidence').toContain('roundrockha.org');
   });
 
   it('falls back to the company when there is no personal name', () => {
@@ -214,6 +230,17 @@ describe('the create body cannot drift from the prefill', () => {
   it('carries the caveat into the database, not just onto the screen', () => {
     // intake_notes is what the AI briefing reads. If the warning lived only in the confirm dialog
     // it would be seen once by the operator and never by the thing doing the research.
-    expect(String(body.intake_notes)).toMatch(/not necessarily the record owner/i);
+    expect(String(body.intake_notes)).toMatch(/may or may not be the record owner/i);
+  });
+
+  it('sends every owner candidate, not just the first', () => {
+    // supplemental.ownerNames is searched by the run. A second name here is a second chance at the
+    // grantor index rather than a note nobody reads.
+    const org = researchCreateBody(researchPrefillFromJob(job({
+      name: 'CEDAR RIDGE HOA PHASE 2', client_name: 'Jane Roe', client_company: null,
+    })));
+    expect((org.supplemental as { ownerNames?: string[] }).ownerNames)
+      .toEqual(['CEDAR RIDGE HOA', 'Jane Roe']);
+    expect(org.owner_name).toBe('CEDAR RIDGE HOA');
   });
 });

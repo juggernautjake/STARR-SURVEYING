@@ -33,6 +33,8 @@
 // Everything in here is a pure function over a plain object, so both of those can be asserted in a
 // test rather than discovered on a county website.
 
+import { ownerCandidates, describeOwnerCandidates } from './owner-candidates';
+
 /** The subset of a `jobs` row this module reads. Loose on purpose — a caller passing the whole row
  *  is normal, and a null-heavy row is the common case rather than an error. */
 export interface JobForResearch {
@@ -132,10 +134,20 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   const city = text(job.city);
   const zip = text(job.zip);
 
-  // The client is the owner more often than not, and is the only name a job carries.
-  const client = text(job.client_name);
+  // ── WHO TO SEARCH FOR (rewritten 2026-09-21, after job 26144) ────────────────────────────────
+  //
+  // This used to be `client_name ?? client_company` and nothing else. Job 26144's run spent all
+  // three of its clerk name-searches on "EBBY GREEN" and found nothing — while the owner sat in
+  // the job's own title, "ROUND ROCK HOUSING AUTHORITY CUSHING DRIVE", and the client's email
+  // domain (roundrockha.org) corroborated it. Ebby Green is a person who works there; a grantor
+  // index does not record employees.
+  //
+  // `ownerCandidates` reads the title, the company and the contact, and orders them so an
+  // organisation goes first. See lib/research/owner-candidates.ts for why the title is a good
+  // source rather than a guess.
+  const candidates = ownerCandidates(job);
+  const ownerName = candidates.length ? candidates[0]!.name : null;
   const company = text(job.client_company);
-  const ownerName = client ?? company;
 
   const legal = composeLegalSummary(job);
 
@@ -151,15 +163,11 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   lines.push(
     `Started from job ${text(job.job_number) ?? job.id}${text(job.name) ? ` — ${text(job.name)}` : ''}.`,
   );
-  if (ownerName) {
-    // The caveat from the header, in the briefing itself, every time.
-    lines.push(
-      `Name on the job: ${ownerName}${company && company !== ownerName ? ` (${company})` : ''}. ` +
-      'This is the CLIENT who ordered the survey, which is not necessarily the record owner — it ' +
-      'may be a title company, a realtor, a lender or a developer. Treat it as a lead for the ' +
-      'grantor/grantee search, not as an established fact.',
-    );
-  }
+  // Every name worth searching, in order, with the reasoning attached — which is what job 26144
+  // needed and did not get. When the job carries only a personal name this still says so, because
+  // "the only name here is a person" is itself useful to a researcher.
+  const ownerNote = describeOwnerCandidates(job);
+  if (ownerNote) lines.push(ownerNote);
   const surveyType = text(job.survey_type);
   const acreage = text(job.acreage);
   if (surveyType) lines.push(`Survey type: ${surveyType}.`);
@@ -169,7 +177,9 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   if (jobNotes) lines.push(`Notes from the job: ${jobNotes}`);
 
   const supplemental: ResearchPrefill['supplemental'] = {};
-  if (ownerName) supplemental.ownerNames = [ownerName];
+  // EVERY candidate, in order — the run's supplemental hints are searched, so a second name here
+  // is a second chance at the grantor index rather than a note nobody reads.
+  if (candidates.length) supplemental.ownerNames = candidates.map((c) => c.name);
   if (text(job.subdivision)) supplemental.subdivisions = [text(job.subdivision)!];
   if (text(job.abstract_number)) supplemental.abstracts = [text(job.abstract_number)!];
   if (text(job.lot_number)) supplemental.lots = [text(job.lot_number)!];
