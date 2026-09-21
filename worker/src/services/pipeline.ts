@@ -1325,17 +1325,85 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     // ── Path C: Owner-name SPA search (fallback) ──────────────────────────
     const ownerForClerk = propertyResult?.ownerName ?? input.ownerName ?? null;
 
+    // ── Path C0: a county with its own clerk driver ─────────────────────────────────────────────
+    //
+    // `searchClerkRecords` is the Kofile driver. It is correct for the Kofile counties and cannot
+    // work on Williamson, whose clerk is Tyler Self-Service — and whose name fields are CHIP LISTS,
+    // so the term is not the text typed into the box but the entry selected from the dropdown it
+    // triggers. A fill-and-submit there returns "Your search could not be completed", which read as
+    // "no results" is a property with no recorded conveyance.
+    //
+    // Run BEFORE the generic path for the same reason the CAD branch is: for a county with its own
+    // client the generic attempt is not a fallback, it is a wrong turn that produces evidence about
+    // the wrong site.
+    //
+    // The driver also asks the county's own index how it spells the name. Six spellings of one
+    // housing authority live in there, including one the index truncated to "AUTHORIT", and all of
+    // them ride in a single search.
+    let williamsonDocs: DocumentResult[] | null = null;
+    if (!instrumentSearchSucceeded && ownerForClerk && /williamson/i.test(input.county)) {
+      try {
+        const { withBrowser } = await import('../lib/browser-factory.js');
+        const { searchWilliamsonClerk, toDocumentRefs } = await import('../counties/williamson/clerk-driver.js');
+
+        const outcome = await withBrowser({ adapterId: 'tyler-clerk' }, (session) =>
+          searchWilliamsonClerk(session.browser, { bothNames: ownerForClerk }, {
+            log: (level, message) => logger[level === 'warn' ? 'warn' : 'info']('Stage2', message),
+          }));
+
+        if (outcome.namesUsed.length > 1) {
+          logger.info('Stage2', `Williamson clerk: searched ${outcome.namesUsed.length} spellings at once — ${outcome.namesUsed.join(' · ')}`);
+        }
+
+        // The distinction this whole feature turns on. A refusal is not an empty result, and only
+        // one of the two is a finding about the property.
+        if (outcome.verdict.kind !== 'ok') {
+          const { rejectionLine } = await import('../research/site-rejection.js');
+          logger.warn('Stage2', rejectionLine(outcome.verdict));
+          retrievalFailures.push(outcome.verdict.message);
+        }
+
+        williamsonDocs = toDocumentRefs(outcome.records).map((ref) => ({
+          ref: {
+            instrumentNumber: ref.instrumentNumber,
+            volume: ref.volume,
+            page: ref.page,
+            documentType: ref.documentType,
+            recordingDate: ref.recordingDate,
+            grantors: ref.grantors,
+            grantees: ref.grantees,
+            source: ref.source,
+            url: ref.url,
+          },
+          // The legal description is the substance of a free index row; discarding it would leave
+          // the extraction stage nothing to read.
+          textContent: ref.legalDescription,
+          ocrText: null,
+          extractedData: null,
+        })) as DocumentResult[];
+
+        logger.info('Stage2', `Williamson clerk: ${williamsonDocs.length} index row(s) for "${ownerForClerk}"`);
+      } catch (e) {
+        logger.warn('Stage2', `Williamson clerk driver failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
     if (!instrumentSearchSucceeded && ownerForClerk) {
-      let ownerDocs: DocumentResult[] = [];
+      let ownerDocs: DocumentResult[] = williamsonDocs ?? [];
       try {
         // A2 on the generic path. `mayStart` gated this and then let it run until it finished —
         // the exact shape of the 697,641 ms owner search A2 was written to stop, applied only to
         // Bell. Bounded by whatever time the RUN has left. Found by the 2026-09-03 audit.
-        ownerDocs = !mayStart(input.projectId, 'clerk owner search')
-          ? []
-          : await withStepDeadline(input.projectId, 'clerk owner search',
-              () => searchClerkRecords(input.county, ownerForClerk, logger), [],
-              (m) => logger.warn('Budget', m));
+        // Skipped entirely when a county driver already answered. Running the Kofile driver after
+        // the Tyler one would search a portal Williamson does not use and append its (guaranteed)
+        // zero rows to a result set that is already correct.
+        ownerDocs = williamsonDocs !== null
+          ? williamsonDocs
+          : !mayStart(input.projectId, 'clerk owner search')
+            ? []
+            : await withStepDeadline(input.projectId, 'clerk owner search',
+                () => searchClerkRecords(input.county, ownerForClerk, logger), [],
+                (m) => logger.warn('Budget', m));
       } catch (clerkErr) {
         logger.warn('Stage2', `Owner-name search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`);
         retrievalFailures.push(

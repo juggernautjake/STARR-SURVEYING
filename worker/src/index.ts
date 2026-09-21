@@ -5575,6 +5575,54 @@ async function runCapturePlan(
         return null;
       }
     },
+    // ── IS THIS PICTURE WORTH KEEPING? ─────────────────────────────────────────────────────────
+    //
+    // Owner, 2026-09-21: "we are getting back screenshots of pages where nothing was found or it
+    // didn't load, and those images are useless."
+    //
+    // The runner checks the file size and the OCR text first and only reaches this when neither
+    // settled it — so this is not a call per capture, it is a call for the genuinely ambiguous
+    // ones. Without a key the cheap gates still run and anything unresolved is kept.
+    judgeCapture: async ({ imageBase64, mimeType, context }) => {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return null;
+      try {
+        const { VISION_PROMPT } = await import('./research/capture-usefulness.js');
+        const Anthropic = (await import('@anthropic-ai/sdk')).default;
+        const client = new Anthropic({ apiKey });
+
+        const res = await client.messages.create({
+          model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
+          // A verdict and one sentence. Anything larger is the model narrating.
+          max_tokens: 300,
+          system: VISION_PROMPT,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mimeType as 'image/png', data: imageBase64 } },
+              { type: 'text', text: context },
+            ],
+          }],
+        }, { timeout: 60_000 });
+
+        const block = res.content.find((c) => c.type === 'text');
+        const raw = block && block.type === 'text' ? block.text : '';
+        // The model is asked for JSON only; a fenced block is still the common failure, so the
+        // object is extracted rather than the whole string being parsed.
+        const json = /\{[\s\S]*\}/.exec(raw)?.[0];
+        if (!json) return null;
+        const parsed = JSON.parse(json) as { useful?: boolean; why?: string; confidence?: number };
+        if (typeof parsed.useful !== 'boolean') return null;
+        return {
+          useful: parsed.useful,
+          why: parsed.why ?? (parsed.useful ? 'the model judged it useful' : 'the model judged it useless'),
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
+        };
+      } catch {
+        // Never lose a capture to a failed judgement — the runner keeps it on a null.
+        return null;
+      }
+    },
     store: (item, bytes) => storeCaptureImage(supabase as never, projectId, item.key, bytes),
     file: (row) => fileCaptureRow(supabase as never, projectId, row),
     log: capLog,
