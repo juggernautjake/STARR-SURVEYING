@@ -14,9 +14,31 @@
 import { esc } from '@/lib/twilio/twiml';
 
 /** `sip:+18338426971@sip.rtc.elevenlabs.io:5060`, or null when it is not configured. */
+/**
+ * The agent's inbound SIP address, with a transport it can actually be reached on.
+ *
+ * ── WHY THIS NORMALISES INSTEAD OF JUST VALIDATING ──────────────────────────────────────────────
+ *
+ * ElevenLabs' trunk listens on TCP (5060) and TLS (5061). It does NOT listen on UDP. Twilio
+ * defaults a `sip:` URI with no `transport` parameter to UDP — so a URI that looks perfectly
+ * well-formed, passes every check here, and is exactly what their own setup script printed, sends
+ * every INVITE to a port with nothing behind it.
+ *
+ * The failure is invisible from our side. No SIP response comes back at all, so there is no error
+ * code in Twilio to look up and no conversation on the ElevenLabs side to explain; the leg simply
+ * fails in about a second, `agent-ended` hands the caller to the answering machine as designed, and
+ * the only symptom is a customer leaving a voicemail. That ran for five days from 2026-09-16.
+ *
+ * So a plain `sip:` URI with no transport gets `;transport=tcp` rather than being accepted as-is or
+ * rejected. Accepting it silently is what caused the outage; rejecting it would take the receptionist
+ * off the air over a missing parameter we know the correct value of. A `sips:` URI is left alone —
+ * that scheme already implies TLS — and so is any URI that states its own transport.
+ */
 export function elevenLabsSipUri(env: Record<string, string | undefined> = process.env): string | null {
   const raw = (env.ELEVENLABS_SIP_URI ?? '').trim();
-  return /^sips?:[^\s@]+@[^\s]+$/i.test(raw) ? raw : null;
+  if (!/^sips?:[^\s@]+@[^\s]+$/i.test(raw)) return null;
+  if (/;transport=/i.test(raw) || /^sips:/i.test(raw)) return raw;
+  return `${raw};transport=tcp`;
 }
 
 export const elevenLabsConfigured = (env: Record<string, string | undefined> = process.env): boolean =>

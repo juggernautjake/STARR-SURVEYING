@@ -375,8 +375,25 @@ if (typeof sip === 'string') {
   });
   if (!res.ok) { console.error('sip registration failed:', res.status, JSON.stringify(res.json).slice(0, 600)); process.exit(1); }
   console.log('registered:', JSON.stringify(res.json));
-  console.log(`\nInbound URI for Twilio: sip:${sip}@sip.rtc.elevenlabs.io:5060`);
+  // ── `;transport=tcp` IS NOT OPTIONAL ──────────────────────────────────────────────────────────
+  //
+  // This line printed the URI without it, that value went into Vercel, and the conversational agent
+  // never answered a single live call for five days.
+  //
+  // ElevenLabs' trunk listens on TCP (5060) and TLS (5061) and NOT on UDP. Twilio defaults a `sip:`
+  // URI with no transport parameter to UDP, so every INVITE went to a port nobody was listening on:
+  // the leg failed in about a second with no SIP response at all, which is why there was no Twilio
+  // error code to look up and no conversation on the ElevenLabs side to explain it. Meanwhile
+  // `agent-ended` handed each caller to the answering machine exactly as designed, so the only
+  // symptom was five customers leaving voicemails.
+  //
+  // Proven 2026-09-21 by dialling the trunk directly from Twilio: without the parameter the call
+  // failed in 0 seconds; with it the same call completed in 12 and ElevenLabs logged its first
+  // `sip_trunk` conversation.
+  const inboundUri = `sip:${sip}@sip.rtc.elevenlabs.io:5060;transport=tcp`;
+  console.log(`\nInbound URI for Twilio: ${inboundUri}`);
   console.log('Set ELEVENLABS_SIP_URI to that value in Vercel to enable the "ElevenLabs agent" test calls.');
+  console.log('Keep ";transport=tcp" — their trunk has no UDP listener and Twilio defaults to UDP.');
   process.exit(0);
 }
 
