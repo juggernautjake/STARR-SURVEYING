@@ -5,6 +5,29 @@
 -- minutes, on the next sync — not instantly, and not by push, because **no vendor emits an event when
 -- a surveyor presses Store**. Collectors sync at the job/file level.
 --
+-- ── CORRECTION, 2026-09-21: THAT LAST SENTENCE IS TRUE OF THE CLOUD PATH ONLY ───────────────────
+--
+-- The owner asked the question again and the answer turns out to be narrower than it was written.
+-- Trimble's Access SDK documents `tsc_IDatabaseMonitor`, whose `OnEntityAppended` callback fires
+-- when "an object has been appended to the end of the database" — including a point stored to the
+-- job. That IS an event on Store, and a plugin can also read the job's points through
+-- `tsc_Database` / `tsc_JobPoints`.
+--
+-- So the accurate statement is: **no vendor emits an event over the CLOUD.** Trimble Connect has no
+-- webhooks, its Object Sync is a cursor you poll, and everything this table was designed around
+-- still holds for that route.
+--
+-- The plugin route is nevertheless not the one taken, for a reason that only became clear with the
+-- full class list in front of us: SCAPI has no networking. Its only external-communications
+-- classes are serial — `tsc_Rs232Stream` and friends — so a plugin can detect the shot and cannot
+-- phone home about it. Add a partner agreement, an API Developers licence, C++ in Visual Studio,
+-- and deployment through Trimble Installation Manager, and the best it could do is write a file
+-- that AccessSync then uploads, which is this table again by a longer road.
+--
+-- Recorded rather than quietly edited because the original sentence was steering decisions away
+-- from something that turned out to be possible, and the next person to ask deserves the specific
+-- reason rather than the general one.
+--
 -- ── TWO CLOCKS, AND THE APP MUST NEVER SHOW THE SECOND AS THE FIRST ─────────────────────────────
 --
 -- §3d: *"Rural Texas boundary work regularly has no cell service. Whatever the vendor path, ingestion
