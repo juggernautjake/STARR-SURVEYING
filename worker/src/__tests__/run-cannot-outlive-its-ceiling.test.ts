@@ -128,7 +128,19 @@ describe('the tail', () => {
     const start = index.indexOf('activePipelines.set(projectId, {');
     const window = index.slice(start, start + 5000);
     expect(window).toContain('const costPoll = setInterval(');
-    expect(window).toContain("checkBudget(projectId, spendForRun(projectId))");
+    // ── ON NON-DOCUMENT SPEND (owner, 2026-09-21) ──────────────────────────────────────────
+    //
+    // The watchdog stays and still hard-stops; what changed is which meter it reads. It used to
+    // read TOTAL spend, so a bought document was charged against the ceiling like an AI call: on
+    // job 26144 a $10 plat blew a $2 cap the instant it was paid for, this fired, and the free
+    // clerk index was never searched. The run ended in 2m21s having spent ten dollars and read
+    // nothing.
+    //
+    // Purchases have their own budget and their own brake — reaching it stops BUYING, not the
+    // run. This ceiling governs the spend with no natural end, which is what it was written for.
+    expect(window).toContain("checkBudget(projectId, nonDocumentSpendForRun(projectId))");
+    expect(window, 'a purchase must not trip the run ceiling')
+      .not.toContain("checkBudget(projectId, spendForRun(projectId))");
     expect(window).toContain("status.exceeded === 'cost'");
     expect(window).toContain('active.abortController?.abort(new BudgetAbort(message))');
     expect(window).toContain('clearInterval(costPoll)');

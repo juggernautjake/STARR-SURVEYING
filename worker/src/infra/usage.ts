@@ -126,8 +126,45 @@ export const SYSTEM_ACTOR = 'worker@system';
 /** Per-project spend so far, in USD. In-process; see the header for why it exists beside the table. */
 const runSpend = new Map<string, number>();
 
+/**
+ * What this run spent BUYING DOCUMENTS, kept apart from everything else.
+ *
+ * ── WHY TWO METERS (owner, 2026-09-21) ──────────────────────────────────────────────────────────
+ *
+ * A run has a cost ceiling, and until now a bought document was charged against it like an AI call.
+ * On job 26144 that meant a $10 plat — correctly identified, correctly bought — instantly blew a
+ * $2 ceiling, the watchdog aborted the run, and the free clerk index was never searched at all. The
+ * run finished in 2m21s having spent ten dollars and read nothing.
+ *
+ * The owner's rule: "even if the spend limit is reached for purchasing documents, we still should
+ * be searching the free websites... The research pipeline should not just end as soon as the budget
+ * limit is reached."
+ *
+ * So the ceilings mean different things. The DOCUMENT budget governs buying: reach it and the run
+ * stops buying and keeps working, listing what it would have bought. The run's cost ceiling governs
+ * the money that has no other brake — AI, OCR, captcha, browser sessions — and still ends a run,
+ * because that spend has no natural end.
+ */
+const docSpend = new Map<string, number>();
+
 export function spendForRun(projectId: string): number {
   return runSpend.get(projectId) ?? 0;
+}
+
+/** Of `spendForRun`, the part that bought documents. */
+export function documentSpendForRun(projectId: string): number {
+  return docSpend.get(projectId) ?? 0;
+}
+
+/**
+ * Everything the run spent that was NOT a document — what the cost watchdog governs.
+ *
+ * This is the number a run cost ceiling was always meant to describe: a purchase is a deliberate,
+ * itemised, operator-budgeted act with a receipt, and a ceiling meant to stop runaway model spend
+ * should not be tripped by one.
+ */
+export function nonDocumentSpendForRun(projectId: string): number {
+  return Number((spendForRun(projectId) - documentSpendForRun(projectId)).toFixed(6));
 }
 
 /**
@@ -229,6 +266,7 @@ async function loadLedgerRows(projectId: string, since?: string): Promise<Ledger
 
 export function resetRunSpend(projectId: string): void {
   runSpend.delete(projectId);
+  docSpend.delete(projectId);
 }
 
 /** Every AI call, paid page and solved captcha lands here.
@@ -243,6 +281,10 @@ export async function recordUsage(event: UsageEvent): Promise<number> {
 
   // Accumulate FIRST. The budget must count a call that happened even if its row does not save.
   runSpend.set(event.projectId, (runSpend.get(event.projectId) ?? 0) + cost);
+  // ...and again, separately, when it bought something. See `docSpend` above for why.
+  if (event.eventType === 'document_purchase') {
+    docSpend.set(event.projectId, (docSpend.get(event.projectId) ?? 0) + cost);
+  }
 
   const { known } = rateFor(event.model);
   const row = {

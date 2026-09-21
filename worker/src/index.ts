@@ -119,7 +119,7 @@ import {
 } from './research/persist-run-logs.js';
 import { BudgetAbort, OperatorAbort, StallAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
-import { resetRunSpend, spendForRun, ledgerSpendForRun, ledgerSpendByBucket, describeSpendByBucket } from './infra/usage.js';
+import { resetRunSpend, spendForRun, nonDocumentSpendForRun, ledgerSpendForRun, ledgerSpendByBucket, describeSpendByBucket } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -1819,7 +1819,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     const costPoll = setInterval(() => {
       const active = activePipelines.get(projectId);
       if (!active || active.abortController?.signal.aborted) { clearInterval(costPoll); return; }
-      const status = checkBudget(projectId, spendForRun(projectId));
+      // ── DOCUMENT SPEND DOES NOT END A RUN (owner, 2026-09-21) ──────────────────────────────
+      //
+      // This read the TOTAL spend, so a bought document was charged against the run's cost ceiling
+      // like an AI call. On job 26144 a $10 plat — correctly found, correctly bought — blew a $2
+      // ceiling the instant it was paid for, this watchdog aborted, and the free clerk index was
+      // never searched. The run ended in 2m21s having spent ten dollars and read nothing.
+      //
+      // Purchases have their own budget and their own brake: reaching it stops BUYING. This ceiling
+      // governs the spend with no natural end — AI, OCR, captcha, browser sessions — and still ends
+      // a run, which is what it was for.
+      const status = checkBudget(projectId, nonDocumentSpendForRun(projectId));
       if (status.exceeded === 'cost' || status.exceeded === 'paid_pages') {
         const message = status.exceeded === 'cost'
           ? `Finished at the $${budgetLimits.maxCostUsd.toFixed(2)} cost limit you set. Raise the cost limit and re-run to research further.`
@@ -2050,7 +2060,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         const mayReadHead = () => {
           if (Date.now() - headStartedAt > headCapMs) return false;
           if (pipelineAbortController.signal.aborted) return false;
-          const ex = checkBudget(projectId, spendForRun(projectId)).exceeded;
+          const ex = checkBudget(projectId, nonDocumentSpendForRun(projectId)).exceeded;
           return ex !== 'cost' && ex !== 'paid_pages';
         };
         await withRunContext(projectId, async () => {
@@ -2105,7 +2115,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         })();
       }
 
-      const budget = checkBudget(projectId, spendForRun(projectId));
+      const budget = checkBudget(projectId, nonDocumentSpendForRun(projectId));
       if (!budget.ok && !pipelineAbortController.signal.aborted) {
         const summary = windDownSummary(budget);
         console.warn(`[budget] ${projectId}: ${summary}`);
