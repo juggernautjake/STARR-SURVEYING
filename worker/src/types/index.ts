@@ -53,6 +53,28 @@ export interface PipelineInput {
    * into the one place that can honour it. See `research/run-order.ts`.
    */
   onPropertyIdentified?: import('../research/run-order.js').OnPropertyIdentified;
+  /**
+   * Called once Stage 2 has gathered everything the FREE sources hold, and before Stage 3 reads it.
+   *
+   * The early buy (`onPropertyIdentified`) cannot see the documents — it runs before any exist — so
+   * it can only catch plats and the operator's own targets. This is where a run learns that six
+   * deeds came back as index rows with no text and no image, which is a gap money can close, and
+   * the only moment it is both known and still useful: a document bought after Stage 3 is one
+   * nobody analysed. Returns whatever it bought, to join the run.
+   */
+  onDocumentsGathered?: (found: {
+    documents: Array<{
+      instrumentNumber: string | null;
+      volume: string | null;
+      page: string | null;
+      documentType: string | null;
+      recordingDate: string | null;
+      hasText: boolean;
+      hasImage: boolean;
+    }>;
+    county: string;
+    subdivisionName: string | null;
+  }) => Promise<DocumentResult[] | null>;
   /** User-uploaded files to process alongside online-retrieved documents */
   userFiles?: UserFile[];
   /**

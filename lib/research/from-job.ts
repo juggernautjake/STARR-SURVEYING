@@ -51,6 +51,14 @@ export interface JobForResearch {
   lot_number?: string | null;
   subdivision?: string | null;
   abstract_number?: string | null;
+  /**
+   * The CURRENT RECORD OWNER, when the office knows it (seed 655).
+   *
+   * Separate from `client_name` because they are different people and conflating them cost job
+   * 26144 every one of its clerk name searches. Optional — blank is the normal case, and then the
+   * candidate inference below does the work.
+   */
+  owner_name?: string | null;
   client_name?: string | null;
   client_company?: string | null;
   client_email?: string | null;
@@ -145,8 +153,14 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   // `ownerCandidates` reads the title, the company and the contact, and orders them so an
   // organisation goes first. See lib/research/owner-candidates.ts for why the title is a good
   // source rather than a guess.
+  // A NAME SOMEBODY TYPED BEATS ONE WE INFERRED. `owner_name` (seed 655) exists precisely so the
+  // office can say who owns the land when it knows; the candidate inference below is what happens
+  // when nobody has. Reading it first also makes the inference correctable — before this column
+  // there was no field to put the right answer in, so a run that searched the wrong name had to be
+  // watched rather than fixed.
+  const stated = text(job.owner_name);
   const candidates = ownerCandidates(job);
-  const ownerName = candidates.length ? candidates[0]!.name : null;
+  const ownerName = stated || (candidates.length ? candidates[0]!.name : null);
   const company = text(job.client_company);
 
   const legal = composeLegalSummary(job);
@@ -179,7 +193,8 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   const supplemental: ResearchPrefill['supplemental'] = {};
   // EVERY candidate, in order — the run's supplemental hints are searched, so a second name here
   // is a second chance at the grantor index rather than a note nobody reads.
-  if (candidates.length) supplemental.ownerNames = candidates.map((c) => c.name);
+  const allNames = [...(stated ? [stated] : []), ...candidates.map((c) => c.name).filter((n) => n !== stated)];
+  if (allNames.length) supplemental.ownerNames = allNames;
   if (text(job.subdivision)) supplemental.subdivisions = [text(job.subdivision)!];
   if (text(job.abstract_number)) supplemental.abstracts = [text(job.abstract_number)!];
   if (text(job.lot_number)) supplemental.lots = [text(job.lot_number)!];
@@ -195,7 +210,9 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
     county,
     parcelId: null,
     ownerName,
-    ownerIsAssumed: ownerName !== null,
+    // Only a name we INFERRED is an assumption. One the office stated is not, and labelling it
+    // as one would train the reader to ignore the flag that matters.
+    ownerIsAssumed: ownerName !== null && !stated,
     legalDescriptionSummary: legal,
     intakeNotes: lines.join('\n'),
     projectId: text(job.project_id),

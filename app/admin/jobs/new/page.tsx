@@ -32,6 +32,7 @@ export default function NewJobPage() {
     state: 'TX',
     zip: '',
     county: '',
+    owner_name: '',
     /** Filled from the address picker, so the property map knows where to fly. Null until then. */
     latitude: null as number | null,
     longitude: null as number | null,
@@ -101,7 +102,7 @@ export default function NewJobPage() {
     client_name: string | null; client_company: string | null; client_email: string | null;
     client_phone: string | null; client_address: string | null;
     address: string | null; city: string | null; state: string | null; zip: string | null;
-    county: string | null; subdivision: string | null; abstract_number: string | null;
+    county: string | null; owner_name: string | null; subdivision: string | null; abstract_number: string | null;
     lot_number: string | null; acreage: number | null; lead_rpls_email: string | null;
   }>>([]);
   const [projectId, setProjectId] = useState<string>(presetProjectId ?? '');
@@ -491,6 +492,20 @@ export default function NewJobPage() {
                   </span>
                 </label>
                 <input className="job-form__input" value={form.county} onChange={e => updateField('county', e.target.value)} />
+              </div>
+              {/* The OWNER, which is not the client (seed 655). Job 26144 had only a client field,
+                  so research searched the county clerk for "EBBY GREEN" — the person at the housing
+                  authority who rang us — and found nothing three times over. */}
+              <div className="job-form__field">
+                <label className="job-form__label">
+                  <span className="job-form__label-row">
+                    Current Property Owner
+                    <Tooltip text="Who OWNS the land, if you know — this is not the client who hired us, and on a boundary survey they are often different people. Used to search the county clerk's grantor and grantee index. Leave it blank and the research run will work the owner out from the appraisal district; fill it in when you already know, or to correct a run that searched the wrong name." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input className="job-form__input" value={form.owner_name} onChange={e => updateField('owner_name', e.target.value)} placeholder="Leave blank to let research find it" />
               </div>
               <div className="job-form__field">
                 <label className="job-form__label">

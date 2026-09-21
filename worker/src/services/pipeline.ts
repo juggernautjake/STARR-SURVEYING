@@ -1957,6 +1957,51 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     discoveryState.totalDocumentsRetrieved = documents.length;
     logger.info('Discovery', `Post-Stage2 state: ${stateSummary(discoveryState)}`);
 
+    // ── THE SECOND PURCHASE PASS: BUY WHAT THE FREE PASS COULD NOT GET ──────────────────────────
+    //
+    // The first one runs from `onPropertyIdentified`, before any document has been found, and that
+    // position is deliberate — a buy placed after the whole free pass never fired at all, so
+    // TexasFile was charged $0 while $5 of AI was spent. It catches plats and the operator's own
+    // targets, and it is staying.
+    //
+    // What it CANNOT do is see the documents. On 2026-09-21 it ran, correctly reported "0 documents
+    // TexasFile has that the free record does not" against an empty set, and was never asked again.
+    // Stage 2 then found six deeds whose free index rows carry no text and no image, Stage 3 had
+    // nothing to read — "0/6 have image/pages" — and the run finished having spent nothing of a $7
+    // budget while answering none of the questions the documents existed to answer.
+    //
+    // So purchasing is not one stage at a fixed point in the sequence. It is a thing the run does
+    // whenever it learns of a gap it can pay to close, and the gap is only knowable HERE: after the
+    // free sources have answered and before Stage 3 tries to read what they returned.
+    //
+    // Runs before Stage 3 on purpose. A document bought after the analysis stage is a document
+    // nobody analysed.
+    if (input.onDocumentsGathered && documents.length > 0) {
+      try {
+        const added = await input.onDocumentsGathered({
+          documents: documents.map((d) => ({
+            instrumentNumber: d.ref.instrumentNumber ?? null,
+            volume: d.ref.volume ?? null,
+            page: d.ref.page ?? null,
+            documentType: d.ref.documentType ?? null,
+            recordingDate: d.ref.recordingDate ?? null,
+            // The gap itself: a row with neither is metadata, and metadata cannot be OCR'd.
+            hasText: !!d.textContent,
+            hasImage: !!(d.imageBase64 || (d.pages?.length ?? 0) > 0 || (d.pageScreenshots?.length ?? 0) > 0),
+          })),
+          county: input.county,
+          subdivisionName: extractSubdivisionName(propertyResult?.legalDescription ?? '') ?? null,
+        });
+        if (added && added.length > 0) {
+          documents.push(...(added as typeof documents));
+          logger.info('Stage2.5', `${added.length} purchased document(s) joined the run before analysis.`);
+        }
+      } catch (err) {
+        // A failed buy must never take down a run that has already gathered a free record.
+        logger.warn('Stage2.5', `The paid gap-fill did not run: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     // ── Stage 3 pre-flight: log each document's content for operator visibility ──
     logger.info('Stage3', `═══ STAGE 3: OCR + AI Deep Analysis ═══`);
     logger.info('Stage3', `Preparing ${documents.length} document(s) for OCR + AI extraction`);

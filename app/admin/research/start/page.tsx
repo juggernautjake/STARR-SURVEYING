@@ -43,8 +43,13 @@ interface PriorProject {
 }
 
 /** Everything `researchPrefillFromJob` reads, plus what this page displays. */
+// An EXPLICIT column list, which means a column missing from it reaches the prefill as undefined
+// and is indistinguishable from a column nobody filled in. `owner_name` (seed 655) exists precisely
+// so the office can correct an owner the run would otherwise guess — leaving it out here would have
+// made that field do nothing at all, silently, which is the failure it was added to prevent.
 const JOB_COLUMNS = [
   'id', 'job_number', 'name', 'address', 'city', 'state', 'zip', 'county',
+  'owner_name',
   'survey_type', 'acreage', 'lot_number', 'subdivision', 'abstract_number',
   'client_name', 'client_company', 'client_email', 'client_phone',
   'project_id', 'notes', 'instructions',

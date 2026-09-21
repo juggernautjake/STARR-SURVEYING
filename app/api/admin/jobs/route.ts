@@ -99,7 +99,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { name, job_number, description, address, city, state, zip, county, survey_type,
+  const { name, job_number, description, address, city, state, zip, county, owner_name, survey_type,
     acreage, client_name, client_email, client_phone, client_company, client_address,
     lead_rpls_email, deadline, quote_amount, notes, tags, is_legacy, is_priority,
     lot_number, subdivision, abstract_number, latitude, longitude,
@@ -194,7 +194,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // describing record — every PDF export, field packet and CAD title block already reads
       // `job.client_name` and `job.address`.
       ...inheritFromProject(project as Record<string, unknown>, {
-        address, city, zip, county,
+        address, city, zip, county, owner_name,
         acreage, client_name, client_email, client_phone, client_company, client_address,
         lot_number, subdivision, abstract_number, latitude, longitude,
         lead_rpls_email, customer_id: customer_id || null,

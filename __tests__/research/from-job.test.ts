@@ -244,3 +244,63 @@ describe('the create body cannot drift from the prefill', () => {
     expect(org.owner_name).toBe('CEDAR RIDGE HOA');
   });
 });
+
+/**
+ * The owner and the client are two different people (seed 655).
+ *
+ * Job 26144: "ROUND ROCK HOUSING AUTHORITY CUSHING DRIVE" at 1007 Cushing Drive, client_name
+ * EBBY GREEN — a person who works at the housing authority. The clerk was searched for her name
+ * three times and found nothing, because a grantor index records who signed a deed, not who
+ * telephoned a surveyor. The record owner was CITY OF ROUND ROCK.
+ *
+ * `owner_name` is where the office writes that down when it knows it. When it is blank — the normal
+ * case — the inference from the job title and the client's email domain does the work exactly as
+ * before.
+ */
+describe('owner_name is not client_name', () => {
+  const job26144 = {
+    job_number: '26144',
+    name: 'ROUND ROCK HOUSING AUTHORITY CUSHING DRIVE ',
+    address: '1007 Cushing Drive',
+    city: 'Round Rock', state: 'TX', county: 'Williamson',
+    client_name: 'EBBY GREEN ',
+    client_email: 'ebby@roundrockha.org',
+  } as never;
+
+  it('uses a stated owner over anything inferred', () => {
+    const p = researchPrefillFromJob({ ...(job26144 as object), owner_name: 'CITY OF ROUND ROCK' } as never);
+    expect(p.ownerName).toBe('CITY OF ROUND ROCK');
+    // And it is NOT flagged as an assumption, because a person typed it.
+    expect(p.ownerIsAssumed).toBe(false);
+  });
+
+  it('never hands the clerk the client as the owner', () => {
+    // The whole defect in one assertion.
+    for (const owner of ['CITY OF ROUND ROCK', null, undefined]) {
+      const p = researchPrefillFromJob({ ...(job26144 as object), owner_name: owner } as never);
+      expect(p.ownerName, String(owner)).not.toMatch(/EBBY GREEN/i);
+    }
+  });
+
+  it('still infers when nobody stated one, and says that it did', () => {
+    const p = researchPrefillFromJob(job26144);
+    expect(p.ownerName).toBeTruthy();
+    expect(p.ownerIsAssumed).toBe(true);
+  });
+
+  it('keeps a stated owner at the front of the names the run will try', () => {
+    const p = researchPrefillFromJob({ ...(job26144 as object), owner_name: 'CITY OF ROUND ROCK' } as never);
+    expect(p.supplemental?.ownerNames?.[0]).toBe('CITY OF ROUND ROCK');
+    // without duplicating it if the inference produced the same name
+    const names = p.supplemental?.ownerNames ?? [];
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('inherits the county the job carries', () => {
+    expect(researchPrefillFromJob(job26144).county).toBe('Williamson');
+    // and says so plainly when it is missing, rather than starting a run that cannot pick a clerk
+    const noCounty = researchPrefillFromJob({ ...(job26144 as object), county: null } as never);
+    expect(noCounty.county).toBeNull();
+    expect(noCounty.missing.join(' ')).toMatch(/county/i);
+  });
+});
