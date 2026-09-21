@@ -114,7 +114,60 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], ini
           // Owner, 2026-09-16: "The agent was just really bad with interruptions." A long turn is
           // what a caller talks over, so the ceiling comes down to about three spoken sentences.
           max_tokens: 160,
+          // ── THE TOOLS THE PROMPT ACTUALLY ASKS FOR ────────────────────────────────────────────
+          //
+          // Every built-in tool was `null` on the live agent until 2026-09-21, while the prompt's
+          // # Tools section had been telling Ellie to use `end_call` and `skip_turn` for weeks. She
+          // could do neither: no way to hang up when a call was finished, and no way to hold
+          // silence while a caller looked something up — so she filled it with another question,
+          // which is the behaviour that reads as an agent not listening.
+          //
+          // Declared here, not just switched on in the dashboard, because this payload REPLACES
+          // `prompt` wholesale on every run — so a hand-made change would survive exactly until the
+          // next time somebody ran this script.
+          built_in_tools: {
+            end_call: { type: 'system', name: 'end_call', description: '', params: { system_tool_type: 'end_call' } },
+            skip_turn: { type: 'system', name: 'skip_turn', description: '', params: { system_tool_type: 'skip_turn' } },
+            // Lets her switch language mid-call rather than guessing from the first word. See
+            // `language_presets` below.
+            language_detection: { type: 'system', name: 'language_detection', description: '', params: { system_tool_type: 'language_detection' } },
+          },
           ...(knowledgeBase.length ? { knowledge_base: knowledgeBase, rag: { enabled: true } } : {}),
+        },
+      },
+      // ── SPANISH (owner, 2026-09-21) ──────────────────────────────────────────────────────────
+      //
+      // Bell, Williamson and Milam counties are bilingual and the agent was English-only, so a
+      // Spanish-speaking caller got an agent failing to understand them and then voicemail. The
+      // prompt's # Language section carries the behaviour; this is what makes it possible, together
+      // with the `language_detection` tool above.
+      //
+      // The greeting is translated rather than switched into mid-sentence: the first message is
+      // spoken before the caller has said anything, so nothing can be detected from it yet. A
+      // caller who opens in Spanish is switched by the tool on their first sentence.
+      language_presets: {
+        es: {
+          overrides: {
+            agent: {
+              first_message:
+                'Starr Surveying, le atiende Ellie. Soy un asistente automatizado y esta llamada se graba. ¿En qué puedo ayudarle?',
+              // The Spanish-only craft lives HERE rather than in the base prompt, because it only
+              // applies once the call is already in Spanish — and the base prompt is sent on every
+              // turn of every call, English ones included. The guide's own warning is that length
+              // past roughly 2000 tokens buys latency and nothing else.
+              prompt: {
+                prompt: `${prompt}
+
+# Español
+
+Esta llamada es en español. Todo lo anterior se aplica igual.
+
+- DELETREO. Usa los nombres de las letras en español y distingue los pares que suenan igual por teléfono: "be de burro", "ve de vaca", y s/c/z — como lo haría alguien confirmando un apellido.
+- NÚMEROS. Di y repite los números de teléfono como se hace en español, en pares o dígito por dígito, igual a como los escuchaste.
+- Usa usted, no tú, salvo que la persona te hable de forma claramente informal primero.`,
+              },
+            },
+          },
         },
       },
       tts: {

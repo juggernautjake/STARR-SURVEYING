@@ -387,7 +387,33 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // Why 9500 is defensible today: ~2380 tokens against a "~2000" guideline, the platform caches
     // the system prompt so the cost lands once per call rather than per turn, and the latency
     // actually being reported is dropped TTS audio mid-utterance, not prefill.
-    expect(p.length, 'roughly under 2000 tokens').toBeLessThan(9500);
+    //
+    // ── 9500 → 10500, 2026-09-21, ON THE OWNER'S EXPLICIT DECISION ─────────────────────────────
+    //
+    // The paragraph above says the next increase is not allowed, and it was right to. This one was
+    // put to the owner as a choice — raise it, drop one of the new behaviours, or cut rules that
+    // each came from a real failed call — and he chose to raise it. Recorded here because a ratchet
+    // overridden without a name on it is just a ratchet that does not work.
+    //
+    // WHAT WAS DONE FIRST, because the instruction above asks for this before any raise:
+    //   · the new rules were compressed by roughly 45% (12418 → 10228 with everything else held)
+    //   · the price-factors list left # Guardrails for its own knowledge-base document — the RULE
+    //     ("never give a price") stays in the prompt; the LIST it points at is retrieved on demand
+    //   · the Spanish spelling and number craft went into the `es` language preset, so it is sent
+    //     only on a call that is already in Spanish and English callers never pay for it
+    //   · # Environment and "Everyone else who rings this line" were saying who might call twice
+    //
+    // WHAT THE 1000 BOUGHT — three capabilities the agent did not have:
+    //   · Spanish. Bell, Williamson and Milam are bilingual; the agent was English-only, so a
+    //     Spanish-speaking caller reached an agent that could not understand them, then voicemail.
+    //   · An existing customer asking after a job in progress is no longer put through new-job
+    //     intake, which told people we already work for that nobody here knew who they were.
+    //   · An exit from an abusive call, after one warning. She had none: the prompt named
+    //     `end_call` and the tool was not even enabled on the agent (every built_in_tool was null).
+    //
+    // THE BOUNDARY STANDS. This is not a precedent for 11500. The next rule comes out of the
+    // system prompt and goes into the knowledge base, which is what that mechanism is for.
+    expect(p.length, 'roughly under 2000 tokens').toBeLessThan(10500);
     expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
