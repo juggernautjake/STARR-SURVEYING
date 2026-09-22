@@ -604,11 +604,15 @@ export default function ReceptionistTestPage(): React.ReactElement {
                                 aria-pressed={on}
                                 disabled={voiceBusy === v.id}
                                 onClick={() => void assignVoice(v, 'both')}
-                                title={v.blurb}
+                                title={on ? `${v.name} is the live voice. ${v.blurb}` : `Make ${v.name} the live voice. ${v.blurb}`}
+                                aria-label={on ? `${v.name} is the live voice` : `Use ${v.name} on live calls`}
                               >
                                 <span className="rtest__voicename">{v.name}</span>
-                                {on && <span className="rtest__tag rtest__tag--on">In use</span>}
-                                {!on && v.recommended && <span className="rtest__tag">Worth trying</span>}
+                                {/* "Live" rather than "In use": this one button sets the voice for
+                                    real callers, and a label that does not say so invites somebody
+                                    to click through the list auditioning — which is what ▶ is for. */}
+                                {on && <span className="rtest__tag rtest__tag--on">Live</span>}
+                                {!on && <span className="rtest__voiceset">Use on live calls</span>}
                               </button>
                             </div>
                           );
@@ -618,7 +622,11 @@ export default function ReceptionistTestPage(): React.ReactElement {
                   })}
                 </div>
                 {voiceNote && <p className="rtest__note" aria-live="polite">{voiceNote}</p>}
-                <p className="rtest__hint">Press ▶ to hear the receptionist&rsquo;s real opening line. Picking one changes it on the next conversation — no deploy.</p>
+                <p className="rtest__hint">
+                  <b>▶ auditions. Clicking the name goes live.</b> The sample is the receptionist&rsquo;s
+                  real opening line, so you hear exactly what a caller hears. Choosing a voice changes it
+                  for live calls and test calls alike, from the next conversation onward — no deploy.
+                </p>
               </>
             ) : (
               <>

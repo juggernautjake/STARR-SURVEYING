@@ -256,6 +256,25 @@
 }
 .rtest__voicename { font-size: .84rem; font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
 
+/* "Use on live calls", on every voice that is not the live one.
+   Quiet until hover, because it sits on every row in a long list and a column of loud calls to
+   action reads as a menu of equal choices rather than as one button with an effect. It is spelled
+   out rather than implied: this control sets the voice REAL CALLERS hear, and ▶ beside it is the
+   audition — the two used to look like the same kind of thing. */
+.rtest__voiceset {
+  margin-left: auto;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--theme-fg-muted, #64748B);
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.rtest__voicepick:hover .rtest__voiceset,
+.rtest__voicepick:focus-visible .rtest__voiceset { opacity: 1; }
+/* Touch has no hover, so the label would never appear. */
+@media (hover: none) { .rtest__voiceset { opacity: 1; } }
+
 /* ══ CONTROLS ════════════════════════════════════════════════════════════════════════════════ */
 .rtest__row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .rtest__rowbtns { display: flex; gap: .4rem; flex-wrap: wrap; }
