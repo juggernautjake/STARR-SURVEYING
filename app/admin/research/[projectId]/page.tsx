@@ -23,6 +23,7 @@ import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas'
 import BriefingPanel from '../components/BriefingPanel';
 import RunAiReviewControl from '../components/RunAiReviewControl';
 import FreePlatLeadsNotice from '../components/FreePlatLeadsNotice';
+import PurchaseOffersPanel from '../components/PurchaseOffersPanel';
 import AnalysisEstimatePanel from '../components/AnalysisEstimatePanel';
 import ReviewDocumentsList from '../components/ReviewDocumentsList';
 import ProjectCostBadge from '../components/ProjectCostBadge';
@@ -2023,6 +2024,13 @@ export default function ResearchProjectPage() {
               {/* A free plat the county portal names but no server of ours can fetch (2026-09-08): the
                   person in the office is the one address that can. */}
               <FreePlatLeadsNotice projectId={projectId} leads={(project.analysis_metadata as { freePlatLeads?: unknown } | null)?.freePlatLeads} onFiled={() => { loadProject(); loadDocuments(); }} />
+
+              {/* What the run found behind a paywall and deliberately did not buy (owner, 2026-09-21:
+                  "we will list them when the research run is done, and next to them we will have a
+                  purchase button"). Sits directly beneath the free plats on purpose — the two answer
+                  the same question, "what else exists that is not in this list yet", and the free one
+                  is first because it costs nothing. It renders nothing when there is nothing on offer. */}
+              <PurchaseOffersPanel projectId={projectId} onBought={() => { loadProject(); loadDocuments(); }} />
               <RunAiReviewControl projectId={projectId} onStarted={() => loadProject()} onFinished={() => loadProject()} analyzing={project.status === 'analyzing'} />
 
               {/* E3b + G8 — ONE combined list: the fixed-price analysis quote (full-analysis total + a

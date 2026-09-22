@@ -14295,3 +14295,92 @@
 .review-docs__dl-all .fv-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid var(--color-info); background: none; color: var(--color-info); font-size: 12px; font-weight: 600; cursor: pointer; }
 .review-docs__dl-all .fv-btn:hover { background: var(--color-info-surface); }
 .review-docs__dl-all .fv-btn:disabled { opacity: 0.6; cursor: wait; }
+
+/* ══ AVAILABLE TO PURCHASE ══════════════════════════════════════════════════════════════════════
+ *
+ * Owner, 2026-09-21: "we will list them when the research run is done, and next to them we will
+ * have a purchase button."
+ *
+ * Deliberately NOT styled as a warning. These rows sit near the discrepancy panel and the retrieval
+ * failures, and if they borrow that vocabulary — amber ground, danger text, a triangle — a surveyor
+ * reads their own budget limit as four things that went wrong. The run did exactly what it was told
+ * and found four documents worth having. So: a neutral card, a price set in tabular figures so the
+ * column reads down, and the only saturated colour on the confirm button, which is the one control
+ * here that spends money.
+ */
+.offers {
+  margin: 0.75rem 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFF);
+}
+.offers__head { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.6rem; }
+.offers__title { margin: 0; font-size: 0.92rem; font-weight: 650; color: var(--theme-fg-primary, #0F172A); }
+.offers__headline { margin: 0; font-size: 0.8rem; line-height: 1.45; color: var(--theme-fg-muted, #64748B); }
+
+.offers__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.offers__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  background: var(--theme-bg-subtle, #F8FAFC);
+}
+
+/* The first page, when we have it. Fixed box so a missing thumbnail does not shorten the row and
+ * make the list jump as previews arrive. */
+.offers__thumb {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 4px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-muted, #94A3B8);
+}
+.offers__thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+
+.offers__meta { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1 1 12rem; }
+.offers__label { font-size: 0.85rem; font-weight: 600; color: var(--theme-fg-primary, #0F172A); overflow-wrap: anywhere; }
+.offers__sub { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.72rem; color: var(--theme-fg-muted, #64748B); }
+.offers__type { font-weight: 600; letter-spacing: 0.02em; }
+.offers__vendor::before { content: '· '; }
+
+/* Tabular figures so the prices line up down the column even at different widths. */
+.offers__price {
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.offers__action { flex: 0 0 auto; display: flex; align-items: center; }
+.offers__btn { margin: 0; display: inline-flex; align-items: center; gap: 0.35rem; }
+.offers__btn--go { border-color: var(--theme-accent, #1D3095); background: var(--theme-accent, #1D3095); color: #FFF; }
+.offers__btn--go:hover:not(:disabled) { filter: brightness(1.08); }
+.offers__confirm { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.offers__done { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; color: var(--theme-success-fg, #166534); }
+/* Not a button, because it cannot do anything — see the component's note on why a dead-looking
+ * label beats a button that fetches the wrong deed. */
+.offers__manual { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
+.offers__error { flex-basis: 100%; font-size: 0.76rem; color: var(--theme-danger-fg, #991B1B); }
+
+/* `@keyframes spin` is defined once in globals.css (pure rotation) — the motion ratchet exists
+   because a second copy of it was what made every spinner in the app diverge. */
+.offers__spin { animation: spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .offers__spin { animation: none; } }
+
+@media (max-width: 560px) {
+  .offers__price { min-width: 0; text-align: left; }
+  .offers__action { flex-basis: 100%; }
+}

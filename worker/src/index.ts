@@ -28,6 +28,7 @@ import { GeometricReconciliationEngine } from './services/geometric-reconciliati
 import { uploadPipelineArtifacts, beginFiling, endFiling, filingTallySoFar, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { recordSkippedPurchases, recordOffers as ledgerRecordOffers } from './services/purchase-ledger.js';
+import { buyOneOffer } from './services/buy-one-offer.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { parseLotBlock } from './counties/bell/orchestrator.js';
 import { listRunPurchases } from './services/purchase-ledger.js';
@@ -6286,6 +6287,114 @@ async function resolvePurchasePermission(projectId: string): Promise<PurchaseDec
 //
 // Long-running (up to ~5 minutes). Returns HTTP 202 immediately.
 // Results are persisted to /tmp/analysis/{projectId}/purchase_report.json.
+
+// ── POST /research/offer-purchase ─────────────────────────────────────────
+//
+// One document, named by a person who looked at its price and pressed a button.
+//
+// Owner, 2026-09-21: "if the researcher clicks the purchase button, the worker will go and purchase
+// the document, download it, and add it to the list of viewable documents."
+//
+// AWAITS rather than returning 202 like its neighbour below, and that is the difference between the
+// two endpoints. `/research/purchase` is a phase of a run — nobody is watching it, and the run
+// report says what happened afterwards. This one has a person looking at a spinner who has just
+// agreed to a charge, and "accepted" is not an answer to "did that work".
+app.post('/research/offer-purchase', requireAuth, rateLimit(10, 60_000), async (req: Request, res: Response) => {
+  const { projectId, offerId } = req.body as { projectId?: string; offerId?: string };
+
+  if (!projectId || !offerId) {
+    res.status(400).json({ error: 'projectId and offerId are required' });
+    return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'projectId may only contain alphanumeric characters, hyphens, and underscores' });
+    return;
+  }
+
+  const log = new PipelineLogger(projectId);
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) {
+      res.status(503).json({ error: 'No database connection.' });
+      return;
+    }
+
+    // ── THE PRICE COMES FROM THE LEDGER, NEVER FROM THE REQUEST ────────────────────────────────
+    //
+    // The body says WHICH row. The row says what to buy and what it costs. A purchase endpoint that
+    // took the vendor reference and the ceiling from its caller would be one where the amount is
+    // supplied by the client, and this one is reachable by anything holding the worker key.
+    const loose = supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (a: string, b: string) => {
+            eq: (c2: string, d: string) => { maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> };
+            maybeSingle: () => Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }>;
+          };
+        };
+      };
+    };
+
+    const { data, error } = await loose.from('research_document_purchases')
+      .select('id, instrument_raw, document_type, platform_id, cost_usd, vendor_ref, county_fips, status')
+      .eq('id', offerId)
+      .eq('research_project_id', projectId)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: `Could not read the offer: ${error.message}` });
+      return;
+    }
+    if (!data) {
+      res.status(404).json({ error: 'That offer is no longer listed. It may already have been bought.' });
+      return;
+    }
+    if (String(data.status) !== 'offered') {
+      res.status(409).json({ error: 'That document is not on offer any more.' });
+      return;
+    }
+
+    const vendorRef = String(data.vendor_ref ?? '').trim();
+    if (!vendorRef) {
+      // Without the vendor's own id, "buy this" means re-running the search and taking the first
+      // hit — which, for a common surname, is a different deed with the same label. The app refuses
+      // this too; refused again here because the app is not the only possible caller.
+      res.status(422).json({ error: 'This document has no vendor reference, so it cannot be bought automatically. It has to be bought on the vendor site.' });
+      return;
+    }
+
+    // The county by NAME, which is what TexasFile searches by. `county_fips` on the offer row went
+    // through `countyKey` and may be either five digits or a lowercased name, so the project row is
+    // the reliable source — it is where the operator typed it.
+    const { data: project } = await loose.from('research_projects')
+      .select('county')
+      .eq('id', projectId)
+      .maybeSingle();
+    const countyName = String(project?.county ?? data.county_fips ?? '').trim();
+    if (!countyName) {
+      res.status(422).json({ error: 'This project has no county on it, and TexasFile is searched by county.' });
+      return;
+    }
+
+    const estimated = Number(data.cost_usd);
+    const result = await buyOneOffer({
+      id: String(data.id),
+      projectId,
+      vendorRef,
+      instrumentRaw: String(data.instrument_raw ?? ''),
+      documentType: data.document_type == null ? null : String(data.document_type),
+      countyFips: String(data.county_fips ?? ''),
+      countyName,
+      platformId: String(data.platform_id ?? 'texasfile'),
+      estimatedUsd: Number.isFinite(estimated) && estimated > 0 ? estimated : null,
+    }, log);
+
+    res.status(result.ok ? 200 : 502).json(result);
+  } catch (e) {
+    log.error('Purchase', 'The offer purchase failed', e instanceof Error ? e : new Error(String(e)));
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
 
 app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
   const { projectId, confidenceReportPath, budget, autoReanalyze, paymentMethod, mode } = req.body as {
