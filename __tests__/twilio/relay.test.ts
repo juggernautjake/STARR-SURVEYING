@@ -220,25 +220,73 @@ describe('relay-turn (relay → app)', () => {
 });
 
 describe('test entry (the developer page)', () => {
-  it('flags the row as a test, names the tester, starts recording, and goes straight to the receptionist', async () => {
-    relayEnv(true); calls.starts.length = 0; calls.updates.length = 0;
-    const url = 'https://www.starr-surveying.com/api/twilio/receptionist/test-entry';
-    const xml = await (await testEntry(signed(url, { CallSid: 'CAtest', From: '+18338426971', To: '+12545550100', Direction: 'outbound-api' }))).text();
-    expect(calls.starts[0]).toMatchObject({ callSid: 'CAtest', from: '+12545550100', isTest: true });
-    expect(calls.updates.some((u) => u.patch.is_test === true && u.patch.answered_by === 'ai')).toBe(true);
-    expect(xml).not.toContain('<Dial');
-    expect(xml).toContain('<ConversationRelay ');
-    expect(xml).toContain('<Parameter name="test" value="1"/>');
+  // ── TWO BRANCHES, THE SAME TWO A LIVE CALL HAS (owner, 2026-09-22) ────────────────────────────
+  //
+  // These pinned the relay and the <Gather> loop, which this route kept for a day after `after-dial`
+  // lost them. That is the one thing a test bench must never be: a path production does not have.
+  // It passes, and it is about something else.
+  //
+  // "The start call option just is the voicemail receptionist message." The browser-call card that
+  // produced that report is deleted; what survives is "Call my phone", and it reaches the agent.
+  const url = 'https://www.starr-surveying.com/api/twilio/receptionist/test-entry';
+
+  it('flags the row as a test, names the tester, starts recording, and dials the agent', async () => {
+    calls.starts.length = 0; calls.updates.length = 0;
+    process.env.ELEVENLABS_SIP_URI = 'sip:+18338426971@sip.rtc.elevenlabs.io:5060';
+    try {
+      const xml = await (await testEntry(signed(url, { CallSid: 'CAtest', From: '+18338426971', To: '+12545550100', Direction: 'outbound-api' }))).text();
+      expect(calls.starts[0]).toMatchObject({ callSid: 'CAtest', from: '+12545550100', isTest: true });
+      expect(calls.updates.some((u) => u.patch.is_test === true && u.patch.answered_by === 'ai')).toBe(true);
+      expect(xml).toContain('<Sip>');
+      expect(xml, 'the notice is spoken before the agent picks up').toContain('recorded');
+      // The retired third version must not be reachable from the bench either.
+      expect(xml).not.toContain('<ConversationRelay');
+      expect(xml).not.toContain('<Gather input="speech"');
+    } finally {
+      delete process.env.ELEVENLABS_SIP_URI;
+    }
   });
-  it('a browser caller is named by its client identity, and the <Gather> path carries the flag in the cookie', async () => {
-    relayEnv(false); calls.starts.length = 0;
-    const url = 'https://www.starr-surveying.com/api/twilio/receptionist/test-entry';
-    const res = await testEntry(signed(url, { CallSid: 'CAtest2', From: 'client:jacob_example.test', To: '', Direction: 'inbound' }));
+
+  // ── THE DEFAULT IS THE THING THE BENCH EXISTS TO TEST ────────────────────────────────────────
+  //
+  // With no version named, this route used to fall through to `'agent'` — a value
+  // `parseTestVersion` can no longer return and nothing can choose — and so matched neither branch
+  // and dropped out of the bottom into the relay. A request whose version parameter did not survive
+  // the trip got a receptionist nobody had asked for.
+  it('with no version named, asks for the conversational receptionist', async () => {
+    calls.starts.length = 0;
+    process.env.ELEVENLABS_SIP_URI = 'sip:+18338426971@sip.rtc.elevenlabs.io:5060';
+    try {
+      const xml = await (await testEntry(signed(url, { CallSid: 'CAtest3', From: 'client:jacob_example.test', To: '', Direction: 'inbound' }))).text();
+      expect(xml).toContain('<Sip>');
+    } finally {
+      delete process.env.ELEVENLABS_SIP_URI;
+    }
+  });
+
+  it('a browser caller is named by its client identity', async () => {
+    calls.starts.length = 0;
+    await testEntry(signed(url, { CallSid: 'CAtest2', From: 'client:jacob_example.test', To: '', Direction: 'inbound' }));
     expect(calls.starts[0]).toMatchObject({ from: 'client:jacob_example.test', isTest: true });
-    expect(await res.text()).toContain('<Gather input="speech"');
-    const cookie = res.headers.get('set-cookie') ?? '';
-    const { decodeState } = await import('@/lib/receptionist/state');
-    expect(decodeState(cookie.match(/starr_rcpt=([^;]+)/)?.[1]).test).toBe(true);
+  });
+
+  it('falls back to the voicemail message when no trunk is configured, exactly as a live call does', async () => {
+    delete process.env.ELEVENLABS_SIP_URI;
+    const xml = await (await testEntry(signed(url, { CallSid: 'CAtest4', From: '+18338426971', To: '+12545550100', Direction: 'outbound-api' }))).text();
+    expect(xml).toContain('<Record');
+    expect(xml).not.toContain('<Gather input="speech"');
+    expect(xml).not.toContain('<ConversationRelay');
+  });
+
+  it('runs the voicemail message when it is the one asked for', async () => {
+    process.env.ELEVENLABS_SIP_URI = 'sip:+18338426971@sip.rtc.elevenlabs.io:5060';
+    try {
+      const xml = await (await testEntry(signed(`${url}?version=answering-machine`, { CallSid: 'CAtest5', From: '+18338426971', To: '+12545550100', Direction: 'outbound-api' }))).text();
+      expect(xml).toContain('<Record');
+      expect(xml).not.toContain('<Sip>');
+    } finally {
+      delete process.env.ELEVENLABS_SIP_URI;
+    }
   });
 });
 

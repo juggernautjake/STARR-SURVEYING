@@ -35,10 +35,7 @@ import { BUSINESS_NAME } from '@/lib/seo/business';
 const RS = '';
 
 type Msg = { role: 'caller' | 'assistant'; text: string; firstWordMs?: number | null; totalMs?: number };
-type Device = { connect(opts: { params: Record<string, string> }): Promise<Call>; destroy(): void; on(ev: string, fn: (...a: unknown[]) => void): void };
-type Call = { disconnect(): void; on(ev: string, fn: (...a: unknown[]) => void): void; parameters?: { CallSid?: string } };
 
-const LABEL: Record<string, string> = { idle: 'Ready', 'getting token': 'Getting a token…', connecting: 'Connecting…', ended: 'Call ended', error: 'Could not connect' };
 function fmtPhone(s: string): string {
   const d = (s ?? '').replace(/\D/g, '');
   return d.length === 11 && d.startsWith('1') ? `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : s;
@@ -206,8 +203,11 @@ export default function ReceptionistTestPage(): React.ReactElement {
   // ── talk to an agent right now, in this browser (owner, 2026-09-15) ───────────────────────────
   // "There should be a button to click to just start a conversation." WebRTC straight to ElevenLabs:
   // no phone, no Twilio, nobody rung. The transcript builds live here and is filed on /admin/calls.
-  type TalkAgent = 'starr' | 'generic';
-  const [talkAgent, setTalkAgent] = useState<TalkAgent>('starr');
+  // One agent, so no state for which. There were two — the trained receptionist and a
+  // general-conversation twin for judging how natural the turn-taking felt in the abstract. The
+  // second was retired 2026-09-22; the API still takes the name, so it is passed as the constant
+  // it always resolves to rather than pretending a choice is being made.
+  const TALK_AGENT = 'starr' as const;
   const [talkState, setTalkState] = useState<'idle' | 'connecting' | 'live' | 'ended' | 'error'>('idle');
   const [talkError, setTalkError] = useState<string | null>(null);
   const [talkTurns, setTalkTurns] = useState<Array<{ role: 'caller' | 'assistant'; text: string }>>([]);
@@ -235,7 +235,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
     setFiling(null);
     setTalkState('connecting');
     try {
-      const r = await fetch('/api/admin/receptionist-test/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ agent: talkAgent }) });
+      const r = await fetch('/api/admin/receptionist-test/talk', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ agent: TALK_AGENT }) });
       const j = (await r.json()) as { token?: string; error?: string };
       if (!r.ok || !j.token) throw new Error(j.error ?? `HTTP ${r.status}`);
       // The microphone is asked for here, by the browser, on this click — never in the background.
@@ -282,7 +282,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       // Without an id we fall back to the old sweep rather than filing nothing — a conversation
       // that reached the bench should always be fileable.
       const body = talkConvId
-        ? { conversationId: talkConvId, agent: talkAgent }
+        ? { conversationId: talkConvId, agent: TALK_AGENT }
         : { limit: 10 };
       const r = await fetch('/api/admin/receptionist-test/import', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -308,39 +308,11 @@ export default function ReceptionistTestPage(): React.ReactElement {
   };
 
   // ── 1. browser call ───────────────────────────────────────────────────────────────────────────
-  const [browserStatus, setBrowserStatus] = useState<string>('idle');
-  const [browserErr, setBrowserErr] = useState<string | null>(null);
-  const deviceRef = useRef<Device | null>(null);
-  const callRef = useRef<Call | null>(null);
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (browserStatus !== 'in call') return;
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [browserStatus]);
+  // The Twilio Voice SDK state that drove "Call from this browser" lived here — a Device, a Call,
+  // a token fetch and a seconds ticker. The card is gone (owner, 2026-09-22: "The start call is
+  // redundant"), and so is the only in-browser use of @twilio/voice-sdk. "Call my phone" places its
+  // call server-side through the REST API and needs none of it.
 
-  const startBrowserCall = async () => {
-    setBrowserErr(null);
-    setBrowserStatus('getting token');
-    try {
-      const j = (await (await fetch('/api/admin/receptionist-test/token')).json()) as { token?: string; error?: string };
-      if (!j.token) throw new Error(j.error || 'No token');
-      const { Device } = await import('@twilio/voice-sdk');
-      const device = new Device(j.token, { logLevel: 1 }) as unknown as Device;
-      deviceRef.current = device;
-      setBrowserStatus('connecting');
-      const call = await device.connect({ params: { version: testVersion, voice: testVoice } });
-      callRef.current = call;
-      setSeconds(0);
-      call.on('accept', () => setBrowserStatus('in call'));
-      call.on('disconnect', () => { setBrowserStatus('ended'); callRef.current = null; device.destroy(); deviceRef.current = null; setTimeout(refresh, 2500); });
-      call.on('error', (e: unknown) => { setBrowserErr(String((e as Error)?.message ?? e)); setBrowserStatus('error'); });
-    } catch (e) {
-      setBrowserErr((e as Error).message);
-      setBrowserStatus('error');
-    }
-  };
-  const hangUp = () => { callRef.current?.disconnect(); deviceRef.current?.destroy(); setBrowserStatus('ended'); };
 
   // ── 2. call my phone ──────────────────────────────────────────────────────────────────────────
   const [phone, setPhone] = useState('');
@@ -705,26 +677,14 @@ export default function ReceptionistTestPage(): React.ReactElement {
       <section className={`rtest__card ${talkState === 'live' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-talk" data-testid="rtest-talk">
         <h2 id="rt-talk">Talk to an agent now</h2>
         <p>Straight from this browser over the internet — no phone call, nobody rung, no Twilio minutes. Everything said is transcribed here and can be filed on the Calls page.</p>
-        <div className="rtest__versions" role="radiogroup" aria-label="Which agent to talk to">
-          {([
-            { id: 'starr' as const, name: 'Starr Surveying receptionist', blurb: 'Ellie: the real thing — the firm\u2019s services, taking a message for Hank, and the rules: no prices, no promises, no guessing who is calling.' },
-            { id: 'generic' as const, name: 'General conversation', blurb: 'The same voice and turn-taking with no business behind it. For judging how natural the conversation feels about anything at all.' },
-          ]).map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              role="radio"
-              aria-checked={talkAgent === a.id}
-              className={`rtest__version${talkAgent === a.id ? ' rtest__version--on' : ''}`}
-              onClick={() => setTalkAgent(a.id)}
-              disabled={talkState === 'live' || talkState === 'connecting'}
-              data-testid={`rtest-talk-${a.id}`}
-            >
-              <b>{a.name}</b>
-              <span>{a.blurb}</span>
-            </button>
-          ))}
-        </div>
+        {/* ── ONE AGENT, NO PICKER (owner, 2026-09-22) ─────────────────────────────────────────
+            "Get rid of the general conversation option."
+
+            There was a second choice here, a general-conversation twin: the same voice with no
+            business behind it, for judging how natural the turn-taking felt in the abstract. That
+            was a question worth asking once, while the voice was being chosen. It is not a thing to
+            test now, and leaving it on the bench made the page ask which of two agents you meant
+            before it would let you talk to the only one that matters. */}
         <div className="rtest__row">
           {talkState === 'live' || talkState === 'connecting' ? (
             <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void stopTalking()} data-testid="rtest-talk-stop">End conversation</button>
@@ -780,24 +740,22 @@ export default function ReceptionistTestPage(): React.ReactElement {
       {/* ── VOICES: hear one, then put it on an agent ── */}
       {/* The two call buttons, side by side — they are the same kind of thing. */}
       <div className="rtest__grid">
-        <section className={`rtest__card ${browserStatus === 'in call' ? 'rtest__card--live' : ''}`} aria-labelledby="rt-browser">
-          <h2 id="rt-browser">Call from this browser</h2>
-          <p>Uses your microphone and speakers. Same voice and timing as the business line. Testing: <b>{TEST_VERSION_LABELS[testVersion].name}</b>.</p>
-          <div className="rtest__row">
-            {browserStatus === 'in call' || browserStatus === 'connecting' ? (
-              <button type="button" className="rtest__btn rtest__btn--danger" onClick={hangUp}>Hang up</button>
-            ) : (
-              <button type="button" className="rtest__btn" onClick={startBrowserCall} disabled={browserStatus === 'getting token'}>Start call</button>
-            )}
-            <span className={`rtest__status ${browserStatus === 'in call' ? 'rtest__status--live' : ''}`} aria-live="polite">
-              {browserStatus === 'in call' ? <span className="rtest__dot" aria-hidden="true" /> : null}
-              {browserStatus === 'connecting' || browserStatus === 'getting token' ? <span className="rtest__dot rtest__dot--ring" aria-hidden="true" /> : null}
-              {browserStatus === 'in call' ? `In call · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : LABEL[browserStatus] ?? browserStatus}
-            </span>
-          </div>
-          {browserErr && <div className="rtest__status rtest__status--err">{browserErr}</div>}
-        </section>
+        {/* ── "CALL FROM THIS BROWSER" IS GONE (owner, 2026-09-22) ─────────────────────────────
+            "We have 'Start Conversation' and 'Start Call'. This is confusing. The Start
+             Conversation works great and is fully conversational. The start call option just is
+             the voicemail receptionist message... The start call is redundant."
 
+            Both buttons claimed to be the conversational receptionist and only one was. This card
+            dialled a Twilio TwiML App, which POSTs to `test-entry` with the chosen version as a
+            Voice SDK parameter; when that parameter did not survive the trip the route fell through
+            to a default of 'agent' — the retired relay — and the caller got neither the agent nor
+            the thing the card promised.
+
+            It is deleted rather than fixed because it was never earning its place. "Talk to an
+            agent now" reaches the SAME ElevenLabs agent over WebRTC, with a live transcript on the
+            page, and costs no Twilio minutes. "Call my phone" is the one that tests the real
+            telephone path end to end. A third button between them tested nothing the other two did
+            not, and the route's default is fixed regardless — see test-entry. */}
         <section className="rtest__card" aria-labelledby="rt-phone">
           <h2 id="rt-phone">Call my phone</h2>
           <p>Twilio rings the number below from the business line and the <b>{TEST_VERSION_LABELS[testVersion].name.toLowerCase()}</b> answers when you pick up.</p>

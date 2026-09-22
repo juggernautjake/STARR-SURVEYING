@@ -177,18 +177,34 @@ describe('which receptionist answers live calls', () => {
     expect(xml).not.toContain('<Sip>');
   });
 
-  it('a private test call runs the full agent by default, and the answering machine when asked', async () => {
-    const agent = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry?version=agent`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
-    expect(agent).not.toContain(esc(MACHINE_LINES.greeting));
-    const byDefault = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
-    expect(byDefault).not.toContain(esc(MACHINE_LINES.greeting));
-    const mach = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry?version=answering-machine`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
-    expect(mach).toContain(esc(MACHINE_LINES.greeting));
-    // the browser passes it as a Voice SDK parameter instead of in the URL
-    const browser = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry`, { CallSid: 'CAB', From: 'client:jacob', To: '', version: 'answering-machine' }))).text();
-    expect(browser).toContain(esc(MACHINE_LINES.greeting));
-    // live calls' switch is not consulted for tests
-    expect(calls.updates.every((u) => u.patch.is_test !== false)).toBe(true);
+  // Rewritten 2026-09-22. This asserted the DEFAULT test call is "not the answering machine", which
+  // was satisfied by the relay — the retired third version — as happily as by the agent. That is
+  // how the bench went on testing a path live callers no longer had: `?version=agent` returned
+  // something, so the assertion passed, and nobody was looking at WHICH something.
+  it('a private test call runs the conversational receptionist by default, and the voicemail message when asked', async () => {
+    process.env.ELEVENLABS_SIP_URI = 'sip:+18338426971@sip.rtc.elevenlabs.io:5060';
+    try {
+      const byDefault = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
+      expect(byDefault).toContain('<Sip>');
+      expect(byDefault).not.toContain(esc(MACHINE_LINES.greeting));
+
+      // `agent` was the relay's name. It parses as the conversational receptionist now — the same
+      // road a live call takes — rather than resolving to a version nothing can choose.
+      const legacy = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry?version=agent`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
+      expect(legacy).toContain('<Sip>');
+
+      const mach = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry?version=answering-machine`, { CallSid: 'CAT', Direction: 'outbound-api', To: '+12545550100', From: '+18335550000' }))).text();
+      expect(mach).toContain(esc(MACHINE_LINES.greeting));
+
+      // "Call my phone" puts it in the URL; a signed form parameter is read the same way.
+      const asParam = await (await testEntry(signed(`${BASE}/api/twilio/receptionist/test-entry`, { CallSid: 'CAB', From: 'client:jacob', To: '', version: 'answering-machine' }))).text();
+      expect(asParam).toContain(esc(MACHINE_LINES.greeting));
+
+      // live calls' switch is not consulted for tests
+      expect(calls.updates.every((u) => u.patch.is_test !== false)).toBe(true);
+    } finally {
+      delete process.env.ELEVENLABS_SIP_URI;
+    }
   });
 });
 
@@ -240,7 +256,10 @@ describe('wired where it matters', () => {
     const page = read('app/admin/dev/receptionist/page.tsx');
     expect(page).toContain("fetch('/api/admin/receptionist-test/version'");
     expect(page).toContain('data-testid="rtest-live-agent-confirm"');
-    expect(page).toContain('device.connect({ params: { version: testVersion, voice: testVoice } })');
+    // "Call from this browser" is gone (owner, 2026-09-22: "The start call is redundant"), and with
+    // it the only use of the Twilio Voice SDK on this page. "Call my phone" is placed server-side.
+    expect(page).not.toContain('device.connect(');
+    expect(page).not.toContain("import('@twilio/voice-sdk')");
     expect(page).toContain('JSON.stringify({ to: phone, version: testVersion, voice: testVoice })');
     const api = read('app/api/admin/receptionist-test/version/route.ts');
     expect(api).toContain('isAdmin(session.user.roles)');
@@ -323,7 +342,8 @@ describe('choosing the voice', () => {
     const page = read('app/admin/dev/receptionist/page.tsx');
     expect(page).toContain('data-testid="rtest-voice"');
     expect(page).toContain("saveLive({ voice: testVoice })");
-    expect(page).toContain('device.connect({ params: { version: testVersion, voice: testVoice } })');
+    // The voice still rides along on the call this page can still place.
+    expect(page).toContain('JSON.stringify({ to: phone, version: testVersion, voice: testVoice })');
   });
 });
 
@@ -663,8 +683,12 @@ describe('the test bench talks to an agent directly', () => {
     expect(page).toContain('data-testid="rtest-talk-start"');
     expect(page).toContain('data-testid="rtest-talk-transcript"');
     expect(page).toContain('data-testid="rtest-talk-file"');
-    expect(page).toContain('data-testid={`rtest-talk-${a.id}`}');
-    expect(page, 'a general-conversation agent as well as the trained one').toContain("id: 'generic' as const");
+    // The agent PICKER is gone (owner, 2026-09-22: "Get rid of the general conversation option").
+    // "General conversation" was the same voice with no business behind it — a question worth
+    // asking once while the voice was being chosen, and not a thing to test now. Leaving it made
+    // the page ask which of two agents you meant before letting you talk to the only one that runs.
+    expect(page).not.toContain("id: 'generic' as const");
+    expect(page).not.toContain('General conversation');
     expect(page).toContain("import('@elevenlabs/client')");
     expect(page, 'the microphone is asked for on the click').toContain('navigator.mediaDevices.getUserMedia');
   });

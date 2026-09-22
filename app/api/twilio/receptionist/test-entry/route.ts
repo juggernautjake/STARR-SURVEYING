@@ -6,26 +6,27 @@
 //
 // The only honest way to get the same response time is the same call. So the developer page places
 // a REAL Twilio call — to the tester's own phone, or from the browser through a TwiML App — and
-// Twilio runs this TwiML on it. From here on it is the exact production path (after-dial's AI
-// branch): recording started, ConversationRelay or <Gather>, the same brain, the same wrap-up.
+// Twilio runs this TwiML on it. From here on it is the exact production path (after-dial's SIP
+// branch): recording started, the ElevenLabs agent over the trunk, the same wrap-up at agent-ended.
 // The one difference is the flag on the row: is_test. That flag turns off the owner alerts and the
 // lead insert everywhere downstream, and draws the "Test" badge on /admin/calls.
 //
-// PUBLIC BY DESIGN: Twilio-signed, like the other receptionist routes. Twilio calls it either as
-// the TwiML App's voice URL (browser calls) or as the Url of an outbound call the admin API placed.
+// Since 2026-09-22 the only caller is "Call my phone" — the browser-call card that also pointed
+// here was deleted as redundant with the WebRTC conversation on the same page.
+//
+// PUBLIC BY DESIGN: Twilio-signed, like the other receptionist routes. Twilio calls it as the Url
+// of an outbound call the admin API placed.
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
-import { gather, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
-import { emptyState, stateCookieHeader } from '@/lib/receptionist/state';
-import { greeting, RECORDING_NOTICE } from '@/lib/receptionist/brain';
+import { RECORDING_NOTICE } from '@/lib/receptionist/brain';
+import { say, twiml, twimlResponse } from '@/lib/twilio/twiml';
 import { startCall, updateCall } from '@/lib/receptionist/calls';
-import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { parseTestVersion } from '@/lib/receptionist/version';
 import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 import { machineOpening } from '@/lib/receptionist/answering-machine';
-import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
+import { sayVoiceFor } from '@/lib/receptionist/voices';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,10 +56,23 @@ export async function POST(request: Request): Promise<Response> {
   // The test bench picks per call: the full agent (the default — it is the one being honed) or the
   // answering machine live callers get. From "Call my phone" it rides in the URL (?version=); from the
   // browser it is a Voice SDK connect parameter. Either way Twilio signed it.
-  const version = parseTestVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'agent';
+  //
+  // ── THE DEFAULT WAS 'agent', WHICH IS NOT A CHOICE ANY MORE (owner, 2026-09-22) ─────────────
+  //
+  // "The start call option just is the voicemail receptionist message."
+  //
+  // `parseTestVersion` returns one of the two real options or NULL, and null fell through to
+  // `'agent'` — the relay, retired on 2026-09-21. So a request that did not carry a readable
+  // version matched neither branch below and dropped out of the bottom of this route into the
+  // relay/<Gather> fallback: not the conversational agent, and not what the page said it was
+  // testing. It reached that state whenever the Voice SDK parameter did not survive the trip,
+  // which is exactly the case the browser-call card hit.
+  //
+  // The default is the conversational receptionist now, because that is what this bench exists to
+  // test, and 'agent' can no longer be named by anything.
+  const version = parseTestVersion(new URL(url).searchParams.get('version') ?? params.version) ?? 'elevenlabs';
   // …and which voice to audition (owner, 2026-09-15: "I want more natural female voice options").
   const voiceId = (new URL(url).searchParams.get('voice') ?? params.voice ?? '').trim() || null;
-  const voice = voiceId ? resolveVoice(voiceId) : null;
   if (version === 'answering-machine') {
     return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), machineOpening(voiceId)));
   }
@@ -75,15 +89,20 @@ export async function POST(request: Request): Promise<Response> {
     ));
   }
 
-  // Real callers hear the notice before the owner's phone rings; a test call never rings him, so
-  // the notice is spoken here, then the receptionist exactly as in production.
-  const relay = relayConfig();
-  if (relay) {
-    return twimlResponse(twiml(
-      say(RECORDING_NOTICE, sayVoiceFor(voiceId)),
-      relayTwiml(relay, callSid, tester, { test: true, voice: voice ? { provider: voice.provider, voice: voice.relayVoice } : null }),
-    ));
-  }
-  const state = { ...emptyState(), test: true };
-  return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), gather('/api/twilio/receptionist/turn', greeting(), { voice: sayVoiceFor(voiceId) })), { 'set-cookie': stateCookieHeader(state) });
+  // ── AND OTHERWISE THE VOICEMAIL MESSAGE, LIKE A LIVE CALL ────────────────────────────────────
+  //
+  // Owner, 2026-09-21: "I either want the voicemail or the natural sounding conversational voice
+  // model that elevenlabs provides." and "if Eleven labs is not working, then we should fallback to
+  // the simple voicemail receptionist message."
+  //
+  // There were two more branches here — the receptionist over our own relay, then a <Gather> loop
+  // if the relay was not configured. `after-dial` lost both on 2026-09-21; this route kept them,
+  // so the TEST bench could still reach a version live callers no longer can, which is the one
+  // thing a test bench must never do. A test that exercises a path production does not have is
+  // worse than no test: it passes, and it is about something else.
+  //
+  // So the fallback here is the fallback there. A deployment with no SIP URI answers a test call
+  // the same way it answers a real one.
+  console.error('[test-entry] the conversational receptionist was asked for but no SIP URI is configured — answering with the voicemail message');
+  return twimlResponse(twiml(say(RECORDING_NOTICE, sayVoiceFor(voiceId)), machineOpening(voiceId)));
 }
