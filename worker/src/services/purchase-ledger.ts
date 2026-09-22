@@ -192,6 +192,110 @@ export async function listRunPurchases(
   })).filter((p) => p.instrumentRaw);
 }
 
+// ── OFFERS: FOUND, PRICED, AND DELIBERATELY NOT BOUGHT ──────────────────────────────────────────
+//
+// Owner, 2026-09-21: "we will find all of the relevant items that can be purchased, and we will
+// list them when the research run is done, and next to them we will have a purchase button."
+//
+// This lives in the ledger with its siblings rather than beside its caller, and that is the whole
+// point of moving it here. The first version was written inline in `index.ts` with its own cast and
+// its own row literal, and it got two things wrong that no sibling in this file gets wrong:
+// `instrument_key` was never set and `instrument_raw` was allowed to be null, both NOT NULL since
+// seed 531. Every insert failed 23502, the failure was a `console.warn`, and the table stayed empty
+// — the same shape of bug seed 629 records for `paid_disabled`, one table over, a year apart.
+//
+// A row written through `instrumentKey`/`countyKey` is a row the library can match against. An
+// offer keyed differently from the purchases it becomes is an offer that cannot tell it has already
+// been bought.
+
+export interface PurchaseOffer {
+  projectId: string;
+  runId?: string | null;
+  countyFips: string;
+  /** What the county calls it. May be absent — see `offerIdentity`. */
+  instrument?: string | null;
+  book?: string | null;
+  page?: string | null;
+  documentType?: string | null;
+  platformId: string;
+  /** Best estimate. 0 when the vendor prices per page and the count is not known yet. */
+  costUsd: number;
+  /** The vendor's own id for this document — TexasFile's search GUID. What the purchase button
+   *  buys a day later, instead of re-running the search and taking the first hit. */
+  vendorRef?: string | null;
+  /** One line for the operator: why it was found and not bought. */
+  note?: string | null;
+}
+
+/**
+ * How an offer identifies its document, in the order the identity is worth having.
+ *
+ * `instrument_raw` is NOT NULL and it is also what a person reads, so an offer with no instrument
+ * number still has to say something true. A book and page IS the identity in the older volumes,
+ * where instrument numbers did not exist. Failing both, the vendor's own id is the only handle that
+ * still buys the right document — prefixed so nobody mistakes it for a county reference.
+ *
+ * Returns null when there is no handle at all, and such an offer is dropped rather than stored:
+ * a purchase button with nothing to buy is worse than a document nobody was told about.
+ */
+export function offerIdentity(offer: PurchaseOffer): string | null {
+  const instrument = (offer.instrument ?? '').trim();
+  if (instrument) return instrument;
+  const book = (offer.book ?? '').trim();
+  const page = (offer.page ?? '').trim();
+  if (book && page) return `V${book} P${page}`;
+  const ref = (offer.vendorRef ?? '').trim();
+  if (ref) return `REF:${ref}`;
+  return null;
+}
+
+/**
+ * Record what the run found and chose not to buy.
+ *
+ * Never throws and never spends. Returns how many landed so the caller can say so — a silent
+ * partial write is what this function exists to stop being possible.
+ */
+export async function recordOffers(
+  offers: readonly PurchaseOffer[],
+): Promise<{ recorded: number; dropped: number; error: string | null }> {
+  if (offers.length === 0) return { recorded: 0, dropped: 0, error: null };
+
+  const supabase = await getSupabase();
+  if (!supabase) return { recorded: 0, dropped: offers.length, error: 'no database connection' };
+
+  const now = new Date().toISOString();
+  const payload: Array<Record<string, unknown>> = [];
+  let dropped = 0;
+  for (const offer of offers) {
+    const identity = offerIdentity(offer);
+    if (!identity) { dropped++; continue; }
+    payload.push({
+      research_project_id: offer.projectId,
+      run_id: offer.runId ?? null,
+      county_fips: countyKey(offer.countyFips),
+      instrument_key: instrumentKey(identity),
+      instrument_raw: identity,
+      document_type: offer.documentType ?? null,
+      platform_id: offer.platformId,
+      pages: 0,
+      cost_usd: Number(offer.costUsd) || 0,
+      status: 'offered',
+      vendor_ref: offer.vendorRef ?? null,
+      offered_at: now,
+      failure_reason: (offer.note ?? 'Found behind a paywall; offered rather than bought.').slice(0, 500),
+    });
+  }
+  if (payload.length === 0) return { recorded: 0, dropped, error: null };
+
+  try {
+    const { error } = await loose(supabase, 'research_document_purchases').insert(payload);
+    if (error) return { recorded: 0, dropped, error: error.message };
+    return { recorded: payload.length, dropped, error: null };
+  } catch (err) {
+    return { recorded: 0, dropped, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function recordPurchase(rec: PurchaseRecord): Promise<RecordResult> {
   // The run's paid-page ceiling counts what THIS function records, or it counts nothing.
   // `notePaidPages` was the only thing that advanced `paidPages` and it had no caller, so

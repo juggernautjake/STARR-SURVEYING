@@ -27,7 +27,7 @@ import { runROWIntegration, type ROWReport } from './services/row-integration-en
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { uploadPipelineArtifacts, beginFiling, endFiling, filingTallySoFar, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
-import { recordSkippedPurchases } from './services/purchase-ledger.js';
+import { recordSkippedPurchases, recordOffers as ledgerRecordOffers } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { parseLotBlock } from './counties/bell/orchestrator.js';
 import { listRunPurchases } from './services/purchase-ledger.js';
@@ -1753,14 +1753,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
    *
    * ── WHY `vendor_ref` IS THE POINT ──────────────────────────────────────────────────────────────
    *
-   * Everything else here is description. `vendor_ref` is TexasFile's own GUID for the document, and
-   * it is what makes a purchase button pressed tomorrow buy THIS document rather than re-running
-   * the search and taking whatever comes back first — which, for a common surname or a subdivision
-   * with fifty plats, is a different document with the same label. `live-source-adapters.ts` has
-   * carried it as `previewRef` since it was written and nothing has ever stored it.
+   * Everything else stored here is description. `vendor_ref` is TexasFile's own GUID for the
+   * document, and it is what makes a purchase button pressed tomorrow buy THIS document rather than
+   * re-running the search and taking whatever comes back first — which, for a common surname or a
+   * subdivision with fifty plats, is a different document with the same label.
+   * `live-source-adapters.ts` has carried it as `previewRef` since it was written.
    *
-   * Written through the same ledger as everything else that happens to a document, so "what became
-   * of this one" has a single place to look. See seeds/656_purchase_offers.sql.
+   * ── THIS WAS AN INLINE INSERT AND IT NEVER WORKED ─────────────────────────────────────────────
+   *
+   * The first version built its own row literal here, next to its caller, and omitted
+   * `instrument_key` while allowing `instrument_raw` to be null — both NOT NULL since seed 531. So
+   * every insert failed 23502, the failure was a warning line, and the table stayed empty. Seed 629
+   * records the same shape of bug in the same table for `paid_disabled`. The fix is not a more
+   * careful literal; it is writing through `recordOffers` in the ledger with the identity helpers
+   * every sibling writer uses, so an offer is keyed the way the purchase it becomes will be keyed.
    */
   async function recordOffers(
     actions: ReadonlyArray<{
@@ -1772,35 +1778,30 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     countyName: string,
   ): Promise<void> {
     if (actions.length === 0) return;
-    try {
-      const supabase = await getSupabase();
-      if (!supabase) {
-        console.warn(`[Purchase:offer] ${projectId}: no database — ${actions.length} offer(s) not recorded`);
-        return;
+    const { recorded, dropped, error } = await ledgerRecordOffers(actions.map((a) => ({
+      projectId: projectId!,
+      runId: activePipelines.get(projectId!)?.runId ?? null,
+      countyFips: lookupCountyFIPS(countyName, state ?? 'TX'),
+      instrument: a.cluster.instrument ?? null,
+      book: a.cluster.book ?? null,
+      page: a.cluster.page ?? null,
+      documentType: a.cluster.docType ?? null,
+      platformId: a.source.sourceId ?? 'texasfile',
+      costUsd: Number(a.costUsd) || 0,
+      vendorRef: a.source.previewRef ?? null,
+      note: a.reason ?? null,
+    })));
+
+    // Loud, because the previous version was quiet and that is why nobody knew. An offer that does
+    // not save is a document the operator is never told about — the run found it, priced it, and
+    // then lost it. It still must not fail the run: the free record is unaffected either way.
+    if (error) {
+      console.error(`[Purchase:offer] ${projectId}: ${actions.length} offer(s) NOT recorded — ${error}`);
+    } else {
+      if (dropped > 0) {
+        console.warn(`[Purchase:offer] ${projectId}: ${dropped} offer(s) dropped — no instrument, no book/page, and no vendor id, so nothing a purchase button could buy`);
       }
-      const now = new Date().toISOString();
-      const rows = actions.map((a) => ({
-        research_project_id: projectId,
-        run_id: activePipelines.get(projectId!)?.runId ?? null,
-        county_fips: lookupCountyFIPS(countyName, state ?? 'TX'),
-        instrument_raw: a.cluster.instrument ?? null,
-        document_type: a.cluster.docType ?? null,
-        platform_id: a.source.sourceId ?? 'texasfile',
-        pages: 0,
-        cost_usd: Number(a.costUsd) || 0,
-        status: 'offered',
-        vendor_ref: a.source.previewRef ?? null,
-        offered_at: now,
-        failure_reason: (a.reason ?? 'Found behind a paywall; not bought.').slice(0, 500),
-      }));
-      const { error } = await (supabase as unknown as {
-        from: (t: string) => { insert: (r: unknown) => Promise<{ error: { message: string } | null }> };
-      }).from('research_document_purchases').insert(rows);
-      if (error) console.warn(`[Purchase:offer] ${projectId}: offers not recorded — ${error.message}`);
-      else console.log(`[Purchase:offer] ${projectId}: recorded ${rows.length} offer(s)`);
-    } catch (e) {
-      // An offer that fails to save costs the operator a list, not a document. Never fatal.
-      console.warn(`[Purchase:offer] ${projectId}: could not record offers — ${String(e)}`);
+      console.log(`[Purchase:offer] ${projectId}: recorded ${recorded} offer(s)`);
     }
   }
 
