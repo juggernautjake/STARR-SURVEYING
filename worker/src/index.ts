@@ -118,7 +118,7 @@ import { withRunContext, enterRunContext } from './infra/run-context.js';
 import {
   persistRunLogs, shouldFlush, markFlushed, resetFlushClock,
 } from './research/persist-run-logs.js';
-import { BudgetAbort, OperatorAbort, StallAbort } from './research/abort-reason.js';
+import { BudgetAbort, OperatorAbort, StallAbort, RunAbort, describeAbort } from './research/abort-reason.js';
 import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun, nonDocumentSpendForRun, ledgerSpendForRun, ledgerSpendByBucket, describeSpendByBucket } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
@@ -3594,7 +3594,19 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
 
-      const isAborted = err instanceof DOMException && err.name === 'AbortError';
+      // ── AN ABORT IS NOT ALWAYS A DOMException ────────────────────────────────────────────────
+      //
+      // This read `err instanceof DOMException && err.name === 'AbortError'`, which is what
+      // `signal.throwIfAborted()` raises when nothing set a reason. But every abort in this worker
+      // DOES set one — a `RunAbort` (research/abort-reason.ts), which is a plain Error subclass.
+      // When that reason surfaces as the thrown value the old test was false, so `budgetStop` was
+      // false, and a run wound down at the ceiling the operator set was recorded `status: 'failed'`
+      // with the ceiling message in `failureReason`.
+      //
+      // Which is the defect abort-reason.ts was written to end, one layer further out: "two fields
+      // describing one event and disagreeing". It fixed the surfaces it could see.
+      const abortInfo = err instanceof RunAbort ? describeAbort(err) : null;
+      const isAborted = abortInfo !== null || (err instanceof DOMException && err.name === 'AbortError');
       const isCreditError = err instanceof AnthropicCreditDepletedError || isCreditDepleted();
       // ── WHO STOPPED IT decides everything below ─────────────────────────────────────────────
       //
@@ -3604,7 +3616,16 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // cancellation" handshake, and cached `status: 'failed', failureReason: 'Pipeline cancelled
       // by user'` — the exact screen the owner disputed. Found by the 2026-09-03 audit (RL-1).
       const stop = activePipelines.get(projectId)?.stopReason;
-      const budgetStop = isAborted && stop?.kind === 'budget';
+      // The thrown reason first, the pipeline entry second. They agree whenever both exist; the
+      // entry is gone if the run was already cleaned up, and the reason is absent only for an abort
+      // raised outside this worker. ('operator' is the RunAbort spelling, 'cancelled' the entry's.)
+      const stopKind = abortInfo?.kind ?? stop?.kind;
+      const budgetStop = isAborted && stopKind === 'budget';
+      const userCancelled = isAborted && (stopKind === 'operator' || stopKind === 'cancelled');
+      // A stall is an expected, PARTIAL ending too — the run filed real documents and then went
+      // quiet. StallAbort's own comment records a run with eleven filed documents being reported as
+      // "Research Failed ... found no property record and no documents".
+      const partialStop = budgetStop || (isAborted && stopKind === 'stall');
       if (budgetStop) {
         console.log(`[Worker] ${projectId}: pipeline STOPPED at the budget ceiling — ${stop!.message}`);
         handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Stopped', stop!.message.slice(0, 160))
@@ -3642,9 +3663,11 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         console.error(`[Worker] ${projectId} CRASH:`, err);
       }
       const errMessage = budgetStop
-        ? stop!.message
-        : isAborted
+        ? (abortInfo?.message ?? stop?.message ?? 'The run stopped at its ceiling.')
+        : userCancelled
         ? 'Pipeline cancelled by user'
+        : abortInfo
+        ? abortInfo.message
         : isCreditError
           ? 'AI credit balance depleted. Please add funds to your Anthropic account and re-run research.'
           : (err instanceof Error
@@ -3660,8 +3683,8 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         projectId,
         // A budget stop is a PARTIAL result, not a failed one: the documents it filed are real and
         // the project moves to review on it, exactly as it does for a run that finished on its own.
-        status: budgetStop ? 'partial' : 'failed',
-        stopReason: budgetStop ? 'budget_reached' : isAborted ? 'cancelled_by_user' : 'error',
+        status: partialStop ? 'partial' : 'failed',
+        stopReason: budgetStop ? 'budget_reached' : userCancelled ? 'cancelled_by_user' : 'error',
         propertyId: null,
         geoId: null,
         ownerName: null,
@@ -3709,15 +3732,58 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       void recordRunFinish({
         projectId,
         runId: activePipelines.get(projectId)?.runId ?? null,
-        status: budgetStop ? 'complete' : isAborted ? 'cancelled' : 'failed',
-        stopReason: budgetStop ? 'budget_reached' : isAborted ? 'cancelled_by_user' : 'error',
+        status: budgetStop ? 'complete' : userCancelled ? 'cancelled' : 'failed',
+        stopReason: budgetStop ? 'budget_reached' : userCancelled ? 'cancelled_by_user' : 'error',
         progressPercent: runProgress.get(projectId)?.finish(
-          budgetStop ? 'complete' : isAborted ? 'cancelled' : 'failed',
+          budgetStop ? 'complete' : userCancelled ? 'cancelled' : 'failed',
         ).percent,
         costUsd: spendForRun(projectId),
         budgetSummary: budgetStop ? stop?.message ?? null : null,
         failureReason: budgetStop ? null : errMessage.slice(0, 500),
       });
+      // ── THE PROJECT ROW HAS TO COME OUT OF 'analyzing' ───────────────────────────────────────
+      //
+      // Everything above records this ending against `research_runs`. Nothing recorded it against
+      // `research_projects`, and that row is what the page reads. So a run killed by the budget, a
+      // stall, a crash or a worker restart left `status: 'analyzing'` FOREVER.
+      //
+      // There is no recovery from that state. The action bar renders no button at all while a
+      // project is analyzing — no start, no re-run, no reset. The Cancel control is gated on the
+      // worker still holding the run, so it disappears exactly when it is needed. And the purpose
+      // built unsticker, DELETE /api/admin/research/[id]/analyze, has no caller anywhere in the
+      // app. Job 26144 sat in this state from 2026-09-21 until somebody read the database.
+      //
+      // Where it lands depends on what the run got:
+      //   budget / stall → 'review'. Real documents were filed and the operator should read them.
+      //                    Same destination the success path gives a `partial` result.
+      //   cancel / crash → 'configure'. Nothing to review; the next step is to run it again.
+      //
+      // Credit depletion already wrote its own row above, with a message this must not overwrite.
+      if (!isCreditError) {
+        getSupabase()
+          .then(async (supabase) => {
+            if (!supabase) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error: releaseError } = await (supabase as any)
+              .from('research_projects')
+              .update({
+                status: partialStop ? 'review' : 'configure',
+                research_status: partialStop ? 'partial' : userCancelled ? 'cancelled' : 'failed',
+                research_message: errMessage.slice(0, 500),
+              })
+              .eq('id', projectId)
+              // Only if it is still the row THIS run left behind. A second run started in the
+              // meantime owns the status now, and stamping it here would knock a live run out of
+              // 'analyzing' and offer a Start button while work is in flight.
+              .eq('status', 'analyzing');
+            if (releaseError) {
+              console.error(`[Worker] ${projectId}: could not release the project from 'analyzing' — ${releaseError.message}`);
+            }
+          })
+          .catch((e: unknown) => {
+            console.error(`[Worker] ${projectId}: could not release the project from 'analyzing' — ${String(e)}`);
+          });
+      }
       clearTimeout(activePipelines.get(projectId)?.watchdog); clearInterval(activePipelines.get(projectId)?.stallWatchdog);
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });

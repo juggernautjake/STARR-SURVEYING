@@ -114,6 +114,14 @@ import type { PipelineStage } from '@/types/research';
  *
  * Typed rather than cast. A cast is what hid this for as long as it existed.
  */
+/** How long a project must go untouched before the page offers to clear it.
+ *
+ *  Longer than the app's own 5-minute freeze threshold and longer than any single phase. A live run
+ *  touches `updated_at` through its heartbeat, so this much silence means nothing is writing — not
+ *  that something is slow. Offered any sooner, it becomes a button somebody presses during a
+ *  healthy run. */
+const STUCK_AFTER_MS = 15 * 60 * 1000;
+
 function projectOwnerName(project: ResearchProject | null): string | undefined {
   const meta = project?.analysis_metadata;
   if (!meta || typeof meta !== 'object') return undefined;
@@ -129,6 +137,7 @@ export default function ResearchProjectPage() {
   const { reportPageError } = usePageError('ResearchProjectPage');
 
   const [project, setProject] = useState<ResearchProject | null>(null);
+  const [unsticking, setUnsticking] = useState(false);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -325,6 +334,30 @@ export default function ResearchProjectPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load project' });
     }
   }, [projectId, reportPageError, router]);
+
+  /** Clear a project whose run is over but whose row still says 'analyzing'.
+   *
+   *  `DELETE .../analyze` is the purpose-built unsticker: it sets the row back to 'configure',
+   *  marks the abort, drops the half-written data points and discrepancies, and resets any document
+   *  left mid-extraction. It never calls the worker, which is what makes it work for a run the
+   *  worker no longer knows about — the Cancel button goes through `/pipeline`, which returns early
+   *  without writing anything when the worker does not answer. */
+  const unstickProject = useCallback(async () => {
+    setUnsticking(true);
+    try {
+      const r = await fetch(`/api/admin/research/${projectId}/analyze`, { method: 'DELETE' });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        alert(j.error ?? `Could not clear the run (HTTP ${r.status}).`);
+        return;
+      }
+      await loadProject();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUnsticking(false);
+    }
+  }, [projectId, loadProject]);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -1758,12 +1791,48 @@ export default function ResearchProjectPage() {
           // The page does not know the run state and should not pretend to. `ResearchRunView`
           // does, from `useRunState`, and it is four inches below this line. So this bar now says
           // where you are and defers to it — no spinner, and no claim about activity.
+          // ── AND A WAY OUT WHEN NOTHING IS RUNNING (2026-09-22) ─────────────────────────────
+          //
+          // Deferring to the run view is right, but it left this state with no exit. A run killed
+          // by the budget ceiling, stopped by the stall watchdog, crashed, or interrupted by a
+          // worker deploy used to leave `status: 'analyzing'` on the row permanently — and while a
+          // project is analyzing this bar renders no button at all: no start, no re-run, no reset.
+          // The Cancel control lives in the run view and is gated on the worker still holding the
+          // run, so it disappears exactly when it is needed. `DELETE .../analyze` exists to undo
+          // this and had no caller anywhere in the app.
+          //
+          // Job 26144 sat here from 2026-09-21 until somebody opened the database.
+          //
+          // The worker now releases the row itself on every abnormal ending, which fixes the cause.
+          // This is for the rows already stuck, for an app-side analysis that dies where no worker
+          // can clean up after it, and for the case nobody has thought of yet.
+          //
+          // ── WHY A TIMER AND NOT A BUTTON THAT IS ALWAYS THERE ───────────────────────────────
+          //
+          // A reset offered beside a healthy run is a reset somebody eventually presses during one.
+          // `STUCK_AFTER_MS` is deliberately longer than the app's own 5-minute freeze threshold
+          // and than any single phase: a real run touches `updated_at` through the heartbeat, so
+          // fifteen quiet minutes means nothing is writing, not that a phase is slow.
+          const quietMs = Date.now() - Date.parse(project.updated_at ?? '');
+          const looksStuck = Number.isFinite(quietMs) && quietMs > STUCK_AFTER_MS;
           return (
             <div className="research-action-bar" data-testid="research-action-bar">
               <Microscope size={16} className="research-action-bar__ok" aria-hidden="true" />
               <span className="research-action-bar__text">
                 Research &amp; Analysis. The run&apos;s current status is shown below.
               </span>
+              {looksStuck && (
+                <button
+                  type="button"
+                  className="research-back-btn research-action-bar__unstick"
+                  disabled={unsticking}
+                  onClick={() => void unstickProject()}
+                  data-testid="research-unstick"
+                  title={`Nothing has written to this project for ${Math.round(quietMs / 60000)} minutes. This clears the run so you can start another.`}
+                >
+                  {unsticking ? 'Clearing…' : 'No run is active — clear it'}
+                </button>
+              )}
             </div>
           );
         }

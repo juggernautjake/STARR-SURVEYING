@@ -109,7 +109,15 @@ describe('the record covers every exit', () => {
     // that was not a failure, attributed to a person who had not touched it.
     //
     // So the guard now requires the distinction to exist, rather than requiring its absence.
-    expect(index).toMatch(/status: budgetStop \? 'complete' : isAborted \? 'cancelled' : 'failed'/);
+    //
+    // 2026-09-22: `isAborted` became `userCancelled` here, and the reason is the same reason this
+    // assertion exists. `isAborted` was widened to recognise a `RunAbort` — which it had never
+    // matched, being an Error rather than a DOMException, so a budget stop had been falling through
+    // to the crash branch all along. Widening it meant a STALL and a worker SHUTDOWN would also
+    // have started reporting themselves as "cancelled", which is the same lie about the same person
+    // in a new place. Only an operator's cancel may be called one.
+    expect(index).toMatch(/status: budgetStop \? 'complete' : userCancelled \? 'cancelled' : 'failed'/);
+    expect(index).toMatch(/const userCancelled = isAborted && \(stopKind === 'operator' \|\| stopKind === 'cancelled'\)/);
   });
 
   it('carries the spend and the skipped work onto the finished row', () => {

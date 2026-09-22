@@ -24,18 +24,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { FileText, Loader2, Lock, ShoppingCart, Check } from 'lucide-react';
+import type { Offer } from '@/lib/research/offers';
 
-export interface Offer {
-  id: string;
-  label: string;
-  documentType: string | null;
-  vendor: string;
-  priceUsd: number | null;
-  previewPath: string | null;
-  buyable: boolean;
-  note: string | null;
-  offeredAt: string | null;
-}
+// One definition of the row shape, in the module the route builds it with. This file carried its
+// own copy for a commit, which is one too many: a field added over there and not here compiles
+// silently and renders nothing, and nobody opens the two files together to notice.
+export type { Offer };
 
 interface OffersResponse {
   offers?: Offer[];

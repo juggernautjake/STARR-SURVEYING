@@ -1063,6 +1063,15 @@
   margin: 0 0 1.25rem;
 }
 .research-action-bar--running { border-left-color: #F59E0B; }
+/* "No run is active — clear it". Appears only after a project has gone fifteen minutes without a
+   write, so it is rare by design; quiet rather than alarming, because the run it clears is already
+   over and the reset is bookkeeping, not an emergency. */
+.research-action-bar__unstick {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+}
 .research-action-bar__text {
   flex: 1;
   min-width: 180px;
