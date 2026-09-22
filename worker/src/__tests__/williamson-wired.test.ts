@@ -159,9 +159,16 @@ describe('the capture runner can refuse a useless image', () => {
   });
 
   it('assesses AFTER the OCR, because the text is the cheapest evidence there is', () => {
+    // Presence before order, like its neighbour above. This one was written as
+    // `expect(runner.indexOf('assessCapture(')).toBeGreaterThan(ocr)`, which happens to fail
+    // correctly when assessCapture is deleted — -1 is less than ocr. It is converted anyway,
+    // because the ordering-assertion ratchet counts the SHAPE: a reader who has to work out which
+    // direction is safe this time is one flipped comparison away from a guard that defends nothing.
     const ocr = runner.indexOf('deps.ocr(');
+    const assessed = runner.indexOf('assessCapture(');
     expect(ocr).toBeGreaterThan(0);
-    expect(runner.indexOf('assessCapture(')).toBeGreaterThan(ocr);
+    expect(assessed).toBeGreaterThan(0);
+    expect(assessed).toBeGreaterThan(ocr);
   });
 
   it('records a refused capture as its own outcome, not as a failure', () => {

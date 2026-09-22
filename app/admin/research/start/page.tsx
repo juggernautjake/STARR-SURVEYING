@@ -59,7 +59,10 @@ export default async function StartResearchPage(
   { searchParams }: { searchParams: Promise<{ job?: string }> },
 ) {
   const session = await auth();
-  if (!session?.user?.email) redirect('/api/auth/signin');
+  // `/admin/login`, like every other admin page. This said `/api/auth/signin` — NextAuth's own
+  // default page, which this app does not mount — so a signed-out click on the job header's
+  // "Research this Property" button landed on a 404 instead of the login form.
+  if (!session?.user?.email) redirect('/admin/login');
 
   const { job: jobId } = await searchParams;
   if (!jobId) notFound();

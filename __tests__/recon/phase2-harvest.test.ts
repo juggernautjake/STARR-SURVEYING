@@ -1387,9 +1387,24 @@ describe('hasKofileConfig', () => {
     // `mclennan` was here until 2026-09-02 and is now correctly false. All 72 entries of
     // KOFILE_CONFIGS were probed with controls that day and 43 did not resolve — mclennan among
     // them — so the run had been searching a host that is not there and reporting no clerk records.
-    // Those moved to KOFILE_UNREACHABLE. Williamson answered and stays.
-    expect(hasKofileConfig('williamson')).toBe(true);
+    // Those moved to KOFILE_UNREACHABLE.
     expect(hasKofileConfig('milam')).toBe(true);
+  });
+
+  // ── WILLIAMSON, 2026-09-21 ────────────────────────────────────────────────────────────────────
+  // This assertion used to be `toBe(true)` alongside milam, and it is the reason the bug survived.
+  // Williamson's Kofile portal RESOLVES — it answers 200 — so every reachability probe passed it.
+  // What it serves is Commissioners Court minutes. There are no land records on it at all.
+  //
+  // `services/clerk-registry.ts` had excluded Williamson since plan R38/R39 for exactly that
+  // reason, but the generic pipeline never reads the registry; it reads this table. So the router
+  // announced Tyler Eagle while the run searched the court minutes, and job 26144 came back
+  // "No documents found" for a property with a recorded chain of title going back to 1985.
+  //
+  // The assertion is inverted, not deleted, so restoring the row turns this red.
+  it('is false for Williamson: its Kofile portal answers, but only with Commissioners Court', () => {
+    expect(hasKofileConfig('williamson')).toBe(false);
+    expect(getKofileBaseUrl('williamson')).toBeNull();
   });
 
   it('returns false for unconfigured county', () => {
@@ -1402,12 +1417,6 @@ describe('getKofileBaseUrl', () => {
   it('returns https URL for Bell County', () => {
     const url = getKofileBaseUrl('bell');
     expect(url).toBe('https://bell.tx.publicsearch.us');
-  });
-
-  it('returns https URL for Williamson County', () => {
-    const url = getKofileBaseUrl('williamson');
-    expect(url).toContain('https://');
-    expect(url).toContain('williamson');
   });
 
   it('returns null for unconfigured county', () => {

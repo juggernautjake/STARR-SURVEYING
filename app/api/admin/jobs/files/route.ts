@@ -7,6 +7,7 @@ import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
 import { checkJobFolderId } from '@/lib/files/job-folders-server';
 import { downloadHref, shapeOf, wantsBackupRow, JOB_FILES_BUCKET, type JobFileRow } from '@/lib/jobs/file-storage';
+import { captureFromExif } from '@/lib/jobs/exif-capture-server';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -219,6 +220,28 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       is_backup: true, backup_of: file.id,
       uploaded_by: session.user.email,
     });
+  }
+
+  // ── WHERE WAS THIS TAKEN? (owner, 2026-09-21: "Yes, read EXIF on upload.") ──────────────────
+  //
+  // The bytes never came through this route — the browser PUT them straight to the bucket — so
+  // this is the first moment a server can look at the file, and looking means downloading it back.
+  // Fire-and-forget for that reason: a photograph with no GPS is completely ordinary, and a slow
+  // bucket must not fail an upload the user has already waited through. A file with no position is
+  // the state every job file was in before this existed.
+  //
+  // The mobile app does NOT come through here — it reads the phone's sensors and writes the
+  // columns itself (`mobile/lib/fieldMedia.ts`), and deliberately uploads with `exif: false`. This
+  // covers everything else: a photo taken on somebody's own phone and airdropped, a client's scan,
+  // anything dragged into the web admin.
+  if (isStorage && file) {
+    await fireAndForget(captureFromExif(supabaseAdmin, {
+      jobFileId: file.id,
+      bucket: (file as JobFileRow).storage_bucket ?? JOB_FILES_BUCKET,
+      storagePath: (storage_path as string).trim(),
+      mimeType: mime_type ?? null,
+      fileName: file_name,
+    }));
   }
 
   await fireAndForget(supabaseAdmin.from('activity_log').insert({

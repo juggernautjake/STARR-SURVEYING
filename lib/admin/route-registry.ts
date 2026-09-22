@@ -429,6 +429,20 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // before `/admin/research` so it wins the prefix match. Absorbing it would have widened it to
   // six roles, which §5 forbids, and §8 wanted it separate anyway.
   { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research end to end — the projects, county coverage, the document library, the data sources, site health, the pipeline and what it all costs.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records', 'county', 'portal', 'adapter', 'vendor', 'register', 'source', 'self-heal', 'monitoring', 'sweep', 'adapters', 'health', 'coverage', 'library', 'data sources', 'site health', 'pipeline', 'research billing', 'counties', 'self heal', 'data source'] },
+  // ── REACHED FROM A JOB, NOT FROM A MENU (2026-09-20) ────────────────────────────────────────
+  //
+  // Owner: "on jobs in projects we need to be able to run research runs for the jobs … put it next
+  // to the create interactive map button." The button is in the job header and carries `?jobId=`;
+  // the page reads the job, shows what the run will inherit, and writes nothing until somebody
+  // presses confirm.
+  //
+  // Registered but PARKED, which is the honest pair of facts about it. Registered because §1.4 is
+  // right that a built page nobody registered is a page that quietly stops being maintained — and
+  // because breadcrumbs, the API bundle gate and middleware all derive from this list. Parked
+  // rather than `showInRail: false` because without a `jobId` this page has nothing to confirm and
+  // calls `notFound()`: offering it in ⌘K would put a dead end in the search results, which is
+  // worse than not offering it. The job header is the only door, and that is the design.
+  { href: '/admin/research/start',       label: 'Research this Property', workspace: 'research-cad', iconName: 'Microscope', description: 'Start a research run from a job — shows the address, parcel, owner and files it will inherit before anything is created.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, parked: true, keywords: ['research', 'job', 'start', 'inherit'] },
   { href: '/admin/research/testing',     label: 'Testing Lab',      workspace: 'research-cad', iconName: 'FlaskConical', description: 'Test research pipelines + adapters.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['lab', 'experiments'] },
   // Roadmap §8.1 (Pillar A). Sits beside Site Health deliberately: that page answers "is a county
   // portal still working", this one answers "which county portals do we have at all", and the two

@@ -97,12 +97,16 @@ export class DocumentPurchaseOrchestrator {
    * the operator that none exist, which is the opposite of what it learned.
    */
   private offerOnlyReport(
+    projectId: string,
     recommendations: PurchaseRecommendation[],
     config: PurchaseOrchestratorConfig,
   ): PurchaseReport {
     return {
       status: 'no_purchases_needed',
-      projectId: 'offer-only',
+      // The project this report is ABOUT. It said 'offer-only' for one commit, which put a status
+      // in an identity field: every offer report in the system then claimed to belong to the same
+      // imaginary project, and the run panel could not tell whose offers it was holding.
+      projectId,
       purchases: recommendations.map((rec) => ({
         instrument: rec.instrument,
         documentType: rec.documentType,
@@ -176,7 +180,7 @@ export class DocumentPurchaseOrchestrator {
       this.logger.info('Purchase',
         `${recommendations.length} document(s) are purchasable and none were bought — a run does not ` +
         'spend. They are offered to the operator, who buys the ones they want.');
-      return this.offerOnlyReport(recommendations, config);
+      return this.offerOnlyReport(projectId, recommendations, config);
     }
 
     const startTime = Date.now();
