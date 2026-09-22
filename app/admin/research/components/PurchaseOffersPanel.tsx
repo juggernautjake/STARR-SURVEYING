@@ -106,7 +106,7 @@ function OfferRow({
           // Honest rather than helpful-looking. Without the vendor's own id for this document,
           // "buy" means re-running the search and taking the first hit, which for a common surname
           // is a different deed with the same label.
-          <span className="offers__manual" title="We do not have the vendor's own id for this document, so buying it automatically could fetch the wrong one.">
+          <span className="offers__manual" title={offer.note ?? undefined}>
             <Lock size={13} aria-hidden="true" /> Buy on {offer.vendor}
           </span>
         ) : confirming ? (
@@ -130,6 +130,10 @@ function OfferRow({
         )}
       </div>
 
+      {/* Why this one is not already in the file. Shown only where it explains something the row
+          does not — a buyable offer's note is the run's generic "found behind a paywall", which a
+          purchase button beside a price already says. */}
+      {!done && offer.note && !offer.buyable && <span className="offers__note">{offer.note}</span>}
       {error && <span role="alert" className="offers__error">{error}</span>}
     </li>
   );

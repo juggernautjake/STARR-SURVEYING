@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { toOffer, sortOffers, offersTotalUsd, offersHeadline, type OfferRow } from '@/lib/research/offers';
+import { toOffer, sortOffers, offersTotalUsd, offersHeadline, LISTABLE_STATUSES, type OfferRow } from '@/lib/research/offers';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,10 +38,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('research_document_purchases')
-    .select('id, instrument_raw, document_type, platform_id, cost_usd, vendor_ref, preview_path, offered_at, failure_reason, county_fips')
+    .select('id, instrument_raw, document_type, platform_id, cost_usd, pages, vendor_ref, preview_path, offered_at, failure_reason, county_fips, status')
     .eq('research_project_id', projectId)
-    .eq('status', 'offered')
-    .order('offered_at', { ascending: false })
+    // All three "found it, did not buy it" statuses — see LISTABLE_STATUSES for why they are one
+    // list. A run that hit its ceiling used to show nothing at all here.
+    .in('status', [...LISTABLE_STATUSES])
+    .order('offered_at', { ascending: false, nullsFirst: false })
     .limit(200);
 
   if (error) {

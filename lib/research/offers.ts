@@ -6,9 +6,10 @@
 //
 // ── AN OFFER IS A FINDING, NOT A FAILURE ────────────────────────────────────────────────────────
 //
-// `deferred-purchases.ts` makes this point for the run's summary sentence and it is worth repeating
-// where the rows are shaped, because the shaping is where it gets lost: a deferred document is
-// something the run LEARNED. The county has it, we located it, we know what it costs, and the only
+// This is the point `deferred-purchases.ts` was written to make, and it is why that module is gone:
+// it said the same thing for a summary sentence nothing rendered, while the rows themselves were
+// shaped somewhere else. The shaping is where the meaning gets lost, so it belongs here. A deferred
+// document is something the run LEARNED. The county has it, we located it, we know what it costs, and the only
 // reason it is not in the file is that nobody has asked for it yet. Rendered beside genuine
 // retrieval failures it reads as four things that went wrong; rendered as a list with prices and a
 // button it reads as four things you can have.
@@ -20,6 +21,28 @@
 // The route reads the table and the page renders. Everything in between — what a row means, what it
 // is worth, whether it can still be bought — is here, where it can be tested without a database.
 
+// ── THREE STATUSES, ONE LIST (2026-09-22) ───────────────────────────────────────────────────────
+//
+// "It should list other found documents that can be purchased, but it should not purchase them
+//  unless the user wants to after the run is complete."
+//
+// Three different rows mean that, written by three different code paths at three different moments:
+//
+//   offered          the run found it and deliberately did not buy — the normal case now
+//   budget_exceeded  the run WANTED to buy and ran out of money
+//   paid_disabled    paid documents were switched off for that run
+//
+// They are one list to a surveyor, who is asking "what else is out there" and does not care which
+// internal gate stopped the spending. They were two lists in the code: this panel read `offered`,
+// and the analyze route built a parallel `deferredPurchases` array from the other two which no UI
+// has ever rendered. A run that hit its ceiling therefore showed nothing at all.
+//
+// The difference that DOES survive is `buyable`: only `offered` rows carry a vendor reference,
+// because only `recordOffers` writes one. The other two are listed with their price and a note
+// saying where to get them.
+export const LISTABLE_STATUSES = ['offered', 'budget_exceeded', 'paid_disabled'] as const;
+export type ListableStatus = (typeof LISTABLE_STATUSES)[number];
+
 /** A row of `research_document_purchases` as the offers route selects it. */
 export interface OfferRow {
   id: string;
@@ -27,11 +50,14 @@ export interface OfferRow {
   document_type: string | null;
   platform_id: string | null;
   cost_usd: number | string | null;
+  /** TexasFile bills per page; a skip row carries a page count where it carries no `cost_usd`. */
+  pages?: number | string | null;
   vendor_ref: string | null;
   preview_path: string | null;
   offered_at: string | null;
   failure_reason: string | null;
   county_fips: string | null;
+  status?: string | null;
 }
 
 /** One document on offer, in the shape the page renders. */
@@ -53,6 +79,26 @@ export interface Offer {
   /** Why it was not bought, in the run's own words. */
   note: string | null;
   offeredAt: string | null;
+}
+
+/**
+ * Why this one is not in the file already, in a sentence a surveyor reads once.
+ *
+ * `budget_exceeded` is the one that must not read as a fault. The run had permission, found the
+ * document, and stopped at a number the operator chose. Told "failed", they distrust their own
+ * limit; told "the run reached its budget", they either raise it or buy the one they want.
+ */
+export function reasonLine(status: string | null | undefined, buyable: boolean, vendor: string): string | null {
+  switch ((status ?? '').trim()) {
+    case 'budget_exceeded':
+      return `The run reached its document budget before this one. Buy it on ${vendor}.`;
+    case 'paid_disabled':
+      return `Paid documents were switched off for that run. Buy it on ${vendor}.`;
+    case 'offered':
+      return buyable ? null : `We do not hold ${vendor}’s own id for this one, so buy it there directly.`;
+    default:
+      return null;
+  }
 }
 
 const VENDOR_NAMES: Record<string, string> = {
@@ -101,19 +147,42 @@ export function offerLabel(row: Pick<OfferRow, 'instrument_raw' | 'document_type
   return type ? `${type} (no instrument number)` : 'Document (no instrument number)';
 }
 
+/**
+ * What the row says this costs.
+ *
+ * `cost_usd` where the run priced it, else the page count — TexasFile bills $1 a page, and a skip
+ * row written by `recordSkippedPurchases` carries `cost_usd: 0` with the pages it counted. Neither
+ * present means we genuinely do not know, which is null and never 0.
+ */
+export function offerPriceUsd(row: Pick<OfferRow, 'cost_usd' | 'pages'>): number | null {
+  const cost = Number(row.cost_usd);
+  if (Number.isFinite(cost) && cost > 0) return Number(cost.toFixed(2));
+  const pages = Number(row.pages);
+  if (Number.isFinite(pages) && pages > 0) return Number(pages.toFixed(2));
+  return null;
+}
+
 export function toOffer(row: OfferRow): Offer {
-  const price = Number(row.cost_usd);
+  const vendor = vendorName(row.platform_id);
+  const buyable = isBuyable(row);
+  // The run's own words where it left any, else the sentence for this status. `recordSkippedPurchases`
+  // writes a generic reason shared by every row it files, which says nothing about THIS document.
+  const written = (row.failure_reason ?? '').trim();
+  const status = (row.status ?? 'offered').trim();
+  const note = status === 'offered' && written
+    ? written
+    : reasonLine(status, buyable, vendor) ?? written ?? null;
   return {
     id: row.id,
     label: offerLabel(row),
     documentType: documentTypeLabel(row.document_type),
-    vendor: vendorName(row.platform_id),
+    vendor,
     // 0 is how the worker stores "priced per page, count unknown" — it is not a free document, and
     // rendering it as $0.00 beside a purchase button would be a lie with a price tag on it.
-    priceUsd: Number.isFinite(price) && price > 0 ? Number(price.toFixed(2)) : null,
+    priceUsd: offerPriceUsd(row),
     previewPath: (row.preview_path ?? '').trim() || null,
-    buyable: isBuyable(row),
-    note: (row.failure_reason ?? '').trim() || null,
+    buyable,
+    note: note || null,
     offeredAt: row.offered_at,
   };
 }

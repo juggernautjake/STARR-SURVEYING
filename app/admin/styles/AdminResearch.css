@@ -14374,6 +14374,9 @@
  * label beats a button that fetches the wrong deed. */
 .offers__manual { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; color: var(--theme-fg-muted, #64748B); }
 .offers__error { flex-basis: 100%; font-size: 0.76rem; color: var(--theme-danger-fg, #991B1B); }
+/* Why this one is not already in the file. Muted, on its own line, and deliberately NOT the danger
+   colour: "the run reached its document budget" is the operator's own setting working correctly. */
+.offers__note { flex-basis: 100%; font-size: 0.72rem; line-height: 1.4; color: var(--theme-fg-muted, #64748B); }
 
 /* `@keyframes spin` is defined once in globals.css (pure rotation) — the motion ratchet exists
    because a second copy of it was what made every spinner in the app diverge. */

@@ -7,7 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   toOffer, offerLabel, isBuyable, vendorName, documentTypeLabel,
-  offersTotalUsd, offersHeadline, sortOffers, pathBelongsToProject, type OfferRow, type Offer,
+  offersTotalUsd, offersHeadline, sortOffers, pathBelongsToProject, reasonLine, offerPriceUsd,
+  LISTABLE_STATUSES, type OfferRow, type Offer,
 } from '@/lib/research/offers';
 
 const ROW: OfferRow = {
@@ -166,5 +167,64 @@ describe('pathBelongsToProject', () => {
     // and every path in the bucket is then one normalisation away from matching. An absent
     // project must deny, not admit.
     expect(pathBelongsToProject('anything/at/all.png', '')).toBe(false);
+  });
+});
+
+// ── THREE STATUSES, ONE LIST ────────────────────────────────────────────────────────────────────
+//
+// `offered`, `budget_exceeded` and `paid_disabled` all mean "the run found it and did not buy it".
+// They were two lists in the code — this one read `offered`, and the analyze route built a parallel
+// array from the other two that no UI ever rendered — so a run that hit its ceiling showed nothing.
+describe('the statuses that belong on the list', () => {
+  it('names all three, so the query and the shaping cannot drift apart', () => {
+    expect([...LISTABLE_STATUSES]).toEqual(['offered', 'budget_exceeded', 'paid_disabled']);
+  });
+
+  it('a budget row is listed, priced from its page count, and not buyable', () => {
+    // `recordSkippedPurchases` writes cost_usd: 0 and the pages it counted; TexasFile bills $1 a
+    // page. Taking the price from `pages` is the difference between "$3.00" and "Price at checkout".
+    const o = toOffer({
+      ...ROW, id: 'b-1', status: 'budget_exceeded', cost_usd: 0, pages: 3, vendor_ref: null,
+      failure_reason: 'Budget reached',
+    });
+    expect(o.priceUsd).toBe(3);
+    expect(o.buyable).toBe(false);
+    expect(o.note).toContain('reached its document budget');
+  });
+
+  it('does not call the operator\u2019s own budget a failure', () => {
+    const line = reasonLine('budget_exceeded', false, 'TexasFile')!;
+    // The run had permission, found it, and stopped at a number the operator chose. A reader told
+    // "failed" distrusts their own limit; told the truth, they raise it or buy the one they want.
+    expect(line).not.toMatch(/fail|error|unable|could not/i);
+    expect(line).toContain('TexasFile');
+  });
+
+  it('says why a paid_disabled row is not in the file', () => {
+    expect(reasonLine('paid_disabled', false, 'TexasFile')).toContain('switched off');
+  });
+
+  it('adds no note to a buyable offer, whose price and button already say it', () => {
+    expect(reasonLine('offered', true, 'TexasFile')).toBeNull();
+  });
+
+  it('keeps the run\u2019s own words on a buyable offer rather than replacing them', () => {
+    const o = toOffer({ ...ROW, status: 'offered', failure_reason: 'Found on the plat index' });
+    expect(o.note).toBe('Found on the plat index');
+  });
+});
+
+describe('offerPriceUsd', () => {
+  it('prefers what the run actually priced', () => {
+    expect(offerPriceUsd({ cost_usd: 7.5, pages: 99 })).toBe(7.5);
+  });
+
+  it('falls back to the page count at a dollar a page', () => {
+    expect(offerPriceUsd({ cost_usd: 0, pages: 4 })).toBe(4);
+  });
+
+  it('is null when neither is known — never 0', () => {
+    expect(offerPriceUsd({ cost_usd: 0, pages: 0 })).toBeNull();
+    expect(offerPriceUsd({ cost_usd: null, pages: null })).toBeNull();
   });
 });
