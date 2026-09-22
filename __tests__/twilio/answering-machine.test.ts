@@ -131,9 +131,12 @@ describe('which receptionist answers live calls', () => {
     expect(liveVersionFrom(null)).toBe('answering-machine');
     expect(liveVersionFrom({})).toBe('answering-machine');
     expect(liveVersionFrom({ live_version: 'banana' })).toBe('answering-machine');
-    expect(liveVersionFrom('agent')).toBe('answering-machine');
-    expect(liveVersionFrom({ live_version: 'agent' })).toBe('agent');
+    expect(liveVersionFrom('agent'), 'a bare string is not the settings object').toBe('answering-machine');
+    // 'agent' was the relay, retired 2026-09-21. It was always the conversational receptionist, just
+    // over a different wire, so a value stored before that change still means the conversational one.
+    expect(liveVersionFrom({ live_version: 'agent' })).toBe('elevenlabs');
     expect(parseVersion('machine')).toBe('answering-machine');
+    expect(parseVersion('voicemail')).toBe('answering-machine');
     expect(parseVersion('nope')).toBeNull();
   });
 
@@ -147,11 +150,31 @@ describe('which receptionist answers live calls', () => {
     expect(calls.updates.find((u) => u.patch.answered_by === 'ai')).toBeUndefined();
   });
 
-  it('with the full agent switched on, the same call gets the agent', async () => {
-    version.read = async () => ({ version: 'agent', updatedBy: null, updatedAt: null });
+  // Rewritten 2026-09-21 with the relay. This used to accept EITHER our own <Gather> loop or a
+  // <Connect>, because the conversational receptionist had two transports and the test did not care
+  // which one answered. It has one now, so the test names it: the caller is dialed to the trunk.
+  it('with the conversational receptionist switched on, the same call is dialed to the agent', async () => {
+    version.read = async () => ({ version: 'elevenlabs', updatedBy: null, updatedAt: null });
+    process.env.ELEVENLABS_SIP_URI = 'sip:+18338426971@sip.rtc.elevenlabs.io:5060';
+    try {
+      const xml = await (await afterDial(signed(`${BASE}/api/twilio/receptionist/after-dial`, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }))).text();
+      expect(xml).not.toContain(esc(MACHINE_LINES.greeting));
+      expect(xml).toContain('<Sip>');
+      expect(xml, 'recorded like every other path').toContain('record="record-from-answer-dual"');
+    } finally {
+      delete process.env.ELEVENLABS_SIP_URI;
+    }
+  });
+
+  // The other half of the owner's 2026-09-21 rule: "if Eleven labs is not working, then we should
+  // fallback to the simple voicemail receptionist message." A deployment with the conversational
+  // receptionist switched on but no trunk configured must answer, not drop the caller.
+  it('conversational switched on with no trunk configured still answers, with the voicemail message', async () => {
+    version.read = async () => ({ version: 'elevenlabs', updatedBy: null, updatedAt: null });
+    delete process.env.ELEVENLABS_SIP_URI;
     const xml = await (await afterDial(signed(`${BASE}/api/twilio/receptionist/after-dial`, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }))).text();
-    expect(xml).not.toContain(esc(MACHINE_LINES.greeting));
-    expect(xml).toMatch(/receptionist\/turn|<Connect/);
+    expect(xml).toContain(esc(MACHINE_LINES.greeting));
+    expect(xml).not.toContain('<Sip>');
   });
 
   it('a private test call runs the full agent by default, and the answering machine when asked', async () => {
@@ -333,7 +356,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     expect(src, 'its own wrap-up, not the relay fallback').toContain("action: '/api/twilio/receptionist/agent-ended'");
     expect(src, 'recorded like every other path').toContain('recordingCallback');
     // A deployment with no trunk configured must answer, not drop the call.
-    expect(src).toContain("live.version === 'elevenlabs' && !sip");
+    expect(src).toContain("!sip && live.version === 'elevenlabs'");
     expect(src).toContain('machineStart(live.voice)');
   });
 

@@ -442,3 +442,17 @@
   .rtest *, .rtest *::before, .rtest *::after { animation: none !important; transition: none !important; }
   .rtest__chat { scroll-behavior: auto; }
 }
+
+/* ── The live card's two choices, and the call-log tabs ──────────────────────────────────────────
+   Both reuse `.rtest__choice`, which already styles the test-setup picker. Reusing it is the point:
+   the page asks the same question in three places — which receptionist, which one to test, which
+   log — and answering it should look the same each time. */
+.rtest__fallback-note {
+  margin-top: .5rem;
+  padding-left: .75rem;
+  border-left: 2px solid var(--theme-border, #CBD5E1);
+  color: var(--theme-fg-secondary, #475569);
+  line-height: 1.5;
+}
+.rtest__logtabs { margin-bottom: .75rem; }
+

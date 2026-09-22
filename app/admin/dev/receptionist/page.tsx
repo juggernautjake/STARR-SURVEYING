@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 import type { CallState } from '@/lib/receptionist/state';
-import { VERSION_LABELS, TEST_VERSION_LABELS, type ReceptionistVersion, type TestVersion } from '@/lib/receptionist/version';
+import { VERSION_LABELS, TEST_VERSION_LABELS, CHOOSABLE_VERSIONS, choosable, type ReceptionistVersion, type TestVersion } from '@/lib/receptionist/version';
 import { RECEPTIONIST_VOICES, DEFAULT_VOICE_ID } from '@/lib/receptionist/voices';
 import { AGENT_VOICES, AGENT_VOICE_GROUPS, type AgentVoice } from '@/lib/receptionist/agent-voices';
 import { AGENT_MODELS, type AgentModel } from '@/lib/receptionist/agent-models';
@@ -53,6 +53,17 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
   // ── recent test calls ─────────────────────────────────────────────────────────────────────────
   const [tests, setTests] = useState<PhoneCall[]>([]);
+  // ── TWO LOGS (owner, 2026-09-21) ──────────────────────────────────────────────────────────────
+  //
+  // "we should have two logs of calls. We should have one that is from the live calls to the actual
+  //  business number, and then we should have a log of all of the test calls... review the live
+  //  calls, but also review the test calls from the test page as well."
+  //
+  // They are genuinely different questions — "does this voice sound right" and "what did a customer
+  // actually get" — and answering the second used to mean leaving this page for /admin/calls and
+  // losing the setup you were in the middle of.
+  const [liveCalls, setLiveCalls] = useState<PhoneCall[]>([]);
+  const [logTab, setLogTab] = useState<'test' | 'live'>('test');
   const refresh = useCallback(() => {
     // `scope=test` — not a client-side filter. When the calls API gained a scope on 2026-09-21 its
     // default became `live`, so this panel was asking for a hundred LIVE calls and filtering them
@@ -60,6 +71,10 @@ export default function ReceptionistTestPage(): React.ReactElement {
     fetch('/api/admin/calls?limit=100&scope=test')
       .then((r) => r.json())
       .then((j: { calls?: PhoneCall[] }) => setTests(j.calls ?? []))
+      .catch((e: Error) => reportPageError(e));
+    fetch('/api/admin/calls?limit=50&scope=live')
+      .then((r) => r.json())
+      .then((j: { calls?: PhoneCall[] }) => setLiveCalls(j.calls ?? []))
       .catch((e: Error) => reportPageError(e));
   }, [reportPageError]);
   useEffect(() => { refresh(); const t = setInterval(refresh, 10_000); return () => clearInterval(t); }, [refresh]);
@@ -104,7 +119,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
   const [liveBusy, setLiveBusy] = useState(false);
   // Which version the owner is about to put in front of real callers, while they confirm it.
   const [confirmAgent, setConfirmAgent] = useState<ReceptionistVersion | null>(null);
-  const [testVersion, setTestVersion] = useState<TestVersion>('agent');
+  const [testVersion, setTestVersion] = useState<TestVersion>('elevenlabs');
 
   /**
    * Whether the version being tested speaks through ElevenLabs.
@@ -128,7 +143,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
       // Test calls default to the conversational agent being honed — the ElevenLabs one where it is
       // configured (owner, 2026-09-15: "only testing the fully functional and conversational AI voice
       // agent … keep just the simpler answering machine style recording for live calls").
-      if (j.elevenLabsReady) setTestVersion((cur) => (cur === 'agent' ? 'elevenlabs' : cur));
+      // Two choices now; nothing to migrate from.
     }).catch((e: Error) => reportPageError(e));
   }, [reportPageError]);
   const saveLive = async (patch: { version?: ReceptionistVersion; voice?: string | null }) => {
@@ -456,35 +471,58 @@ export default function ReceptionistTestPage(): React.ReactElement {
 
             <p className="rtest__status">Voice: <b>{(RECEPTIONIST_VOICES.find((v) => v.id === (live.voice ?? DEFAULT_VOICE_ID)) ?? RECEPTIONIST_VOICES[0]).name}</b></p>
             {live.updatedBy && <small className="rtest__status">Set by {live.updatedBy}{live.updatedAt ? ` · ${fmtWhen(live.updatedAt)}` : ''}</small>}
-            <div className="rtest__row">
-              {live.version !== 'answering-machine' ? (
-                <button type="button" className="rtest__btn" onClick={() => void setLiveVersion('answering-machine')} disabled={liveBusy} data-testid="rtest-live-machine">
-                  Switch live calls back to the answering machine
-                </button>
-              ) : null}
-              {confirmAgent ? (
-                <>
-                  <span className="rtest__status">Real customers will talk to {VERSION_LABELS[confirmAgent].name.toLowerCase()}. Only do this once it sounds right on test calls.</span>
-                  <button type="button" className="rtest__btn rtest__btn--danger" onClick={() => void setLiveVersion(confirmAgent)} disabled={liveBusy} data-testid="rtest-live-agent-confirm">
-                    Yes, put it on live calls
+
+            {/* ── TWO CHOICES, AND THE FALLBACK IS STATED (owner, 2026-09-21) ───────────────────
+                "These should be the only two options... set the voicemail message version to the
+                backup if the conversational version fails."
+
+                There were three buttons here and one of them ("Use the relay agent instead…")
+                offered a TRANSPORT as though it were a receptionist. The owner: "There seems to be
+                a version of twilio that does not use elevenlabs. I don't wanna use that version."
+                It is gone from the routing as well, not just from this card.
+
+                The fallback is not a third choice and never needs choosing — it is what happens
+                when the first one cannot answer, so it is written as a sentence rather than a
+                control. */}
+            <div className="rtest__choices" role="group" aria-label="Which receptionist answers live calls">
+              {CHOOSABLE_VERSIONS.map((v) => {
+                const isLive = choosable(live.version) === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`rtest__choice${isLive ? ' rtest__choice--on' : ''}`}
+                    aria-pressed={isLive}
+                    disabled={liveBusy || isLive}
+                    data-testid={`rtest-live-set-${v}`}
+                    onClick={() => (v === 'elevenlabs' ? setConfirmAgent('elevenlabs') : void setLiveVersion('answering-machine'))}
+                  >
+                    <span className="rtest__choice-name">{VERSION_LABELS[v].name}</span>
+                    <span className="rtest__choice-blurb">{isLive ? 'Answering live calls now.' : 'Switch live calls to this.'}</span>
                   </button>
-                  <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent(null)} disabled={liveBusy}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  {live.version !== 'elevenlabs' && live.elevenLabsReady !== false && (
-                    <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent('elevenlabs')} disabled={liveBusy} data-testid="rtest-live-elevenlabs">
-                      Put the conversational agent on live calls…
-                    </button>
-                  )}
-                  {live.version !== 'agent' && (
-                    <button type="button" className="rtest__btn rtest__btn--ghost" onClick={() => setConfirmAgent('agent')} disabled={liveBusy} data-testid="rtest-live-agent">
-                      Use the relay agent instead…
-                    </button>
-                  )}
-                </>
-              )}
+                );
+              })}
             </div>
+
+            {confirmAgent && (
+              <div className="rtest__row" data-testid="rtest-live-confirm">
+                <span className="rtest__status">
+                  Real customers will talk to the conversational receptionist. Only do this once it sounds right on a test call.
+                </span>
+                <button type="button" className="rtest__btn rtest__btn--danger" disabled={liveBusy}
+                  onClick={() => void setLiveVersion(confirmAgent)} data-testid="rtest-live-agent-confirm">
+                  Yes, put it on live calls
+                </button>
+                <button type="button" className="rtest__btn rtest__btn--ghost" disabled={liveBusy}
+                  onClick={() => setConfirmAgent(null)}>Cancel</button>
+              </div>
+            )}
+
+            <p className="rtest__status rtest__fallback-note">
+              {choosable(live.version) === 'elevenlabs'
+                ? 'If the conversational receptionist cannot answer — the trunk is down, the account is out of credit — the caller hears the voicemail message instead. Nobody is ever dropped.'
+                : 'Callers are asked to leave a message. No AI speaks to them.'}
+            </p>
           </>
         )}
       </section>
@@ -509,9 +547,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
           <div className="rtest__step">
             <h3 className="rtest__step-head"><span className="rtest__step-n">1</span> Which receptionist</h3>
             <div className="rtest__choices" role="radiogroup" aria-label="Which receptionist to test">
-              {(['elevenlabs', 'agent', 'answering-machine'] as TestVersion[])
-                .filter((v) => v !== 'elevenlabs' || live?.elevenLabsReady !== false)
-                .map((v) => (
+              {CHOOSABLE_VERSIONS.map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -523,7 +559,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
                   >
                     <span className="rtest__choice-name">
                       {TEST_VERSION_LABELS[v].name}
-                      {live?.version === v && <em className="rtest__tag rtest__tag--live">Live now</em>}
+                      {live && choosable(live.version) === v && <em className="rtest__tag rtest__tag--live">Live now</em>}
                     </span>
                     <span className="rtest__choice-blurb">{TEST_VERSION_LABELS[v].blurb}</span>
                   </button>
@@ -833,11 +869,36 @@ export default function ReceptionistTestPage(): React.ReactElement {
       </div>
 
       <section className="rtest__card" aria-labelledby="rt-recent">
-        <h2 id="rt-recent">Recent test calls</h2>
-        <p>Click one for the recording, transcript and analysis. Real calls stay on the <Link href="/admin/calls">Calls page</Link>.</p>
+        <h2 id="rt-recent">Calls</h2>
+        <div className="rtest__choices rtest__logtabs" role="tablist" aria-label="Which calls to show">
+          {(['test', 'live'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={logTab === t}
+              className={`rtest__choice${logTab === t ? ' rtest__choice--on' : ''}`}
+              onClick={() => setLogTab(t)}
+              data-testid={`rtest-log-${t}`}
+            >
+              <span className="rtest__choice-name">
+                {t === 'test' ? 'Test calls' : 'Live calls'}
+                <em className="rtest__tag">{t === 'test' ? tests.length : liveCalls.length}</em>
+              </span>
+              <span className="rtest__choice-blurb">
+                {t === 'test'
+                  ? 'Yours, from this page. Nobody was rung and nobody was told.'
+                  : 'What real callers to the business line got when Hank did not pick up.'}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p>Click one for the recording, transcript and analysis.</p>
         <div className="rtest__list">
-          {tests.length === 0 && <span className="rtest__status">No test calls yet.</span>}
-          {tests.slice(0, 25).map((c) => (
+          {(logTab === 'test' ? tests : liveCalls).length === 0 && (
+            <span className="rtest__status">{logTab === 'test' ? 'No test calls yet.' : 'No live calls yet.'}</span>
+          )}
+          {(logTab === 'test' ? tests : liveCalls).slice(0, 25).map((c) => (
             <Link key={c.id} href={`/admin/calls/${c.id}`} className="rtest__item">
               <span>
                 {c.call_sid.startsWith('TEST-') ? 'Text chat' : c.from_number.startsWith('client:') ? 'Browser call' : `Phone call to ${fmtPhone(c.from_number)}`}

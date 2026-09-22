@@ -15,16 +15,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
-import { gather, hangup, twiml, twimlResponse } from '@/lib/twilio/twiml';
-import { emptyState, stateCookieHeader } from '@/lib/receptionist/state';
-import { greeting } from '@/lib/receptionist/brain';
+import { hangup, twiml, twimlResponse } from '@/lib/twilio/twiml';
 import { getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
-import { relayConfig, relayTwiml } from '@/lib/receptionist/relay';
 import { readLiveVersion } from '@/lib/receptionist/version-server';
 import { machineStart } from '@/lib/receptionist/answering-machine';
-import { resolveVoice, sayVoiceFor } from '@/lib/receptionist/voices';
 import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
 
 export const dynamic = 'force-dynamic';
@@ -79,24 +75,23 @@ export async function POST(request: Request): Promise<Response> {
       auth: elevenLabsSipAuth(),
     })));
   }
-  if (live.version === 'answering-machine' || (live.version === 'elevenlabs' && !sip)) {
-    if (!sip && live.version === 'elevenlabs') console.error('[after-dial] live version is elevenlabs but no SIP URI is configured — answering with the machine');
-    await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
-    return twimlResponse(machineStart(live.voice));
-  }
-
-  // The relay/<Gather> agent is answering.
-  await updateCall(supabaseAdmin, callSid, { status: 'in-progress', answered_by: 'ai' });
-  // The caller already heard the recording notice before the phone rang (entry route), so the
-  // receptionist goes straight to the greeting.
+  // ── EVERYTHING ELSE IS THE VOICEMAIL MESSAGE (owner, 2026-09-21) ─────────────────────────────
   //
-  // Two transports for the same brain. With RECEPTIONIST_RELAY_URL set, the live call is handed to
-  // ConversationRelay (streaming speech both ways, interruptible; see lib/receptionist/relay.ts).
-  // Without it, or when the relay fails (relay-ended falls back here), the request-response
-  // <Gather> loop below runs.
-  const relay = relayConfig();
-  const chosen = live.voice ? resolveVoice(live.voice) : null;
-  if (relay) return twimlResponse(twiml(relayTwiml(relay, callSid, from, { voice: chosen ? { provider: chosen.provider, voice: chosen.relayVoice } : null })));
-  const xml = twiml(gather('/api/twilio/receptionist/turn', greeting(), { voice: sayVoiceFor(live.voice) }));
-  return twimlResponse(xml, { 'set-cookie': stateCookieHeader(emptyState()) });
+  // "We need to be able to set the voicemail message version to the backup if the conversational
+  //  version fails for some reason... These should be the only two options."
+  //
+  // There used to be a third branch here: the same receptionist over our own relay, or a <Gather>
+  // loop if the relay was not configured. That was a TRANSPORT masquerading as a choice, and it
+  // made the test bench offer three peers with one labelled LIVE NOW and another labelled the
+  // fallback — which is exactly the confusion the owner asked to remove.
+  //
+  // So there is one fallback now and it is the one that cannot misbehave. A caller asked to leave a
+  // message has still reached the firm; a caller handed to a half-configured second conversational
+  // stack has reached something nobody chose. The SIP branch above is the conversational
+  // receptionist; this is the voicemail message, and it answers whenever that one cannot.
+  if (!sip && live.version === 'elevenlabs') {
+    console.error('[after-dial] live version is conversational but no SIP URI is configured — answering with the voicemail message');
+  }
+  await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
+  return twimlResponse(machineStart(live.voice));
 }

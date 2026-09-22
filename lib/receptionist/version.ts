@@ -20,10 +20,38 @@
 //
 // This file imports nothing, so the test page can use the labels.
 
+// ── TWO CHOICES, NOT THREE (owner, 2026-09-21) ──────────────────────────────────────────────────
+//
+// "We need to be able to set the call receptionist to be just a voicemail prompt message... or we
+//  need it to be a full conversational interaction... These should be the only two options. We need
+//  to be able to set the voicemail message version to the backup if the conversational version
+//  fails for some reason."
+//
+// There were three, and the third was a transport rather than a decision: `agent` is the same
+// receptionist run through our own relay instead of ElevenLabs. Offering it as a peer of the other
+// two asked the operator to pick a pipe, and the test bench showed all three at once with one of
+// them labelled LIVE NOW and another labelled the fallback — which is the confusion this removes.
+//
+// The fallback is now what the owner asked for and what it always should have been: if the
+// conversational agent cannot answer, the caller gets the voicemail message. That is the version
+// that cannot misbehave, and a caller who is asked to leave a message has still reached the firm.
+//
+// `agent` remains in the union ONLY so a stored value from before this change still parses. Nothing
+// offers it, and `liveVersionFrom` reads it as conversational — it was always the conversational
+// receptionist, just over a different wire.
 export type ReceptionistVersion = 'answering-machine' | 'agent' | 'elevenlabs';
 
-/** What a TEST call can run — the same three, chosen per call whatever live calls are using. */
-export type TestVersion = ReceptionistVersion;
+/** The two a person may actually choose, for live calls and for a test call alike. */
+export const CHOOSABLE_VERSIONS = ['elevenlabs', 'answering-machine'] as const;
+export type ChoosableVersion = (typeof CHOOSABLE_VERSIONS)[number];
+
+/** What a TEST call can run — the same two, chosen per call whatever live calls are using. */
+export type TestVersion = ChoosableVersion;
+
+/** A stored value as one of the two choices. The retired relay reads as conversational. */
+export function choosable(v: ReceptionistVersion): ChoosableVersion {
+  return v === 'answering-machine' ? 'answering-machine' : 'elevenlabs';
+}
 
 export const RECEPTIONIST_SETTINGS_KEY = 'receptionist';
 export const DEFAULT_LIVE_VERSION: ReceptionistVersion = 'answering-machine';
@@ -34,22 +62,28 @@ export const VERSION_LABELS: Record<ReceptionistVersion, { name: string; blurb: 
     blurb: 'Asks for a message with a name and number, records it, asks if there is anything else, and says goodbye. Fixed words, no AI replies.',
   },
   elevenlabs: {
-    name: 'Conversational agent (ElevenLabs)',
-    blurb: 'Ellie on ElevenLabs Agents with Riley’s voice: holds a real conversation, takes a message for Hank, never gives a price, and never assumes it has met the caller before.',
+    name: 'Conversational receptionist',
+    blurb: 'Ellie holds a real conversation: takes the caller’s name, number and what they need, never gives a price, and never assumes it has met them before. If she cannot answer for any reason, the caller gets the voicemail message instead.',
   },
+  // Retired as a choice on 2026-09-21; kept so an older stored value still renders if it surfaces.
   agent: {
-    name: 'Conversational agent on our own relay',
-    blurb: 'The same receptionist run through our relay instead of ElevenLabs. The fallback if ElevenLabs is unavailable; the voice is less natural.',
+    name: 'Conversational receptionist',
+    blurb: 'The conversational receptionist.',
   },
 };
 
-export const TEST_VERSION_LABELS: Record<TestVersion, { name: string; blurb: string }> = VERSION_LABELS;
+/** The two, in the order they are offered: the one we want, then the safe one. */
+export const TEST_VERSION_LABELS: Record<TestVersion, { name: string; blurb: string }> = {
+  elevenlabs: VERSION_LABELS.elevenlabs,
+  'answering-machine': VERSION_LABELS['answering-machine'],
+};
 
 /** A stored or requested version, or null when it is not one. Accepts a few spellings. */
 export function parseVersion(value: unknown): ReceptionistVersion | null {
   const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (v === 'answering-machine' || v === 'machine' || v === 'answering_machine' || v === 'voicemail') return 'answering-machine';
-  if (v === 'agent' || v === 'ai' || v === 'full') return 'agent';
+  // 'agent' was the relay. Retired as a choice; anything asking for it means the conversational one.
+  if (v === 'agent' || v === 'ai' || v === 'full' || v === 'conversational') return 'elevenlabs';
   if (v === 'elevenlabs' || v === 'eleven' || v === '11labs') return 'elevenlabs';
   return null;
 }
@@ -57,7 +91,9 @@ export function parseVersion(value: unknown): ReceptionistVersion | null {
 /** Kept as its own name because the two lists were different until 2026-09-16, and the call sites
  *  read better for saying which decision they are making. */
 export function parseTestVersion(value: unknown): TestVersion | null {
-  return parseVersion(value);
+  const v = parseVersion(value);
+  // A test call runs one of the two a person can choose, so the retired relay collapses here too.
+  return v === null ? null : choosable(v);
 }
 
 /** The live version from the stored settings object — the answering machine unless it clearly says agent. */

@@ -255,16 +255,18 @@ describe('entry route', () => {
     expect(b).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     expect(calls.updates).toEqual([{ sid: 'CA1', patch: { status: 'in-progress', answered_by: 'owner' } }]);
   });
-  it('after an unanswered dial: greeting, then listen, with the call cookie (the notice was already spoken before the ring)', async () => {
+  // Rewritten 2026-09-21. This asserted the <Gather> receptionist answered an unanswered dial; that
+  // path is gone. With no live version stored, the default is the voicemail message — the version
+  // that cannot misbehave is what a missing setting falls back to.
+  it('after an unanswered dial: the voicemail message, since nothing chose otherwise', async () => {
     process.env.TWILIO_AUTH_TOKEN = TOKEN;
     calls.row = null;
     const url = 'https://www.starr-surveying.com/api/twilio/receptionist/after-dial';
     const res = await afterDial(signed(url, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }));
     expect(res.status).toBe(200);
     const xml = await res.text();
-    expect(xml).toContain(esc(greeting()));
-    expect(xml).toContain('action="/api/twilio/receptionist/turn"');
-    expect(res.headers.get('set-cookie')).toContain(COOKIE_NAME);
+    expect(xml).toContain('<Record');
+    expect(xml).not.toContain('<Gather input="speech"');
   });
   it('the voicemail trap: "completed" with no key pressed is NOT the owner, so the AI answers', async () => {
     // Second live test, 2026-09-11: the owner let it ring, his carrier voicemail answered the whisper,
@@ -273,8 +275,10 @@ describe('entry route', () => {
     calls.row = { answered_by: null, recording_sid: null };
     const url = 'https://www.starr-surveying.com/api/twilio/receptionist/after-dial';
     const xml = await (await afterDial(signed(url, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'completed', DialCallDuration: '16' }))).text();
-    expect(xml).toContain('<Gather input="speech"');
-    expect(xml).toContain(esc(greeting()));
+    // The trap itself is unchanged and is the point: the caller is still waiting, so SOMETHING must
+    // answer. Which receptionist it is depends on the stored setting; what must never happen is the
+    // hang-up this test was written for.
+    expect(xml).toContain('<Record');
     expect(xml).not.toContain('<Hangup/>');
   });
   it('after a conversation the owner accepted with a key: just hang up, no AI', async () => {

@@ -138,16 +138,30 @@ describe('relay TwiML', () => {
     expect(greeting()).toMatch(/leave him a message/i);
     expect(greeting()).toMatch(/Hank/);
   });
-  it('after-dial hands an unanswered call to the relay when configured, and to <Gather> when not', async () => {
+  // ── THE RELAY IS NO LONGER A LIVE PATH (owner, 2026-09-21) ────────────────────────────────
+  //
+  // "There seems to be a version of twilio that does not use elevenlabs. I don't wanna use that
+  //  version. I either want the voicemail or the natural sounding conversational voice model that
+  //  elevenlabs provides."
+  //
+  // This asserted the opposite: that an unanswered call goes to ConversationRelay, or to a <Gather>
+  // loop when the relay is unconfigured. Both were the same receptionist over a different pipe, and
+  // offering a TRANSPORT as a peer of "voicemail" and "conversational" is what made the test bench
+  // unreadable. There is one fallback now and it is the voicemail message.
+  //
+  // The relay's own modules still build valid TwiML — the tests above still cover that — they are
+  // simply not reachable from a live call any more.
+  it('after-dial never hands a live call to the relay or to <Gather>', async () => {
     calls.row = { answered_by: null, recording_sid: null };
     const url = 'https://www.starr-surveying.com/api/twilio/receptionist/after-dial';
-    relayEnv(true);
-    const a = await (await afterDial(signed(url, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }))).text();
-    expect(a).toContain('<ConversationRelay ');
-    expect(a).not.toContain('<Gather');
-    relayEnv(false);
-    const b = await (await afterDial(signed(url, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }))).text();
-    expect(b).toContain('<Gather input="speech"');
+    for (const configured of [true, false]) {
+      relayEnv(configured);
+      const xml = await (await afterDial(signed(url, { From: '+12545550100', CallSid: 'CA1', DialCallStatus: 'no-answer' }))).text();
+      expect(xml, `relay configured=${configured}`).not.toContain('<ConversationRelay');
+      expect(xml, `relay configured=${configured}`).not.toContain('<Gather input="speech"');
+      // The voicemail message is what a caller gets whenever the conversational agent cannot answer.
+      expect(xml, `relay configured=${configured}`).toContain('<Record');
+    }
   });
 });
 
