@@ -3407,6 +3407,38 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             .catch((err: unknown) => {
               console.warn(`[Worker] ${projectId}: error setting status=review:`, err instanceof Error ? err.message : String(err));
             });
+        } else {
+          // ── A RESULT THAT IS NOT COMPLETE STILL HAS TO LEAVE 'analyzing' ──────────────────────
+          //
+          // The `if` above is the only place this path writes `research_projects`, so a run that
+          // RETURNED a failed result — as opposed to throwing, which the catch handler covers —
+          // finished tidily, recorded itself in `research_runs` as complete, and left the project
+          // row at 'analyzing' with no way back.
+          //
+          // Measured: project d799e026 (1401 North East St, Belton) had `research_runs` saying
+          // `complete / finished` and `research_projects` saying `analyzing`, fifteen days apart,
+          // with eleven filed documents nobody could see.
+          getSupabase()
+            .then(async (supabase) => {
+              if (!supabase) return;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { error } = await (supabase as any)
+                .from('research_projects')
+                .update({
+                  status: 'configure',
+                  research_status: 'failed',
+                  research_message: (r.failureReason ?? 'The run finished without a usable result.').slice(0, 500),
+                })
+                .eq('id', projectId)
+                // Same guard as the catch handler: only the row this run left behind.
+                .eq('status', 'analyzing');
+              if (error) {
+                console.error(`[Worker] ${projectId}: could not release the project from 'analyzing' — ${error.message}`);
+              }
+            })
+            .catch((err: unknown) => {
+              console.error(`[Worker] ${projectId}: could not release the project from 'analyzing' —`, err instanceof Error ? err.message : String(err));
+            });
         }
       } else {
         const r = unifiedResult.data;

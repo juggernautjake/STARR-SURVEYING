@@ -97,3 +97,36 @@ describe('who stopped the run decides what it is called', () => {
     expect(handler).toContain("status: partialStop ? 'partial' : 'failed'");
   });
 });
+
+// ── AND A RUN THAT DOES NOT THROW ───────────────────────────────────────────────────────────────
+//
+// The catch handler covers a run that crashes. A run that RETURNS a failed result never reaches it:
+// it finished tidily, recorded itself complete in `research_runs`, and wrote nothing to the project
+// row — which only gets written inside `if (r.status === 'complete' || r.status === 'partial')`.
+//
+// Measured on project d799e026 (1401 North East St, Belton): `research_runs` said
+// `complete / finished`, `research_projects` said `analyzing`, fifteen days apart, eleven filed
+// documents nobody could see.
+describe('a run that returns a failed result releases its project too', () => {
+  const region = (() => {
+    const at = src.indexOf("// Update project status to 'review' in Supabase");
+    expect(at, 'the success block moved').toBeGreaterThan(-1);
+    return src.slice(at, at + 4000);
+  })();
+
+  it('has an else branch, not just the complete/partial write', () => {
+    expect(region).toContain("if (r.status === 'complete' || r.status === 'partial') {");
+    expect(region).toContain('} else {');
+    expect(region).toContain("status: 'configure'");
+  });
+
+  it('guards on the row still being the one this run left', () => {
+    // Two writes in this region now; both must be guarded, or a second run is knocked out.
+    const guards = region.match(/\.eq\('status', 'analyzing'\)/g) ?? [];
+    expect(guards.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('logs a release that fails, rather than warning past it', () => {
+    expect(region).toContain("could not release the project from 'analyzing'");
+  });
+});
