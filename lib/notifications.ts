@@ -376,8 +376,15 @@ export async function notifyACCEnrollment(userEmail: string, courseId: string) {
 
 // ─── A new job (owner, 2026-09-10) ───────────────────────────────────────────
 
-/** Roles that work jobs — the people a new job is news to. The creator is left out: they have seen it. */
-const JOB_AUDIENCE_ROLES = new Set(['admin', 'developer', 'tech_support', 'field_crew', 'drawer', 'researcher', 'bookkeeper']);
+/**
+ * Roles that work jobs — the people a new job is news to. The creator is left out: they have seen it.
+ *
+ * `bookkeeper` was in this list until 2026-09-23 and is not a role. `ALL_ROLES` in lib/auth-roles.ts
+ * has never contained it — the money role is called `finance` — so the entry matched nobody and had
+ * no effect. It is removed rather than corrected to `finance`: a bookkeeper does not work jobs, and
+ * the person who wrote it plainly meant a role that did not exist yet.
+ */
+const JOB_AUDIENCE_ROLES = new Set(['admin', 'developer', 'tech_support', 'field_crew', 'drawer', 'researcher']);
 
 /**
  * A job was created: one `job_created` notification per company user who works jobs. The row is

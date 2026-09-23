@@ -23,13 +23,23 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMany } from '@/lib/notifications';
+import { recipientsFor as bellRecipientsFor } from '@/lib/notifications/notification-preferences';
 import { sendSMSViaTwilio } from '@/lib/saas/notifications/sms';
 import { hasAttribution, type Attribution } from './attribution';
 import { upsertCustomer } from '@/lib/customers/identity';
 import { recordMilestone } from '@/lib/pipeline/events';
 
-/** Roles that get an in-app notification when a public query arrives.
- *  Centralized so future role additions stay in lockstep. */
+/**
+ * SUPERSEDED 2026-09-23 by `BROADCAST_KINDS` in `lib/notifications/audience.ts`.
+ *
+ * This list could not exclude anybody. It contains `employee`, which `lib/auth-roles.ts` describes
+ * as the "Base role" and which every person in the firm holds — so the filter selected six of six,
+ * and the field crew got a bell for every customer call about title work. The replacement routes on
+ * who can ACT on the thing, and layers a per-person opt-out on top.
+ *
+ * Kept because `findIntakeRecipients` below is still exported and source-locked by
+ * `__tests__/leads/intake.test.ts`. Nothing in the notification path reads it any more.
+ */
 export const INTAKE_ROUTING_ROLES = [
   'admin',
   'employee',
@@ -317,7 +327,9 @@ export async function notifyIntakeRecipients(
   // Text the owners first. This leg does not depend on the in-app recipient lookup, so a
   // Supabase hiccup there cannot silence the phone.
   await notifyLeadBySms(args.input, args.leadId);
-  const recipients = await findIntakeRecipients(client);
+  // Who hears about a new query is decided in lib/notifications/audience.ts, alongside phone calls
+  // — it is the same event arriving through a different door, so it had better be the same list.
+  const recipients = await bellRecipientsFor(client, 'lead.received');
   if (recipients.length === 0) return { recipientCount: 0 };
 
   const { input, leadId } = args;

@@ -8,6 +8,7 @@ import './NotificationsInbox.css';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { notificationIcon } from '@/lib/notifications/icons';
 
 interface Notification {
   id: string;
@@ -22,10 +23,6 @@ interface Notification {
   source_type?: string;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  assignment: '📋', message: '💬', payment: '💰', system: '⚙️',
-  reminder: '⏰', job_update: '🔧', approval: '✅', mention: '@', info: 'ℹ️',
-};
 const ESCALATION_COLORS: Record<string, string> = {
   low: '#10B981', normal: '#6B7280', high: '#F59E0B', urgent: '#DC2626', critical: '#7C3AED',
 };
@@ -189,7 +186,7 @@ export default function NotificationsInboxPage() {
       ) : (
         <ul className="notif-inbox__list">
           {notifications.map(n => {
-            const icon = n.icon || TYPE_ICONS[n.type] || 'ℹ️';
+            const icon = notificationIcon(n.icon, n.type);
             const escColor = n.escalation_level ? ESCALATION_COLORS[n.escalation_level] : undefined;
             const isUrgent = n.escalation_level === 'urgent' || n.escalation_level === 'critical';
             const Row = (

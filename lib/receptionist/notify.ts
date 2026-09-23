@@ -16,7 +16,8 @@
 // the only source when a caller just leaves a voicemail.
 import { BUSINESS_NAME, EMAIL, SITE_URL } from '@/lib/seo/business';
 import { sendSMSViaTwilio } from '@/lib/saas/notifications/sms';
-import { leadSmsRecipients, findIntakeRecipients } from '@/lib/leads/intake';
+import { leadSmsRecipients } from '@/lib/leads/intake';
+import { recipientsFor as bellRecipientsFor } from '@/lib/notifications/notification-preferences';
 import { notifyMany } from '@/lib/notifications';
 import { supabaseAdmin } from '@/lib/supabase';
 import { ASSISTANT_NAME, OWNER_NAME } from './knowledge';
@@ -191,7 +192,10 @@ export function outcomeText(o: CallOutcome): string {
  */
 export async function notifyInApp(o: CallOutcome): Promise<number> {
   try {
-    const recipients = await findIntakeRecipients(supabaseAdmin);
+    // Who hears about a phone call is decided in one place now — lib/notifications/audience.ts —
+    // rather than by a role list here. It used to include `employee`, which every person holds, so
+    // the filter selected everybody and the field crew got a bell for every customer call.
+    const recipients = await bellRecipientsFor(supabaseAdmin, 'call.received');
     if (!recipients.length) return 0;
     const f = mergedFacts(o);
     const personal = f.kind === 'personal';

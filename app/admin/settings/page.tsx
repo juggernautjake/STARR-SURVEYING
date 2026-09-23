@@ -54,6 +54,7 @@ import '../styles/AdminJobs.css';
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import { usePageError } from '../hooks/usePageError';
 import HoursNotificationSetting from './HoursNotificationSetting';
+import BroadcastNotificationSettings from './BroadcastNotificationSettings';
 import PageToggles from './PageToggles';
 import OrgProfileTab from './_tabs/OrgProfileTab';
 import OrgsTab from './_tabs/OrgsTab';
@@ -295,6 +296,7 @@ export default function SettingsPage() {
             {/* Renders nothing for somebody who cannot approve hours — a toggle that changes
                 nothing teaches people the settings page lies. */}
             <HoursNotificationSetting />
+            <BroadcastNotificationSettings />
           </div>
         )}
 
