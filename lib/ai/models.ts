@@ -18,6 +18,27 @@
 // The environment can still override any role (`AI_MODEL_<ROLE>`), because the audit's Q52 asks what
 // the monthly AI budget is and nobody has answered — a deployment must be able to move everything
 // down a tier without a deploy.
+//
+// ── THE TIER RULE (2026-09-23) ──────────────────────────────────────────────────────────────────
+//
+// Until this date every role except `guard` and `voice` ran on the top tier, and the reason given
+// was a good one: a cheaper model that is subtly wrong about a boundary costs more than the tokens
+// it saves. That argument is sound and it still governs `reasoning`. But it was being applied to
+// roles whose own rationale says the opposite — `extraction` describes itself as "bounded and
+// checkable", and `drafting` as work "a human reads before it is sent". Neither is made correct by
+// the model ceiling; one is made correct by a schema and the other by a reviewer.
+//
+// So the tier now follows **what catches a mistake**, not how important the surface feels:
+//
+//   top     nothing outside the model catches an error before a surveyor relies on it
+//   middle  a schema or a human reviews the output before it matters
+//   fast    latency is the constraint, or the question is trivially checkable
+//
+// The commercial half is real but secondary: extraction is the highest-volume role in the
+// application, so it dominates the AI bill, and the middle tier is roughly 60% of the token price.
+// That is a reason to look; it is not the reason to move. If a canary run shows the middle tier
+// reading a scanned deed worse, this decision is wrong and the fix is to move it back — which is
+// one edit here, next to the rationale it would be contradicting.
 
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -52,6 +73,10 @@ export interface ModelConfig {
 
 /** The current family. One constant, so an upgrade is one edit. */
 export const CURRENT_MODEL = 'claude-opus-5';
+/** The middle tier. Same family, roughly 60% of the token price (see the table in `usage.ts`:
+ *  500/2500 against 300/1500 cents per Mtok). For work that is high-volume and CHECKED — either by
+ *  a schema or by a human — where the top tier's ceiling is not what makes the output correct. */
+export const MID_MODEL = 'claude-sonnet-5';
 /** The cheap tier, for work where the ceiling does not pay for itself. */
 export const FAST_MODEL = 'claude-haiku-4-5';
 
@@ -64,18 +89,18 @@ const ROLE_DEFAULTS: Record<AiRole, ModelConfig> = {
     why: 'Property research and deed parsing feed a surveyor’s judgement. A cheaper model that is subtly wrong here costs more than the token difference ever saves.',
   },
   drafting: {
-    model: CURRENT_MODEL,
+    model: MID_MODEL,
     maxTokens: 4000,
     effort: 'medium',
     thinking: true,
-    why: 'A human reads every draft before it is sent, so the failure mode is a wasted minute rather than a wrong answer to a customer.',
+    why: 'A human reads every draft before it is sent, so the failure mode is a wasted minute rather than a wrong answer to a customer. Moved to the middle tier 2026-09-23 on exactly that reasoning: the reviewer is the check, so the ceiling is not what makes this safe.',
   },
   extraction: {
-    model: CURRENT_MODEL,
+    model: MID_MODEL,
     maxTokens: 8000,
     effort: 'medium',
     thinking: true,
-    why: 'Bounded and checkable — the output is validated against a schema, so errors surface immediately rather than silently.',
+    why: 'Bounded and checkable — the output is validated against a schema, so errors surface immediately rather than silently. Moved to the middle tier 2026-09-23: this is the highest-volume role in the application (a single research run drives dozens of extraction calls) and the schema, not the model tier, is what catches a mistake. Thinking stays ON — a scanned deed is messy input and the reasoning is what gets the field right; it is the model price, not the deliberation, that was worth changing.',
   },
   guard: {
     model: FAST_MODEL,
