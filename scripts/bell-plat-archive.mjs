@@ -93,15 +93,71 @@ function loadState() {
 }
 
 let saveTimer = null;
+
+/**
+ * Write the state file.
+ *
+ * ── WHY THE RETRIES, AND WHY THIS NEVER THROWS ────────────────────────────────────────────────
+ *
+ * `renameSync` over an existing file is atomic on POSIX and *usually* atomic on Windows — but it
+ * fails with EPERM whenever anything else holds the destination open for even a moment, which on a
+ * Windows box means Defender scanning the file we just wrote. Measured 2026-09-22: the D-F crawl
+ * died at file 1,847 of 2,377 with exactly that.
+ *
+ * Two separate faults made one transient lock fatal:
+ *
+ *   1. the rename was not retried, though the lock clears in milliseconds;
+ *   2. the write ran inside a `setTimeout`, so the throw had no catch above it — an unhandled
+ *      rejection in a debounce timer, which takes the process down with it.
+ *
+ * A bookkeeping hiccup must never kill a multi-hour download. So: retry the rename a few times,
+ * fall back to writing the destination directly if it still will not budge (losing atomicity is
+ * better than losing the crawl — and the very next save restores it), and swallow whatever is
+ * left. The worst case is a state file one file out of date, which the resume path corrects by
+ * finding the file already on disk.
+ */
+function writeState(s) {
+  fs.mkdirSync(ROOT, { recursive: true });
+  const tmp = `${STATE}.tmp`;
+  const json = JSON.stringify(s, null, 2);
+  try {
+    fs.writeFileSync(tmp, json);
+  } catch (e) {
+    console.error(`   [state] could not write the temp file — ${e.code ?? e.message}`);
+    return;
+  }
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try { fs.renameSync(tmp, STATE); return; }
+    catch (e) {
+      if (attempt === 5) {
+        // Still locked. Write in place rather than give up the run.
+        try {
+          fs.writeFileSync(STATE, json);
+          try { fs.unlinkSync(tmp); } catch { /* leave it; the next save overwrites */ }
+        } catch (e2) {
+          console.error(`   [state] save failed (${e2.code ?? e2.message}) — continuing; progress is recovered from disk on resume`);
+        }
+        return;
+      }
+      // Busy-wait briefly. A lock of this kind clears in single-digit milliseconds, and the
+      // alternative is making every caller async for the sake of an error that rarely happens.
+      const until = Date.now() + attempt * 20;
+      while (Date.now() < until) { /* spin */ }
+    }
+  }
+}
+
 function saveState(s, immediate = false) {
   s.updatedAt = new Date().toISOString();
-  const write = () => {
-    fs.mkdirSync(ROOT, { recursive: true });
-    fs.writeFileSync(`${STATE}.tmp`, JSON.stringify(s, null, 2));
-    fs.renameSync(`${STATE}.tmp`, STATE);   // atomic, so a kill mid-write cannot corrupt it
-  };
-  if (immediate) { clearTimeout(saveTimer); saveTimer = null; write(); return; }
-  if (!saveTimer) saveTimer = setTimeout(() => { saveTimer = null; write(); }, 1000);
+  if (immediate) { clearTimeout(saveTimer); saveTimer = null; writeState(s); return; }
+  if (!saveTimer) {
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      // Belt and braces: writeState already contains its own failures, but a timer callback is
+      // exactly where an unhandled throw becomes a dead process.
+      try { writeState(s); } catch (e) { console.error(`   [state] ${e.message}`); }
+    }, 1000);
+  }
 }
 
 /** The plats listed on one index page, as {url, name, letter}. */
@@ -357,5 +413,11 @@ async function main() {
   console.log(`\nThis session: ${got} files.`);
   console.log('Resume with the same command — everything already held is skipped.');
 }
+
+// Nothing in the bookkeeping is worth losing hours of downloading over. A genuine fault in the
+// download loop still ends the run; a stray rejection from a timer does not.
+process.on('unhandledRejection', (e) => {
+  console.error(`   [warn] unhandled rejection: ${e instanceof Error ? e.message : String(e)}`);
+});
 
 main().catch((e) => { console.error(e); process.exit(1); });
