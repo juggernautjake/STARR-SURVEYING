@@ -147,6 +147,9 @@ export default function CallsPage(): React.ReactElement {
         <Link href="/admin/calls/registry" className="calls-page__testbtn" data-testid="calls-registry-link">
           Who&rsquo;s calling →
         </Link>
+        <Link href="/admin/calls/blocked" className="calls-page__testbtn" data-testid="calls-blocked-link">
+          Blocked numbers →
+        </Link>
         <Link href="/admin/dev/receptionist" className="calls-page__testbtn" data-testid="calls-test-link">
           Test the receptionist →
         </Link>

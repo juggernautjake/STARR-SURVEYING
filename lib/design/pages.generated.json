@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 286,
+  "count": 287,
   "byArea": {
     "public": 43,
-    "admin": 192,
+    "admin": 193,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -106,6 +106,12 @@
       "area": "admin",
       "dynamic": true,
       "file": "app/admin/calls/[id]"
+    },
+    {
+      "route": "/admin/calls/blocked",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/calls/blocked"
     },
     {
       "route": "/admin/calls/registry",

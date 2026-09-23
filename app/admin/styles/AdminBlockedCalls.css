@@ -1,0 +1,186 @@
+/* /admin/calls/blocked — the block list.
+ *
+ * Sits on top of AdminCalls.css, which supplies the page frame (.calls-page, __head, __title,
+ * __sub). Only what is specific to the block list lives here.
+ *
+ * ── THE ROW IS THE WHOLE DESIGN ───────────────────────────────────────────────────────────────
+ *
+ * Four columns, in the order the two real questions get asked: WHO is blocked, WHAT it said, HOW
+ * OFTEN it has tried since, and the way back. The evidence column is the widest because it is the
+ * only thing on the page that can tell you a block is wrong — a list of bare numbers cannot.
+ *
+ * An unblocked rule is dimmed rather than hidden or restyled: still legible, plainly not in force.
+ * Same variables as AdminCalls.css so both pages follow the workspace's light/dark treatment. */
+
+.blocked-page__actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+
+.blocked-btn {
+  display: inline-flex; align-items: center; gap: .4rem;
+  min-height: 36px; padding: 0 .85rem;
+  border: 1px solid var(--theme-accent, #1D3095); border-radius: 9px;
+  background: var(--theme-accent, #1D3095); color: #FFFFFF;
+  font: inherit; font-size: .85rem; font-weight: 600; white-space: nowrap;
+  text-decoration: none; cursor: pointer;
+  transition: opacity .16s ease, background-color .16s ease;
+}
+.blocked-btn:hover { opacity: .88; }
+.blocked-btn:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 2px; }
+.blocked-btn[disabled] { opacity: .5; cursor: default; }
+
+/* Secondary routes out of the page — same shape, none of the weight. */
+.blocked-btn--ghost {
+  background: transparent; color: var(--theme-fg-secondary, #475569);
+  border-color: var(--theme-border, #CBD5E1);
+}
+.blocked-btn--ghost:hover { background: var(--theme-bg-elevated, #F1F5F9); opacity: 1; }
+
+/* Unblock is an undo, not a destructive act — outlined, so it does not compete with "Block". */
+.blocked-btn--undo {
+  background: transparent; color: var(--theme-fg-secondary, #475569);
+  border-color: var(--theme-border, #CBD5E1);
+}
+.blocked-btn--undo:hover { background: var(--theme-bg-elevated, #F1F5F9); opacity: 1; }
+
+/* ── TALLY ─────────────────────────────────────────────────────────────────────────────────────
+ * "Calls turned away" is the number that says the thing is working; the other two are context. */
+.blocked-tally {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem;
+}
+.blocked-tally > div {
+  display: flex; flex-direction: column; gap: .1rem;
+  padding: .7rem .9rem;
+  border: 1px solid var(--theme-border, #E2E8F0); border-radius: 11px;
+  background: var(--theme-bg-elevated, #F8FAFC);
+}
+.blocked-tally b {
+  font-size: 1.5rem; font-weight: 700; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-primary, #0F172A);
+}
+.blocked-tally span {
+  font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+
+/* ── ADD FORM ──────────────────────────────────────────────────────────────────────────────────
+ * Opens in place above the list, so the thing you are adding to stays on screen. */
+.blocked-form {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .7rem;
+  align-items: end;
+  padding: .9rem 1rem;
+  border: 1px solid var(--theme-border, #CBD5E1); border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.blocked-form__field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.blocked-form__field--wide { grid-column: 1 / -2; }
+.blocked-form__field > span {
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.blocked-form__field input,
+.blocked-form__field select {
+  min-height: 36px; padding: 0 .6rem;
+  border: 1px solid var(--theme-border, #CBD5E1); border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-fg-primary, #0F172A);
+  font: inherit; font-size: .88rem;
+}
+.blocked-form__field input:focus,
+.blocked-form__field select:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: -1px; }
+.blocked-form__field small { font-size: .74rem; color: var(--theme-fg-muted, #64748B); }
+.blocked-form__field code {
+  padding: .05rem .25rem; border-radius: 4px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  font-size: .95em;
+}
+
+.blocked-error {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .6rem .85rem;
+  border: 1px solid rgba(189, 18, 24, .45); border-radius: 10px;
+  background: rgba(189, 18, 24, .08);
+  color: var(--theme-fg-primary, #0F172A);
+  font-size: .88rem;
+}
+
+.blocked-empty {
+  margin: 0; padding: 1.1rem;
+  border: 1px dashed var(--theme-border, #CBD5E1); border-radius: 11px;
+  color: var(--theme-fg-muted, #64748B); font-size: .9rem;
+}
+
+.blocked-section { display: flex; flex-direction: column; gap: .55rem; }
+.blocked-section__title {
+  display: flex; align-items: center; gap: .4rem;
+  margin: .4rem 0 0; font-size: .78rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--theme-fg-muted, #64748B);
+}
+.blocked-section__note { margin: 0; font-size: .84rem; color: var(--theme-fg-muted, #64748B); }
+
+.blocked-list { display: flex; flex-direction: column; gap: .5rem; list-style: none; margin: 0; padding: 0; }
+
+.blocked-row {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr) 11rem auto;
+  gap: .9rem; align-items: start;
+  padding: .8rem 1rem;
+  border: 1px solid var(--theme-border, #E2E8F0); border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  /* The one place the page spends color: a blocked number is a refusal, and it reads as one. */
+  border-left: 4px solid #BD1218;
+}
+.blocked-row--off { border-left-color: var(--theme-border, #CBD5E1); opacity: .62; }
+
+.blocked-row__id { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.blocked-row__number {
+  font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-primary, #0F172A);
+  overflow-wrap: anywhere;
+}
+.blocked-row__meta { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+/* The area code, called out on its own: it is what a person recognises before the number. */
+.blocked-row__area {
+  padding: .1rem .45rem; border-radius: 5px;
+  background: var(--theme-brand-tint, #EEF2FF); color: var(--theme-accent, #1D3095);
+  font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.blocked-row__tag {
+  padding: .1rem .45rem; border-radius: 5px;
+  border: 1px solid var(--theme-border, #CBD5E1);
+  color: var(--theme-fg-muted, #64748B);
+  font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+}
+.blocked-row__reason { font-size: .78rem; color: var(--theme-fg-muted, #64748B); text-transform: capitalize; }
+
+.blocked-row__evidence { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.blocked-row__said {
+  margin: 0; font-size: .9rem; line-height: 1.45;
+  color: var(--theme-fg-secondary, #475569);
+  overflow-wrap: anywhere;
+}
+.blocked-row__said--none { font-style: italic; color: var(--theme-fg-muted, #94A3B8); }
+.blocked-row__notes { margin: 0; font-size: .82rem; color: var(--theme-fg-muted, #64748B); }
+
+.blocked-row__stats { display: flex; flex-direction: column; gap: .15rem; }
+.blocked-row__stat {
+  font-size: .82rem; color: var(--theme-fg-secondary, #475569);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.blocked-row__stat b { font-size: 1rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.blocked-row__stat--quiet { font-size: .76rem; color: var(--theme-fg-muted, #94A3B8); }
+
+.blocked-row__action { display: flex; justify-content: flex-end; }
+
+@media (max-width: 900px) {
+  .blocked-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .blocked-row__evidence { grid-column: 1 / -1; }
+  .blocked-row__stats { flex-direction: row; flex-wrap: wrap; gap: .6rem; grid-column: 1 / -1; }
+  .blocked-form { grid-template-columns: minmax(0, 1fr); }
+  .blocked-form__field--wide { grid-column: 1; }
+}
+
+@media (max-width: 560px) {
+  .blocked-tally { grid-template-columns: minmax(0, 1fr); }
+  .blocked-row { grid-template-columns: minmax(0, 1fr); }
+  .blocked-row__action { justify-content: flex-start; }
+}
