@@ -97,6 +97,16 @@ export interface ProjectImage {
   originalWidth: number;  // Native pixel width
   originalHeight: number; // Native pixel height
   addedAt: string;        // ISO 8601 timestamp
+  /** The `research_documents.id` this image was taken from, when it came out of the firm's
+   *  document library rather than off somebody's disk.
+   *
+   *  Provenance, not a live reference. The bytes are COPIED into the drawing's own bucket, so a
+   *  document later superseded, re-filed under a new path or removed cannot move an underlay under
+   *  a drafter mid-survey. This records where it came from so a drawing can still say
+   *  "this is the county's 1979 plat" a year later. */
+  sourceDocumentId?: string;
+  /** The county that document belongs to — the other half of "where did this underlay come from". */
+  sourceCounty?: string;
 }
 
 /** Renderable source for a project image: prefer the bucket URL, fall
