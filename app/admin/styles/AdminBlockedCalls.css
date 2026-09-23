@@ -43,8 +43,11 @@
 
 /* ── TALLY ─────────────────────────────────────────────────────────────────────────────────────
  * "Calls turned away" is the number that says the thing is working; the other two are context. */
+/* Sized to their content, not stretched across the workspace: three figures this small spread over
+ * 1500px read as three empty panels with a digit in the corner. */
 .blocked-tally {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 13rem));
+  justify-content: start; gap: .6rem;
 }
 .blocked-tally > div {
   display: flex; flex-direction: column; gap: .1rem;
@@ -64,15 +67,23 @@
 
 /* ── ADD FORM ──────────────────────────────────────────────────────────────────────────────────
  * Opens in place above the list, so the thing you are adding to stays on screen. */
+/* One row, each control the width of what it holds: a phone number is fourteen characters and a
+ * reason is one word, so a field stretched to a third of the screen only makes the form look like
+ * it wants more than it does. Notes takes the slack because notes is the open-ended one. */
 .blocked-form {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: .7rem;
-  align-items: end;
+  display: grid; grid-template-columns: minmax(0, 16rem) minmax(0, 11rem) minmax(0, 1fr) auto;
+  gap: .7rem; align-items: end;
   padding: .9rem 1rem;
   border: 1px solid var(--theme-border, #CBD5E1); border-radius: 12px;
   background: var(--theme-bg-surface, #FFFFFF);
 }
 .blocked-form__field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
-.blocked-form__field--wide { grid-column: 1 / -2; }
+/* The hint runs under the whole form rather than under the Number field, so it cannot push that
+ * one field taller and knock the row out of alignment. */
+.blocked-form__hint {
+  grid-column: 1 / -1; margin: 0;
+  font-size: .78rem; color: var(--theme-fg-muted, #64748B);
+}
 .blocked-form__field > span {
   font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   color: var(--theme-fg-muted, #64748B);
@@ -86,8 +97,7 @@
 }
 .blocked-form__field input:focus,
 .blocked-form__field select:focus { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: -1px; }
-.blocked-form__field small { font-size: .74rem; color: var(--theme-fg-muted, #64748B); }
-.blocked-form__field code {
+.blocked-form__hint code {
   padding: .05rem .25rem; border-radius: 4px;
   background: var(--theme-bg-elevated, #F1F5F9);
   font-size: .95em;
@@ -176,7 +186,6 @@
   .blocked-row__evidence { grid-column: 1 / -1; }
   .blocked-row__stats { flex-direction: row; flex-wrap: wrap; gap: .6rem; grid-column: 1 / -1; }
   .blocked-form { grid-template-columns: minmax(0, 1fr); }
-  .blocked-form__field--wide { grid-column: 1; }
 }
 
 @media (max-width: 560px) {

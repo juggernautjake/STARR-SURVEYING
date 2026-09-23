@@ -213,9 +213,8 @@ export default function BlockedCallsPage() {
               type="tel" value={form.number} autoFocus
               onChange={(e) => setForm({ ...form, number: e.target.value })}
               placeholder="(318) 209-1951" aria-label="Number to block"
+              aria-describedby="blocked-form-hint"
             />
-            {/* The one thing a person cannot guess, said where they are about to need it. */}
-            <small>End with a dot to block a whole exchange — <code>+1318209.</code> stops every number that starts that way.</small>
           </label>
           <label className="blocked-form__field">
             <span>Reason</span>
@@ -227,7 +226,7 @@ export default function BlockedCallsPage() {
               <option value="other">Other</option>
             </select>
           </label>
-          <label className="blocked-form__field blocked-form__field--wide">
+          <label className="blocked-form__field">
             <span>Notes</span>
             <input
               type="text" value={form.notes}
@@ -238,6 +237,10 @@ export default function BlockedCallsPage() {
           <button type="submit" className="blocked-btn" disabled={busy === 'new' || !form.number.trim()}>
             {busy === 'new' ? 'Blocking…' : 'Block'}
           </button>
+          {/* The one thing a person cannot guess, said where they are about to need it. */}
+          <p className="blocked-form__hint" id="blocked-form-hint">
+            End with a dot to block a whole exchange — <code>+1318209.</code> stops every number that starts that way.
+          </p>
         </form>
       )}
 
