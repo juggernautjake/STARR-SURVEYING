@@ -160,6 +160,23 @@ function saveState(s, immediate = false) {
   }
 }
 
+/** Turn the index's HTML back into the characters it stands for.
+ *
+ *  The link text is HTML, so `B & C ESTATES` arrives as `B &amp; C ESTATES`. Stored raw, every
+ *  ampersand name in the archive carried a literal "&amp;" — harmless while the name was only
+ *  displayed, and not harmless at all once the name started being used as a FILENAME. */
+function decodeEntities(str) {
+  return str
+    .replace(/&(?:amp|AMP);/g, '&')
+    .replace(/&(?:lt|LT);/g, '<')
+    .replace(/&(?:gt|GT);/g, '>')
+    .replace(/&(?:quot|QUOT);/g, '"')
+    .replace(/&(?:apos|#0?39);/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+}
+
 /** The plats listed on one index page, as {url, name, letter}. */
 async function readIndex(letter) {
   const res = await fetch(`${BASE}${letter}.php`, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(45000) });
@@ -182,17 +199,72 @@ async function readIndex(letter) {
     // The county links some plats over http:// and some over https://, which would otherwise be
     // two identities for one file — and would have us fetching public records in the clear.
     const clean = abs.split('?')[0].replace(/^http:\/\//, 'https://');
-    const name = m[3].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    const name = decodeEntities(m[3].replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
     if (!out.has(clean)) out.set(clean, { url: clean, name, letter });
   }
   return [...out.values()];
 }
 
-/** Where a plat lands on disk. Keeps the county's own filename; only what Windows forbids is changed. */
+/** A server filename that tells you nothing.
+ *
+ *  Every pattern here was found in the archive and checked against the whole index for false
+ *  positives before being added — no real subdivision name matches any of them:
+ *
+ *    DOC, DOC000            a scanner's default
+ *    Acrobat Document       the software's default
+ *    1943003481, 1891002182 a scan id (EDNEY ADDITION, FREEMAN HEIGHTS ADDITION)
+ *    A-201A                 the county's own sheet reference (ELM CREEK ADN)
+ *
+ *  Each was a real plat filed under a name nobody could ever search for, which in an archive is
+ *  the same as not having it. */
+const MEANINGLESS = new RegExp(
+  '^(?:'
+  + 'doc|scan|img|image|untitled|page|document'          // bare words
+  + '|(?:new[-_ ]?)?doc(?:ument)?'                        // "new document"
+  + '|acrobat[-_ ]?document'                              // Acrobat's default
+  + ')[-_ ]?\\d*$'
+  + '|^\\d{1,12}$'                                          // a bare number of any length
+  + '|^[A-Za-z]{1,2}-?\\d{1,4}[A-Za-z]?$',                  // a sheet reference like A-201A
+  'i',
+);
+
+/** Strip what Windows forbids, without otherwise touching the county's spelling. */
+function safeName(s) {
+  return s.replace(/[<>:"|?*\\/]/g, '_').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Where a plat lands on disk.
+ *
+ * Normally the county's own filename, which is how every other file here is named and how the
+ * index cross-references them.
+ *
+ * ── WHEN THE SERVER FILENAME IS A SCANNER'S DEFAULT ───────────────────────────────────────────
+ *
+ * Two files in the G index are published as `DOC.pdf` and `DOC000.pdf` — whatever the scanner
+ * called them on the day. Both are real plats: rendered, they read "AMENDED PLAT OF GLENDALE
+ * ADDITION TO THE CITY OF TEMPLE, TEXAS, AUG. 14, 1930" and a second scan of the same addition.
+ * Filed as `DOC000.pdf` they are unfindable by anyone looking for Glendale, which for an archive
+ * is the same as not having them.
+ *
+ * The index's own link text is the answer and it was already being stored: `GLENDALE ADDITION
+ * AMENDED`. So when the server filename carries no information, the county's display name is used
+ * instead. Only for that case — a good filename is never second-guessed.
+ */
 function targetFor(file) {
   const raw = decodeURIComponent(file.url.split('/').pop() || 'plat.pdf');
-  const safe = raw.replace(/[<>:"|?*\\/]/g, '_').replace(/\s+/g, ' ').trim();
-  return path.join(ROOT, file.letter.toUpperCase(), safe);
+  const ext = (raw.match(/\.[A-Za-z0-9]+$/) || ['.pdf'])[0];
+  const stem = raw.slice(0, raw.length - ext.length);
+  const display = (file.name || '').trim();
+  const useDisplay = MEANINGLESS.test(stem) && display.length > 2;
+  return path.join(ROOT, file.letter.toUpperCase(), safeName(useDisplay ? display + ext : raw));
+}
+
+/** What `targetFor` would have returned before the rule above — so an archive built by an earlier
+ *  run is migrated rather than downloaded again. */
+function legacyTargetFor(file) {
+  const raw = decodeURIComponent(file.url.split('/').pop() || 'plat.pdf');
+  return path.join(ROOT, file.letter.toUpperCase(), safeName(raw));
 }
 
 /**
@@ -297,12 +369,17 @@ async function main() {
     process.stdout.write(`index ${L}.php ... `);
     try {
       const found = await readIndex(L);
-      let added = 0;
+      let added = 0, renamedName = 0;
       for (const f of found) {
-        if (!state.files[f.url]) { state.files[f.url] = { ...f, status: 'pending', attempts: 0 }; added++; }
+        const existing = state.files[f.url];
+        if (!existing) { state.files[f.url] = { ...f, status: 'pending', attempts: 0 }; added++; continue; }
+        // The index is the authority on what a plat is called. Refreshing it on every pass is what
+        // let a fix to the name parsing reach the 3,000 rows already stored — the first version only
+        // ever set `name` on insert, so corrected names never arrived anywhere they mattered.
+        if (f.name && existing.name !== f.name) { existing.name = f.name; renamedName++; }
       }
       state.letters[L] = { count: found.length, indexedAt: new Date().toISOString() };
-      console.log(`${found.length} plats (${added} new)`);
+      console.log(`${found.length} plats (${added} new${renamedName ? `, ${renamedName} name(s) corrected` : ''})`);
     } catch (e) {
       console.log(`FAILED — ${e.message}`);
     }
@@ -311,6 +388,46 @@ async function main() {
   }
 
   if (arg('index-only')) { printStatus(state); return; }
+
+  // ── 1b. Reconcile names ─────────────────────────────────────────────────────────────────────
+  //
+  // Bring what is on disk into line with what `targetFor` says the name should be, for EVERY file
+  // of the requested letters — not just the ones still to download.
+  //
+  // The first version of this ran inside the download loop, which filters out anything already
+  // `done`. So the two Glendale plats renamed off `DOC.pdf` and `DOC000.pdf` kept their old
+  // recorded paths through a full re-run: the files were right, the state pointed at names that no
+  // longer existed, and nothing said so. A migration that only reaches the files it is not needed
+  // for is not a migration.
+  {
+    let renamed = 0, repointed = 0;
+    for (const file of Object.values(state.files)) {
+      if (!letters.includes(file.letter)) continue;
+      const dest = targetFor(file);
+      const legacy = legacyTargetFor(file);
+      if (legacy !== dest && !fs.existsSync(dest) && fs.existsSync(legacy)) {
+        try {
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.renameSync(legacy, dest);
+          renamed++;
+          console.log(`   renamed ${path.basename(legacy)} -> ${path.basename(dest)}`);
+        } catch (e) {
+          console.error(`   could not rename ${path.basename(legacy)}: ${e.code ?? e.message}`);
+        }
+      }
+      // The record must name a file that is actually there, whoever moved it.
+      if (fs.existsSync(dest) && file.path !== dest) {
+        file.path = dest;
+        file.bytes = fs.statSync(dest).size;
+        if (file.status !== 'done') file.status = 'done';
+        repointed++;
+      }
+    }
+    if (renamed || repointed) {
+      console.log(`   reconciled: ${renamed} renamed, ${repointed} record(s) repointed\n`);
+      saveState(state, true);
+    }
+  }
 
   // ── 2. Download ─────────────────────────────────────────────────────────────────────────────
   const queue = Object.values(state.files)
