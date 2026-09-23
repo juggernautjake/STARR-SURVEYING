@@ -47,6 +47,7 @@
 // keep the rate gentle rather than find out what the real ceiling is.
 //
 // Usage:
+//   node scripts/bell-plat-archive.mjs --all                  # the whole archive, resumable
 //   node scripts/bell-plat-archive.mjs --letters a,b,c        # crawl those index pages
 //   node scripts/bell-plat-archive.mjs --letters a,b,c --index-only
 //   node scripts/bell-plat-archive.mjs --status               # what is done, what is left
@@ -361,7 +362,12 @@ async function main() {
 
   if (arg('status')) { printStatus(state); return; }
 
-  const letters = String(arg('letters', 'a')).toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+  // `--all` is every index page the county publishes, in reading order. The archive is 8,076 plats
+  // and the run is resumable, so "do the lot" should not mean typing 27 letters.
+  const ALL = [...'abcdefghijklmnopqrstuvwxyz'].concat(['0-9']);
+  const letters = arg('all')
+    ? ALL
+    : String(arg('letters', 'a')).toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
   const limit = Number(arg('limit', 0)) || Infinity;
 
   // ── 1. Index ────────────────────────────────────────────────────────────────────────────────
