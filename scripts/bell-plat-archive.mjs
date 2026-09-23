@@ -54,6 +54,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 const ROOT = process.env.BELL_PLAT_DIR || 'C:/Users/Jacob Maddux/BellCountyPlats';
 const STATE = path.join(ROOT, '_state.json');
@@ -149,14 +151,49 @@ export function platUrl(url) {
   return url.replace(/\.PDF$/, '.pdf');
 }
 
-async function fetchPlat(file) {
+/**
+ * Fetch one plat straight to disk.
+ *
+ * ── WHY STREAMED, AND WHY VIA `.part` ─────────────────────────────────────────────────────────
+ *
+ * This used to buffer the whole response with `arrayBuffer()` and then write it. Plats run 8-12 MB
+ * and the crawl was killed mid-run by the OS for memory pressure on 2026-09-22; the crawler was a
+ * casualty rather than the cause, but a bulk downloader has no business holding a whole file in
+ * memory when it is only going to put it on disk.
+ *
+ * The `.part` rename matters more than the memory. A file is only given its real name once it has
+ * arrived complete and been checked, so a kill at any moment leaves either nothing or a finished
+ * file — never a truncated PDF. The resume path trusts any file on disk over 1 KB, and without
+ * this it would have accepted a half-written plat as done and moved on.
+ */
+async function fetchPlatToFile(file, dest) {
   const res = await fetch(encodeURI(platUrl(file.url)), {
     headers: { 'user-agent': UA, referer: `${BASE}${file.letter}.php`, accept: 'application/pdf,*/*' },
     signal: AbortSignal.timeout(180_000),
   });
-  const buf = Buffer.from(await res.arrayBuffer());
-  const isPdf = buf.subarray(0, 5).toString('latin1') === '%PDF-';
-  return { status: res.status, buf, isPdf };
+  if (!res.ok || !res.body) return { status: res.status, bytes: 0, isPdf: false };
+
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const part = `${dest}.part`;
+  try {
+    await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(part));
+  } catch (e) {
+    try { fs.unlinkSync(part); } catch { /* nothing to clean */ }
+    throw e;
+  }
+
+  const bytes = fs.statSync(part).size;
+  let head = Buffer.alloc(5);
+  const fd = fs.openSync(part, 'r');
+  try { fs.readSync(fd, head, 0, 5, 0); } finally { fs.closeSync(fd); }
+  const isPdf = head.toString('latin1') === '%PDF-';
+
+  if (isPdf && bytes > 1024) {
+    fs.renameSync(part, dest);
+    return { status: res.status, bytes, isPdf: true };
+  }
+  fs.unlinkSync(part);
+  return { status: res.status, bytes, isPdf: false };
 }
 
 function summarise(s) {
@@ -248,6 +285,9 @@ async function main() {
     if (stopping || got >= limit) break;
 
     const dest = targetFor(file);
+    // A `.part` is a download that did not finish. Clear it rather than leave litter that grows
+    // by one file per interrupted run.
+    try { if (fs.existsSync(`${dest}.part`)) fs.unlinkSync(`${dest}.part`); } catch { /* fine */ }
     // Already on disk from an earlier run that did not get to record it.
     if (fs.existsSync(dest) && fs.statSync(dest).size > 1024) {
       const size = fs.statSync(dest).size;
@@ -258,28 +298,26 @@ async function main() {
 
     let res;
     try {
-      res = await fetchPlat(file);
+      res = await fetchPlatToFile(file, dest);
     } catch (e) {
-      res = { status: 0, buf: Buffer.alloc(0), isPdf: false, err: e.message };
+      res = { status: 0, bytes: 0, isPdf: false, err: e.message };
     }
 
     const rec = state.files[file.url];
     rec.attempts = (rec.attempts || 0) + 1;
 
-    if (res.isPdf && res.buf.length > 1024) {
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, res.buf);
+    if (res.isPdf) {
       rec.status = 'done';
-      rec.bytes = res.buf.length;
+      rec.bytes = res.bytes;
       rec.path = dest;
       rec.at = new Date().toISOString();
       state.stats.downloaded++;
-      state.stats.bytes += res.buf.length;
+      state.stats.bytes += res.bytes;
       got++;
       consecutiveRefusals = 0;
       delay = Math.max(FLOOR_MS, Math.round(delay * 0.9));   // earn speed back slowly
       const t = summarise(state);
-      console.log(`[${String(t.done).padStart(4)}/${t.total}] ${mb(res.buf.length).padStart(9)}  ${path.basename(dest).slice(0, 46).padEnd(46)}  next in ${(delay / 1000).toFixed(0)}s`);
+      console.log(`[${String(t.done).padStart(4)}/${t.total}] ${mb(res.bytes).padStart(9)}  ${path.basename(dest).slice(0, 46).padEnd(46)}  next in ${(delay / 1000).toFixed(0)}s`);
     } else if (res.status === 404) {
       // ── MISSING IS NOT REFUSED ───────────────────────────────────────────────────────────────
       //
