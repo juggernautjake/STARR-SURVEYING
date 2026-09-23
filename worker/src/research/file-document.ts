@@ -25,6 +25,39 @@
 // invisible by construction.
 
 import type { ProjectLibrary, LibraryCandidate } from './project-library.js';
+import { mayShareFirmWide } from './source-licence.js';
+
+/**
+ * Which licence governs this row, read off the document itself.
+ *
+ * `source_url` is the honest signal: a file fetched from bellcountytx.com is the county's, whatever
+ * else the row says. `source_type` is the fallback for rows that carry no URL.
+ */
+export function licenceSourceFor(row: Record<string, unknown>): string {
+  const url = String(row.source_url ?? '').toLowerCase();
+  if (url) {
+    if (/texasfile\.com/.test(url)) return 'texasfile';
+    if (/publicsearch\.us|kofile/.test(url)) return 'kofile';
+    // A county or appraisal-district host: a .tx.us domain, or a county/CAD site we have named.
+    if (/\.tx\.us|countytx\.com|county\.gov|cad\.org|cad\.com|countytexas\.gov/.test(url)) return 'county_portal';
+  }
+  const type = String(row.source_type ?? '').toLowerCase();
+  if (type === 'user_upload') return 'customer_upload';
+  if (type === 'capture' || type === 'screenshot' || type === 'derived') return 'derived';
+  return '';
+}
+
+/** The provenance column that matches a licence key. */
+function provenanceFor(sourceKey: string): string {
+  switch (sourceKey) {
+    case 'county_portal': return 'public_record';
+    case 'texasfile': case 'kofile': return 'vendor_purchase';
+    case 'customer_upload': return 'customer_upload';
+    case 'derived': return 'derived';
+    default: return 'unknown';
+  }
+}
+
 
 export interface FileDocumentDb {
   from: (t: string) => {
@@ -122,15 +155,30 @@ export async function fileResearchDocument(
     }
   }
 
-  // ── NEW or FLAGGED — both write a row ─────────────────────────────────────────────────────────
+// ── NEW or FLAGGED — both write a row ─────────────────────────────────────────────────────────
   const identity = verdict.kind === 'new' ? verdict.identityKey : verdict.identityKey;
   const isFlagged = verdict.kind === 'possible-duplicate';
 
+  // ── WHERE IT CAME FROM DECIDES WHO MAY SEE IT ────────────────────────────────────────────────
+  //
+  // Every document written here is stamped with its provenance and whether it may be served to a
+  // customer other than the one it was fetched for. `source-licence.ts` holds the reasoning and the
+  // quotes; this is the one place a row is created, so it is the one place the stamp can be applied
+  // without a caller being able to forget.
+  //
+  // TexasFile's terms forbid redistributing what we buy from them, so a purchase is `shareable:
+  // false` and stays with the job that paid. A county's own plat is a public record and is not.
+  // An unrecognised source is neither — it is `unknown`, which reads as not shareable, because a
+  // library that fails open redistributes the first thing it should not.
+  const sourceKey = licenceSourceFor(input.row);
   const row: Record<string, unknown> = {
     ...input.row,
     research_run_id: input.runId,
     last_seen_run_id: input.runId,
     run_seen_count: 1,
+    provenance: (input.row as Record<string, unknown>).provenance ?? provenanceFor(sourceKey),
+    source_vendor: (input.row as Record<string, unknown>).source_vendor ?? sourceKey,
+    shareable: (input.row as Record<string, unknown>).shareable ?? mayShareFirmWide(sourceKey),
     // A flagged row keeps its identity OUT of the key column. The unique backstop from seed 623
     // covers live rows only, and a flagged row that carried the same key as its suspected original
     // would collide with it — turning "we are not sure, keep both" into a hard insert failure.
