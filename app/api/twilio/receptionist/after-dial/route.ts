@@ -39,8 +39,9 @@ export async function POST(request: Request): Promise<Response> {
   if (params.DialCallStatus === 'completed' && ownerAccepted) {
     const duration = Number(params.DialCallDuration) || null;
     const call = await updateCall(supabaseAdmin, callSid, { status: 'completed', answered_by: 'owner', duration_seconds: duration, ended_at: new Date().toISOString(), kind: 'unknown' });
-    await notifyOwners({ from, facts: {}, summary: `Answered by Hank, ${duration ?? '?'} seconds. The recording and a summary follow once it is transcribed.`, callId: call?.id, answeredBy: 'owner', call });
-    if (call) await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
+    // `provisional`: this summary is a placeholder and the transcript carries the real one minutes
+    // later. The bell lights now; the email waits for something worth reading. See notify.ts.
+    await notifyOwners({ from, facts: {}, summary: `Answered by Hank, ${duration ?? '?'} seconds. The recording and a summary follow once it is transcribed.`, callId: call?.id, answeredBy: 'owner', call, provisional: true });
     return twimlResponse(twiml(hangup()));
   }
 

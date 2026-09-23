@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { agentsConfigured } from '@/lib/receptionist/elevenlabs-agents';
 import { importAgentConversations } from '@/lib/receptionist/import-conversations';
+import { mailUnnotifiedCalls } from '@/lib/receptionist/notify';
 
 /** A quarter-hour of conversations is a handful; 30 is headroom, not a target. */
 const PAGE_SIZE = 30;
@@ -43,5 +44,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (result.errors.length) console.error('[cron/receptionist-transcripts] some conversations failed', result.errors);
   else console.log('[cron/receptionist-transcripts] imported', result.imported, 'updated', result.updated, 'skipped', result.skipped);
 
-  return NextResponse.json({ configured, ...result });
+  // ── THE CALLS NOBODY WAS EMAILED ABOUT ────────────────────────────────────────────────────────
+  //
+  // Since 2026-09-23 the email for a call Hank answered waits for the transcript, so the owner gets
+  // the real summary instead of "a summary follows". This is the other half of that bargain: a
+  // transcript that never arrives must not turn into a call nobody hears about. It runs AFTER the
+  // import above, so a transcript that landed this tick has already been written and the sweep
+  // sends the good summary rather than the fallback.
+  const sweep = await mailUnnotifiedCalls();
+
+  return NextResponse.json({ configured, ...result, sweep });
 }, { routeName: 'cron/receptionist-transcripts' });

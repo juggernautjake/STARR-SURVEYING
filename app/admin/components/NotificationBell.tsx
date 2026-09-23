@@ -34,6 +34,16 @@ const TYPE_ICONS: Record<string, string> = {
   info: 'ℹ️',
 };
 
+// ── WHEN `icon` HOLDS A NAME RATHER THAN AN EMOJI ───────────────────────────────────────────────
+//
+// Every notification row carries `icon` and it is rendered as-is, which assumes a glyph. The call
+// notifier stores `icon: 'phone'`, so the bell has been printing the literal word "phone" beside
+// every call. Translating here rather than at the writer also repairs the rows already stored.
+const NAMED_ICONS: Record<string, string> = {
+  phone: '📞', call: '📞', mail: '✉️', email: '✉️', file: '📄', money: '💰',
+  calendar: '📅', warning: '⚠️', check: '✅', alert: '🔔',
+};
+
 const ESCALATION_COLORS: Record<string, string> = {
   low: '#10B981',
   normal: '#6B7280',
@@ -292,7 +302,7 @@ export default function NotificationBell() {
               </div>
             ) : (
               notifications.map(n => {
-                const icon = n.icon || TYPE_ICONS[n.type] || 'ℹ️';
+                const icon = (n.icon && (NAMED_ICONS[n.icon] ?? n.icon)) || TYPE_ICONS[n.type] || 'ℹ️';
                 const escalationColor = n.escalation_level
                   ? ESCALATION_COLORS[n.escalation_level] || ESCALATION_COLORS.normal
                   : undefined;
@@ -360,7 +370,7 @@ export default function NotificationBell() {
           role="alert"
           data-testid="notif-toast"
         >
-          <span className="notif-toast__icon">{toastAlert.icon || TYPE_ICONS[toastAlert.type] || '⚠️'}</span>
+          <span className="notif-toast__icon">{(toastAlert.icon && (NAMED_ICONS[toastAlert.icon] ?? toastAlert.icon)) || TYPE_ICONS[toastAlert.type] || '⚠️'}</span>
           <div className="notif-toast__body" onClick={openToastAlert}>
             <span className="notif-toast__title">{toastAlert.title}</span>
             {toastAlert.body && <span className="notif-toast__text">{toastAlert.body}</span>}
