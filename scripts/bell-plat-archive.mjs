@@ -51,6 +51,7 @@
 //   node scripts/bell-plat-archive.mjs --letters a,b,c        # crawl those index pages
 //   node scripts/bell-plat-archive.mjs --letters a,b,c --index-only
 //   node scripts/bell-plat-archive.mjs --status               # what is done, what is left
+//   node scripts/bell-plat-archive.mjs --all --retry-missing  # re-check the county's 404s
 //   node scripts/bell-plat-archive.mjs --letters a --limit 20 # stop after 20 files
 
 import fs from 'node:fs';
@@ -199,7 +200,14 @@ async function readIndex(letter) {
     const abs = href.startsWith('http') ? href : `https://www.bellcountytx.com/${href.replace(/^\//, '')}`;
     // The county links some plats over http:// and some over https://, which would otherwise be
     // two identities for one file — and would have us fetching public records in the clear.
-    const clean = abs.split('?')[0].replace(/^http:\/\//, 'https://');
+    //
+    // `#` is stripped along with `?`. One link in the whole 8,081-entry index reads
+    // `docs/plats/#/205 WEST INDUSTRIAL SUB P2 B1 REPLAT NO 1.pdf` — a literal hash where the
+    // folder should be. A browser reads everything after it as a fragment and asks for the
+    // DIRECTORY, which is why that link is broken for people too; we asked for the same thing and
+    // got a 403 that looked like the WAF. Stripped here so the entry is recognisably not a file,
+    // and refused below rather than retried four times.
+    const clean = abs.split('?')[0].split('#')[0].replace(/^http:\/\//, 'https://');
     const name = decodeEntities(m[3].replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
     if (!out.has(clean)) out.set(clean, { url: clean, name, letter });
   }
@@ -369,14 +377,26 @@ async function main() {
     ? ALL
     : String(arg('letters', 'a')).toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
   const limit = Number(arg('limit', 0)) || Infinity;
+  const retryMissing = Boolean(arg('retry-missing'));
 
   // ── 1. Index ────────────────────────────────────────────────────────────────────────────────
   for (const L of letters) {
     process.stdout.write(`index ${L}.php ... `);
     try {
       const found = await readIndex(L);
-      let added = 0, renamedName = 0;
+      let added = 0, renamedName = 0, malformed = 0;
       for (const f of found) {
+        // After the fragment is stripped, a real plat link still ends in a file extension. Anything
+        // that does not is the county's link being wrong, not ours — record it as such instead of
+        // spending four attempts and an exponential back-off on a directory.
+        if (!/\.[A-Za-z0-9]{2,4}$/.test(f.url)) {
+          if (!state.files[f.url]) {
+            state.files[f.url] = { ...f, status: 'missing', attempts: 0, lastStatus: 0,
+              note: 'the county index links this with a malformed path (no folder), so there is no file to fetch' };
+          }
+          malformed++;
+          continue;
+        }
         const existing = state.files[f.url];
         if (!existing) { state.files[f.url] = { ...f, status: 'pending', attempts: 0 }; added++; continue; }
         // The index is the authority on what a plat is called. Refreshing it on every pass is what
@@ -385,7 +405,7 @@ async function main() {
         if (f.name && existing.name !== f.name) { existing.name = f.name; renamedName++; }
       }
       state.letters[L] = { count: found.length, indexedAt: new Date().toISOString() };
-      console.log(`${found.length} plats (${added} new${renamedName ? `, ${renamedName} name(s) corrected` : ''})`);
+      console.log(`${found.length} plats (${added} new${renamedName ? `, ${renamedName} name(s) corrected` : ''}${malformed ? `, ${malformed} malformed link(s)` : ''})`);
     } catch (e) {
       console.log(`FAILED — ${e.message}`);
     }
@@ -438,7 +458,15 @@ async function main() {
   // ── 2. Download ─────────────────────────────────────────────────────────────────────────────
   const queue = Object.values(state.files)
     .filter((f) => letters.includes(f.letter))
-    .filter((f) => f.status !== 'done' && f.status !== 'parked')
+    // ── 'missing' IS TERMINAL, UNLESS ASKED OTHERWISE ───────────────────────────────────────────
+    //
+    // A 404 means the county's index names a file its own server does not have. Re-asking every run
+    // buys nothing and muddies the report: CHIMNEY CORNERS REPLAT reached attempts=2 purely because
+    // this filter had lost its 'missing' clause in an edit, so each pass re-confirmed the same 404.
+    //
+    // Counties do upload things later, though, so `--retry-missing` re-checks them on purpose.
+    .filter((f) => f.status !== 'done' && f.status !== 'parked'
+      && (retryMissing || f.status !== 'missing'))
     // Letter first, then name. Sorting on the raw URL interleaved the letters, because the http://
     // entries sorted ahead of every https:// one — so "where we left off" was not a place.
     .sort((a, b) => (a.letter === b.letter
