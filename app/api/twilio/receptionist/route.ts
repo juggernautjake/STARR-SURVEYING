@@ -21,7 +21,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
 import { dial, hangup, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
 import { RING_SECONDS, holdNotice, ownerPhone } from '@/lib/receptionist/brain';
-import { startCall } from '@/lib/receptionist/calls';
+import { startCall, updateCall } from '@/lib/receptionist/calls';
+import { isBlocked, noteBlockHit } from '@/lib/receptionist/blocklist';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,42 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const callSid = params.CallSid ?? '';
-  if (callSid) await startCall(supabaseAdmin, { callSid, from: params.From ?? '', to: params.To ?? '' });
+  const from = params.From ?? '';
+  if (callSid) await startCall(supabaseAdmin, { callSid, from, to: params.To ?? '' });
+
+  // ── BLOCKED CALLERS NEVER REACH THE PHONE (owner, 2026-09-23) ────────────────────────────────
+  //
+  // "There were three or four today from the same number and it was just a recorded message
+  //  playing... the call should not go through and it should be blocked automatically if it has
+  //  been put on the list."
+  //
+  // Checked HERE, before the owner's phone rings, because the point of a block is that his phone
+  // does not ring. The row is already open above, so a blocked call is still recorded — the
+  // caller's number, its area code, and the time — and simply tells nobody. That is what makes a
+  // block auditable: you can see it working, and a number blocked by mistake shows up as a
+  // customer who stopped getting through rather than as silence.
+  //
+  // `isBlocked` fails open. A caller refused because a lookup timed out is a lost job; a robocall
+  // that gets through once is an annoyance.
+  const verdict = await isBlocked(supabaseAdmin, from);
+  if (verdict.blocked) {
+    console.log(`[receptionist] blocked ${from} — ${verdict.why ?? 'on the block list'}`);
+    if (callSid) {
+      await updateCall(supabaseAdmin, callSid, {
+        status: 'completed',
+        answered_by: 'blocked',
+        ended_at: new Date().toISOString(),
+        summary: `Blocked: ${verdict.why ?? 'on the block list'}.`,
+        // Marked as notified so no later webhook — recording, transcript, status — can decide this
+        // call still deserves an email. A blocked call tells nobody, at every stage.
+        notified_at: new Date().toISOString(),
+      });
+    }
+    if (verdict.rule?.id) await noteBlockHit(supabaseAdmin, verdict.rule.id);
+    // <Reject> rather than <Hangup>: Twilio never answers the leg, so the campaign's dialler reads
+    // it as a dead line rather than a connected call, and we are not billed for the minute.
+    return twimlResponse(twiml('<Reject reason="rejected"/>'));
+  }
 
   const owner = ownerPhone();
   if (!owner) {

@@ -10,7 +10,10 @@ import { resolveIntakeOrgId } from '@/lib/leads/intake';
 import type { CallFacts } from './state';
 import { supabaseSearchFilter } from './call-search';
 
-export type AnsweredBy = 'owner' | 'ai' | 'voicemail' | 'none';
+// 'blocked' is its own answer, not a flavour of 'none'. A call nobody answered is a missed
+// customer and belongs in the missed-call count; a call the system REFUSED is neither missed nor
+// answered, and folding the two together would either hide the blocks or inflate the misses.
+export type AnsweredBy = 'owner' | 'ai' | 'voicemail' | 'none' | 'blocked';
 
 export interface CallTurn { role: 'caller' | 'assistant' | 'owner'; text: string; at?: string }
 
