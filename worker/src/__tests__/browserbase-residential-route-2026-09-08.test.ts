@@ -94,7 +94,13 @@ describe('Phase 2 does not download a plat the project already holds', () => {
     expect(ps).toContain('images: [],');
   });
   it('is the one implementation the early pass and the orchestrator use too', () => {
-    expect(read('index.ts')).toContain('  return filedPlatLabel(projectId, subdivision);');
+    // 2026-09-23: the body grew a second look — this project first, then the firm-wide library
+    // (research/document-library.ts). The point these tests pin is unchanged and is the reason they
+    // exist: ONE implementation of "do we already hold this plat", not a copy per caller.
+    const index = read('index.ts');
+    expect(index).toContain('const mine = await filedPlatLabel(projectId, subdivision);');
+    expect(index, 'the firm-wide shelf is consulted when the project has none')
+      .toContain('heldPlatForSubdivision');
     expect(read('counties/bell/orchestrator.ts')).toContain('  return sharedFiledPlatLabel(projectId, subdivision);');
   });
 });

@@ -71,7 +71,9 @@ describe('E3b — a plat the portal names but no server address can fetch is rec
     expect(src).toContain("const leads = [...prior.filter((l) => l?.url !== lead.url), { ...same, ...lead, locatedAt: new Date().toISOString() }];");
     // A plat already on the project (filed by hand from a lead, or by an earlier round) means neither the
     // portal nor TexasFile is asked.
-    expect(src).toContain('const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName) : null;');
+    // The county is passed now, because the lookup reaches past this project into the firm-wide
+    // library and a county-scoped shelf needs to know which county.
+    expect(src).toContain('const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName, county) : null;');
     expect(src).toContain("} else if (identified?.subdivisionName && county && platSourceStatus(county).available) {");
   });
   it('the browser route asks Browserbase for a RESIDENTIAL session and names the 402 plainly', () => {

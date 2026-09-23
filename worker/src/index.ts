@@ -1384,12 +1384,12 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     // under the label the Phase 2 plat search uses (so the two merge, not duplicate), and the plat
     // want is then satisfied for free — TexasFile's copy is not bought.
     let freePlatFiled: string | null = null;
-    const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName) : null;
+    const heldPlatAlready = identified?.subdivisionName ? await projectHoldsPlat(projectId, identified.subdivisionName, county) : null;
     if (heldPlatAlready) {
       // Filed by hand from the office (a free-plat lead), or by an earlier round: the want is met.
       freePlatFiled = heldPlatAlready;
-      handshakeLogger.attempt('[Plats]', 'info', 'Plat already filed', heldPlatAlready)
-        .success(0, `The plat for ${identified?.subdivisionName} is already filed on this project (${heldPlatAlready}) — the free portal is not asked and TexasFile's copy is not bought.`);
+      handshakeLogger.attempt('[Plats]', 'info', 'Plat already held', heldPlatAlready)
+        .success(0, `The plat for ${identified?.subdivisionName} is already in the library (${heldPlatAlready}) — the free portal is not asked and TexasFile's copy is not bought.`);
     } else if (identified?.subdivisionName && county && platSourceStatus(county).available) {
       try {
         const { fetchBestMatchingPlat, locateBestMatchingPlat } = await import('./services/county-plats.js');
@@ -4739,9 +4739,46 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
   }
 });
 
-/** The label of a plat row this project already holds for the subdivision, or null. Pure lookup. */
-async function projectHoldsPlat(projectId: string, subdivision: string | null): Promise<string | null> {
-  return filedPlatLabel(projectId, subdivision);
+/**
+ * A plat we already hold for this subdivision — this project first, then the whole firm.
+ *
+ * ── WHY THE SECOND LOOK MATTERS ───────────────────────────────────────────────────────────────
+ *
+ * This asked one question: does THIS PROJECT hold the plat? Consulted before the free portal and
+ * before the paid engine, so the answer decides whether a run fetches and whether it spends.
+ *
+ * Scoped to one project, the answer is almost always no. A run for 12 Oak Street re-fetches the
+ * subdivision plat that last week's run for 14 Oak Street already downloaded, because they are
+ * different projects — same county, same subdivision, byte-for-byte the same file. Bell alone has
+ * 8,077 subdivision plats in the library; a survey firm works the same subdivisions repeatedly,
+ * which is precisely why holding them is worth anything.
+ *
+ * So: project first (it is the cheaper query and the stronger claim — the document is already
+ * attached to this run's own work), then the county-wide library. The library only ever returns
+ * documents marked `shareable`, so a client's own upload and an unchecked vendor purchase are
+ * invisible to it by construction (seeds/658).
+ *
+ * Returns the label either way, because the caller's next line puts it in front of a person.
+ */
+async function projectHoldsPlat(
+  projectId: string,
+  subdivision: string | null,
+  county?: string | null,
+): Promise<string | null> {
+  const mine = await filedPlatLabel(projectId, subdivision);
+  if (mine) return mine;
+  if (!county || !subdivision) return null;
+  try {
+    const sb = await getSupabase();
+    if (!sb) return null;
+    const { heldPlatForSubdivision } = await import('./research/document-library.js');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const held = await heldPlatForSubdivision(sb as any, county, subdivision);
+    return held?.label ?? null;
+  } catch {
+    // A library miss must never fail a run — the worst case is fetching what we already had.
+    return null;
+  }
 }
 
 /** A project the app parked at `analyzing` for a worker-driven analysis that did not finalize goes

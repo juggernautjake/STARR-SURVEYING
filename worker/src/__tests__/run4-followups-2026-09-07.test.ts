@@ -97,7 +97,10 @@ describe('N — the review cap is the REVIEW\'s spend, not the project\'s', () =
 describe('Q/R — run 5 (2026-09-07): no second plat row, no second screenshot row', () => {
   it('a plat want is dropped when the project already holds the subdivision\'s plat', () => {
     const src = read('index.ts');
-    expect(src).toContain('async function projectHoldsPlat(projectId: string, subdivision: string | null): Promise<string | null> {');
+    // Signature widened 2026-09-23 with an optional county, so the same function can also ask the
+    // firm-wide library. Still one function; still the only place this question is answered.
+    expect(src).toContain('async function projectHoldsPlat(');
+    expect(src).toContain('  county?: string | null,');
     expect(src).toContain("const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null);");
     expect(src).toContain("recs = recs.filter((x) => x.documentType !== 'plat');");
     expect(read('research/filed-plat.ts')).toContain(".eq('document_type', 'plat')");
