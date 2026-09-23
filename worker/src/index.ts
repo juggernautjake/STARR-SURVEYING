@@ -2888,7 +2888,10 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
               // say so (its unique key is county + instrument, so a document another project bought has
               // no row for this one — run 5, 2026-09-07, re-opened and re-filed the plat a second time
               // at $0). The project's own rows can: a plat row naming the subject's subdivision.
-              const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null);
+              // `county` passed since 2026-09-23: without it this returned before ever reaching the
+              // library, so the firm could hold the plat and this pass would still buy it. Safe to
+              // consult now that a hit FILES the document rather than only naming it.
+              const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null, county);
               if (heldPlat && recs.some((x) => x.documentType === 'plat')) {
                 handshakeLogger.attempt('[Purchase]', 'info', 'Plat already filed', heldPlat)
                   .success(0, `The plat for ${r.property?.subdivisionName ?? 'this subdivision'} is already filed on this project (${heldPlat}) — the plat want is satisfied.`);
@@ -4771,10 +4774,28 @@ async function projectHoldsPlat(
   try {
     const sb = await getSupabase();
     if (!sb) return null;
-    const { heldPlatForSubdivision } = await import('./research/document-library.js');
+    const { heldPlatForSubdivision, attachHeldDocument } = await import('./research/document-library.js');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const held = await heldPlatForSubdivision(sb as any, county, subdivision);
-    return held?.label ?? null;
+    if (!held) return null;
+
+    // ── A HIT MUST FILE THE DOCUMENT, NOT JUST NAME IT (2026-09-23) ──────────────────────────────
+    //
+    // The caller uses this label to drop the plat from the run's wants — the free portal is not
+    // asked and TexasFile's copy is not bought. Until now nothing put the held plat ON the project,
+    // so a run that MATCHED the library finished with no plat at all: strictly worse than a miss,
+    // which would at least have fetched one. Reporting "held" without filing it is the bug.
+    //
+    // So the label is returned ONLY once the document is actually on the project. If filing fails —
+    // no file behind the row, an insert that errored — this reports a miss and the run fetches the
+    // plat the ordinary way. A slower run beats a run that quietly produces no plat.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filed = await attachHeldDocument(sb as any, projectId, held);
+    if (!filed.attached) {
+      console.warn(`[Worker] ${projectId}: library holds "${held.label}" but it could not be filed (${filed.reason}) — fetching it the usual way instead.`);
+      return null;
+    }
+    return held.label ?? null;
   } catch {
     // A library miss must never fail a run — the worst case is fetching what we already had.
     return null;

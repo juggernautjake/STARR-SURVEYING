@@ -101,7 +101,10 @@ describe('Q/R — run 5 (2026-09-07): no second plat row, no second screenshot r
     // firm-wide library. Still one function; still the only place this question is answered.
     expect(src).toContain('async function projectHoldsPlat(');
     expect(src).toContain('  county?: string | null,');
-    expect(src).toContain("const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null);");
+    // `county` added 2026-09-23. Without it this call returned before ever reaching the library
+    // (projectHoldsPlat bails on a missing county), so the firm could hold the plat and this pass
+    // would still buy it. Safe now that a library hit FILES the document instead of only naming it.
+    expect(src).toContain("const heldPlat = await projectHoldsPlat(projectId, r.property?.subdivisionName ?? null, county);");
     expect(src).toContain("recs = recs.filter((x) => x.documentType !== 'plat');");
     expect(read('research/filed-plat.ts')).toContain(".eq('document_type', 'plat')");
   });

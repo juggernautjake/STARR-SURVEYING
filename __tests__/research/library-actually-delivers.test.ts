@@ -1,0 +1,180 @@
+// __tests__/research/library-actually-delivers.test.ts
+//
+// Owner, 2026-09-23: "Are all of the bell county files available to view? Are they fully integrated
+// into the research pipeline so that if the user is searching in bell county that it checks the
+// library quickly to see if anything matches?"
+//
+// The answer was no on both counts, in two ways that each looked like success from the outside.
+//
+// ── 1. A HIT MADE THE RUN WORSE THAN A MISS ─────────────────────────────────────────────────────
+//
+// `projectHoldsPlat` returned the LABEL of a plat the firm held on some other project, and the
+// caller used that label to drop the plat from the run's wants — the free county portal was not
+// asked and TexasFile's copy was not bought. Nothing filed the held document on the project. So a
+// run that MATCHED the library finished with no plat at all, while a run that missed it fetched
+// one. The library was worst exactly where it was best stocked.
+//
+// ── 2. THE PAGE CALLED "DOCUMENT LIBRARY" COULD NOT SEE THE LIBRARY ─────────────────────────────
+//
+// It scoped documents to `research_projects.created_by = you`. The 8,077 Bell plats sit on a
+// project owned by `library@starr-surveying.com`, which nobody signs in as, so the page showed zero
+// of them to every person including the one who imported them.
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { attachHeldDocument, libraryCountyKey as workerKey, type HeldDocument } from '@/worker/src/research/document-library';
+import { libraryCountyKey as appKey } from '@/lib/research/county-key';
+
+const read = (p: string) => readFileSync(path.join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n');
+
+const HELD: HeldDocument = {
+  id: 'lib-1', label: 'GLENDALE ADDITION', documentType: 'plat', countyFips: 'bell',
+  identityKey: null, contentSha256: 'abc123', storagePath: 'library/bell/plats/glendale.pdf',
+  storageUrl: 'https://x/glendale.pdf', pagesPdfUrl: 'https://x/glendale.pdf',
+  recordedDate: null, recordingInfo: null, pageCount: 2,
+  researchProjectId: 'lib-project', provenance: 'public_record', sourceVendor: 'county_portal',
+};
+
+/** A Supabase stand-in that records what was inserted. */
+function db(existing: unknown[] = [], failWith?: string) {
+  const inserted: Array<Record<string, unknown>> = [];
+  return {
+    inserted,
+    client: {
+      from() {
+        const api: Record<string, unknown> = {};
+        api.select = () => api;
+        api.eq = () => api;
+        api.limit = () => Promise.resolve({ data: existing, error: null });
+        api.insert = (row: Record<string, unknown>) => {
+          if (failWith) return Promise.resolve({ error: { message: failWith } });
+          inserted.push(row);
+          return Promise.resolve({ error: null });
+        };
+        return api;
+      },
+    },
+  };
+}
+
+describe('a library hit files the document, it does not merely name it', () => {
+  it('inserts a row on the project that needed it', async () => {
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(res.attached).toBe(true);
+    expect(d.inserted).toHaveLength(1);
+    expect(d.inserted[0].research_project_id).toBe('proj-9');
+    expect(d.inserted[0].document_label).toBe('GLENDALE ADDITION');
+  });
+
+  it('points at the same file rather than copying 19 GB around', async () => {
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(d.inserted[0].storage_path).toBe(HELD.storagePath);
+  });
+
+  it('records where it came from without marking itself redundant', async () => {
+    // `duplicate_of` means "ignore this row". These rows are the REASON the project has the plat,
+    // so setting it would hide the document from the very run that needed it.
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(d.inserted[0].duplicate_of).toBeUndefined();
+    expect((d.inserted[0].harvest_metadata as { from_library_document_id?: string }).from_library_document_id).toBe('lib-1');
+  });
+
+  it('is not itself shareable, so the library does not count the same bytes twice', async () => {
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(d.inserted[0].shareable).toBe(false);
+  });
+
+  it('refuses a held row with no file behind it', async () => {
+    // Five Bell rows are index-only — the plat was over the 50 MB upload cap. Attaching one would
+    // satisfy the plat want with something that 404s when somebody clicks it.
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await attachHeldDocument(d.client as any, 'proj-9', { ...HELD, storagePath: null });
+    expect(res.attached).toBe(false);
+    expect(d.inserted).toHaveLength(0);
+  });
+
+  it('does not file the same document twice in one run', async () => {
+    const d = db([{ id: 'already-here' }]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(res.attached).toBe(true);
+    expect(d.inserted).toHaveLength(0);
+  });
+
+  it('reports failure rather than claiming success', async () => {
+    const d = db([], 'insert exploded');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(res.attached).toBe(false);
+  });
+});
+
+describe('the run only skips fetching once the plat is actually on the project', () => {
+  const src = read('worker/src/index.ts');
+
+  it('projectHoldsPlat attaches before it returns a label', () => {
+    expect(src).toContain('attachHeldDocument');
+    // The label is what suppresses the fetch, so returning it without filing is the whole bug.
+    expect(src).toContain('could not be filed');
+  });
+
+  it('a failed attach reports a miss, so the run fetches the plat the ordinary way', () => {
+    // A slower run beats a run that quietly produces no plat.
+    const fn = src.slice(src.indexOf('async function projectHoldsPlat'));
+    const body = fn.slice(0, fn.indexOf('\n}'));
+    expect(body).toMatch(/if \(!filed\.attached\)[\s\S]{0,400}return null;/);
+  });
+
+  it('the late purchase pass consults the library too', () => {
+    // It passed no county, so it returned before reaching the library and the firm could buy a plat
+    // it already owned.
+    expect(src).toContain('`county` passed since 2026-09-23');
+  });
+});
+
+describe('the Document Library page can see the firm library', () => {
+  const route = read('app/api/admin/research/library/route.ts');
+
+  it('includes shareable documents, not only your own projects', () => {
+    expect(route).toContain('shareable.eq.true');
+  });
+
+  it('still works for somebody who owns no projects at all', () => {
+    // The old code returned an empty page the moment you had no projects of your own, which is
+    // precisely the state a new employee is in.
+    expect(route).toContain("'shareable.eq.true'");
+    expect(route).not.toMatch(/if \(projectIds\.length === 0\) \{\s*return NextResponse\.json\(\{\s*documents: \[\]/);
+  });
+
+  it('filters county on the document, not on its holding project', () => {
+    // A shared row's parent project is the library holding pen and has no meaningful county, so
+    // filtering through the project hid every shared row.
+    expect(route).toContain("query.eq('county_fips'");
+  });
+
+  it('counts stats over the same scope it lists', () => {
+    // Stats scoped narrower than the listing is how a page says "0 documents" above a list of them.
+    const stats = route.slice(route.indexOf('// 5. Compute stats'));
+    expect(stats).toContain('.or(ownScope)');
+  });
+});
+
+describe('the app and the worker spell a county the same way', () => {
+  it('agree on every shape', () => {
+    // They are separate builds and cannot import from each other, so the copy is deliberate. What
+    // matters is that they never disagree: a library asked in the wrong case answers "no", and the
+    // run then pays for a document the firm already owns.
+    for (const raw of ['Bell', 'BELL', 'bell county', 'Bell County', '48027', ' 48027 ', '', 'Jim Wells']) {
+      expect(appKey(raw), `disagreement on "${raw}"`).toBe(workerKey(raw));
+    }
+  });
+});

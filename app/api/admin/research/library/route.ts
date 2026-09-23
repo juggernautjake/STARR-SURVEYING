@@ -11,6 +11,7 @@ import { auth } from '@/lib/auth';
 import { canReadResearch } from '@/lib/research/access';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { libraryCountyKey } from '@/lib/research/county-key';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -36,6 +37,8 @@ interface DocumentStatsRow {
   document_type?: string | null;
   research_project_id?: string | null;
   source_type?: string | null;
+  /** The document's own county. A shared library row has one; its holding project does not. */
+  county_fips?: string | null;
 }
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -75,34 +78,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const projectIds = userProjects.map((p: ProjectRow) => p.id);
   const projectById = new Map(userProjects.map((p: ProjectRow) => [p.id, p]));
 
-  if (projectIds.length === 0) {
-    return NextResponse.json({
-      documents: [],
-      stats: { totalDocuments: 0, totalPurchased: 0, totalSpent: 0, byType: {}, byCounty: {} },
-      pagination: { page, pageSize, total: 0, totalPages: 0 },
-    });
-  }
+  // ── THE FIRM LIBRARY IS NOT ONE PERSON'S PROJECTS (2026-09-23) ──────────────────────────────
+  //
+  // This used to scope every document to `research_projects.created_by = you`, which is right for
+  // YOUR work and wrong for the page called Document Library. The 8,077 Bell County plats sit on a
+  // project created by `library@starr-surveying.com` — an address no human signs in as — so the
+  // Library showed zero of them to everybody, including the person who imported them.
+  //
+  // `shareable` is already the licence fence: seeds/658 sets it true only for public records the
+  // firm may share, and `worker/src/research/document-library.ts` reads nothing without it. So the
+  // Library is "my projects' documents, plus everything the firm may share", and a customer's
+  // purchased file — shareable false — stays out of everyone else's view exactly as before.
+  const ownScope = projectIds.length
+    ? `research_project_id.in.(${projectIds.join(',')}),shareable.eq.true`
+    : 'shareable.eq.true';
 
   // 2. Build query for documents
   let query = supabaseAdmin
     .from('research_documents')
     .select('*', { count: 'exact' })
-    .in('research_project_id', projectIds);
+    .or(ownScope);
 
   if (docType) query = query.eq('document_type', docType);
   if (county) {
-    // Filter by county from the parent project
-    const countyProjects = userProjects
-      .filter((p: ProjectRow) => p.county?.toLowerCase() === county.toLowerCase())
-      .map((p: ProjectRow) => p.id);
-    if (countyProjects.length === 0) {
-      return NextResponse.json({
-        documents: [],
-        stats: { totalDocuments: 0, totalPurchased: 0, totalSpent: 0, byType: {}, byCounty: {} },
-        pagination: { page, pageSize, total: 0, totalPages: 0 },
-      });
-    }
-    query = query.in('research_project_id', countyProjects);
+    // The document's OWN county, not its parent project's. A shared library row carries
+    // `county_fips` (seeds/658) and its parent project is the library holding pen, which has no
+    // meaningful county of its own — filtering through the project would hide every shared row.
+    query = query.eq('county_fips', libraryCountyKey(county));
   }
 
   // Sort
@@ -141,8 +143,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // 5. Compute stats (over all user docs, not just this page)
   const { data: allDocsRaw } = await supabaseAdmin
     .from('research_documents')
-    .select('document_type, research_project_id, source_type')
-    .in('research_project_id', projectIds);
+    .select('document_type, research_project_id, source_type, county_fips')
+    .or(ownScope);
 
   const allDocs = (allDocsRaw ?? []) as DocumentStatsRow[];
   const byType: Record<string, number> = {};
@@ -150,8 +152,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   for (const d of allDocs) {
     if (d.document_type) byType[d.document_type] = (byType[d.document_type] ?? 0) + 1;
-    const proj = projectById.get(d.research_project_id as string);
-    if (proj?.county) byCounty[proj.county] = (byCounty[proj.county] ?? 0) + 1;
+    // The row's own county first: a shared row has one and its holding project does not.
+    const c = (d.county_fips as string | null) || projectById.get(d.research_project_id as string)?.county;
+    if (c) byCounty[c] = (byCounty[c] ?? 0) + 1;
   }
 
   // ── '17 PURCHASED · $0.00 SPENT' WAS A SELF-CONTRADICTION ──────────────────────────────────

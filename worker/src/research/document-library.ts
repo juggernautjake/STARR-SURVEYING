@@ -229,3 +229,81 @@ export async function countyHoldingsSummary(
       : `The library holds ${docs.length} document(s) for ${county}${parts.length ? ` — ${parts.join(', ')}` : ''}.`,
   };
 }
+
+/**
+ * File a document the firm already holds onto the project that needs it.
+ *
+ * ── THE BUG THIS EXISTS TO FIX (2026-09-23) ─────────────────────────────────────────────────────
+ *
+ * A library hit used to return only a LABEL, and the caller used that label to drop the plat from
+ * the run's wants: the free county portal was not asked and TexasFile's copy was not bought. But
+ * nothing put the held document on the project. So a run that MATCHED the library finished with no
+ * plat at all — strictly worse than a run that missed it, which would at least have fetched one.
+ * The library was making runs worse for exactly the counties it covered best.
+ *
+ * ── A REFERENCE, NOT A COPY ─────────────────────────────────────────────────────────────────────
+ *
+ * The new row points at the SAME `storage_path` as the held one. 8,077 Bell plats are 19 GB; a run
+ * that copied bytes every time it matched would multiply that by the number of projects touching a
+ * subdivision, to hold identical files. Storage has no per-project ownership here — the bucket path
+ * is the file — so a second row referring to it is the whole of what "attach" needs to mean.
+ *
+ * `duplicate_of` is deliberately NOT set: that column means "this row is redundant, ignore it", and
+ * these rows are the opposite — they are the reason the project has the plat. The link back is
+ * `harvest_metadata.from_library_document_id`, which records where it came from without claiming
+ * the row should be skipped.
+ */
+export async function attachHeldDocument(
+  db: LibraryQueryDb | null,
+  projectId: string,
+  held: HeldDocument,
+): Promise<{ attached: boolean; reason?: string }> {
+  if (!db || !projectId || !held?.id) return { attached: false, reason: 'nothing to attach' };
+  // A held row with no file is an index entry, not a document. Attaching it would satisfy the want
+  // with something that 404s on click — the failure this whole function exists to prevent.
+  if (!held.storagePath) return { attached: false, reason: 'the held document has no file behind it' };
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = db as any;
+    // Already attached by an earlier round of the same run: filing it twice would show the person
+    // two identical plats and make the completeness count disagree with itself.
+    const { data: already } = await client.from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('content_sha256', held.contentSha256 ?? '\u0000never')
+      .limit(1);
+    if ((already ?? []).length) return { attached: true, reason: 'already filed on this project' };
+
+    const now = new Date().toISOString();
+    const { error } = await client.from('research_documents').insert({
+      research_project_id: projectId,
+      source_type: 'property_search',
+      original_filename: held.label ?? 'Plat from the firm library',
+      file_type: 'pdf',
+      document_type: held.documentType ?? 'plat',
+      document_label: held.label,
+      storage_path: held.storagePath,
+      storage_url: held.storageUrl,
+      pages_pdf_url: held.pagesPdfUrl,
+      recorded_date: held.recordedDate,
+      recording_info: held.recordingInfo,
+      page_count: held.pageCount,
+      content_sha256: held.contentSha256,
+      county_fips: held.countyFips,
+      provenance: held.provenance,
+      source_vendor: held.sourceVendor,
+      // NOT shareable: the firm already shares the original. A second shareable row for the same
+      // bytes would make the library count its own holdings twice.
+      shareable: false,
+      processing_status: 'pending',
+      harvest_metadata: { from_library_document_id: held.id, from_library_project_id: held.researchProjectId, attached_at: now },
+      created_at: now,
+      updated_at: now,
+    });
+    if (error) return { attached: false, reason: error.message };
+    return { attached: true };
+  } catch (err) {
+    return { attached: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
