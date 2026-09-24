@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { attachHeldDocument, libraryCountyKey as workerKey, type HeldDocument } from '@/worker/src/research/document-library';
 import { libraryCountyKey as appKey } from '@/lib/research/county-key';
+import { expectOrder } from '../helpers/expect-order';
 
 const read = (p: string) => readFileSync(path.join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n');
 
@@ -138,6 +139,43 @@ describe('the run only skips fetching once the plat is actually on the project',
     // It passed no county, so it returned before reaching the library and the firm could buy a plat
     // it already owned.
     expect(src).toContain('`county` passed since 2026-09-23');
+  });
+});
+
+describe('the firm does not buy what it already owns', () => {
+  const src = read('worker/src/index.ts');
+
+  it('asks the library by citation before paying for a document', () => {
+    // `heldByCitation` was written for exactly this and had zero callers, so the same instrument
+    // was bought again every time a second project needed it. Citation is the only identity that
+    // survives crossing vendors: one deed is `2019-12345` on TexasFile and `V9251 P668` on the
+    // county portal.
+    expect(src).toContain('heldByCitation');
+    // Scoped to this purchase pass: there are three `new DocumentPurchaseOrchestrator` in the file
+    // and a whole-file ordering check would measure against whichever came first, which is a
+    // different code path entirely.
+    const pass = src.slice(src.indexOf('DO WE ALREADY OWN THIS?'));
+    expectOrder(pass, 'heldByCitation', 'new DocumentPurchaseOrchestrator', 'library is consulted before buying');
+  });
+
+  it('FILES what it finds before dropping it from the buy list', () => {
+    // A skipped purchase that leaves the project empty is not a saving, it is a silent gap — the
+    // exact failure the plat branch already produced once.
+    const block = src.slice(src.indexOf('DO WE ALREADY OWN THIS?'));
+    const body = block.slice(0, block.indexOf('const permission = await resolvePurchasePermission'));
+    expectOrder(body, 'attachHeldDocument', 'keep.push(rec)', 'attach is attempted before the record is kept or dropped');
+    expect(body).toContain('filed?.attached');
+  });
+
+  it('a record is only dropped when filing actually succeeded', () => {
+    const block = src.slice(src.indexOf('DO WE ALREADY OWN THIS?'));
+    // The `else` branch keeps the record, so a failed attach means the document is still bought.
+    expect(block).toMatch(/if \(filed\?\.attached\)[\s\S]{0,400}\} else \{[\s\S]{0,120}keep\.push\(rec\);/);
+  });
+
+  it('a library failure never blocks a purchase the operator asked for', () => {
+    const block = src.slice(src.indexOf('DO WE ALREADY OWN THIS?'));
+    expect(block).toContain('library-before-buy check failed');
   });
 });
 

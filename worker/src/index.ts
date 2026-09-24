@@ -2897,6 +2897,44 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                   .success(0, `The plat for ${r.property?.subdivisionName ?? 'this subdivision'} is already filed on this project (${heldPlat}) — the plat want is satisfied.`);
                 recs = recs.filter((x) => x.documentType !== 'plat');
               }
+              // ── DO WE ALREADY OWN THIS? (2026-09-23) ──────────────────────────────────────
+              //
+              // `heldByCitation` was written for exactly this and had ZERO callers, so the firm
+              // bought the same instrument again every time a second project needed it. Citation is
+              // the only identity that survives crossing vendors — the same deed is `2019-12345` on
+              // TexasFile and `V9251 P668` on the county portal — and `document-identity.ts`
+              // already builds that key, county-keyed rather than project-keyed.
+              //
+              // Anything held is FILED on this project and dropped from the buy list. Filing first
+              // is the whole point: the plat branch above once reported "held" without attaching
+              // anything, and the run ended with no document. A skipped purchase that leaves the
+              // project empty is not a saving, it is a silent gap.
+              if (recs.length > 0 && county) {
+                try {
+                  const sb = await getSupabase();
+                  const { heldByCitation, attachHeldDocument } = await import('./research/document-library.js');
+                  const keep: typeof recs = [];
+                  for (const rec of recs) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const held = sb ? await heldByCitation(sb as any, {
+                      county, instrumentNumber: rec.instrument, vendor: rec.source,
+                    }) : null;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const filed = held ? await attachHeldDocument(sb as any, projectId, held) : null;
+                    if (filed?.attached) {
+                      handshakeLogger.attempt('[Purchase]', 'info', 'Already owned', held?.label ?? rec.instrument ?? '')
+                        .success(0, `${held?.label ?? rec.instrument} is already in the firm's library — filed on this project rather than bought again.`);
+                    } else {
+                      keep.push(rec);
+                    }
+                  }
+                  recs = keep;
+                } catch (e) {
+                  // A library miss must never stop a purchase the operator asked for.
+                  console.warn(`[Worker] ${projectId}: library-before-buy check failed — ${e instanceof Error ? e.message : String(e)}`);
+                }
+              }
+
               if (recs.length > 0) {
                 const permission = await resolvePurchasePermission(projectId);
                 const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
