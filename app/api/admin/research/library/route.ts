@@ -12,6 +12,7 @@ import { canReadResearch } from '@/lib/research/access';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { libraryCountyKey } from '@/lib/research/county-key';
+import { needsReview, type DocumentCatalogue } from '@/lib/research/catalogue-schema';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -134,11 +135,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  // 4. Augment docs with project context
-  const augmented = filteredDocs.map((doc: DocumentRow) => ({
-    ...doc,
-    project: projectById.get(doc.research_project_id as string) ?? null,
-  }));
+  // 4. Augment docs with project context and with what we have read off the sheet
+  //
+  // ── THE CATALOGUE, AND WHAT IN IT IS DOUBTFUL ───────────────────────────────────────────────
+  //
+  // A catalogue that only surfaces its confident values quietly becomes a catalogue nobody checks.
+  // `reviewCount` is the number of values a person should confirm — a low-confidence reading, or a
+  // merely-probable RPLS number — and each carries the verbatim quote it was read from, so
+  // confirming one is a glance rather than an investigation.
+  const augmented = filteredDocs.map((doc: DocumentRow) => {
+    const catalogue = (doc.catalogue ?? null) as DocumentCatalogue | null;
+    const review = needsReview(catalogue);
+    return {
+      ...doc,
+      project: projectById.get(doc.research_project_id as string) ?? null,
+      catalogued: Boolean(doc.catalogued_at),
+      reviewCount: review.length,
+      review,
+    };
+  });
 
   // 5. Compute stats (over all user docs, not just this page)
   const { data: allDocsRaw } = await supabaseAdmin
