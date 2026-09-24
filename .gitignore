@@ -137,3 +137,4 @@ _qa/
 
 # pdf.js worker + decoders, copied from node_modules by scripts/copy-pdfjs-assets.mjs (prebuild/predev)
 public/pdfjs/
+.catalogue-logs/

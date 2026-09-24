@@ -67,6 +67,43 @@ export interface RosterEntry {
   middle_name: string | null;
   last_name: string | null;
   full_name?: string | null;
+  /** The date the licence was granted. The basis of the chronology check below. */
+  granted_on?: string | null;
+  expires_on?: string | null;
+  firm_name?: string | null;
+}
+
+// ── A FOURTH WITNESS: CHRONOLOGY ────────────────────────────────────────────────────────────────
+//
+// The register records when each licence was GRANTED, and a plat cannot have been sealed by a
+// licence that did not exist yet. That is not a similarity score — it is a hard impossibility, and
+// it catches a class the other checks cannot: a misread number that happens to belong to a real
+// surveyor with a plausible-looking name.
+//
+// Only the granted date is used. `expires_on` is the CURRENT expiry, and a licence renewed for
+// thirty years shows one recent date — so a plat older than the expiry is completely normal and
+// testing it would reject the archive's whole back catalogue.
+//
+// A tolerance of one year absorbs the real gap between a survey being performed, the plat being
+// signed, and the county recording it, plus a recorded date the reader may have off by a year.
+
+export type Chronology = 'plausible' | 'impossible' | 'unknown';
+
+const CHRONOLOGY_GRACE_DAYS = 366;
+
+export function checkChronology(entry: RosterEntry | null | undefined, plattedDate: string | null | undefined): Chronology {
+  const granted = (entry?.granted_on ?? '').slice(0, 10);
+  const platted = (plattedDate ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(granted) || !/^\d{4}-\d{2}-\d{2}$/.test(platted)) return 'unknown';
+  const g = Date.parse(granted); const d = Date.parse(platted);
+  if (Number.isNaN(g) || Number.isNaN(d)) return 'unknown';
+  // Sealed before the licence existed, by more than the grace period.
+  return d < g - CHRONOLOGY_GRACE_DAYS * 86_400_000 ? 'impossible' : 'plausible';
+}
+
+/** Said in words for whoever reads the document. */
+export function chronologyNote(entry: RosterEntry, plattedDate: string): string {
+  return `The plat is dated ${plattedDate.slice(0, 10)}, and RPLS ${entry.rpls_number} was not granted until ${(entry.granted_on ?? '').slice(0, 10)}. The licence did not exist when this sheet was sealed, so the number was misread.`;
 }
 
 export type SurveyorVerdict =

@@ -69,6 +69,16 @@ export interface HeldDocument {
   researchProjectId: string | null;
   provenance: string | null;
   sourceVendor: string | null;
+  /** What the firm has already read off this sheet — so a run never re-reads it. */
+  extractedText: string | null;
+  extractedTextMethod: string | null;
+  catalogue: unknown | null;
+  catalogueModel: string | null;
+  catalogueVersion: number | null;
+  cataloguedAt: string | null;
+  surveyorVerification: unknown | null;
+  surveyorCertainty: unknown | null;
+  processingStatus: string | null;
 }
 
 /** The narrow Supabase surface this module needs. Declared rather than `any` so a new query has to
@@ -78,10 +88,20 @@ export interface LibraryQueryDb {
   from: (t: string) => any;
 }
 
+// ── THE ANALYSIS TRAVELS WITH THE DOCUMENT (2026-09-24) ─────────────────────────────────────────
+//
+// Owner: *"whenever someone is looking for a plat in the research run in bell county... the
+// document analysis would already be completed."*
+//
+// The library holds the catalogue — the subdivision, the surveyor, the licence, the recording
+// reference, and what the register made of them. Attaching a plat without those would make a run
+// that HIT the library re-read a sheet the firm has already read, which is the same shape as the
+// bug where a hit attached nothing: the saving is real and the work is done twice anyway.
 const COLUMNS =
   'id, document_label, document_type, county_fips, identity_key, content_sha256, storage_path, '
   + 'storage_url, pages_pdf_url, recorded_date, recording_info, page_count, research_project_id, '
-  + 'provenance, source_vendor';
+  + 'provenance, source_vendor, extracted_text, extracted_text_method, catalogue, catalogue_model, '
+  + 'catalogue_version, catalogued_at, surveyor_verification, surveyor_certainty, processing_status';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toHeld(row: any): HeldDocument {
@@ -101,6 +121,15 @@ function toHeld(row: any): HeldDocument {
     researchProjectId: row.research_project_id ?? null,
     provenance: row.provenance ?? null,
     sourceVendor: row.source_vendor ?? null,
+    extractedText: row.extracted_text ?? null,
+    extractedTextMethod: row.extracted_text_method ?? null,
+    catalogue: row.catalogue ?? null,
+    catalogueModel: row.catalogue_model ?? null,
+    catalogueVersion: typeof row.catalogue_version === 'number' ? row.catalogue_version : null,
+    cataloguedAt: row.catalogued_at ?? null,
+    surveyorVerification: row.surveyor_verification ?? null,
+    surveyorCertainty: row.surveyor_certainty ?? null,
+    processingStatus: row.processing_status ?? null,
   };
 }
 
@@ -296,8 +325,20 @@ export async function attachHeldDocument(
       // NOT shareable: the firm already shares the original. A second shareable row for the same
       // bytes would make the library count its own holdings twice.
       shareable: false,
-      processing_status: 'pending',
-      harvest_metadata: { from_library_document_id: held.id, from_library_project_id: held.researchProjectId, attached_at: now },
+      // The reading travels with the sheet. A run that hits the library gets a document that is
+      // already read — which is the whole point of holding it — instead of one queued to be read
+      // again at the same cost the library was supposed to avoid.
+      extracted_text: held.extractedText,
+      extracted_text_method: held.extractedTextMethod,
+      catalogue: held.catalogue,
+      catalogue_model: held.catalogueModel,
+      catalogue_version: held.catalogueVersion,
+      catalogued_at: held.cataloguedAt,
+      surveyor_verification: held.surveyorVerification,
+      surveyor_certainty: held.surveyorCertainty,
+      // 'pending' only when the library copy was never read; otherwise inherit what it reached.
+      processing_status: held.cataloguedAt ? (held.processingStatus ?? 'analyzed') : 'pending',
+      harvest_metadata: { from_library_document_id: held.id, from_library_project_id: held.researchProjectId, attached_at: now, analysis_inherited: Boolean(held.cataloguedAt) },
       created_at: now,
       updated_at: now,
     });

@@ -52,12 +52,41 @@ function samePerson(readName, e) {
 }
 const display = (e) => [e.first_name, e.middle_name, e.last_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
-function verify(readName, readLicence, byNumber, byName) {
+// ── A FOURTH WITNESS: CHRONOLOGY ────────────────────────────────────────────────────────────────
+// A plat cannot have been sealed by a licence that did not exist yet. Not a similarity score — an
+// impossibility — and it catches the class the others miss: a misread number that happens to name a
+// real surveyor. Only `granted_on` is used; `expires_on` is the CURRENT expiry and a renewed licence
+// shows one recent date, so testing it would reject the whole back catalogue. One year of grace
+// covers survey → signature → recording, and a year the reader may have wrong.
+const GRACE_MS = 366 * 86400000;
+function chronology(entry, plattedDate) {
+  const g = (entry?.granted_on ?? '').slice(0, 10), d = (plattedDate ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(g) || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return 'unknown';
+  const gt = Date.parse(g), dt = Date.parse(d);
+  if (Number.isNaN(gt) || Number.isNaN(dt)) return 'unknown';
+  return dt < gt - GRACE_MS ? 'impossible' : 'plausible';
+}
+
+function verify(readName, readLicence, byNumber, byName, plattedDate) {
   const name = normName(readName), licence = normLicence(readLicence);
   const base = { readName: name || null, readLicence: licence || null, rosterName: null, rosterLicence: null, rosterStatus: null };
   if (!name || !licence) return { ...base, verdict: 'incomplete', note: 'The sheet gave a name or a licence number, but not both, so there is nothing to cross-check.' };
+  // Chronology first: a licence granted after the plat was sealed cannot be the right number, no
+  // matter how well the name matches. Names repeat; dates do not bend.
+  if (byNumber && chronology(byNumber, plattedDate) === 'impossible') {
+    const alt = byName.filter((e) => samePerson(name, e) && chronology(e, plattedDate) !== 'impossible');
+    const uniq = new Set(alt.map((e) => e.rpls_number));
+    if (uniq.size === 1) {
+      const e = alt[0];
+      return { ...base, verdict: 'corrected', rosterName: display(e), rosterLicence: e.rpls_number, rosterStatus: e.status ?? null, chronology: 'impossible',
+        note: `The plat is dated ${String(plattedDate).slice(0, 10)} and RPLS ${licence} was not granted until ${String(byNumber.granted_on).slice(0, 10)} — the licence did not exist yet. ${display(e)} at RPLS ${e.rpls_number} fits both the name and the date.` };
+    }
+    return { ...base, verdict: 'unmatched', rosterName: display(byNumber), rosterLicence: byNumber.rpls_number, rosterStatus: byNumber.status ?? null, chronology: 'impossible',
+      note: `The plat is dated ${String(plattedDate).slice(0, 10)} and RPLS ${licence} was not granted until ${String(byNumber.granted_on).slice(0, 10)}. The licence did not exist when this sheet was sealed, so the number was misread.` };
+  }
+
   if (byNumber && samePerson(name, byNumber)) {
-    return { ...base, verdict: 'confirmed', rosterName: display(byNumber), rosterLicence: byNumber.rpls_number, rosterStatus: byNumber.status ?? null,
+    return { ...base, chronology: chronology(byNumber, plattedDate), verdict: 'confirmed', rosterName: display(byNumber), rosterLicence: byNumber.rpls_number, rosterStatus: byNumber.status ?? null,
       note: `The State register lists ${display(byNumber)} at RPLS ${byNumber.rpls_number}${byNumber.status ? ` (${byNumber.status.toLowerCase()})` : ''}, which is the name on the sheet.` };
   }
   const candidates = byName.filter((e) => samePerson(name, e));
@@ -76,7 +105,7 @@ function verify(readName, readLicence, byNumber, byName) {
 const roster = [];
 for (let from = 0; ; from += 1000) {
   const { data, error } = await db.from('surveyor_roster')
-    .select('rpls_number, status, first_name, middle_name, last_name').range(from, from + 999);
+    .select('rpls_number, status, first_name, middle_name, last_name, granted_on').range(from, from + 999);
   if (error) { console.error(error.message); process.exit(1); }
   if (!data?.length) break; roster.push(...data); if (data.length < 1000) break;
 }
@@ -93,6 +122,7 @@ for (let from = 0; ; from += 1000) {
 
 // ── verify ──────────────────────────────────────────────────────────────────────────────────────
 const tally = { confirmed: 0, corrected: 0, unmatched: 0, not_a_licence: 0, incomplete: 0 };
+let impossible = 0;
 const updates = [];
 const examples = { corrected: [], unmatched: [], not_a_licence: [] };
 
@@ -102,8 +132,9 @@ for (const d of docs) {
   const results = surveyors.map((s) => {
     const licence = normLicence(s?.rpls_number?.value);
     const name = normName(s?.name?.value);
-    const r = verify(name, licence, byNumber.get(licence) ?? null, roster);
+    const r = verify(name, licence, byNumber.get(licence) ?? null, roster, d.catalogue?.recorded_date?.value ?? null);
     tally[r.verdict] = (tally[r.verdict] ?? 0) + 1;
+    if (r.chronology === 'impossible') impossible += 1;
     if (examples[r.verdict] && examples[r.verdict].length < 6) examples[r.verdict].push({ doc: d.document_label, ...r });
     return { ...r, readConfidence: s?.rpls_number?.confidence ?? null };
   });
@@ -118,6 +149,7 @@ for (const k of ['confirmed', 'corrected', 'unmatched', 'not_a_licence', 'incomp
 }
 const usable = tally.confirmed + tally.corrected;
 console.log(`\n  ${usable} of ${total} (${pct(usable)}) are now backed by the State register.`);
+console.log(`  ${impossible} reading(s) ruled out by CHRONOLOGY — the licence did not exist when the plat was sealed.`);
 
 for (const [kind, label] of [['corrected', 'the register supplied the right number'], ['unmatched', 'name and number disagree, unresolved'], ['not_a_licence', 'not a licence number']]) {
   if (!examples[kind]?.length) continue;

@@ -34,6 +34,13 @@ const HELD: HeldDocument = {
   storageUrl: 'https://x/glendale.pdf', pagesPdfUrl: 'https://x/glendale.pdf',
   recordedDate: null, recordingInfo: null, pageCount: 2,
   researchProjectId: 'lib-project', provenance: 'public_record', sourceVendor: 'county_portal',
+  // The reading the firm already did. It travels with the document (2026-09-24) so a run that hits
+  // the library gets a sheet that is already analysed rather than one queued to be read again.
+  extractedText: null, extractedTextMethod: null,
+  catalogue: { subdivision_name: { value: 'GLENDALE ADDITION', confidence: 'high', source_text: 'GLENDALE ADDITION' } },
+  catalogueModel: 'claude-sonnet-5', catalogueVersion: 2, cataloguedAt: '2026-09-24T00:00:00Z',
+  surveyorVerification: [{ verdict: 'confirmed' }], surveyorCertainty: [{ certainty: 'verified' }],
+  processingStatus: 'analyzed',
 };
 
 /** A Supabase stand-in that records what was inserted. */
@@ -84,6 +91,27 @@ describe('a library hit files the document, it does not merely name it', () => {
     await attachHeldDocument(d.client as any, 'proj-9', HELD);
     expect(d.inserted[0].duplicate_of).toBeUndefined();
     expect((d.inserted[0].harvest_metadata as { from_library_document_id?: string }).from_library_document_id).toBe('lib-1');
+  });
+
+  it('brings the analysis with it, so the run does not re-read a sheet the firm has read', async () => {
+    // Owner, 2026-09-24: "the document analysis would already be completed." Attaching bytes with
+    // no reading would make a library HIT cost the same as a miss — the sheet gets read twice and
+    // the saving the library exists for never arrives.
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await attachHeldDocument(d.client as any, 'proj-9', HELD);
+    expect(d.inserted[0].catalogue).toEqual(HELD.catalogue);
+    expect(d.inserted[0].surveyor_certainty).toEqual(HELD.surveyorCertainty);
+    expect(d.inserted[0].catalogued_at).toBe(HELD.cataloguedAt);
+    // …and it is not queued for re-analysis.
+    expect(d.inserted[0].processing_status).toBe('analyzed');
+  });
+
+  it('still queues an UNREAD library document for analysis rather than claiming it is done', async () => {
+    const d = db();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await attachHeldDocument(d.client as any, 'proj-9', { ...HELD, cataloguedAt: null, catalogue: null, processingStatus: null });
+    expect(d.inserted[0].processing_status).toBe('pending');
   });
 
   it('is not itself shareable, so the library does not count the same bytes twice', async () => {

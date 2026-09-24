@@ -114,6 +114,29 @@ async function queue() {
   return data ?? [];
 }
 
+// ── TRANSIENT VS PERMANENT (2026-09-24) ─────────────────────────────────────────────────────────
+//
+// The first full run marked 111 documents `catalogue_error` in a row, all of them
+// "Your credit balance is too low". Nothing was wrong with those sheets — and because the queue
+// skips rows that already carry an error, one billing outage would have quietly removed 7,800
+// documents from the backlog for good. The failure that matters is not the outage; it is that the
+// outage was recorded as a property of the document.
+//
+// So: a PERMANENT failure (the file is a folder, the file is too big, the reader returned nothing
+// usable) is stamped, because it will fail identically next time and the queue should stop asking.
+// A TRANSIENT one (credits, rate limit, a 5xx, a dropped socket) is NOT stamped — the row stays in
+// the queue exactly as it was — and a credit or auth failure STOPS THE RUN, because grinding
+// through 7,800 documents to fail each one the same way helps nobody and costs a queue.
+const TRANSIENT = /credit balance|rate.?limit|429|50\d\s|overloaded|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|network/i;
+const FATAL = /credit balance|authentication|invalid x-api-key|permission/i;
+
+function classify(message) {
+  const m = String(message ?? '');
+  if (FATAL.test(m)) return 'fatal';
+  if (TRANSIENT.test(m)) return 'transient';
+  return 'permanent';
+}
+
 // ── READING ONE DOCUMENT ────────────────────────────────────────────────────────────────────────
 async function catalogueOne(row) {
   // A storage_path that names a FOLDER rather than a file — `…/artifacts/plat/` — is a real and
@@ -210,16 +233,26 @@ if (!rows.length) { await status(); process.exit(0); }
 let done = 0, failed = 0, unreadable = 0, inTok = 0, outTok = 0, lowFields = 0, points = 0;
 const started = Date.now();
 
+/** Set when a worker hits something no other document will survive either. */
+let stopped = null;
+
 async function worker(slice) {
   for (const row of slice) {
+    if (stopped) return;
     try {
       const r = await catalogueOne(row);
       if (r.usage) { inTok += r.usage.input_tokens; outTok += r.usage.output_tokens; }
 
       if (r.error) {
+        const kind = classify(r.error);
         failed += 1;
-        console.log(`  ✗ ${(row.document_label ?? row.id).slice(0, 52).padEnd(54)} ${r.error}`);
-        if (!DRY_RUN) await db.from('research_documents').update({ catalogue_error: r.error, updated_at: new Date().toISOString() }).eq('id', row.id);
+        console.log(`  ✗ ${(row.document_label ?? row.id).slice(0, 52).padEnd(54)} [${kind}] ${String(r.error).slice(0, 90)}`);
+        if (kind === 'fatal') { stopped = String(r.error).slice(0, 200); return; }
+        // A transient failure is not a fact about the document, so it leaves no mark and the row
+        // stays in the queue.
+        if (kind === 'permanent' && !DRY_RUN) {
+          await db.from('research_documents').update({ catalogue_error: r.error, updated_at: new Date().toISOString() }).eq('id', row.id);
+        }
         continue;
       }
 
@@ -259,8 +292,12 @@ async function worker(slice) {
     } catch (e) {
       failed += 1;
       const msg = e?.message ?? String(e);
-      console.log(`  ✗ ${(row.document_label ?? row.id).slice(0, 52).padEnd(54)} ${msg.slice(0, 80)}`);
-      if (!DRY_RUN) await db.from('research_documents').update({ catalogue_error: msg.slice(0, 500) }).eq('id', row.id).then(() => {}, () => {});
+      const kind = classify(msg);
+      console.log(`  ✗ ${(row.document_label ?? row.id).slice(0, 52).padEnd(54)} [${kind}] ${msg.slice(0, 80)}`);
+      if (kind === 'fatal') { stopped = msg.slice(0, 200); return; }
+      if (kind === 'permanent' && !DRY_RUN) {
+        await db.from('research_documents').update({ catalogue_error: msg.slice(0, 500) }).eq('id', row.id).then(() => {}, () => {});
+      }
     }
   }
 }
@@ -268,6 +305,12 @@ async function worker(slice) {
 // Round-robin so each worker gets a spread of the alphabet rather than one contiguous block.
 const slices = Array.from({ length: CONCURRENCY }, (_, i) => rows.filter((_, j) => j % CONCURRENCY === i));
 await Promise.all(slices.map(worker));
+
+if (stopped) {
+  console.log(`
+⛔ STOPPED — ${stopped}`);
+  console.log('   No document was marked failed for this: the rows stay in the queue and the run resumes where it left off once the cause is cleared.');
+}
 
 const mins = ((Date.now() - started) / 60000).toFixed(1);
 console.log(`\n────────────────────────────────────────`);

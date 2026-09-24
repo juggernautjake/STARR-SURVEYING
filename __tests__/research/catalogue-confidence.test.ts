@@ -172,6 +172,29 @@ describe('the sweeper and the schema cannot drift apart', () => {
     expect(sweeper).toContain("delete().eq('document_id'");
   });
 
+  it('a TRANSIENT failure leaves no mark, so an outage cannot empty the queue', () => {
+    // Measured 2026-09-24: the first full run stamped 111 documents `catalogue_error` in a row,
+    // every one of them "Your credit balance is too low". Nothing was wrong with those sheets — and
+    // because the queue skips rows carrying an error, one billing outage would have quietly removed
+    // 7,800 documents from the backlog permanently. The bug was not the outage; it was recording
+    // the outage as a property of the document.
+    expect(sweeper).toContain('TRANSIENT');
+    expect(sweeper).toContain('credit balance');
+    expect(sweeper).toMatch(/kind === 'permanent'[\s\S]{0,200}catalogue_error/);
+  });
+
+  it('a FATAL failure stops the run instead of failing 7,800 documents one at a time', () => {
+    // Grinding through the whole archive to fail each document the same way helps nobody and costs
+    // a queue. Every worker checks the flag, so one fatal error ends the run promptly.
+    expect(sweeper).toContain("kind === 'fatal'");
+    expect(sweeper).toContain('STOPPED');
+    expect(sweeper).toMatch(/if \(stopped\) return;/);
+  });
+
+  it('and says the rows were left alone, so nobody re-runs a repair that is not needed', () => {
+    expect(sweeper).toContain('the rows stay in the queue');
+  });
+
   it('a failed document is recorded, not silently skipped', () => {
     // 188 rows in this table point at a folder rather than a file. Skipping them quietly is how a
     // gap becomes permanent.

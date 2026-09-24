@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   verifySurveyor, verifiedEnoughToCite, normaliseLicence, normalisePersonName,
-  editDistance, verdictLabel, type RosterEntry,
+  editDistance, verdictLabel, checkChronology, chronologyNote, type RosterEntry,
 } from '@/lib/research/surveyor-verification';
 
 const read = (p: string) => readFileSync(path.join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n');
@@ -120,6 +120,47 @@ describe('what a verdict licenses', () => {
     for (const v of ['confirmed', 'corrected', 'unmatched', 'not_a_licence', 'incomplete'] as const) {
       expect(verdictLabel(v).length).toBeGreaterThan(8);
     }
+  });
+});
+
+describe('chronology — a licence cannot seal a plat before it existed', () => {
+  // A FOURTH witness, and the only one that is a hard impossibility rather than a similarity. It
+  // catches the class the others miss: a misread number that happens to name a real surveyor whose
+  // name is close enough to pass. Names repeat and blur; dates do not bend.
+  const modern = { ...entry('6878', 'SETH', 'BARTON'), granted_on: '2005-03-01' };
+
+  it('rules out a 1963 plat sealed by a licence granted in 2005', () => {
+    expect(checkChronology(modern, '1963-05-14')).toBe('impossible');
+  });
+
+  it('accepts a plat from after the licence was granted', () => {
+    expect(checkChronology(modern, '2012-08-01')).toBe('plausible');
+  });
+
+  it('allows a year of grace for survey, signature and recording', () => {
+    // The sheet is signed, then filed, then recorded, and the reader may have the year wrong by
+    // one. Rejecting a plat dated four months before the grant date would be a false accusation.
+    expect(checkChronology(modern, '2004-12-01')).toBe('plausible');
+    expect(checkChronology(modern, '1999-01-01')).toBe('impossible');
+  });
+
+  it('says unknown rather than guessing when either date is missing', () => {
+    // A silent 'plausible' on missing data would make the check look like it passed.
+    expect(checkChronology(modern, null)).toBe('unknown');
+    expect(checkChronology({ ...modern, granted_on: null }, '1963-05-14')).toBe('unknown');
+    expect(checkChronology(null, '1963-05-14')).toBe('unknown');
+  });
+
+  it('only tests the GRANT date, never the expiry', () => {
+    // `expires_on` is the CURRENT expiry: a licence renewed for thirty years shows one recent date,
+    // so testing a plat against it would reject the archive's entire back catalogue.
+    const lapsed = { ...entry('719', 'CHARLES', 'MILLER', 'L', 'Closed'), granted_on: '1955-01-01', expires_on: '1995-12-31' };
+    expect(checkChronology(lapsed, '2001-06-01')).toBe('plausible');
+  });
+
+  it('explains itself in words a person can act on', () => {
+    expect(chronologyNote(modern, '1963-05-14')).toContain('1963-05-14');
+    expect(chronologyNote(modern, '1963-05-14')).toContain('2005-03-01');
   });
 });
 
