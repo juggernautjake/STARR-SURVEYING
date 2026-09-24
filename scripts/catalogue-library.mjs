@@ -5,7 +5,8 @@
 // document has specific names and dates and locations and surveying companies/rpls names/numbers
 // listed, we catalogue all of that information and save it to the file."
 //
-//   node scripts/catalogue-library.mjs --limit 200              # the trial run
+//   node scripts/catalogue-library.mjs --limit 200              # a batch of 200
+//   node scripts/catalogue-library.mjs --county bell --letters a,b,c   # one section
 //   node scripts/catalogue-library.mjs --county bell --all      # the rest, resumable
 //   node scripts/catalogue-library.mjs --status                 # what is done, what is left
 //   node scripts/catalogue-library.mjs --limit 5 --dry-run      # read, print, write nothing
@@ -45,6 +46,11 @@ const DRY_RUN = flag('dry-run');
 const STATUS_ONLY = flag('status');
 const RECATALOGUE = flag('recatalogue');
 const CONCURRENCY = Math.max(1, Math.min(8, Number(opt('concurrency', '4'))));
+// ── SECTIONS (owner, 2026-09-24: "we will go through the plats in sections over time") ──────────
+// The same shape the original county crawl used. Ordering by label rather than by insertion date
+// is what makes a letter mean anything: `--letters a,b` is then a contiguous, checkable slice
+// rather than whichever rows happened to be imported first.
+const LETTERS = (opt('letters', '') || '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean);
 
 // ── ENV ─────────────────────────────────────────────────────────────────────────────────────────
 for (const f of ['.env.local', '.env']) {
@@ -103,12 +109,16 @@ async function queue() {
     .select('id, research_project_id, document_label, storage_path, county_fips, catalogue_version')
     .eq('shareable', true)
     .not('storage_path', 'is', null)
-    .order('created_at', { ascending: true })
+    // Alphabetical, so a section is a slice somebody can name and check.
+    .order('document_label', { ascending: true })
     .limit(LIMIT);
   // `catalogue_error IS NULL` too: a row that already failed is not retried by an ordinary pass, so
   // one broken file cannot stall the sweep by being picked first every time.
   q = RECATALOGUE ? q.lt('catalogue_version', CATALOGUE_VERSION) : q.is('catalogued_at', null).is('catalogue_error', null);
   if (COUNTY) q = q.eq('county_fips', COUNTY);
+  // PostgREST `or` with one `like` per letter. Case-insensitive, because the labels are a mix of
+  // the county's shouting ("A B ATERS ADDITION") and the reader's title case ("Ayan Subdivision").
+  if (LETTERS.length) q = q.or(LETTERS.map((L) => `document_label.ilike.${L}%`).join(','));
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -227,7 +237,7 @@ function dataPoints(row, cat) {
 
 // ── RUN ─────────────────────────────────────────────────────────────────────────────────────────
 const rows = await queue();
-console.log(`${rows.length} document(s) to read${COUNTY ? ` in ${COUNTY}` : ''}${DRY_RUN ? ' (dry run — nothing will be written)' : ''}\n`);
+console.log(`${rows.length} document(s) to read${COUNTY ? ` in ${COUNTY}` : ''}${LETTERS.length ? `, letters ${LETTERS.join(', ')}` : ''}${DRY_RUN ? ' (dry run — nothing will be written)' : ''}\n`);
 if (!rows.length) { await status(); process.exit(0); }
 
 let done = 0, failed = 0, unreadable = 0, inTok = 0, outTok = 0, lowFields = 0, points = 0;
