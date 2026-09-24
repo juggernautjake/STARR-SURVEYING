@@ -131,7 +131,7 @@ async function catalogueOne(row) {
 
   const res = await ai.messages.create({
     model: MODEL,
-    max_tokens: 4000,
+    max_tokens: 6000,
     messages: [{
       role: 'user',
       content: [
@@ -142,7 +142,10 @@ async function catalogueOne(row) {
   });
 
   const text = res.content.filter((c) => c.type === 'text').map((c) => c.text).join('');
-  const json = text.match(/\{[\s\S]*\}/)?.[0];
+  // A reading cut off at max_tokens has an opening brace and no closing one, so the greedy match
+  // finds nothing and the whole sheet is thrown away over its last field. Fall back to everything
+  // from the first brace and let `salvage` close it.
+  const json = text.match(/\{[\s\S]*\}/)?.[0] ?? (text.includes('{') ? text.slice(text.indexOf('{')) : null);
   if (!json) return { error: 'the reader returned no JSON', usage: res.usage };
   let cat;
   try {

@@ -25,7 +25,13 @@
 // SURVEYOR NO. 719" beside the value `719` lets a person confirm it in a second. A rating alone
 // tells you to doubt something without telling you how to resolve the doubt.
 
-export const CATALOGUE_VERSION = 1;
+// 2 (2026-09-23): the first 200-document trial rated only 5 of 96 RPLS numbers "high" while quoting
+// source text like "REGISTRATION NO. 4606" — plainly legible. The v1 prompt warned that the licence
+// number is "the field most often wrong", and the reader heard that as an instruction to doubt the
+// FIELD rather than to be careful about the READING. Under-confidence is not the safe direction: it
+// makes the field unusable for matching and buries the genuinely doubtful values in a review queue
+// nobody can get through.
+export const CATALOGUE_VERSION = 2;
 
 /** How sure the reader was. Ordered: `CONFIDENCE_ORDER.indexOf(x)` gives a comparable rank. */
 export const CONFIDENCE_LEVELS = ['low', 'medium', 'high'] as const;
@@ -151,10 +157,11 @@ Return ONLY a JSON object. Every extracted value is an object:
 
 Rules that matter more than completeness:
 - NEVER guess. A null with "low" confidence is correct and useful; an invented value is not.
-- "high" means you can read it plainly. "medium" means you are reading a partly obscured or ambiguous mark. "low" means you are inferring it from context rather than reading it.
-- source_text must be VERBATIM from the sheet — the words around the value, not a paraphrase. It is how a person checks you. Keep it under 100 characters: enough to confirm the value, not a transcription of the sheet.
+- Rate what YOU CAN SEE, not how important the field is. "high" = every character is legible and you are transcribing it. "medium" = a character is genuinely ambiguous or partly obscured. "low" = you are inferring or completing it rather than reading it.
+- A clearly printed value is "high" even when the field is an important one. "REGISTRATION NO. 4606" printed plainly is HIGH — the caution belongs in what you claim to read, never in downgrading something you read perfectly well. Under-rating a clear value is as much an error as over-rating a faint one.
+- source_text must be VERBATIM from the sheet — the words around the value, not a paraphrase. It is how a person checks you. Keep it under 80 characters: enough to confirm the value, not a transcription of the sheet.
 - Return at most 3 surveyors, 6 owners and 6 adjoining subdivisions — the ones actually named, not every name on the sheet.
-- An RPLS / licence number is the field most often wrong. If the digits are faint, broken, or you are completing them from a pattern, say "low".
+- An RPLS / licence number is the field where a wrong value does the most damage, so never infer one: if any digit is unreadable, give what you can see with "low", or null. But a licence number printed clearly is "high" like anything else printed clearly.
 - If the scan is illegible overall, set "unreadable": true and explain in "notes" rather than returning empty fields.
 
 Shape:
