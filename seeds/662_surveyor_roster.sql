@@ -96,3 +96,18 @@ BEGIN
   SELECT count(*) INTO n FROM surveyor_roster;
   RAISE NOTICE 'surveyor_roster: % licence(s) on file. Run scripts/sync-surveyor-roster.mjs to refresh.', n;
 END $$;
+
+-- ── THE THREE-WITNESS VERDICT (2026-09-24) ─────────────────────────────────────────────────────
+--
+-- Owner: *"check with other documents for the same rpls number and seal and name and compare that
+-- to the registry of RPLSs to get more confidence."*
+--
+-- `surveyor_verification` above records what the REGISTER said. This records what all three
+-- witnesses said together — the reading, the rest of the archive, and the register — because the
+-- useful fact is usually which of them disagreed rather than a single blended score. See
+-- lib/research/surveyor-corroboration.ts.
+ALTER TABLE research_documents
+  ADD COLUMN IF NOT EXISTS surveyor_certainty JSONB;
+
+COMMENT ON COLUMN research_documents.surveyor_certainty IS
+  'Per-surveyor certainty weighing three independent witnesses: the reading''s own confidence, agreement with other sheets bearing the same licence, and the State register. verified | register_only | archive_only | disputed | uncorroborated.';

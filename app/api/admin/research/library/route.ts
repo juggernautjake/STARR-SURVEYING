@@ -14,6 +14,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { libraryCountyKey } from '@/lib/research/county-key';
 import { needsReview, type DocumentCatalogue } from '@/lib/research/catalogue-schema';
 import { verifiedEnoughToCite, verdictLabel, type VerificationResult } from '@/lib/research/surveyor-verification';
+import { certainEnoughToCite, CERTAINTY_LABEL, type Certainty } from '@/lib/research/surveyor-corroboration';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -154,14 +155,28 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // readings were rated "high" confidence. A model reading a stamped seal cannot know that
     // CHARLES C LIGORI is not a person; the register can.
     const verification = (doc.surveyor_verification ?? []) as VerificationResult[];
-    const surveyorStatus = verification.length
+    // Three witnesses where all three have been asked — the reading, the rest of the archive, and
+    // the register — falling back to the register alone where corroboration has not run yet. The
+    // stored certainty is preferred because a lone sheet the register confirms and a sheet
+    // nineteen others contradict are not the same thing, and only the three-way check knows.
+    const certainty = (doc.surveyor_certainty ?? []) as Array<{ certainty: Certainty; why: string; name: string | null; licence: string | null }>;
+    const surveyorStatus = certainty.length
       ? {
-          verified: verification.some((v) => verifiedEnoughToCite(v)),
-          labels: verification.map((v) => verdictLabel(v.verdict)),
-          // The register's own wording, so the person reads why rather than only what.
-          notes: verification.map((v) => v.note),
+          verified: certainty.some((c) => certainEnoughToCite(c.certainty)),
+          // A dispute is surfaced on its own, because it is the state that wants a person.
+          disputed: certainty.some((c) => c.certainty === 'disputed'),
+          labels: certainty.map((c) => CERTAINTY_LABEL[c.certainty]),
+          notes: certainty.map((c) => c.why),
         }
-      : null;
+      : verification.length
+        ? {
+            verified: verification.some((v) => verifiedEnoughToCite(v)),
+            disputed: false,
+            labels: verification.map((v) => verdictLabel(v.verdict)),
+            // The register's own wording, so the person reads why rather than only what.
+            notes: verification.map((v) => v.note),
+          }
+        : null;
     return {
       ...doc,
       project: projectById.get(doc.research_project_id as string) ?? null,
