@@ -13,6 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { libraryCountyKey } from '@/lib/research/county-key';
 import { needsReview, type DocumentCatalogue } from '@/lib/research/catalogue-schema';
+import { verifiedEnoughToCite, verdictLabel, type VerificationResult } from '@/lib/research/surveyor-verification';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -146,12 +147,28 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const augmented = filteredDocs.map((doc: DocumentRow) => {
     const catalogue = (doc.catalogue ?? null) as DocumentCatalogue | null;
     const review = needsReview(catalogue);
+    // ── WHO SEALED IT, AND WHETHER THE STATE AGREES ──────────────────────────────────────────
+    //
+    // Checked against the TBPELS register rather than trusted from the sheet: of 145 name+licence
+    // pairs read off the first 198 plats, 49% did not match the register and 65 of those wrong
+    // readings were rated "high" confidence. A model reading a stamped seal cannot know that
+    // CHARLES C LIGORI is not a person; the register can.
+    const verification = (doc.surveyor_verification ?? []) as VerificationResult[];
+    const surveyorStatus = verification.length
+      ? {
+          verified: verification.some((v) => verifiedEnoughToCite(v)),
+          labels: verification.map((v) => verdictLabel(v.verdict)),
+          // The register's own wording, so the person reads why rather than only what.
+          notes: verification.map((v) => v.note),
+        }
+      : null;
     return {
       ...doc,
       project: projectById.get(doc.research_project_id as string) ?? null,
       catalogued: Boolean(doc.catalogued_at),
       reviewCount: review.length,
       review,
+      surveyorStatus,
     };
   });
 
