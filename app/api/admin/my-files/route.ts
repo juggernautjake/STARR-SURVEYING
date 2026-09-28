@@ -13,6 +13,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
+import { DELETE_HANDLERS } from '@/lib/files/delete-handlers';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -119,20 +120,11 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing required query param: id' }, { status: 400 });
 
-  // Only the owner may delete; fetch first to get the storage path + verify ownership.
-  const { data: row, error: fetchErr } = await supabaseAdmin
-    .from('user_files')
-    .select('id, storage_path, user_email')
-    .eq('id', id)
-    .maybeSingle();
-  if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-  if (!row) return NextResponse.json({ error: 'File not found' }, { status: 404 });
-  if ((row as { user_email: string }).user_email !== session.user.email) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  await supabaseAdmin.storage.from(BUCKET).remove([(row as { storage_path: string }).storage_path]).catch(() => {});
-  const { error } = await supabaseAdmin.from('user_files').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Owner-only check, row-then-object delete and the history entry: lib/files/delete-handlers.ts,
+  // shared with the bulk delete.
+  const out = await DELETE_HANDLERS.user_file.delete(id, {
+    email: session.user.email, roles: session.user.roles ?? [], admin: false,
+  });
+  if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
   return NextResponse.json({ success: true });
 }, { routeName: 'admin/my-files' });

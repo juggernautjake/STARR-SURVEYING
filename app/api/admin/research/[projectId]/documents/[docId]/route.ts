@@ -2,10 +2,11 @@
 // GET single document (with optional ?include=content for extracted text + signed URL)
 // DELETE document
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { parseTags } from '@/lib/files/labels';
+import { DELETE_HANDLERS } from '@/lib/files/delete-handlers';
 
 function extractIds(req: NextRequest): { projectId: string | null; docId: string | null } {
   const afterResearch = req.nextUrl.pathname.split('/research/')[1];
@@ -112,27 +113,12 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  // Delete from storage
-  if (doc.storage_path) {
-    await supabaseAdmin.storage
-      .from(RESEARCH_DOCUMENTS_BUCKET)
-      .remove([doc.storage_path])
-      .catch(() => {}); // Best-effort cleanup
-  }
-
-  // Delete associated data points first
-  await supabaseAdmin
-    .from('extracted_data_points')
-    .delete()
-    .eq('document_id', docId);
-
-  // Delete document record
-  const { error } = await supabaseAdmin
-    .from('research_documents')
-    .delete()
-    .eq('id', docId);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Role check, data points → row → object, and the history entry: lib/files/delete-handlers.ts,
+  // shared with the bulk delete. Until 2026-09-27 this route checked only that someone was signed in.
+  const out = await DELETE_HANDLERS.research_document.delete(docId, {
+    email: session.user.email, roles: session.user.roles ?? [], admin: isAdmin(session.user.roles),
+  });
+  if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
 
   return NextResponse.json({ success: true });
 }, { routeName: 'research/documents/detail' });

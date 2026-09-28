@@ -8,10 +8,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { accessForNode, siblingNames, collectSubtreeIds, NODE_COLS } from '@/lib/files/server';
+import { accessForNode, siblingNames, NODE_COLS } from '@/lib/files/server';
 import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName, wouldCreateCycle } from '@/lib/files/tree';
-import { recordFileEvent, recordFileEvents } from '@/lib/files/audit-log';
+import { recordFileEvent } from '@/lib/files/audit-log';
+import { softDeleteNode } from '@/lib/files/node-delete';
 import { parseTags } from '@/lib/files/labels';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
@@ -131,37 +132,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { id } = params;
   if (isMount(id)) return READONLY;
 
-  const { chain, access } = await accessForNode(id, user, admin);
-  if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });
-  const node = chain[chain.length - 1];
-  if (node.is_system || node.is_personal_root) {
-    return NextResponse.json({ error: 'System folders cannot be deleted.' }, { status: 400 });
-  }
-  if (!canEdit(access)) return NextResponse.json({ error: 'You cannot delete this item.' }, { status: 403 });
-
-  const ids = node.node_type === 'folder' ? await collectSubtreeIds(id) : [id];
-  const { error } = await supabaseAdmin
-    .from('file_nodes')
-    .update({ deleted_at: new Date().toISOString() })
-    .in('id', ids);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  // Deleting a folder deletes a subtree, and every one of those nodes needs its own entry —
-  // otherwise a file that vanished has nothing in its history explaining where it went, and the
-  // only record is on a parent nobody thinks to look at. `subtree_of` marks the ones that went as
-  // part of the folder rather than being deleted on their own.
-  await recordFileEvent({
-    action: 'file_deleted',
-    nodeId: id,
-    actorEmail: user.email,
-    metadata: { name: node.name, node_type: node.node_type, descendants: ids.length - 1 },
-  });
-  await recordFileEvents(
-    'file_deleted',
-    ids.filter((x) => x !== id),
-    user.email,
-    { subtree_of: id, subtree_of_name: node.name },
-  );
-
-  return NextResponse.json({ ok: true, deleted: ids.length });
+  // The checks and the history live in lib/files/node-delete.ts, shared with the bulk delete API.
+  const res = await softDeleteNode(id, user, admin);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+  return NextResponse.json({ ok: true, deleted: res.count });
 }
