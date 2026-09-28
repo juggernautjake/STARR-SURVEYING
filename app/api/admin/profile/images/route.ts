@@ -16,6 +16,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { convertHeicForImageRoute } from '@/lib/media/heic-server';
+import { isHeicMime } from '@/lib/images/heic-detect';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -75,12 +77,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const match = body.dataUrl.match(/^data:([^;]*);base64,(.*)$/s);
   if (!match) return NextResponse.json({ error: 'Only base64 data URLs are supported.' }, { status: 400 });
 
-  const mime = match[1] || 'application/octet-stream';
+  let mime = match[1] || 'application/octet-stream';
+  // An iPhone HEIC arrives as image/heic, or untyped; both go to the byte check below.
+  const mightBeHeic = isHeicMime(mime) || mime === 'application/octet-stream';
+  if (!ALLOWED_MIMES.has(mime) && !mightBeHeic) {
+    return NextResponse.json({ error: `Unsupported image type "${mime}".` }, { status: 415 });
+  }
+  let bytes = Buffer.from(match[2], 'base64');
+  if (bytes.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  // HEIC → JPEG (2026-09-27), decided by the bytes. The page converts before sending; this is the
+  // net for anything that did not.
+  const heic = await convertHeicForImageRoute({ bytes, type: mime });
+  if (!heic.ok) return NextResponse.json({ error: heic.error }, { status: heic.status });
+  if (heic.converted) {
+    bytes = heic.bytes;
+    mime = heic.contentType;
+  }
   if (!ALLOWED_MIMES.has(mime)) {
     return NextResponse.json({ error: `Unsupported image type "${mime}".` }, { status: 415 });
   }
-  const bytes = Buffer.from(match[2], 'base64');
-  if (bytes.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: `Image exceeds ${Math.round(MAX_BYTES / 1024 / 1024)} MB.` }, { status: 413 });
   }

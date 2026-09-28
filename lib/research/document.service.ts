@@ -187,7 +187,7 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
 
     case 'heic':
     case 'heif':
-      // Convert HEIC/HEIF to JPEG via sharp, then OCR
+      // Convert HEIC/HEIF to JPEG (libheif-js — sharp cannot decode HEVC), then OCR
       return await extractFromRasterImage(fileBuffer, doc.document_type);
 
     case 'txt':
@@ -754,8 +754,16 @@ async function extractFromRasterImage(buffer: Buffer, documentType?: string | nu
   let converted = false;
 
   try {
-    const sharp = (await import('sharp')).default;
-    jpegBuffer = await sharp(buffer).jpeg({ quality: JPEG_QUALITY }).toBuffer();
+    // An iPhone HEIC cannot go through sharp (its libheif has no HEVC decoder — see
+    // lib/images/heic-decode-core.ts); libheif-js decodes it. Everything else stays on sharp.
+    const { isHeicBytes } = await import('@/lib/images/heic-detect');
+    if (isHeicBytes(buffer.subarray(0, 64))) {
+      const { heicToJpeg } = await import('@/lib/media/heic-server');
+      jpegBuffer = await heicToJpeg(buffer);
+    } else {
+      const sharp = (await import('sharp')).default;
+      jpegBuffer = await sharp(buffer).jpeg({ quality: JPEG_QUALITY }).toBuffer();
+    }
     converted = true;
   } catch {
     console.warn('[Document] sharp not available; attempting raw OCR on raster image');

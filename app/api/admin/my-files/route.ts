@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -64,14 +65,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const match = body.dataUrl.match(/^data:([^;]*);base64,(.*)$/s);
   if (!match) return NextResponse.json({ error: 'Only base64 data URLs are supported.' }, { status: 400 });
 
-  const mime = match[1] || 'application/octet-stream';
-  const bytes = Buffer.from(match[2], 'base64');
-  if (bytes.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  // HEIC → JPEG (2026-09-27), by the bytes; a file that cannot be converted is kept as sent.
+  const raw = Buffer.from(match[2], 'base64');
+  if (raw.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  const norm = await normaliseHeicOrKeep({ bytes: raw, name: body.name, type: match[1] || 'application/octet-stream' });
+  const mime = norm.contentType;
+  const bytes = norm.bytes;
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: `File exceeds ${Math.round(MAX_BYTES / 1024 / 1024)} MB.` }, { status: 413 });
   }
 
-  const fileName = (body.name ?? 'file').trim() || 'file';
+  const fileName = ((norm.converted ? norm.name : body.name) ?? 'file').trim() || 'file';
   const folder = body.folder && VALID_FOLDERS.has(body.folder) ? body.folder : 'other';
 
   await ensureStorageBucket(BUCKET, { public: false, fileSizeLimit: MAX_BYTES });

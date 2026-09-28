@@ -27,6 +27,7 @@
 
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -46,7 +47,9 @@ import {
 } from '@/lib/receipts/required-fields';
 import MyReceipts from './MyReceipts';
 
-const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
+// HEIC listed explicitly so a desktop picker shows iPhone photos; they are converted to JPEG on the
+// way in (app/components/HeicUploadGuard.tsx).
+const ACCEPTED_TYPES_FILE = `image/*,${HEIC_ACCEPT},application/pdf`;
 const ACCEPTED_TYPES_CAMERA = 'image/*';
 const MAX_BYTES = 12 * 1024 * 1024;
 const CAPTURE_JPEG_QUALITY = 0.92;

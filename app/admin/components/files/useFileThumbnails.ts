@@ -38,6 +38,7 @@ import {
   THUMB_WORKERS, THUMB_TIMEOUT_MS,
 } from '@/app/admin/map/components/thumbnails';
 import { imageIsItsOwnThumb } from '@/lib/jobs/file-thumbnails';
+import { looksLikeHeic } from '@/lib/images/heic-display';
 import type { MediaKind } from '@/lib/jobs/property-map';
 import type { MountNode } from '@/lib/files/mount-node';
 
@@ -70,8 +71,13 @@ export function kindOfNode(mime: string | null, name: string): MediaKind {
  *  and lives with the rest of the preview policy rather than here. */
 export function wantsThumb(t: ThumbTarget): boolean {
   if (t.thumbState === 'ok') return false;
-  if (imageIsItsOwnThumb(t.kind, t.sizeBytes)) return false;
-  return needsThumb(t.thumbState ?? 'pending', t.kind, t.mime, t.name);
+  if (imageIsItsOwnThumb(t.kind, t.sizeBytes, t.name, t.mime)) return false;
+  // A HEIC recorded as 'failed' failed because, until 2026-09-27, no browser here but Safari could
+  // decode one. It can now (imageThumb converts it), so it is tried again — once per session, like
+  // everything else, via `triedRef` — and the preview it makes is kept for everybody. Without this,
+  // every HEIC a Chrome user ever looked at stays a broken tile forever.
+  const state = t.thumbState === 'failed' && looksLikeHeic(t.name, t.mime) ? 'pending' : t.thumbState;
+  return needsThumb(state ?? 'pending', t.kind, t.mime, t.name);
 }
 
 interface Options {

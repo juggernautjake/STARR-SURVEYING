@@ -6,6 +6,7 @@
 // slice 2b). The legacy route at /admin/profile re-exports this same
 // component until slice 2c lands the redirect to /admin/me?tab=profile.
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -368,7 +369,7 @@ export default function ProfilePanel() {
             </span>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept={`image/png,image/jpeg,image/webp,image/gif,${HEIC_ACCEPT}`}
               data-testid="profile-avatar-input"
               style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
               onChange={async (e) => {
@@ -863,7 +864,7 @@ export default function ProfilePanel() {
             />
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept={`image/png,image/jpeg,image/webp,image/gif,${HEIC_ACCEPT}`}
               data-testid="profile-gallery-input"
               disabled={imageUploading}
               onChange={async (e) => {

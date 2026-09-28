@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { convertHeicForImageRoute, declaresHeic } from '@/lib/media/heic-server';
 
 const BUCKET = 'vehicle-photos';
 const MAX_BYTES = 12 * 1024 * 1024;
@@ -120,19 +121,34 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       { status: 413 },
     );
   }
-  if (!file.type.startsWith('image/')) {
+  // A HEIC can arrive typed "" or application/octet-stream; let it reach the byte check.
+  const untyped = !file.type || file.type === 'application/octet-stream';
+  if (!file.type.startsWith('image/') && !untyped && !declaresHeic(file)) {
+    return NextResponse.json({ error: 'Only image files are allowed' }, { status: 415 });
+  }
+
+  // HEIC → JPEG (2026-09-27). Decided by the bytes; an unconvertible HEIC is refused with
+  // instructions rather than stored where the gallery cannot show it.
+  const heic = await convertHeicForImageRoute({
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    name: file.name,
+    type: file.type,
+  });
+  if (!heic.ok) return NextResponse.json({ error: heic.error }, { status: heic.status });
+  const contentType = heic.converted ? heic.contentType : file.type;
+  if (!contentType.startsWith('image/')) {
     return NextResponse.json({ error: 'Only image files are allowed' }, { status: 415 });
   }
 
   const photoId = crypto.randomUUID();
-  const ext = extFromMime(file.type);
+  const ext = extFromMime(contentType);
   const path = `${id}/${photoId}.${ext}`;
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = new Uint8Array(heic.bytes);
 
   const { error: uploadErr } = await supabaseAdmin.storage
     .from(BUCKET)
     .upload(path, bytes, {
-      contentType: file.type || 'application/octet-stream',
+      contentType,
       upsert: false,
     });
   if (uploadErr) {

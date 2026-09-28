@@ -3,6 +3,7 @@
 // send/receive messages with timestamps and sender names.
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
@@ -1126,7 +1127,7 @@ export default function FloatingMessenger() {
                 </div>
               )}
               <div className="messenger-panel__compose">
-                <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,audio/*" style={{ display: 'none' }} onChange={(e) => handleAttachFiles(e.target.files)} />
+                <input ref={fileInputRef} type="file" multiple accept={`image/*,${HEIC_ACCEPT},video/*,audio/*`} style={{ display: 'none' }} onChange={(e) => handleAttachFiles(e.target.files)} />
                 <button className="messenger-panel__tool" onClick={() => fileInputRef.current?.click()} title="Attach a photo, video, or file" disabled={!activeConv || uploadingAttachment}>📎</button>
                 <div style={{ position: 'relative' }}>
                   <button className="messenger-panel__tool" onClick={() => setShowEmoji(!showEmoji)} title="Emoji">😊</button>

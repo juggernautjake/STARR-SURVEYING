@@ -19,7 +19,9 @@
 //
 // Body: multipart/form-data with a single `file` field.
 // Constraints (mirrors the seeds/243 bucket config):
-//   * MIME types: image/jpeg | png | heic | heif | webp
+//   * MIME types: image/jpeg | png | heic | heif | webp — a HEIC is CONVERTED to JPEG before it is
+//     stored (2026-09-27, lib/media/heic-server.ts), decided by its bytes, so it is also recognised
+//     when the browser sent it as "" or application/octet-stream.
 //   * Size: ≤10 MB
 //
 // Auth: admin / developer / equipment_manager. tech_support
@@ -29,6 +31,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { convertHeicForImageRoute, declaresHeic } from '@/lib/media/heic-server';
 
 const BUCKET = 'starr-field-equipment-photos';
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -110,8 +113,11 @@ export const POST = withErrorHandler(
 
     // file is a File / Blob in this branch. Read MIME + size from
     // the metadata; reject before reading bytes if either is wrong.
-    const mimeType = (file.type || '').toLowerCase();
-    if (!ALLOWED_MIME.has(mimeType)) {
+    let mimeType = (file.type || '').toLowerCase();
+    // A HEIC often arrives with no type (Windows) or as octet-stream; those are let through to the
+    // byte check below rather than refused on the header.
+    const mightBeHeic = declaresHeic(file) || !mimeType || mimeType === 'application/octet-stream';
+    if (!ALLOWED_MIME.has(mimeType) && !mightBeHeic) {
       return NextResponse.json(
         {
           error: `MIME type "${mimeType || 'unknown'}" not allowed. Use: ${Array.from(ALLOWED_MIME).join(', ')}`,
@@ -159,15 +165,31 @@ export const POST = withErrorHandler(
       );
     }
 
+    // Read the bytes once. A HEIC (by its bytes) is converted to JPEG here; one that cannot be
+    // converted is refused with instructions rather than stored where nothing can display it.
+    const heic = await convertHeicForImageRoute({
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      name: file.name,
+      type: mimeType,
+    });
+    if (!heic.ok) {
+      return NextResponse.json({ error: heic.error }, { status: heic.status });
+    }
+    if (heic.converted) mimeType = heic.contentType;
+    if (!ALLOWED_MIME.has(mimeType)) {
+      return NextResponse.json(
+        { error: `MIME type "${mimeType || 'unknown'}" not allowed. Use: ${Array.from(ALLOWED_MIME).join(', ')}` },
+        { status: 415 }
+      );
+    }
+    const bytes = new Uint8Array(heic.bytes);
+
     const ext = MIME_TO_EXT[mimeType] ?? 'jpg';
     const path = `${id}/photo.${ext}`;
 
-    // Read the bytes once and pipe to Supabase Storage. We use
-    // upsert: true so re-uploads replace the existing object;
+    // Pipe to Supabase Storage. We use upsert: true so re-uploads replace the existing object;
     // the seeds/243 path convention permits additional photos
     // under different filenames in future polish work.
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
 
     const { error: uploadErr } = await supabaseAdmin.storage
       .from(BUCKET)
@@ -244,8 +266,9 @@ export const POST = withErrorHandler(
     console.log('[admin/equipment/:id/photo] uploaded', {
       id,
       path,
-      bytes: file.size,
+      bytes: bytes.byteLength,
       mime: mimeType,
+      converted_from_heic: heic.converted,
       admin_email: session.user.email,
     });
 
@@ -253,6 +276,7 @@ export const POST = withErrorHandler(
       photo_url: path,
       signed_url: signed?.signedUrl ?? null,
       expires_in: signed ? SIGNED_URL_TTL_SECONDS : null,
+      converted: heic.converted,
     });
   },
   { routeName: 'admin/equipment/:id/photo' }

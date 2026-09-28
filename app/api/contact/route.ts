@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateQuoteAttachments, formatBytes } from '@/lib/quote-attachments';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 // mobile-and-customer-query-gap Slice Q1 — every public intake form
 // (contact, home page, /contact, pricing calculator) posts here and
 // historically only fired Resend emails. Now we also INSERT a row
@@ -1171,14 +1172,22 @@ async function parseRequest(
 
   for (const [key, value] of form.entries()) {
     if (key === 'attachments' && value instanceof File) {
-      const buf = Buffer.from(await value.arrayBuffer());
-      fileSummaries.push({ name: value.name, size: buf.length });
-      files.push({ filename: value.name, content: buf.toString('base64') });
-      uploadable.push({
+      // A customer's iPhone photo arrives as HEIC; the office opens it on Windows. The quote form
+      // converts in the browser — this is the net for anything that did not (2026-09-27). If it
+      // cannot be converted, the original is kept: a customer's file is never dropped.
+      const norm = await normaliseHeicOrKeep({
+        bytes: Buffer.from(await value.arrayBuffer()),
         name: value.name,
+        type: value.type || 'application/octet-stream',
+      });
+      const buf = norm.bytes;
+      fileSummaries.push({ name: norm.name, size: buf.length });
+      files.push({ filename: norm.name, content: buf.toString('base64') });
+      uploadable.push({
+        name: norm.name,
         size: buf.length,
         bytes: buf,
-        contentType: value.type || 'application/octet-stream',
+        contentType: norm.contentType,
       });
     } else if (typeof value === 'string') {
       (body as Record<string, string>)[key] = value;

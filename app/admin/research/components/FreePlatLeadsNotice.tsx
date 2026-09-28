@@ -14,6 +14,7 @@
 // would have used, so a later run merges rather than duplicates. Then the AI review reads it like
 // any other document.
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useRef, useState } from 'react';
 import { CheckCircle2, ExternalLink, FileWarning, Upload } from 'lucide-react';
 
@@ -102,7 +103,7 @@ function LeadRow({ projectId, lead, onFiled }: { projectId: string; lead: FreePl
           <input
             ref={inputRef}
             type="file"
-            accept="application/pdf,image/png,image/jpeg,image/tiff"
+            accept={`application/pdf,image/png,image/jpeg,image/tiff,${HEIC_ACCEPT}`}
             hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void fileIt(f); e.target.value = ''; }}
           />

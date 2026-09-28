@@ -232,7 +232,7 @@ export async function loadPropertyMap(jobId: string, mapId?: string | null, emai
       // As in the library above: a small image is its own tile, a big one waits for a real preview
       // rather than making the point panel download a 12 MB photograph to fill a 104 px square.
       thumbUrl: urlFor(m.thumb_bucket, m.thumb_path)
-        ?? (imageIsItsOwnThumb(kind, f ? sizeOf(f) : null) ? full : null),
+        ?? (imageIsItsOwnThumb(kind, f ? sizeOf(f) : null, f ? displayName(f) : null, f ? mimeOf(f) : null) ? full : null),
       sizeBytes: f ? sizeOf(f) : null,
       mimeType: f ? mimeOf(f) : null,
     };
@@ -386,8 +386,8 @@ export async function loadMapLibrary(jobId: string, mapId: string | null): Promi
       // The generated preview when there is one. A SMALL image falls back to itself; a big one does
       // not, and is left `pending` so the panel's queue makes it a real 400 px WebP — see
       // `imageIsItsOwnThumb`, which is where the reasoning and the owner's report live.
-      thumbUrl: generated ?? (imageIsItsOwnThumb(kind, sizeOf(f)) ? url : null),
-      thumbState: generated ? 'ok' : (imageIsItsOwnThumb(kind, sizeOf(f)) && url ? 'ok' : thumbState),
+      thumbUrl: generated ?? (imageIsItsOwnThumb(kind, sizeOf(f), displayName(f), mimeOf(f)) ? url : null),
+      thumbState: generated ? 'ok' : (imageIsItsOwnThumb(kind, sizeOf(f), displayName(f), mimeOf(f)) && url ? 'ok' : thumbState),
       // In point order, so the chips read "on 2, 7" rather than in whatever order the rows came back.
       assignedTo: held
         .map((a) => {

@@ -28,6 +28,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 import {
   signLeadAttachmentUrls,
   uploadLeadAttachments,
@@ -154,14 +155,21 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const form = await req.formData();
     for (const [key, value] of form.entries()) {
       if (key === 'attachments' && value instanceof File) {
-        const buf = Buffer.from(await value.arrayBuffer());
-        fileSummaries.push({ name: value.name, size: buf.length });
-        files.push({ filename: value.name, content: buf.toString('base64') });
-        uploadable.push({
+        // A customer on Windows cannot open an iPhone HEIC; send a JPEG (2026-09-27). Kept as-is
+        // if it cannot be converted — an attachment is still better than a failed reply.
+        const norm = await normaliseHeicOrKeep({
+          bytes: Buffer.from(await value.arrayBuffer()),
           name: value.name,
+          type: value.type || 'application/octet-stream',
+        });
+        const buf = norm.bytes;
+        fileSummaries.push({ name: norm.name, size: buf.length });
+        files.push({ filename: norm.name, content: buf.toString('base64') });
+        uploadable.push({
+          name: norm.name,
           size: buf.length,
           bytes: buf,
-          contentType: value.type || 'application/octet-stream',
+          contentType: norm.contentType,
         });
       } else if (typeof value === 'string') {
         if (key === 'subject') subject = value.trim();
