@@ -35,6 +35,9 @@ import SharedFileViewer from '@/app/admin/components/files/FileViewer';
 import DownloadAllButton from '@/app/admin/components/files/DownloadAllButton';
 import { downloadFile } from '@/lib/files/download';
 import { researchDocCapabilities } from '@/lib/files/adapters/research-document';
+import { useFileSelection } from '@/app/admin/components/files/useFileSelection';
+import { FileCheckbox, SelectAllCheckbox, SelectionBar } from '@/app/admin/components/files/SelectionControls';
+import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
 
 type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved' | 'images';
 type SortBy = 'date' | 'type' | 'name' | 'size';
@@ -159,6 +162,18 @@ export default function ProjectDocumentsPage() {
         default: return (b.recordedDate ?? '').localeCompare(a.recordedDate ?? '');
       }
     }), [documents, filter, search, sortBy]);
+
+  // ── Select and delete (owner, 2026-09-27) ── research documents are deleted for good (row, then
+  // file); the confirmation says so. The server checks the research role per document.
+  const selection = useFileSelection(useMemo(() => filtered.map((d) => d.id), [filtered]));
+  const deleter = useDeleteFiles({
+    onDone: ({ deleted }) => {
+      selection.clear();
+      if (selected && deleted.includes(selected.id)) setSelected(null);
+      void loadDocuments();
+    },
+  });
+  const asDeletable = (d: DocumentCard): DeletableItem => ({ kind: 'research_document', id: d.id, name: d.title });
 
   const uploaded = documents.filter((d) => d.isUpload).length;
   // Every PAGE of every document, not just files whose `file_type` is an image. Measured on the
@@ -324,13 +339,29 @@ export default function ProjectDocumentsPage() {
               </div>
             ) : (
               <div className="grid gap-2">
+                <div className="flex items-center gap-3">
+                  <SelectAllCheckbox selection={selection} total={filtered.length} />
+                </div>
+                <SelectionBar
+                  selection={selection}
+                  busy={deleter.busy}
+                  onDelete={() => deleter.request(filtered.filter((d) => selection.isSelected(d.id)).map(asDeletable))}
+                  onDownload={() => {
+                    void (async () => {
+                      for (const d of filtered.filter((x) => selection.isSelected(x.id) && x.fileUrl)) {
+                        await downloadFile(d.fileUrl as string, d.title);
+                      }
+                    })();
+                  }}
+                />
                 {filtered.map((doc) => (
+                  <div key={doc.id} className="flex items-start gap-2">
+                  <FileCheckbox id={doc.id} name={doc.title} selection={selection} className="mt-3" />
                   <button
-                    key={doc.id}
                     type="button"
                     onClick={() => setSelected(doc)}
                     aria-pressed={selected?.id === doc.id}
-                    className={`text-left w-full bg-gray-900 border rounded-lg p-4 transition-colors hover:border-blue-600 ${
+                    className={`text-left flex-1 min-w-0 bg-gray-900 border rounded-lg p-4 transition-colors hover:border-blue-600 ${
                       selected?.id === doc.id ? 'border-blue-500' : 'border-gray-800'
                     }`}
                   >
@@ -382,6 +413,7 @@ export default function ProjectDocumentsPage() {
                       </div>
                     </div>
                   </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -499,6 +531,19 @@ export default function ProjectDocumentsPage() {
                   </button>
                 </div>
               )}
+              {/* Delete sits with View and Download (owner, 2026-09-27) — and also for a document
+                  with no file, which could otherwise never be removed from the list. */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => deleter.request([asDeletable(selected)])}
+                  disabled={deleter.busy}
+                  className="inline-block px-3 py-1.5 border border-red-500 text-red-300 rounded text-sm hover:bg-red-950"
+                  data-testid="rdoc-delete"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </aside>
         )}
@@ -519,10 +564,24 @@ export default function ProjectDocumentsPage() {
             projectId,
             docFor: (id) => { const c = documents.find((d) => d.id === id); return c ? { id: c.id, research_project_id: projectId, original_filename: c.title } : undefined; },
             onChanged: () => { void loadDocuments(); },
+            // The viewer's own "Delete file" (it confirms first) — through the same permission-checked
+            // API as every other delete.
+            onDelete: async (id) => {
+              const res = await fetch('/api/admin/files/bulk-delete', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targets: [{ kind: 'research_document', id }] }),
+              });
+              const json = await res.json().catch(() => ({})) as { results?: Array<{ ok: boolean; error?: string }>; error?: string };
+              if (!json.results?.[0]?.ok) throw new Error(json.results?.[0]?.error ?? json.error ?? `HTTP ${res.status}`);
+              if (selected?.id === id) setSelected(null);
+              await loadDocuments();
+            },
           })}
           onClose={() => setViewerId(null)}
+          onFileRemoved={() => setViewerId(null)}
         />
       )}
+      {deleter.element}
     </div>
   );
 }

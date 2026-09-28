@@ -14,7 +14,12 @@
 'use client';
 
 import '../../styles/AdminJobs.css';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFileSelection } from '../../components/files/useFileSelection';
+import { FileCheckbox, SelectAllCheckbox, SelectionBar } from '../../components/files/SelectionControls';
+import { useDeleteFiles, type DeletableItem } from '../../components/files/useDeleteFiles';
+import { leadAttachmentId } from '@/lib/files/bulk-delete';
+import { Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
@@ -140,6 +145,16 @@ export default function LeadDetailPage() {
   // (used by onSent to surface a fresh row immediately).
   const [repliesRefreshKey, setRepliesRefreshKey] = useState(0);
   const isAdminUser = session?.user?.roles?.includes('admin') ?? false;
+
+  // Delete / multi-select on the attachments (owner, 2026-09-27). Attachments have no id of their
+  // own; `leadAttachmentId` keys them by content so a batch removes exactly what was ticked.
+  // Permanent (row, then object), admin-only on the server.
+  const attachmentItems = useMemo<DeletableItem[]>(
+    () => (lead?.attachments ?? []).map((a) => ({ kind: 'lead_attachment', id: leadAttachmentId(lead!.id, a), name: a.name })),
+    [lead],
+  );
+  const attachmentSelection = useFileSelection(useMemo(() => attachmentItems.map((i) => i.id), [attachmentItems]));
+  const attachmentDeleter = useDeleteFiles({ onDone: () => { attachmentSelection.clear(); void load(); } });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -494,8 +509,20 @@ export default function LeadDetailPage() {
               The customer didn&apos;t attach any files.
             </p>
           ) : (
+            <>
+            {isAdminUser && (
+              <div className="lead-detail__attachments-select">
+                <SelectAllCheckbox selection={attachmentSelection} total={attachmentItems.length} />
+                <SelectionBar
+                  selection={attachmentSelection}
+                  busy={attachmentDeleter.busy}
+                  onDelete={() => attachmentDeleter.request(attachmentItems.filter((it) => attachmentSelection.isSelected(it.id)))}
+                />
+              </div>
+            )}
             <ul className="lead-detail__attachments">
               {attachments.map((a, i) => {
+                const item = attachmentItems[i];
                 const inner = (
                   <>
                     <span className="lead-detail__attachment-icon" aria-hidden>
@@ -512,7 +539,8 @@ export default function LeadDetailPage() {
                   </>
                 );
                 return (
-                  <li key={`${a.name}-${i}`}>
+                  <li key={`${a.name}-${i}`} className="lead-detail__attachment-row">
+                    {isAdminUser && item && <FileCheckbox id={item.id} name={a.name} selection={attachmentSelection} />}
                     {a.storage_path ? (
                       <a
                         href={a.storage_path}
@@ -529,11 +557,26 @@ export default function LeadDetailPage() {
                         {inner}
                       </div>
                     )}
+                    {isAdminUser && item && (
+                      <button
+                        type="button"
+                        className="lead-detail__attachment-delete"
+                        onClick={() => attachmentDeleter.request([item])}
+                        disabled={attachmentDeleter.busy}
+                        aria-label={`Delete ${a.name}`}
+                        title="Delete"
+                        data-testid={`lead-attachment-delete-${i}`}
+                      >
+                        <Trash2 size={15} aria-hidden="true" />
+                      </button>
+                    )}
                   </li>
                 );
               })}
             </ul>
+            </>
           )}
+          {attachmentDeleter.element}
         </section>
 
         <section

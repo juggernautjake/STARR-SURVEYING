@@ -10,6 +10,7 @@ import { usePageError } from '../../hooks/usePageError';
 import type { EquipmentRow } from './inventory-types';
 import { CONDITION_OPTIONS, STATUS_OPTIONS, type StatusFilter } from './inventory-types';
 import { styles } from './inventory-styles';
+import { useDeleteFiles } from '../../components/files/useDeleteFiles';
 
 
 // ── Add Unit modal (Phase F10.1c-ii) ───────────────────────────────────────
@@ -416,6 +417,9 @@ export function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  // Remove the photo (owner, 2026-09-27: a delete beside every view/replace). Same confirmation and
+  // permission-checked API as every other file; the unit keeps no pointer to a removed photo.
+  const photoDeleter = useDeleteFiles({ onDone: ({ deleted }) => { if (deleted.includes(row.id)) setPhotoSignedUrl(null); } });
   const [currentStatus, setCurrentStatus] = useState<StatusFilter>(
     (row.current_status as StatusFilter) ?? 'available'
   );
@@ -718,6 +722,18 @@ export function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
                       ? 'Replace photo'
                       : 'Upload photo'}
                 </button>
+                {photoSignedUrl && (
+                  <button
+                    type="button"
+                    style={styles.fileBtn}
+                    onClick={() => photoDeleter.request([{ kind: 'equipment_photo', id: row.id, name: `Photo of ${row.name ?? 'this unit'}` }])}
+                    disabled={photoUploading || photoDeleter.busy}
+                    data-testid="equipment-photo-delete"
+                  >
+                    Remove photo
+                  </button>
+                )}
+                {photoDeleter.element}
                 <span style={styles.modalHint}>
                   ▸ JPEG / PNG / HEIC / HEIF / WEBP up to 10 MB. iPhone HEIC
                   photos are converted to JPEG automatically.
