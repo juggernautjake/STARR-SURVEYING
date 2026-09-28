@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { processDocument, validateUploadFile, ACCEPTED_FILE_TYPES } from '@/lib/research/document.service';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 
 // Allow up to 120 seconds for uploads (large files + storage round-trip + OCR extraction)
 export const maxDuration = 120;
@@ -59,7 +60,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const results: { document: unknown; error?: string }[] = [];
 
-  for (const file of files) {
+  for (const upload of files) {
+    // HEIC → JPEG (2026-09-27). The browser converts before sending; this is the net for the mobile
+    // app, scripts and anything else that did not. Decided by the BYTES, so an untyped HEIC is caught
+    // too. A document store keeps the original if conversion fails — a HEIC is still a legitimate
+    // deed photo, and the viewer converts HEIC on display.
+    const norm = await normaliseHeicOrKeep({
+      bytes: Buffer.from(await upload.arrayBuffer()),
+      name: upload.name,
+      type: upload.type,
+    });
+    const buffer = norm.bytes;
+    const file = { name: norm.name, size: buffer.length, type: norm.contentType };
+
     // Validate
     const validationError = validateUploadFile(file.name, file.size);
     if (validationError) {
@@ -68,8 +81,6 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
     // Skip if an identical file (same name + size) already exists in this project
     const { data: existingFile } = await supabaseAdmin

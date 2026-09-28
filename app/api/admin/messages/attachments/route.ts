@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 import { MESSAGE_ATTACHMENTS_BUCKET } from '@/lib/messages/attachments';
 
 export const runtime = 'nodejs';
@@ -47,14 +48,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .single();
   if (!participant) return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
 
-  const mime = match[1] || 'application/octet-stream';
-  const bytes = Buffer.from(match[2], 'base64');
-  if (bytes.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  // HEIC → JPEG (2026-09-27), by the bytes; an attachment that cannot be converted is kept as sent.
+  const raw = Buffer.from(match[2], 'base64');
+  if (raw.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  const norm = await normaliseHeicOrKeep({ bytes: raw, name: body.name, type: match[1] || 'application/octet-stream' });
+  const mime = norm.contentType;
+  const bytes = norm.bytes;
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: `File exceeds ${Math.round(MAX_BYTES / 1024 / 1024)} MB.` }, { status: 413 });
   }
 
-  const fileName = (body.name ?? 'file').trim() || 'file';
+  const fileName = ((norm.converted ? norm.name : body.name) ?? 'file').trim() || 'file';
   const safeName = fileName.replace(/[^\w.\-]+/g, '_').slice(0, 120);
   const objectId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const storagePath = `${conversationId}/${objectId}-${safeName}`;
