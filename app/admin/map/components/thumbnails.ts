@@ -216,7 +216,23 @@ export function videoThumb(url: string, signal: AbortSignal): Promise<string> {
 
 /** Only ever reached for an image whose `thumbUrl` came back empty — normally an image falls back
  *  to itself and there is nothing to make. */
-export function imageThumb(url: string, signal: AbortSignal): Promise<string> {
+export async function imageThumb(url: string, signal: AbortSignal): Promise<string> {
+  try {
+    return await imageThumbFrom(url, signal);
+  } catch (err) {
+    if (signal.aborted) throw err;
+    // An iPhone HEIC already in storage: no browser but Safari can draw one, so the load fails.
+    // Convert it on the spot (lib/images/heic-display.ts) and draw the JPEG instead — the preview
+    // made from it is then kept for everybody, so this happens once per photo, ever. Anything that
+    // is not a HEIC rethrows the original failure.
+    const { heicDisplayUrl } = await import('@/lib/images/heic-display');
+    const converted = await heicDisplayUrl(url).catch(() => null);
+    if (!converted) throw err;
+    return imageThumbFrom(converted, signal);
+  }
+}
+
+function imageThumbFrom(url: string, signal: AbortSignal): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const img = new window.Image();
     const cross = crossOriginFor(url);

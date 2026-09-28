@@ -150,3 +150,49 @@ work with no open questions, listed here so it is not mistaken for finished.
 ## Progress
 
 - [x] H1 · [x] H2 · [x] H3 · [x] H4 · [~] H5 deferred · [x] H6
+
+---
+
+## Third pass — 2026-09-27: a converter on every upload
+
+**Owner:** *"Can we create a built in converter on starr surveying so it can automatically convert HEIC
+files into jpg files? if it is possible to build in the converter tool on upload, then please do that."*
+
+### Correction to H1: sharp could not decode an iPhone photo
+
+The audit above recorded `sharp` 0.34.5 as "HEIF read = true". That flag is `sharp.format.heif.input`,
+and in the prebuilt binaries it means **AVIF only** — libheif is built with the AV1 decoder and without
+HEVC (patents). Handing sharp a real x265-encoded HEIC fails with *"Support for this compression format
+has not been built in"*. So `normaliseImage()` — and the receipts route that H2 wired to it — threw on
+every real iPhone photo. The H1 test only ever converted a WebP, which is why nobody saw it.
+
+HEIC is now decoded by **libheif-js 1.23.2** (libheif + libde265 compiled to WebAssembly; no native
+binary) and sharp only encodes the JPEG. `__tests__/images/heic-convert.test.ts` pins the sharp failure
+so the next audit cannot draw the same conclusion from the same flag.
+
+### What exists now
+
+| Layer | Where | What it does |
+|---|---|---|
+| Detection | `lib/images/heic-detect.ts` | MIME + extension + `ftyp` brands; **bytes win**; AVIF-with-`mif1` excluded |
+| Decode core | `lib/images/heic-decode-core.ts` | primary image of a burst, orientation (`irot`/`imir`) applied, size ceiling |
+| Browser | `lib/images/heic.ts` + `heic.worker.ts` | Web Worker, lazy ~2 MB WASM chunk, JPEG q0.9 full-res, `IMG_1.HEIC` → `IMG_1.jpg` |
+| Every upload | `lib/images/heic-upload-guard.ts`, mounted by `app/components/HeicUploadGuard.tsx` in the root layout | capture-phase `input`/`change`/`drop`/`paste` — converts before any page's handler; "Converting photo…" pill |
+| Server net | `lib/media/heic-server.ts` | image-only routes: convert or 415 with instructions; document stores: convert or keep original |
+| Already stored | `lib/images/heic-display.ts` | a broken `<img>` whose bytes are HEIC is converted on view; thumbnails likewise, once, for everybody |
+| Bulk fix | `scripts/convert-heic-in-storage.mjs` | dry-run by default, never deletes, optional `--update-refs` |
+
+Failure policy: **image-only** destinations (avatar, equipment/vehicle photo, CAD image) refuse an
+unconvertible HEIC with the iPhone "Most Compatible" advice; **document stores** keep the original.
+
+### Not covered, on purpose
+
+- Direct-to-storage signed-URL uploads (file explorer, job files, research `upload-url`, maintenance
+  documents) — the server never sees the bytes. The browser guard converts them before the PUT; the viewer
+  converts any that slip through on view.
+- DnD / AndrewAsh routes — not Starr Surveying; they still get the browser guard, not the server net.
+- Branding assets and learn references — curated design/text uploads with their own format lists.
+
+Also fixed on the way: research-document OCR (`lib/research/document.service.ts`) sent stored HEICs to
+sharp and fell back to "raw OCR" of undecodable bytes; it now decodes them with libheif-js first, so
+reprocessing an old HEIC document works.

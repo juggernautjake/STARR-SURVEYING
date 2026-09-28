@@ -70,7 +70,7 @@ export function kindOfNode(mime: string | null, name: string): MediaKind {
  *  and lives with the rest of the preview policy rather than here. */
 export function wantsThumb(t: ThumbTarget): boolean {
   if (t.thumbState === 'ok') return false;
-  if (imageIsItsOwnThumb(t.kind, t.sizeBytes)) return false;
+  if (imageIsItsOwnThumb(t.kind, t.sizeBytes, t.name, t.mime)) return false;
   return needsThumb(t.thumbState ?? 'pending', t.kind, t.mime, t.name);
 }
 
