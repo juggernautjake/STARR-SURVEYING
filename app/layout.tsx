@@ -8,6 +8,7 @@ import './styles/forms.css';
 import LayoutShell from './components/LayoutShell';
 import { Suspense } from 'react';
 import AttributionCapture from './components/AttributionCapture';
+import HeicUploadGuard from './components/HeicUploadGuard';
 import StructuredData from './components/StructuredData';
 
 // ============================================================================
@@ -220,6 +221,10 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <Suspense fallback={null}>
           <AttributionCapture />
         </Suspense>
+        {/* Converts iPhone HEIC photos to JPEG on every upload on the site — file pickers, camera
+            buttons, drag-and-drop and paste — before any page's own upload code sees the file.
+            See lib/images/heic-upload-guard.ts. Renders nothing until a conversion happens. */}
+        <HeicUploadGuard />
         <LayoutShell>
           {children}
         </LayoutShell>

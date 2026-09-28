@@ -11,6 +11,7 @@
 // upload + primary-photo selection.
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
@@ -803,7 +804,7 @@ function PhotoGallery({
         <label style={styles.uploadBtn}>
           <input
             type="file"
-            accept="image/*"
+            accept={`image/*,${HEIC_ACCEPT}`}
             capture="environment"
             style={styles.hiddenFile}
             onChange={(e) => {

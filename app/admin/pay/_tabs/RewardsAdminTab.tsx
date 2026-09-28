@@ -1,6 +1,7 @@
 // app/admin/rewards/admin/page.tsx — Full Admin Rewards & Pay Management
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, Settings, CheckCircle2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
@@ -362,7 +363,7 @@ export default function AdminRewardsPage() {
                 <label className="mng__inline-label">Product Image</label>
                 <div className="mng__image-row">
                   {newItem.image_url && <Image src={newItem.image_url} alt="Preview" className="mng__image-preview" width={80} height={80} unoptimized />}
-                  <input type="file" ref={newFileRef} accept="image/*" onChange={handleNewItemImage} style={{ display: 'none' }} />
+                  <input type="file" ref={newFileRef} accept={`image/*,${HEIC_ACCEPT}`} onChange={handleNewItemImage} style={{ display: 'none' }} />
                   <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => newFileRef.current?.click()}>
                     {newItem.image_url ? 'Change Image' : 'Upload Image'}
                   </button>
@@ -406,7 +407,7 @@ export default function AdminRewardsPage() {
                     <label className="mng__inline-label">Product Image</label>
                     <div className="mng__image-row">
                       {(editImageUrl || item.image_url) && <Image src={editImageUrl || item.image_url!} alt={item.name} className="mng__image-preview" width={80} height={80} unoptimized />}
-                      <input type="file" ref={editFileRef} accept="image/*" onChange={handleEditItemImage} style={{ display: 'none' }} />
+                      <input type="file" ref={editFileRef} accept={`image/*,${HEIC_ACCEPT}`} onChange={handleEditItemImage} style={{ display: 'none' }} />
                       <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => editFileRef.current?.click()}>
                         {(editImageUrl || item.image_url) ? 'Change Image' : 'Upload Image'}
                       </button>

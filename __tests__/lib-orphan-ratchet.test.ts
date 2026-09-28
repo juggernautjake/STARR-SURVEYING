@@ -152,6 +152,11 @@ function findUnreachable(): string[] {
     // A barrel is imported by its DIRECTORY name, not "index".
     const needle = base === 'index' ? path.basename(path.dirname(f)) : base;
     const re = new RegExp(`(?:from|import)\\s+['"][^'"]*${esc(needle)}['"]`);
+    // A Web Worker is imported by URL, not by `import`: `new Worker(new URL('./x.worker.ts',
+    // import.meta.url))` is webpack's own syntax for "bundle this module as a worker chunk", and the
+    // only way one is ever reached (lib/images/heic.worker.ts, 2026-09-27). Same lesson as the
+    // side-effect imports above: a real import this scan could not read.
+    const workerRe = new RegExp(`new\\s+URL\\(\\s*['"][^'"]*${esc(needle)}\\.(?:ts|js|mjs)['"]\\s*,\\s*import\\.meta\\.url`);
     let found = false;
     for (const [g, txt] of texts) {
       if (g === f) continue;
@@ -159,7 +164,7 @@ function findUnreachable(): string[] {
       // file without that substring cannot match. Same prefilter that took the research version of
       // this check from 3,856 ms to 860 ms with identical answers.
       if (!txt.includes(needle)) continue;
-      if (re.test(txt)) { found = true; break; }
+      if (re.test(txt) || workerRe.test(txt)) { found = true; break; }
     }
     if (!found) orphans.push(path.relative(root, f).replace(/\\/g, '/'));
   }

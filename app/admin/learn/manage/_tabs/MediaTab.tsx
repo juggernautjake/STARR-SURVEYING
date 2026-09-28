@@ -3,6 +3,7 @@
 // C12d / P19. Was `/admin/learn/manage/media/page.tsx`; the old route stays and forwards.
 // app/admin/learn/manage/media/page.tsx — Media Library Management
 'use client';
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Image as ImageIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -190,7 +191,7 @@ export default function MediaTab() {
 
             {/* File input */}
             <div style={{ marginBottom: '1rem' }}>
-              <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" onChange={handleFileSelect} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept={`image/*,${HEIC_ACCEPT},video/*,audio/*,.pdf,.doc,.docx`} onChange={handleFileSelect} style={{ display: 'none' }} />
               <button onClick={() => fileRef.current?.click()} className="admin-btn admin-btn--secondary admin-btn--sm" style={{ marginRight: '.5rem' }}>Choose File</button>
               <span style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)' }}>or paste a URL below</span>
             </div>

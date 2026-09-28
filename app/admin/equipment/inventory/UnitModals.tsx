@@ -719,7 +719,8 @@ export function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
                       : 'Upload photo'}
                 </button>
                 <span style={styles.modalHint}>
-                  ▸ JPEG / PNG / HEIC / HEIF / WEBP up to 10 MB.
+                  ▸ JPEG / PNG / HEIC / HEIF / WEBP up to 10 MB. iPhone HEIC
+                  photos are converted to JPEG automatically.
                   Replaces any existing photo on this unit.
                 </span>
                 {photoError ? (
