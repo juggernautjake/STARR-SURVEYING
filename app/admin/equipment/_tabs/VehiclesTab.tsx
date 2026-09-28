@@ -12,7 +12,10 @@
 'use client';
 
 import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFileSelection } from '../../components/files/useFileSelection';
+import { FileCheckbox, SelectAllCheckbox, SelectionBar } from '../../components/files/SelectionControls';
+import { useDeleteFiles, type DeletableItem } from '../../components/files/useDeleteFiles';
 import { useSession } from 'next-auth/react';
 
 const STATUS_OPTIONS = [
@@ -292,29 +295,6 @@ export default function VehiclesPage() {
         await Promise.all([fetchPhotos(vehicleId), fetchList()]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Photo upload failed');
-      } finally {
-        setPhotoBusy(null);
-      }
-    },
-    [fetchList, fetchPhotos],
-  );
-
-  const onDeletePhoto = useCallback(
-    async (vehicleId: string, photoId: string) => {
-      if (!confirm('Delete this photo? This cannot be undone.')) return;
-      setPhotoBusy(photoId);
-      try {
-        const res = await fetch(
-          `/api/admin/vehicles/${vehicleId}/photos?photoId=${photoId}`,
-          { method: 'DELETE' },
-        );
-        if (!res.ok) {
-          const json = await res.json().catch(() => null);
-          throw new Error(json?.error ?? `Failed (HTTP ${res.status})`);
-        }
-        await Promise.all([fetchPhotos(vehicleId), fetchList()]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Photo delete failed');
       } finally {
         setPhotoBusy(null);
       }
@@ -699,7 +679,7 @@ export default function VehiclesPage() {
                       primaryPath={v.primary_photo_path}
                       photos={vPhotos}
                       onUpload={(file, makePrimary) => void onUploadPhoto(v.id, file, makePrimary)}
-                      onDelete={(photoId) => void onDeletePhoto(v.id, photoId)}
+                      onDeleted={() => void Promise.all([fetchPhotos(v.id), fetchList()])}
                       onMakePrimary={(path) => void onMakePrimary(v.id, path)}
                       busyKey={photoBusy}
                     />
@@ -786,7 +766,7 @@ function PhotoGallery({
   primaryPath,
   photos,
   onUpload,
-  onDelete,
+  onDeleted,
   onMakePrimary,
   busyKey,
 }: {
@@ -794,10 +774,16 @@ function PhotoGallery({
   primaryPath: string | null;
   photos: VehiclePhoto[];
   onUpload: (file: File, makePrimary: boolean) => void;
-  onDelete: (photoId: string) => void;
+  /** After photos were deleted — reload the gallery and the list (its thumbnail may have changed). */
+  onDeleted: () => void;
   onMakePrimary: (photoPath: string) => void;
   busyKey: string | null;
 }) {
+  // Delete one or several (owner, 2026-09-27): the shared confirmation (names + count, permanent),
+  // the permission-checked bulk API (admin only, on the server), and a report of any failures.
+  const selection = useFileSelection(useMemo(() => photos.map((p) => p.id), [photos]));
+  const deleter = useDeleteFiles({ onDone: () => { selection.clear(); onDeleted(); } });
+  const asItem = (p: VehiclePhoto): DeletableItem => ({ kind: 'vehicle_photo', id: p.id, name: p.caption ?? p.photo_path.split('/').pop() ?? 'photo' });
   return (
     <div style={styles.galleryWrap}>
       <div style={styles.uploadRow}>
@@ -819,6 +805,16 @@ function PhotoGallery({
           On a phone, the camera opens directly. Up to 12 MB per image.
         </span>
       </div>
+      {photos.length > 0 && (
+        <>
+          <SelectAllCheckbox selection={selection} total={photos.length} label="Select all photos" />
+          <SelectionBar
+            selection={selection}
+            busy={deleter.busy}
+            onDelete={() => deleter.request(photos.filter((p) => selection.isSelected(p.id)).map(asItem))}
+          />
+        </>
+      )}
       {photos.length === 0 ? (
         <p style={styles.galleryEmpty}>No photos yet for this vehicle.</p>
       ) : (
@@ -836,6 +832,7 @@ function PhotoGallery({
                 {isPrimary && (
                   <span style={styles.primaryBadge}>★ Primary</span>
                 )}
+                <FileCheckbox id={p.id} name={asItem(p).name} selection={selection} className="vphoto__check" />
                 <div style={styles.galleryActions}>
                   {!isPrimary && (
                     <button
@@ -851,8 +848,9 @@ function PhotoGallery({
                   <button
                     type="button"
                     style={{ ...styles.galleryActionBtn, color: '#B42318' }}
-                    onClick={() => onDelete(p.id)}
-                    disabled={busyKey === p.id}
+                    onClick={() => deleter.request([asItem(p)])}
+                    disabled={busyKey === p.id || deleter.busy}
+                    aria-label={`Delete ${asItem(p).name}`}
                   >
                     Delete
                   </button>
@@ -862,6 +860,7 @@ function PhotoGallery({
           })}
         </div>
       )}
+      {deleter.element}
     </div>
   );
 }
