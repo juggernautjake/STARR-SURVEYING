@@ -170,7 +170,7 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], ini
           overrides: {
             agent: {
               first_message:
-                'Starr Surveying, le atiende Ellie. Soy un asistente automatizado y esta llamada se graba. ¿En qué puedo ayudarle?',
+                '¡Le habla Ellie de Starr Surveying! Todas las llamadas se graban. ¿Hay algo en lo que pueda ayudarle hoy?',
               // The Spanish-only craft lives HERE rather than in the base prompt, because it only
               // applies once the call is already in Spanish — and the base prompt is sent on every
               // turn of every call, English ones included. The guide's own warning is that length

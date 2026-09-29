@@ -458,7 +458,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // THE BOUNDARY STANDS. This is not a precedent for 11500. The next rule comes out of the
     // system prompt and goes into the knowledge base, which is what that mechanism is for.
     expect(p.length, 'roughly under 2000 tokens').toBeLessThan(10500);
-    expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
+    expect(agentFirstMessage()).toBe('This is Ellie with Starr Surveying! All calls are recorded. Is there anything I can help you with today?');
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
     const script = read('scripts/elevenlabs-agent.mjs');
