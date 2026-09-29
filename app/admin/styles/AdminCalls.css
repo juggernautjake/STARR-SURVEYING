@@ -167,3 +167,16 @@
 @media (max-width: 640px) {
   .calls-page__searchbox { flex-basis: 100%; }
 }
+
+/* Callers hanging up on the receptionist (2026-09-29): loud, because the log alone hid it for a week. */
+.calls-page__health {
+  margin: 0 0 1rem;
+  padding: .6rem .75rem;
+  border-left: 3px solid var(--theme-danger-fg, #991B1B);
+  border-radius: 4px;
+  background: var(--theme-danger-bg, #FEF2F2);
+  color: var(--theme-danger-fg, #991B1B);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+.calls-page__health a { color: inherit; font-weight: 600; }

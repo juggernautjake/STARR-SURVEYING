@@ -4,6 +4,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { listCalls } from '@/lib/receptionist/calls';
+import { readAgentHealth } from '@/lib/receptionist/call-outcome';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,5 +39,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     scope,
     search: params.get('search') ?? undefined,
   });
-  return NextResponse.json({ calls, scope });
+  // Whether callers are actually talking to the receptionist (2026-09-29). Only for the live log:
+  // test calls are not evidence about the business line. Null when the read failed.
+  const health = scope === 'live' ? await readAgentHealth(supabaseAdmin) : null;
+  return NextResponse.json({ calls, scope, health });
 }, { routeName: 'admin/calls' });

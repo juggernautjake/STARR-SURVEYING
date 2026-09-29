@@ -15,6 +15,7 @@ import { readLiveVersion, writeLiveSettings } from '@/lib/receptionist/version-s
 import { voiceById } from '@/lib/receptionist/voices';
 import { elevenLabsConfigured } from '@/lib/receptionist/elevenlabs';
 import { readAnswerMix, judgeFallback } from '@/lib/receptionist/fallback-watch';
+import { readAgentHealth } from '@/lib/receptionist/call-outcome';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,11 @@ export const GET = withErrorHandler(async () => {
   // See lib/receptionist/fallback-watch.ts.
   const fallback = judgeFallback(live.version, await readAnswerMix(supabaseAdmin as never));
 
-  return NextResponse.json({ ...live, elevenLabsReady: elevenLabsConfigured(), fallback });
+  // And whether the callers who DO reach it stay on the line (call-outcome.ts). The fallback check
+  // above cannot see that: a caller who hangs up on the agent after nine seconds counts as answered.
+  const agentHealth = await readAgentHealth(supabaseAdmin);
+
+  return NextResponse.json({ ...live, elevenLabsReady: elevenLabsConfigured(), fallback, agentHealth });
 }, { routeName: 'admin/receptionist-test/version' });
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {

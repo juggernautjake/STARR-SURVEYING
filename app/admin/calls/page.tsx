@@ -65,6 +65,7 @@ const WHERE: Record<MatchField, string> = {
 
 export default function CallsPage(): React.ReactElement {
   const [calls, setCalls] = useState<PhoneCall[] | null>(null);
+  const [health, setHealth] = useState<{ warn: boolean; statement: string } | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [scope, setScope] = useState<Scope>('live');
   const [search, setSearch] = useState('');
@@ -103,10 +104,11 @@ export default function CallsPage(): React.ReactElement {
     if (debounced) params.set('search', debounced);
     fetch(`/api/admin/calls?${params.toString()}`)
       .then((r) => r.json())
-      .then((j: { calls?: PhoneCall[]; error?: string }) => {
+      .then((j: { calls?: PhoneCall[]; error?: string; health?: { warn: boolean; statement: string } | null }) => {
         if (!alive) return;
         if (j.error) reportPageError(j.error);
         setCalls(j.calls ?? []);
+        setHealth(j.health ?? null);
       })
       .catch((e: Error) => { if (alive) reportPageError(e); });
     return () => { alive = false; };
@@ -154,6 +156,16 @@ export default function CallsPage(): React.ReactElement {
           Test the receptionist →
         </Link>
       </div>
+
+      {/* ── ARE CALLERS TALKING TO THE RECEPTIONIST? (2026-09-29) ──────────────────────────────────
+          The owner found this by reading the log by hand: a week of "Receptionist" calls with nobody
+          on them. The page says so itself now. See lib/receptionist/call-outcome.ts. */}
+      {scope === 'live' && health?.warn ? (
+        <p className="calls-page__health" role="alert" data-testid="calls-agent-health">
+          <b>Callers are not staying on the line with the receptionist.</b> {health.statement}{' '}
+          <Link href="/admin/dev/receptionist">Receptionist settings →</Link>
+        </p>
+      ) : null}
 
       {/* The scope sits above everything and looks like a switch between two places, because that
           is what it is. A chip in the filter row read as "a kind of call". */}
