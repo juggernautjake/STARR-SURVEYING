@@ -95,9 +95,13 @@ export function machineOpening(voiceId?: string | null): string {
   return say(MACHINE_LINES.greeting, sayVoiceFor(voiceId)) + recordMessage(0, 0, voiceId);
 }
 
-/** What a caller hears when the answering machine picks up. */
-export function machineStart(voiceId?: string | null): string {
-  return twiml(machineOpening(voiceId));
+/** Said first when the conversational receptionist dropped a caller who is still on the line, so
+ *  the switch to a recorded greeting is explained rather than sudden (2026-09-29). */
+export const FALLBACK_APOLOGY = "Sorry, we're having trouble with our line.";
+
+/** What a caller hears when the answering machine picks up. `leadIn` is spoken first, when given. */
+export function machineStart(voiceId?: string | null, leadIn?: string | null): string {
+  return twiml((leadIn ? say(leadIn, sayVoiceFor(voiceId)) : '') + machineOpening(voiceId));
 }
 
 /** After a recording ends: ask "anything else?" (or say nothing was heard and offer again). */

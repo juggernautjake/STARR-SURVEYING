@@ -383,7 +383,8 @@ describe('handing a test call to the ElevenLabs agent', () => {
   it('a dial that never connects falls back to the answering machine instead of silence', () => {
     const src = read('app/api/twilio/receptionist/agent-ended/route.ts');
     for (const status of ['busy', 'failed', 'no-answer', 'canceled']) expect(src).toContain(`'${status}'`);
-    expect(src).toContain('machineStart(live.voice)');
+    // 2026-09-29: the fallback may open with an apology, so the call carries a second argument.
+    expect(src).toContain('machineStart(live.voice');
     // a completed leg is wrapped up once, through the one function that notifies
     expect(src).toContain('finishCall(callSid, from, { facts: {}, turns: [] }');
     expect(src).toContain("answered_by: 'ai'");
