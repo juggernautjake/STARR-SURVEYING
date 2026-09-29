@@ -63,6 +63,7 @@ const calls = vi.hoisted(() => ({
 vi.mock('@/lib/receptionist/calls', async (orig) => ({
   ...(await orig<typeof import('@/lib/receptionist/calls')>()),
   startCall: async (_c: unknown, args: Record<string, unknown>) => { calls.started.push(args); return calls.existing; },
+  getCallBySid: async () => calls.existing,
   updateCall: async (_c: unknown, sid: string, patch: Record<string, unknown>) => { calls.updates.push({ sid, patch }); return null; },
 }));
 
@@ -130,6 +131,18 @@ describe('the transcript import, shared by the button and the cron', () => {
     calls.existing = { transcript: [{ role: 'caller', text: 'earlier' }] };
 
     expect(await importAgentConversations(30)).toMatchObject({ imported: 0, updated: 1 });
+  });
+
+  it('never re-opens a row that is already filed (2026-09-29)', async () => {
+    // `startCall` is an upsert that writes `transcript: []` and `status: 'ringing'`. Calling it on a
+    // filed conversation blanked its transcript every fifteen minutes until the update put it back,
+    // and made the production log say "imported 23" on every single tick.
+    el.conversations = { agent_starr: [conversation('conv_1')] };
+    calls.existing = { transcript: [{ role: 'caller', text: 'earlier' }] };
+
+    await importAgentConversations(30);
+    expect(calls.started, 'an existing row is updated in place, never upserted blank first').toEqual([]);
+    expect(calls.updates.map((u) => u.sid)).toEqual(['EL-conv_1']);
   });
 
   it('skips a conversation with nothing said in it', async () => {
