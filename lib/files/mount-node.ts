@@ -25,6 +25,11 @@ export interface MountNode {
   mime_type: string | null;
   size_bytes: number | null;
   updated_at: string;
+  /** When the file was UPLOADED, where the source records it (owner, 2026-09-29: a "New" tag on
+   *  anything uploaded in the last 24 hours). Separate from `updated_at` because that is not always
+   *  the upload: a field photo's is the moment it was taken, a CAD drawing's its last edit. Absent
+   *  for sources with no upload moment — those never show the tag. */
+  uploaded_at?: string | null;
   access: AccessLevel;
   /** F1 — where this node's natural "open" action goes, when that is a page rather than a download.
    *

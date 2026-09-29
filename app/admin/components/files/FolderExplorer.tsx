@@ -39,9 +39,11 @@ import FileComments from './FileComments';
 import FileExplorerDialog from './FileExplorerDialog';
 import UploadFilesDialog from './UploadFilesDialog';
 import InlineRename from './InlineRename';
+import RecentBadge from './RecentBadge';
 import { formatBytes, formatWhen } from './format';
 import { downloadFile } from '@/lib/files/download';
 import { fileKind } from '@/lib/files/viewer-model';
+import { isRecentUpload } from '@/lib/files/recent';
 import type { MountNode, MountTree, MountTreeFolder } from '@/lib/files/mount-node';
 import {
   jobFolder, isJobFolderKey, parseJobFolderId, parseProjectDocsId, parseNamedFolderId, parseJobNodeId, uploadSpecForRoot,
@@ -628,6 +630,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
             ) : (
               <span className="fe__card-icon"><FileIcon node={n} /></span>
             )}
+            <RecentBadge uploadedAt={n.uploaded_at} className="recent-badge--tile" />
           </span>
           <span className="fe__card-name">{n.name}</span>
         </button>
@@ -670,7 +673,12 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       >
         <button type="button" className="fe__row-name" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
           <span className="fe__row-text">{n.name}</span>
-          {(n.tags?.length ?? 0) > 0 && <span className="fe__row-tags">{n.tags!.slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}</span>}
+          {(isRecentUpload(n.uploaded_at) || (n.tags?.length ?? 0) > 0) && (
+            <span className="fe__row-tags">
+              <RecentBadge uploadedAt={n.uploaded_at} />
+              {(n.tags ?? []).slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}
+            </span>
+          )}
           {n.notes && <span className="fe__row-note">{n.notes}</span>}
         </button>
       </InlineRename>

@@ -53,12 +53,14 @@ export async function GET(req: NextRequest) {
   let total = 0;
   let truncated = false;
 
-  const shape = (n: { id: string; parent_id: string | null; node_type: 'folder' | 'file'; name: string; mime_type: string | null; size_bytes: number | null; updated_at: string; access: MountNode['access']; notes?: string | null; tags?: string[] | null; thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null }): MountNode => ({
+  const shape = (n: { id: string; parent_id: string | null; node_type: 'folder' | 'file'; name: string; mime_type: string | null; size_bytes: number | null; updated_at: string; created_at?: string | null; uploaded_at?: string | null; access: MountNode['access']; notes?: string | null; tags?: string[] | null; thumb_path?: string | null; thumb_bucket?: string | null; thumb_state?: string | null }): MountNode => ({
     id: n.id, parent_id: n.parent_id, node_type: n.node_type, name: n.name, mime_type: n.mime_type,
     size_bytes: n.size_bytes, updated_at: n.updated_at, access: n.access,
     notes: n.notes ?? null, tags: n.tags ?? [],
     // seed 649. A folder has no preview and never will, so it is not given a state to report.
     ...(n.node_type === 'file' ? {
+      // An explorer file's row is made when it is uploaded, so its created_at IS the upload.
+      uploaded_at: n.uploaded_at ?? n.created_at ?? null,
       thumb_ref: n.thumb_path && n.thumb_bucket ? { bucket: n.thumb_bucket, path: n.thumb_path } : null,
       thumb_state: (['pending', 'ok', 'failed', 'unsupported'] as const).includes(n.thumb_state as never)
         ? (n.thumb_state as NonNullable<MountNode['thumb_state']>)

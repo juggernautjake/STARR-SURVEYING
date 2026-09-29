@@ -15,6 +15,7 @@ import {
   Upload, Loader2, FolderOpen, type LucideIcon,
 } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
+import RecentBadge from '../components/files/RecentBadge';
 
 interface UserFile {
   id: string;
@@ -227,6 +228,7 @@ export default function MyFilesPanel() {
               <span className="myfiles__name">
                 <FileCheckbox id={file.id} name={file.file_name} selection={selection} />
                 {file.file_name}
+                <RecentBadge uploadedAt={file.uploaded_at} className="recent-badge--inline" />
               </span>
               <span>{FOLDERS.find(f => f.key === file.folder)?.label || file.folder}</span>
               <span>{formatFileSize(file.file_size || 0)}</span>

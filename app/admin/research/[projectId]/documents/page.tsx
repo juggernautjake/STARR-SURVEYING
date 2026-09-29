@@ -37,6 +37,7 @@ import { downloadFile } from '@/lib/files/download';
 import { researchDocCapabilities } from '@/lib/files/adapters/research-document';
 import { useFileSelection } from '@/app/admin/components/files/useFileSelection';
 import { FileCheckbox, SelectAllCheckbox, SelectionBar } from '@/app/admin/components/files/SelectionControls';
+import RecentBadge from '@/app/admin/components/files/RecentBadge';
 import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
 
 type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved' | 'images';
@@ -378,6 +379,7 @@ export default function ProjectDocumentsPage() {
                           {doc.isUpload && (
                             <span className="text-xs px-2 py-0.5 bg-blue-900 text-blue-200 rounded">Uploaded</span>
                           )}
+                          <RecentBadge uploadedAt={doc.uploadedAt} />
                           {/* The page COUNT, not a bare "Image" chip. Every document here is a PDF
                               whose pages were rendered; what a reader wants to know is how many
                               there are to look at. */}
