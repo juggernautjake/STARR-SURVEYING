@@ -22,6 +22,7 @@ import { startCallRecording, twilioConfigured } from '@/lib/twilio/rest';
 import { readLiveVersion } from '@/lib/receptionist/version-server';
 import { machineStart } from '@/lib/receptionist/answering-machine';
 import { elevenLabsDial, elevenLabsSipAuth, elevenLabsSipUri } from '@/lib/receptionist/elevenlabs';
+import { callerIsGone, recordOutcome } from '@/lib/receptionist/call-outcome';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,11 +46,24 @@ export async function POST(request: Request): Promise<Response> {
     return twimlResponse(twiml(hangup()));
   }
 
-  const base = url.replace(/\/api\/twilio\/.*$/, '');
-  // Hank did not take it. Record the live call (dual channel) so the page has audio for this leg too.
-  if (twilioConfigured() && callSid && !existing?.recording_sid) {
-    startCallRecording(callSid, `${base}/api/twilio/recording`).catch((err) => console.error('[receptionist] could not start recording:', err));
+  // ── THE CALLER HUNG UP WHILE HOLDING (2026-09-29) ─────────────────────────────────────────────
+  //
+  // Twilio posts this action even when it is the CALLER who hung up during the ring, and ignores
+  // whatever we answer. Before this check the route went on as if they were still there: it stamped
+  // the row `answered_by: 'ai'`, tried to start a recording on a finished call ("Requested resource
+  // is not eligible for recording"), and dialled the agent for nobody. Four of the ten calls labelled
+  // "Receptionist" in the week to 2026-09-29 were this — 11 to 27 seconds long, no recording, no
+  // transcript, and never reported as missed because the row said somebody had answered.
+  //
+  // The row is left alone: `answered_by` stays empty, so the status callback (which fires once the
+  // call is over, before or after this) closes it as missed and tells the owners, exactly as it does
+  // for a caller who hangs up during the hold notice.
+  if (callerIsGone(params)) {
+    await recordOutcome(supabaseAdmin, callSid, 'hung-up-while-holding', { dialStatus: params.DialCallStatus ?? null, callStatus: params.CallStatus ?? null });
+    return twimlResponse(twiml(hangup()));
   }
+
+  const base = url.replace(/\/api\/twilio\/.*$/, '');
 
   // ── WHICH RECEPTIONIST (owner, 2026-09-15) ──────────────────────────────────────────────────
   // "For now the system uses the simple answering machine style AI that just records the caller's
@@ -92,6 +106,14 @@ export async function POST(request: Request): Promise<Response> {
   // receptionist; this is the voicemail message, and it answers whenever that one cannot.
   if (!sip && live.version === 'elevenlabs') {
     console.error('[after-dial] live version is conversational but no SIP URI is configured — answering with the voicemail message');
+  }
+  // Record the whole voicemail leg (dual channel), so the page has the greeting, the message and the
+  // "anything else?" answers as one recording. Awaited, not fire-and-forget: on Vercel a promise left
+  // running after the response can be frozen before the request is sent. The SIP branch above does
+  // not need this — its <Dial> records the agent leg itself, and a second recording of the same audio
+  // only raced it for the row and paid for a second transcript.
+  if (twilioConfigured() && callSid && !existing?.recording_sid) {
+    await startCallRecording(callSid, `${base}/api/twilio/recording`).catch((err) => console.error('[receptionist] could not start recording:', err));
   }
   await updateCall(supabaseAdmin, callSid, { status: 'in-progress' });
   return twimlResponse(machineStart(live.voice));
