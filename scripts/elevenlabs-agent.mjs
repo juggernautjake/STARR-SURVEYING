@@ -89,9 +89,29 @@ async function buildPrompt() {
  *  Derived from TWILIO_AUTH_TOKEN exactly as the route derives it (lib/receptionist/agent-init.ts) —
  *  the one secret that is provably in both this machine's .env.local and the deployment, so the two
  *  sides cannot disagree about the token and fail silently. */
+const PRODUCTION_SITE = 'https://www.starr-surveying.com';
+
+/**
+ * The public site ElevenLabs can reach. This script runs on the owner's machine, where
+ * NEXT_PUBLIC_SITE_URL is usually the local dev server — and ElevenLabs cannot POST to
+ * `http://localhost:3000`. Production logs for 2026-09-27 → 09-29 show NO request to
+ * /api/elevenlabs/conversation-init at all, including during a live call the agent answered. So
+ * anything that is not a public https address is replaced by the production site, loudly.
+ */
+function publicSiteFor(env) {
+  const given = (env.ELEVENLABS_WEBHOOK_SITE ?? env.NEXT_PUBLIC_SITE_URL ?? env.SITE_URL ?? '').trim().replace(/[/]+$/, '');
+  let ok = false;
+  try {
+    const u = new URL(given);
+    ok = u.protocol === 'https:' && !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(u.hostname) && !u.hostname.endsWith('.local') && !u.hostname.endsWith('.localhost') && !u.hostname.endsWith('.test');
+  } catch { ok = false; }
+  if (!ok && given) console.warn(`initiation webhook: ${given} is not a public https address ElevenLabs can reach — using ${PRODUCTION_SITE}`);
+  return ok ? given : PRODUCTION_SITE;
+}
+
 function initWebhook(env) {
   const secret = (env.TWILIO_AUTH_TOKEN ?? '').trim();
-  const site = (env.NEXT_PUBLIC_SITE_URL ?? env.SITE_URL ?? 'https://www.starr-surveying.com').replace(/[/]$/, '');
+  const site = publicSiteFor(env);
   if (!secret) return null;
   const token = crypto.createHash('sha256').update(`${secret}:elevenlabs-conversation-init:v1`).digest('hex').slice(0, 32);
   return { url: `${site}/api/elevenlabs/conversation-init?t=${token}`, request_headers: {} };
