@@ -176,5 +176,8 @@ describe('the prompt and the webhook agree about the variable names', () => {
     expect(script).toContain('dynamic_variable_placeholders');
     expect(script, 'the same derivation as the route').toContain('elevenlabs-conversation-init:v1');
     expect(script).toContain('TWILIO_AUTH_TOKEN');
+    // 2026-10-01: the URL was set but the agent was never allowed to use it, so live calls reached
+    // Ellie with no caller number, history or office status. The URL alone is not enough.
+    expect(script).toMatch(/enable_conversation_initiation_client_data_from_webhook:\s*Boolean\(initHook\)/);
   });
 });

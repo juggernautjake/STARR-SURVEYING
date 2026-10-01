@@ -240,6 +240,11 @@ Esta llamada es en español. Todo lo anterior se aplica igual.
       // Ask us who is calling before answering. Null clears it, so a deployment without a cron
       // secret does not leave a stale URL pointing at an endpoint that cannot authenticate it.
       workspace_overrides: { conversation_initiation_client_data_webhook: initHook },
+      // ...and actually CALL it. Setting the URL alone does nothing: the agent must also be allowed
+      // to take its first-turn data from the webhook. Found off on 2026-10-01 — every live call since
+      // the URL was fixed still reached Ellie with only the SIP call ids, so she never knew the
+      // caller's number, their history with the firm, or whether the office was open.
+      overrides: { enable_conversation_initiation_client_data_from_webhook: Boolean(initHook) },
       // ── WHAT THE CALL IS FOR, EXTRACTED AFTER IT ENDS ─────────────────────────────────────────
       // The live model's job is to have the conversation; pulling structured fields out of it mid
       // call is work it does badly and pays for in latency. These run once, afterwards, and each
