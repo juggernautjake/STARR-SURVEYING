@@ -75,6 +75,8 @@ export interface DocumentCard {
   sizeBytes: number | null;
   /** `upload` for something a person added, anything else for something the run retrieved. */
   isUpload: boolean;
+  /** When a person uploaded it — null for anything a research run retrieved (drives the "New" tag). */
+  uploadedAt: string | null;
   sourceLabel: string;
   /** Where the file can be opened, if anywhere. */
   fileUrl: string | null;
@@ -170,6 +172,7 @@ export function toCard(row: DocumentRow): DocumentCard {
     pageCount: typeof row.page_count === 'number' ? row.page_count : null,
     sizeBytes: typeof row.file_size_bytes === 'number' ? row.file_size_bytes : null,
     isUpload: (row.source_type ?? '').toLowerCase() === 'user_upload',
+    uploadedAt: (row.source_type ?? '').toLowerCase() === 'user_upload' ? row.created_at ?? null : null,
     sourceLabel: sourceLabelOf(row),
     // `pages_pdf_url` is the rendered multi-page PDF when one exists; `storage_url` is the original.
     //

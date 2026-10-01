@@ -28,6 +28,7 @@ import FileExplorerDialog from '@/app/admin/components/files/FileExplorerDialog'
 // 2026-09-15 — uploads go through THE Upload files pop-up, the same one on every job and project:
 // drop or pick files, choose "Save into" and a folder for each one, watch each file go up.
 import UploadFilesDialog from '@/app/admin/components/files/UploadFilesDialog';
+import RecentBadge from '@/app/admin/components/files/RecentBadge';
 import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
 import { toggle as toggleInSelection } from '@/lib/files/selection';
 import { uploadScopeFor } from '@/lib/files/upload-destinations';
@@ -90,6 +91,9 @@ interface FileNode {
   mime_type: string | null;
   size_bytes: number | null;
   updated_at: string;
+  /** When the file was uploaded: `created_at` on an explorer file, `uploaded_at` on a mounted one. */
+  created_at?: string | null;
+  uploaded_at?: string | null;
   access: AccessLevel;
   /** seed 634 — a person's note and tags, on files and folders alike. */
   notes?: string | null;
@@ -1104,6 +1108,12 @@ export default function FilesPage(): React.ReactElement {
                   <Icon size={18} className={isFolder ? 'fx__icon fx__icon--folder' : 'fx__icon'} aria-hidden />
                   <span className="fx__name-text">
                     {n.name}
+                    {!isFolder && <RecentBadge
+                      // A mounted file's created_at is stood in by its last change (a CAD edit), so only
+                      // its real upload time counts; an explorer file's row is made when it is uploaded.
+                      uploadedAt={isMountId(n.id) ? n.uploaded_at : (n.uploaded_at ?? n.created_at)}
+                      className="recent-badge--inline"
+                    />}
                     {/* F2 — where the hit lives. Only in search results: in browse mode you are
                         already standing in the folder, and repeating it would be noise. A result
                         you cannot locate is only half an answer. */}

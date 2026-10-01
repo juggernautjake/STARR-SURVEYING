@@ -442,6 +442,7 @@
 }
 /* A fixed ratio, so a grid of portrait plats and landscape photographs still lines up. */
 .fe__card-thumb {
+  position: relative; /* anchors the "New" tag */
   display: flex;
   align-items: center;
   justify-content: center;
