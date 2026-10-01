@@ -382,7 +382,8 @@ describe('the Upload files pop-up', () => {
     expect(code).toContain('/api/admin/files/tree?node=${encodeURIComponent(scope)}');
     expect(code).toContain('destinationsFromTree(tree)');
     expect(src).toContain('aria-label={`Folder for ${item.file.name}`}');
-    expect(code).toContain('const canUpload = !uploading && ready.length > 0 && needFolder.length === 0 && !draft;');
+    // Nothing uploads while a file is still being copied into memory (2026-10-01).
+    expect(code).toContain('const canUpload = !uploading && ready.length > 0 && needFolder.length === 0 && reading.length === 0 && !draft;');
     expect(src).toContain('Choose a folder for {needFolder.length} file');
   });
 
@@ -393,7 +394,7 @@ describe('the Upload files pop-up', () => {
   });
 
   it('uploads the bytes and files the row into the chosen folder', () => {
-    expect(code).toContain('uploadJobFileBytes(dest.owner.jobId, item.file, onProgress)');
+    expect(code).toContain('uploadJobFileBytes(dest.owner.jobId, file, onProgress)');
     expect(code).toContain('...(dest.folderId ? { folder_id: dest.folderId } : {})');
     expect(code).toContain('section: dest.section');
     expect(src).toContain('role="progressbar"');
@@ -514,7 +515,7 @@ describe('the pop-up on the Files page', () => {
 
   it('uploads into an explorer folder through the explorer\'s own sign → PUT → complete', () => {
     expect(dialog).toContain("fetch('/api/admin/files/upload', {");
-    expect(dialog).toContain('await putWithProgress(signed_url, item.file, onProgress)');
+    expect(dialog).toContain('await putWithProgress(signed_url, file, onProgress)');
     expect(dialog).toContain("fetch('/api/admin/files/upload/complete', {");
   });
 

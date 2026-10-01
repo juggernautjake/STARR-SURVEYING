@@ -28,6 +28,7 @@
 'use client';
 
 import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
+import { fitImageForFunction } from '@/lib/images/shrink-for-upload';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -553,7 +554,8 @@ export default function NewReceiptPage() {
       items,
       async (i) => {
         const form = new FormData();
-        form.append('file', batchFiles[i]);
+        // Under Vercel's 4.5 MB request cap — a gallery photo is re-encoded, not refused (2026-10-01).
+        form.append('file', await fitImageForFunction(batchFiles[i]));
         if (job) form.append('jobId', job.id);
         // Shared note first, then this photo's own. Joined rather than replaced: somebody who typed
         // "Henry job" once for the stack and "$27.89" on one photo means both, and dropping either
@@ -704,7 +706,7 @@ export default function NewReceiptPage() {
     setError(null);
     try {
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', await fitImageForFunction(file));
       if (job) form.append('jobId', job.id);
       if (notes.trim()) form.append('notes', notes.trim());
       const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
