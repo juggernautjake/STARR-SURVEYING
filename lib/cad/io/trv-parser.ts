@@ -100,6 +100,142 @@ export interface TrvPoint {
   elevation: number | null;
   /** Source line where the point's `0,<id>` opener was found. */
   sourceLine: number;
+  /** trv-full-support — raw numeric value of record `3`. Observed values
+   *  are 0 / 2 / 4 / 6 / 64 / 68 / 258: a bit field, NOT a dense layer
+   *  index (the legacy `layerId` keeps the same raw string for backward
+   *  compatibility). Undefined / null when absent. */
+  attrFlags?: number | null;
+}
+
+/** trv-full-support — one point reference inside a traverse, with the
+ *  per-reference records that follow its `10,<id>` line:
+ *
+ *    11,<flags>,<seq>,0,<drawingLayerId>,0
+ *        flags bit 8  = normal vertex (almost always set)
+ *        flags bit 16 = PEN UP: no line is drawn INTO this point
+ *                       (inferred: segments into these refs never carry
+ *                       a `28,15` label; CSV point lists set it on
+ *                       every ref)
+ *        flags bit 4  = point was computed by a COGO entry (a `13`
+ *                       record follows)
+ *        flags 0      = terminal ref (last point of an open traverse)
+ *        drawingLayerId = drawing layer the segment is drawn on (always
+ *                       3 = "TPCLines" in the samples)
+ *    12,<132|134>    curve marker: 132 = a curve leaves this point,
+ *                    134 = last point of a curve run
+ *    13,<flags>,<dist>,<dz>,<azimuthDeg>,0,<radius>,<n>f
+ *                    the COGO observation that produced this point
+ *    190,…           (rare) per-ref adjustment record, kept raw */
+export interface TrvTraverseRef {
+  pointId: string;
+  /** `11` field 0 (null when no `11` record followed). */
+  flags: number | null;
+  /** `11` field 1: TPC's running sequence number. */
+  seq: number | null;
+  /** `11` field 3: drawing-layer id of the segment (null if absent). */
+  drawingLayerId: string | null;
+  /** True when bit 16 of `flags` is set: no line drawn into this ref. */
+  penUp: boolean;
+  /** `12` field 0: 132 / 134 curve marker, null when absent. */
+  curveMarker: number | null;
+  /** Decoded `13` COGO record, null when absent. */
+  cogo: TrvCogoObservation | null;
+  /** Any other per-ref record (190 …) preserved raw. */
+  extra: Array<{ code: string; fields: string[] }>;
+  sourceLine: number;
+}
+
+/** trv-full-support — a decoded `13` record. */
+export interface TrvCogoObservation {
+  flags: number;
+  distance: number | null;
+  dz: number | null;
+  azimuthDeg: number | null;
+  radius: number | null;
+  raw: string[];
+}
+
+/** trv-full-support — one `#,LINES` entry: a CURVE between two points.
+ *  `20,<from>` `21,<to>` `22,<flags>,0,0` `23,<signedRadius>`. Every
+ *  sample radius is at least half the chord, so the radius defines a
+ *  circular arc. Sign: NEGATIVE = centre on the LEFT of from→to (the arc
+ *  runs counter-clockwise), POSITIVE = centre on the RIGHT (clockwise);
+ *  confirmed against concentric offset curves in the samples. The minor
+ *  arc (|Δ| ≤ 180°) is used. */
+export interface TrvLineEntity {
+  fromId: string;
+  toId: string;
+  /** `22` field 0 (observed 8 / 40 / 104). */
+  flags: number | null;
+  /** `23` field 0, signed. Null when missing / unparseable. */
+  radius: number | null;
+  sourceLine: number;
+}
+
+/** trv-full-support — a `100,<name>,<id>,<flags>` drawing group (TPC's
+ *  layer-panel groupings: Plats, Lots, Research, …). */
+export interface TrvDrawingGroup {
+  name: string;
+  id: string;
+  flags: string;
+  sourceLine: number;
+}
+
+/** trv-full-support — a drawing (CAD) layer from `29,0,7` inside the
+ *  `28,0` sheet header:
+ *  `29,0,7,<name>,<id>,<flags>,0,<visible>,<weight>,<scale>,<color>`.
+ *  Drawing elements reference these ids in their `29,2` style record
+ *  (field 1) and traverse segments in `11` field 3. */
+export interface TrvDrawingLayer {
+  id: string;
+  name: string;
+  /** Raw flags (0x10000000 = TPC-managed system layer, 0x40000000 =
+   *  user layer). */
+  flags: number;
+  visible: boolean;
+  lineWeight: number | null;
+  /** CSS colour (#rrggbb) decoded from a Windows COLORREF, or null for
+   *  the default (`-1`, plotted black). */
+  color: string | null;
+  sourceLine: number;
+}
+
+/** trv-full-support — the `28,0` sheet header + its `29,0,*` settings. */
+export interface TrvSheet {
+  name: string | null;
+  /** Plot scale in feet per paper inch (field 5; 40 → 1" = 40'). */
+  scale: number | null;
+  paperWidthIn: number | null;
+  paperHeightIn: number | null;
+  /** `29,0,8`: survey extents as [x1, y1, x2, y2] (E/N). */
+  extents: [number, number, number, number] | null;
+  /** `29,0,10`: sheet centre in world (E, N). */
+  center: { x: number; y: number } | null;
+  /** `28,0` field 16: sheet rotation in degrees (raw, unverified). */
+  rotationDeg: number | null;
+  /** `29,0,9`: font table (index → face). */
+  fonts: Array<{ index: number; face: string }>;
+  layers: TrvDrawingLayer[];
+  sourceLine: number;
+}
+
+/** trv-full-support — job header records (`81`, `87`-`89`, `95`, `107`)
+ *  and the `#` banner's full version string. All optional. */
+export interface TrvHeader {
+  /** `# Full Version number,24.0.4.9 (09122024)`. */
+  fullVersion: string | null;
+  /** `81`: job description line. */
+  jobDescription: string | null;
+  /** `87`: job address (fields joined with ', '). */
+  jobAddress: string | null;
+  /** `88`: surveyor / crew name. */
+  surveyor: string | null;
+  /** `89`: job number. */
+  jobNumber: string | null;
+  /** `107`: client name + address (fields joined with ', '). */
+  client: string | null;
+  /** `95`: the next free point number at save time. */
+  nextPointNumber: string | null;
 }
 
 /** A traverse / polyline = ordered list of point references plus
@@ -126,6 +262,20 @@ export interface TrvTraverse {
   /** Source line of the traverse's first marker (the `30,<name>` or
    *  the first `10,<id>` if no name was present). */
   sourceLine: number;
+  /** trv-full-support — per-reference detail, same order as
+   *  `pointIds`. */
+  refs?: TrvTraverseRef[];
+  /** trv-full-support — `31` field 1: TPC's traverse id. `28,14,<id>`
+   *  area labels reference it. */
+  trvId?: string | null;
+  /** trv-full-support — `31` field 0 raw flags. */
+  flags?: number | null;
+  /** trv-full-support — `33` field 0: the area TPC computed (square
+   *  survey units), present on area-bearing traverses. */
+  area?: number | null;
+  /** trv-full-support — the traverse's `1,<text>` description (often
+   *  the source CSV path). */
+  description?: string | null;
 }
 
 export interface TrvParseError {
@@ -200,6 +350,11 @@ export interface TrvDrawingElement {
   properties: string[][];
   /** Source line of the opening 28 record. */
   sourceLine: number;
+  /** trv-full-support — which sheet (`28,0` drawing) the element
+   *  belongs to: 0 for the first `28,0` in the file, 1 for the next …
+   *  Undefined for elements that precede every `28,0`. A file can hold
+   *  several sheets that repeat the same labels. */
+  sheetIndex?: number;
 }
 
 /** cad-trv-import-export Pass 2 — lot / parcel boundary segment
@@ -245,6 +400,69 @@ export interface TrvDocument {
   lotSegments: TrvLotSegment[];
   /** Non-fatal parse errors. */
   errors: TrvParseError[];
+  /** trv-full-support — `#,LINES` curve entities (20-23). */
+  lineEntities: TrvLineEntity[];
+  /** trv-full-support — `#,DRAWING GROUPS` (100). */
+  drawingGroups: TrvDrawingGroup[];
+  /** trv-full-support — the `28,0` sheet (null when the file has no
+   *  `#,Drawing` section). */
+  sheet: TrvSheet | null;
+  /** trv-full-support — every sheet in the file, in file order. `sheet`
+   *  is the one with the most drawing elements (the plotted drawing). */
+  sheets: TrvSheet[];
+  /** trv-full-support — index into `sheets` of `sheet` (-1 when none). */
+  primarySheetIndex: number;
+  /** trv-full-support — job header records. */
+  header: TrvHeader;
+  /** trv-full-support — how many lines carried each record code (`#`
+   *  for comment / section lines). */
+  recordCounts: Record<string, number>;
+  /** trv-full-support — record codes this parser does not know, with
+   *  how often they appeared + the first line. They are never dropped:
+   *  every line still lives in `lines` for round-trip. */
+  unknownRecords: Array<{ code: string; count: number; firstLine: number }>;
+  /** trv-full-support — the text looked like a TRV (banner, `999,begin`
+   *  or a version record was seen). */
+  looksLikeTrv: boolean;
+}
+
+/** trv-full-support — every record code the parser either interprets or
+ *  deliberately preserves as known-but-opaque settings. Anything else
+ *  lands in `unknownRecords`. See docs/cad/trv-format.md. */
+export const KNOWN_TRV_CODES: ReadonlySet<string> = new Set([
+  // points
+  '0', '1', '2', '3', '4',
+  // traverse refs + per-ref records
+  '10', '11', '12', '13', '190',
+  // #,LINES curves
+  '20', '21', '22', '23',
+  // drawing elements
+  '28', '29',
+  // traverse header + styling / label-format settings (opaque)
+  '30', '31', '32', '33', '34', '35', '36', '37', '38', '40', '41', '42', '43', '44', '45',
+  '46', '47', '48', '49', '50', '51', '60', '70', '71', '76',
+  '129', '130', '131', '132', '133', '134', '135', '136', '137', '138', '139', '140', '141',
+  '159', '160', '161', '162', '163', '164',
+  '349', '350', '361', '362', '363', '364', '366', '367', '368', '369',
+  // file / survey header
+  '80', '81', '82', '83', '86', '87', '88', '89', '90', '91', '92', '93', '94', '95',
+  '100', '101', '102', '103', '104', '105', '106', '107',
+  // GNSS
+  '198', '199',
+  // begin / end
+  '999',
+]);
+
+/** trv-full-support — decode a Windows COLORREF (0x00BBGGRR) into a CSS
+ *  hex colour. -1 / out-of-range / non-numeric → null (default ink). */
+export function colorRefToCss(raw: string | number | undefined | null): string | null {
+  if (raw === undefined || raw === null) return null;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n < 0 || n > 0xffffff) return null;
+  const r = n & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = (n >> 16) & 0xff;
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** Split a TRV record line into `code` + `fields`. TRV uses simple
@@ -272,7 +490,10 @@ function splitTrvLine(raw: string): { code: string | null; fields: string[] } {
 export function parseTrv(input: string): TrvDocument {
   // Normalize line endings — TRV uses CRLF in the wild but we accept
   // LF-only too so a hand-edited copy doesn't fail to parse.
-  const rawLines = input.replace(/\r\n/g, '\n').split('\n');
+  // trv-full-support — also strip a byte-order mark and accept bare-CR
+  // (classic Mac) line endings.
+  const body = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+  const rawLines = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const lines: TrvLine[] = rawLines.map((raw, index) => {
     const { code, fields } = splitTrvLine(raw);
     return { index, code, fields, raw };
@@ -342,6 +563,41 @@ export function parseTrv(input: string): TrvDocument {
   // the next 0 OR until the section changes.
   let activePoint: TrvPoint | null = null;
   let activeTraverse: TrvTraverse | null = null;
+  // trv-full-support accumulators.
+  const lineEntities: TrvLineEntity[] = [];
+  let activeLineEntity: TrvLineEntity | null = null;
+  const drawingGroups: TrvDrawingGroup[] = [];
+  const header: TrvHeader = {
+    fullVersion: null, jobDescription: null, jobAddress: null, surveyor: null,
+    jobNumber: null, client: null, nextPointNumber: null,
+  };
+  const recordCounts: Record<string, number> = {};
+  const unknownByCode = new Map<string, { count: number; firstLine: number }>();
+  let looksLikeTrv = false;
+  /** Index of the current `28,0` sheet (-1 before the first). */
+  let sheetCounter = -1;
+  const parseIntOrNull = (s: string | undefined): number | null => {
+    if (s === undefined) return null;
+    const n = parseInt(s.trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  /** The traverse ref the per-ref records (11/12/13/190) attach to. */
+  const lastRef = (): TrvTraverseRef | null => {
+    const refs = activeTraverse?.refs;
+    return refs && refs.length > 0 ? refs[refs.length - 1] : null;
+  };
+  const newTraverse = (name: string | null, sourceLine: number): TrvTraverse => ({
+    name,
+    pointIds: [],
+    layerId: null,
+    stylingRecords: [],
+    sourceLine,
+    refs: [],
+    trvId: null,
+    flags: null,
+    area: null,
+    description: null,
+  });
 
   const commitActivePoint = () => {
     if (activePoint) {
@@ -359,11 +615,27 @@ export function parseTrv(input: string): TrvDocument {
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i];
     if (ln.code === null) continue;
+    // trv-full-support — census every record code; remember the unknown
+    // ones (they still round-trip verbatim through `lines`).
+    const codeKey = ln.code.trim();
+    if (codeKey.length > 0) {
+      recordCounts[codeKey] = (recordCounts[codeKey] ?? 0) + 1;
+      if (codeKey !== '#' && !KNOWN_TRV_CODES.has(codeKey)) {
+        const u = unknownByCode.get(codeKey);
+        if (u) u.count += 1;
+        else unknownByCode.set(codeKey, { count: 1, firstLine: i });
+      }
+    }
     if (ln.code === '#') {
+      const label = (ln.fields[0] ?? '').trim();
+      if (/^TRAVERSE PC\b/i.test(label)) looksLikeTrv = true;
+      const fv = /^\s*Full Version number\s*,\s*(.+)$/i.exec(ln.raw.slice(1));
+      if (fv) header.fullVersion = fv[1].trim();
       // Section break — flush any in-progress aggregator.
       commitActivePoint();
       commitActiveTraverse();
       commitActiveDrawingElement();
+      activeLineEntity = null;
       continue;
     }
     const section = sectionAt(i);
@@ -372,6 +644,54 @@ export function parseTrv(input: string): TrvDocument {
     switch (ln.code) {
       case '80':
         version = (ln.fields[0] ?? '').trim() || null;
+        looksLikeTrv = true;
+        break;
+      // trv-full-support — job header records.
+      case '81':
+        header.jobDescription = ln.fields.join(',').trim() || null;
+        break;
+      case '87':
+        header.jobAddress = ln.fields.map((f) => f.trim()).filter(Boolean).join(', ') || null;
+        break;
+      case '88':
+        header.surveyor = ln.fields.map((f) => f.trim()).filter(Boolean).join(', ') || null;
+        break;
+      case '89':
+        header.jobNumber = ln.fields.join(',').trim() || null;
+        break;
+      case '95':
+        header.nextPointNumber = (ln.fields[0] ?? '').trim() || null;
+        break;
+      case '107':
+        header.client = ln.fields.map((f) => f.trim()).filter(Boolean).join(', ') || null;
+        break;
+      case '100': {
+        const [name, id, flags] = ln.fields;
+        if (name !== undefined && id !== undefined) {
+          drawingGroups.push({ name: name.trim(), id: id.trim(), flags: (flags ?? '').trim(), sourceLine: i });
+        }
+        break;
+      }
+      // trv-full-support — #,LINES curve entities: 20 opens, 21-23 fill.
+      case '20': {
+        const from = (ln.fields[0] ?? '').trim();
+        activeLineEntity = null;
+        if (from.length === 0) {
+          errors.push({ lineIndex: i, message: '20 record missing point id' });
+          break;
+        }
+        activeLineEntity = { fromId: from, toId: '', flags: null, radius: null, sourceLine: i };
+        lineEntities.push(activeLineEntity);
+        break;
+      }
+      case '21':
+        if (activeLineEntity) activeLineEntity.toId = (ln.fields[0] ?? '').trim();
+        break;
+      case '22':
+        if (activeLineEntity) activeLineEntity.flags = parseIntOrNull(ln.fields[0]);
+        break;
+      case '23':
+        if (activeLineEntity) activeLineEntity.radius = parseNum(ln.fields[0]);
         break;
       case '86': {
         const [name, id, parentId] = ln.fields;
@@ -425,6 +745,7 @@ export function parseTrv(input: string): TrvDocument {
         if (activePoint) {
           const v = (ln.fields[0] ?? '').trim();
           activePoint.layerId = v.length > 0 ? v : null;
+          activePoint.attrFlags = parseIntOrNull(v);
         }
         break;
       case '4':
@@ -439,13 +760,7 @@ export function parseTrv(input: string): TrvDocument {
         // a point block (which can also receive a stray 30).
         commitActivePoint();
         commitActiveTraverse();
-        activeTraverse = {
-          name: (ln.fields[0] ?? '').trim() || null,
-          pointIds: [],
-          layerId: null,
-          stylingRecords: [],
-          sourceLine: i,
-        };
+        activeTraverse = newTraverse((ln.fields[0] ?? '').trim() || null, i);
         break;
       }
       case '10': {
@@ -466,15 +781,20 @@ export function parseTrv(input: string): TrvDocument {
             break;
           }
           commitActivePoint();
-          activeTraverse = {
-            name: null,
-            pointIds: [],
-            layerId: null,
-            stylingRecords: [],
-            sourceLine: i,
-          };
+          activeTraverse = newTraverse(null, i);
         }
         activeTraverse.pointIds.push(ref);
+        activeTraverse.refs?.push({
+          pointId: ref,
+          flags: null,
+          seq: null,
+          drawingLayerId: null,
+          penUp: false,
+          curveMarker: null,
+          cogo: null,
+          extra: [],
+          sourceLine: i,
+        });
         break;
       }
       case '11': {
@@ -482,6 +802,15 @@ export function parseTrv(input: string): TrvDocument {
           // 11,<polyId>,<offset>,?,<layerId>,? — extract the layer.
           const lid = (ln.fields[3] ?? '').trim();
           if (lid.length > 0) activeTraverse.layerId = lid;
+        }
+        // trv-full-support — per-ref flags (pen-up bit 16 etc.).
+        const r = lastRef();
+        if (r) {
+          r.flags = parseIntOrNull(ln.fields[0]);
+          r.seq = parseIntOrNull(ln.fields[1]);
+          const dl = (ln.fields[3] ?? '').trim();
+          r.drawingLayerId = dl.length > 0 ? dl : null;
+          r.penUp = r.flags !== null && (r.flags & 16) !== 0;
         }
         break;
       }
@@ -540,10 +869,12 @@ export function parseTrv(input: string): TrvDocument {
       // properties) + lot/parcel segments (13).
       case '28':
         commitActiveDrawingElement();
+        if ((ln.fields[0] ?? '').trim() === '0') sheetCounter += 1;
         activeDrawingElement = {
           header: ln.fields.slice(),
           properties: [],
           sourceLine: i,
+          ...(sheetCounter >= 0 ? { sheetIndex: sheetCounter } : {}),
         };
         break;
       case '29':
@@ -559,10 +890,37 @@ export function parseTrv(input: string): TrvDocument {
           });
         }
         break;
-      case '13':
+      case '13': {
         lotSegments.push({ fields: ln.fields.slice(), sourceLine: i });
+        // trv-full-support — inside a traverse a 13 is the COGO
+        // observation that produced the preceding ref's point.
+        const r = activeTraverse ? lastRef() : null;
+        if (r) {
+          r.cogo = {
+            flags: parseIntOrNull(ln.fields[0]) ?? 0,
+            distance: parseNum(ln.fields[1]),
+            dz: parseNum(ln.fields[2]),
+            azimuthDeg: parseNum(ln.fields[3]),
+            radius: parseNum(ln.fields[5]),
+            raw: ln.fields.slice(),
+          };
+        }
         break;
+      }
       default:
+        // trv-full-support — per-ref and per-traverse records that ride
+        // along inside a traverse block. They ALSO fall through to the
+        // stylingRecords capture below so the round-trip is unchanged.
+        if (activeTraverse !== null && activePoint === null) {
+          const r = lastRef();
+          if (ln.code === '12' && r) r.curveMarker = parseIntOrNull(ln.fields[0]);
+          else if (ln.code === '190' && r) r.extra.push({ code: ln.code, fields: ln.fields.slice() });
+          else if (ln.code === '31') {
+            activeTraverse.flags = parseIntOrNull(ln.fields[0]);
+            const tid = (ln.fields[1] ?? '').trim();
+            activeTraverse.trvId = tid.length > 0 ? tid : null;
+          } else if (ln.code === '33') activeTraverse.area = parseNum(ln.fields[0]);
+        }
         // Unknown code. Pass 3 — if an active traverse is open,
         // these records belong to its styling block (32-76, 159-162,
         // 349-369, etc.). Preserve them so the serializer can re-
@@ -586,6 +944,7 @@ export function parseTrv(input: string): TrvDocument {
       && ln.code === '1'
     ) {
       activeTraverse.stylingRecords.push({ code: ln.code, fields: ln.fields.slice() });
+      if (activeTraverse.description == null) activeTraverse.description = ln.fields.join(',').trim() || null;
     }
   }
   // Flush at EOF.
@@ -610,12 +969,88 @@ export function parseTrv(input: string): TrvDocument {
     ? { raw198: gnss198 ?? [], raw199: gnss199 ?? [] }
     : null;
 
+  if (sections.some((s) => /^TRAVERSE PC\b/i.test(s.label)) || recordCounts['999']) looksLikeTrv = true;
+
+  // trv-full-support — sheets: one per `28,0`. The primary sheet is the
+  // one carrying the most drawing elements.
+  const sheets: TrvSheet[] = [];
+  const sheetSizes: number[] = [];
+  for (const el of drawingElements) {
+    if (el.header[0] === '0') { sheets.push(extractSheet(el)); sheetSizes.push(0); }
+    else if (el.sheetIndex !== undefined && sheetSizes[el.sheetIndex] !== undefined) sheetSizes[el.sheetIndex] += 1;
+  }
+  let primarySheetIndex = sheets.length > 0 ? 0 : -1;
+  sheetSizes.forEach((n, k) => { if (n > sheetSizes[primarySheetIndex]) primarySheetIndex = k; });
+
   return {
     lines, version, sections, layers, points, traverses,
     projection, metadata, gnss,
     drawingElements, lotSegments,
     errors,
+    lineEntities: lineEntities.filter((l) => l.toId.length > 0),
+    drawingGroups,
+    sheet: primarySheetIndex >= 0 ? sheets[primarySheetIndex] : null,
+    sheets,
+    primarySheetIndex,
+    header,
+    recordCounts,
+    unknownRecords: [...unknownByCode.entries()]
+      .map(([code, v]) => ({ code, count: v.count, firstLine: v.firstLine }))
+      .sort((a, b) => a.firstLine - b.firstLine),
+    looksLikeTrv,
   };
+}
+
+/** trv-full-support — lift the `28,0` sheet header + its `29,0,*`
+ *  settings (layers, fonts, extents, centre) out of the drawing
+ *  elements. Layout of the `28,0` header (after the subtype):
+ *  `0,<name>,0,<flags>,<scale>,<?>,<paperW>,<paperH>,<m1..m4>,<?>,<?>,<?>,<rotation>,<?>`. */
+function extractSheet(el: TrvDrawingElement): TrvSheet {
+  const num = (s: string | undefined): number | null => {
+    if (s === undefined || s.trim() === '') return null;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const h = el.header;
+  const sheet: TrvSheet = {
+    name: (h[2] ?? '').trim() || null,
+    scale: num(h[5]),
+    paperWidthIn: num(h[7]),
+    paperHeightIn: num(h[8]),
+    extents: null,
+    center: null,
+    rotationDeg: num(h[16]),
+    fonts: [],
+    layers: [],
+    sourceLine: el.sourceLine,
+  };
+  el.properties.forEach((p) => {
+    if (p[0] !== '0') return;
+    const sub = p[1];
+    if (sub === '7' && p[2] !== undefined && p[3] !== undefined) {
+      const flags = parseInt(p[4] ?? '0', 10);
+      sheet.layers.push({
+        id: p[3].trim(),
+        name: p[2].trim() || `Layer ${p[3].trim()}`,
+        flags: Number.isFinite(flags) ? flags : 0,
+        visible: (p[6] ?? '1').trim() !== '0',
+        lineWeight: num(p[7]),
+        color: colorRefToCss(p[9]),
+        sourceLine: el.sourceLine,
+      });
+    } else if (sub === '8') {
+      const v = p.slice(2, 6).map((s) => num(s));
+      if (v.every((x) => x !== null)) sheet.extents = v as [number, number, number, number];
+    } else if (sub === '9') {
+      const idx = parseInt(p[2] ?? '', 10);
+      if (Number.isFinite(idx) && p[3]) sheet.fonts.push({ index: idx, face: p[3].trim() });
+    } else if (sub === '10') {
+      const x = num(p[2]);
+      const y = num(p[3]);
+      if (x !== null && y !== null) sheet.center = { x, y };
+    }
+  });
+  return sheet;
 }
 
 /** Serialize a parsed TrvDocument back to its source text. By default

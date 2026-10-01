@@ -129,7 +129,7 @@ describe('MenuBar — TRV import/export wiring', () => {
     expect(MENUBAR_SRC).toMatch(/input\.accept = '\.TRV,\.trv,text\/plain'/);
     // cad-trv-dual-layer-filename Slice 1 — the file name is threaded
     // through so the imported layers are named after the FILE.
-    expect(MENUBAR_SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name \}\)/);
+    expect(MENUBAR_SRC).toMatch(/importTrvFromText\(text, \{ fileName: file\.name(, layerMode: 'source')? \}\)/);
     // cad-trv-fidelity Slice 13 — the import preview is the Starr-styled
     // confirm modal now, NOT the native window.confirm popup.
     expect(MENUBAR_SRC).toMatch(/import \{ confirmAction(, alertAction)? \} from '\.\/ConfirmDialog';/);
