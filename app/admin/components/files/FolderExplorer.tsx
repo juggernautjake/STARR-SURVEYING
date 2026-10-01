@@ -49,7 +49,7 @@ import {
   jobFolder, isJobFolderKey, parseJobFolderId, parseProjectDocsId, parseNamedFolderId, parseJobNodeId, uploadSpecForRoot,
   detectJobFileType, checkFolderName, type JobFolderKey,
 } from '@/lib/files/job-folders';
-import { mountNodeToViewerFile, mountCapabilities, mountViewUrl } from '@/lib/files/adapters/mount';
+import { mountNodeToViewerFile, mountCapabilities, mountViewUrl, mountViewResult } from '@/lib/files/adapters/mount';
 import { useFileThumbnails, kindOfNode, wantsThumb } from './useFileThumbnails';
 import { useFileSelection } from './useFileSelection';
 import { FileCheckbox, SelectAllCheckbox, SelectionBar } from './SelectionControls';
@@ -173,11 +173,14 @@ function FileIcon({ node }: { node: MountNode }) {
   }
 }
 
-async function downloadEntry(id: string): Promise<{ url: string; name: string; mime: string | null } | null> {
+/** A file's download link. Throws with the route's own reason ("You do not have access to this
+ *  file.", a timeout) so the notice says why, instead of the old "no download location". */
+async function downloadEntry(id: string): Promise<{ url: string; name: string; mime: string | null }> {
   const res = await fetch(`/api/admin/files/${id}/download`);
-  if (!res.ok) return null;
-  const { url, name, mime_type } = await res.json();
-  return typeof url === 'string' ? { url, name: (name as string) ?? id, mime: (mime_type as string) ?? null } : null;
+  const json = (await res.json().catch(() => ({}))) as { url?: unknown; name?: unknown; mime_type?: unknown; error?: unknown };
+  if (!res.ok) throw new Error(typeof json.error === 'string' && json.error ? json.error : `HTTP ${res.status}`);
+  if (typeof json.url !== 'string') throw new Error('The server did not return a link.');
+  return { url: json.url, name: typeof json.name === 'string' ? json.name : id, mime: typeof json.mime_type === 'string' ? json.mime_type : null };
 }
 
 export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className, refreshKey }: FolderExplorerProps) {
@@ -360,9 +363,11 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const openFile = useCallback(async (n: MountNode) => {
     if (n.open_href) { window.location.href = n.open_href; return; }
     setBusy(`Opening ${n.name}…`);
-    const url = urls[n.id] ?? await mountViewUrl(n.id);
+    const cached = urls[n.id];
+    const result = cached ? { url: cached } : await mountViewResult(n.id);
     setBusy(null);
-    if (!url) { setNotice(`Could not open ${n.name}.`); return; }
+    if (!('url' in result)) { setNotice(`Could not open ${n.name}: ${result.error}`); return; }
+    const url = result.url;
     setUrls((m) => ({ ...m, [n.id]: url }));
     setViewerId(n.id);
   }, [urls]);
@@ -406,7 +411,6 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     setBusy(`Preparing ${n.name}…`);
     try {
       const entry = await downloadEntry(n.id);
-      if (!entry) throw new Error('no download location');
       const outcome = await downloadFile(entry.url, n.original_name ?? entry.name ?? n.name, entry.mime ?? n.mime_type);
       if (outcome === 'saved') setNotice(`Saved ${n.name}.`);
     } catch (err) {
@@ -427,7 +431,8 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       ? groups.flatMap((g) => g.files.filter((n) => !n.open_href).map((n) => ({ n, folder: g.folder.path.slice(current?.depth ?? 0).join('/') })))
       : folderFiles.filter((n) => !n.open_href).map((n) => ({ n, folder: '' }));
     const resolved = await Promise.all(items.map(async ({ n, folder }) => {
-      const e = await downloadEntry(n.id);
+      // One file that cannot be linked is left out of the zip, not allowed to sink the other forty.
+      const e = await downloadEntry(n.id).catch(() => null);
       return e ? { name: n.original_name ?? e.name ?? n.name, url: e.url, folder } : null;
     }));
     return resolved.filter((e): e is { name: string; url: string; folder: string } => e !== null);

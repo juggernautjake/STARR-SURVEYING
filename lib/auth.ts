@@ -63,14 +63,59 @@ export function getUserRoles(email: string): UserRole[] {
   return roles;
 }
 
-/** Get roles for any user, checking DB first then falling back to email lists */
+// ── A FAILED LOOKUP IS NOT "THIS PERSON HAS NO ROLES" (2026-10-01) ────────────────────────────────
+//
+// Owner: "one of our workers is not able to download or preview files on the backend" — on a job
+// the owner could open fine.
+//
+// The role lookup used to read only `data`. When Supabase could not be reached (production,
+// 2026-10-01 15:34 UTC: a Cloudflare "522: Connection timed out" page instead of rows), `data` was
+// null, which is exactly what "no registered_users row" looks like, so the function fell back to the
+// hardcoded lists: `['employee']`. The session refresh then wrote that into the worker's token for
+// the next 30 seconds. `employee` is not a role the Job Files mount admits (lib/files/mounts.ts), so
+// the tree and every download/preview answered 403 for the worker, while the owner, who is in
+// ADMIN_EMAILS, stayed admin and saw nothing wrong. Every blip re-demoted them.
+//
+// So an unreachable database now THROWS, and the refresh keeps the roles the session already has.
+// The lookup is also bounded: an edge middleware that waits on a 522 hits Vercel's 25 s limit and
+// 504s the request, which is the other half of what the logs showed that morning.
+
+/** registered_users could not be read. Distinct from "this person has no row", which is a real answer. */
+export class RoleLookupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RoleLookupError';
+  }
+}
+
+/** How long the session refresh waits for the users table before keeping what it has. */
+export const ROLE_LOOKUP_TIMEOUT_MS = 5_000;
+
+function lookupSignal(): AbortSignal {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ROLE_LOOKUP_TIMEOUT_MS);
+  (timer as { unref?: () => void }).unref?.();
+  return controller.signal;
+}
+
+/** The first line of a database error, without a Cloudflare HTML page attached. */
+function lookupErrorText(message: string | null | undefined): string {
+  const text = (message ?? 'unknown error').trim();
+  const title = /<title>([^<]*)<\/title>/i.exec(text)?.[1];
+  return (title ?? text).slice(0, 200);
+}
+
+/** Get roles for any user, checking DB first then falling back to email lists.
+ *  Throws RoleLookupError when the database could not be read — callers decide what a failure means. */
 export async function getUserRolesFromDB(email: string): Promise<UserRole[]> {
   const lower = email.toLowerCase();
-  const { data } = await supabaseUnscoped
+  const { data, error } = await supabaseUnscoped
     .from('registered_users')
     .select('roles')
     .eq('email', lower)
+    .abortSignal(lookupSignal())
     .maybeSingle();
+  if (error) throw new RoleLookupError(lookupErrorText(error.message));
   if (data?.roles && Array.isArray(data.roles) && data.roles.length > 0) {
     const dbRoles = new Set<UserRole>(data.roles as UserRole[]);
     if (ADMIN_EMAILS.includes(lower)) dbRoles.add('admin');
@@ -199,11 +244,14 @@ export async function ensureRegisteredUser(
 export async function isUserBlocked(email: string): Promise<boolean> {
   const lower = email.toLowerCase();
   if (ADMIN_EMAILS.includes(lower)) return false;
-  const { data } = await supabaseUnscoped
+  const { data, error } = await supabaseUnscoped
     .from('registered_users')
     .select('is_banned, is_approved')
     .eq('email', lower)
+    .abortSignal(lookupSignal())
     .maybeSingle();
+  // Same rule as the role lookup: an unreachable database is not an answer about this person.
+  if (error) throw new RoleLookupError(lookupErrorText(error.message));
   if (!data) return false;
   return data.is_banned === true || data.is_approved === false;
 }
@@ -542,21 +590,53 @@ const authConfig: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user?.email) {
         token.email = user.email.toLowerCase();
-        token.roles = await getUserRolesFromDB(user.email);
-        token.role = getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
-        token.rolesLastChecked = Math.floor(Date.now() / 1000);
+        try {
+          token.roles = await getUserRolesFromDB(user.email);
+          token.rolesLastChecked = Math.floor(Date.now() / 1000);
+        } catch (err) {
+          // Signing in with the database unreachable: nothing better to keep, so the email lists, and
+          // a refresh on the very next request rather than thirty seconds of a guessed role.
+          console.error('[auth] role lookup failed at sign-in; using the default roles until it answers', (err as Error).message);
+          token.roles = getUserRoles(user.email);
+          token.rolesLastChecked = 0;
+        }
+        token.role = getPrimaryRole(token.roles as UserRole[]);
         await populateSaasContext(token);
       } else if (token.email) {
         const lastChecked = (token.rolesLastChecked as number) || 0;
         const now = Math.floor(Date.now() / 1000);
         if (!token.roles || now - lastChecked > ROLES_REFRESH_INTERVAL_SECONDS) {
-          const blocked = await isUserBlocked(token.email as string);
-          if (blocked) {
-            return { ...token, roles: [], role: 'employee', rolesLastChecked: now, blocked: true };
+          let blocked = false;
+          let roles: UserRole[];
+          try {
+            blocked = await isUserBlocked(token.email as string);
+            if (blocked) {
+              return { ...token, roles: [], role: 'employee', rolesLastChecked: now, blocked: true };
+            }
+            roles = await getUserRolesFromDB(token.email as string);
+          } catch (err) {
+            const had = Array.isArray(token.roles) && (token.roles as UserRole[]).length > 0;
+            console.error(
+              had
+                ? '[auth] role refresh failed; keeping the roles this session already has'
+                : '[auth] role refresh failed and the session has no roles; using the default roles',
+              (err as Error).message,
+            );
+            if (had) {
+              // Keep everything the token already says (roles, blocked, memberships) and try again after
+              // the normal interval. Skipping populateSaasContext too: the database just failed to
+              // answer one query, and four more against it would only add to the wait.
+              token.rolesLastChecked = now;
+              return token;
+            }
+            token.roles = getUserRoles(token.email as string);
+            token.role = getPrimaryRole(token.roles as UserRole[]);
+            token.rolesLastChecked = 0;
+            return token;
           }
-          token.roles = await getUserRolesFromDB(token.email as string);
+          token.roles = roles;
           token.role = getPrimaryRole(token.roles as UserRole[]);
           token.rolesLastChecked = now;
           token.blocked = false;
