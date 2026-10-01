@@ -112,6 +112,7 @@ import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { consumePendingCadOpen, PENDING_OPEN_PARAM } from '@/lib/cad/io/pending-open';
 import { decodeTextBytes } from '@/lib/cad/io/trv-encoding';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 import {
   mountLinkedInstanceSubscriber,
   unmountLinkedInstanceSubscriber,
@@ -358,9 +359,7 @@ export default function CADLayout() {
       if (pending) {
         (async () => {
           try {
-            const res = await fetch(pending.url, { credentials: 'include' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const text = decodeTextBytes(await res.arrayBuffer());
+            const text = decodeTextBytes(await fetchFileForPreview(pending.url));
             window.dispatchEvent(new CustomEvent('cad:openFileContents', { detail: { name: pending.name, text } }));
           } catch (err) {
             cadLog.error('FileIO', `Could not open ${pending.name} from the file viewer`, err);

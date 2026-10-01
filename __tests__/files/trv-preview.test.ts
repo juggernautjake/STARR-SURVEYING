@@ -185,7 +185,8 @@ describe('viewer wiring', () => {
   it('CAD picks up the hand-off and MenuBar opens it through File → Open', () => {
     expect(layout).toMatch(/cadParams\.get\(PENDING_OPEN_PARAM\) === 'file'/);
     expect(layout).toMatch(/consumePendingCadOpen\(\)/);
-    expect(layout).toMatch(/decodeTextBytes\(await res\.arrayBuffer\(\)\)/);
+    // Through the shared helper, so the signed storage link is fetched without cookies (2026-10-01).
+    expect(layout).toMatch(/decodeTextBytes\(await fetchFileForPreview\(pending\.url\)\)/);
     expect(layout).toMatch(/new CustomEvent\('cad:openFileContents'/);
     expect(menu).toMatch(/addEventListener\('cad:openFileContents', onOpenContents\)/);
     expect(menu).toMatch(/processOpenedCadFile\(detail\.name, detail\.text\)/);

@@ -7,6 +7,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import {
   SHEET_MAX_BYTES, SHEET_PAGE_ROWS, columnCount, columnLetter, parseDelimited, type SheetFormat,
 } from '@/lib/files/sheet-preview';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 
 interface Sheet {
   name: string;
@@ -19,12 +20,7 @@ interface Sheet {
 const READ_ROWS = 20_000;
 
 async function loadSheets(url: string, format: SheetFormat): Promise<Sheet[]> {
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const declared = Number(res.headers.get('content-length'));
-  if (declared > SHEET_MAX_BYTES) throw new Error('this file is too large to preview — save it to open it');
-  const buf = await res.arrayBuffer();
-  if (buf.byteLength > SHEET_MAX_BYTES) throw new Error('this file is too large to preview — save it to open it');
+  const buf = await fetchFileForPreview(url, { maxBytes: SHEET_MAX_BYTES });
 
   if (format !== 'excel') {
     const text = new TextDecoder('utf-8').decode(buf);
