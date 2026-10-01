@@ -30,6 +30,8 @@ import { downloadFile, canChooseWhereToSave, type SaveOutcome } from '@/lib/file
 import { nextRotation, rotationFit, clampZoom, type Rotation } from '@/lib/viewers/viewer-fit';
 import { formatBytes, formatWhen } from './format';
 import FileExplorerDialog from './FileExplorerDialog';
+import SheetPreview from './SheetPreview';
+import { sheetFormat } from '@/lib/files/sheet-preview';
 import './FileViewer.css';
 
 export interface FileViewerProps {
@@ -136,6 +138,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const index = files.findIndex((f) => f.id === currentId);
   const file = files[index] ?? files[0] ?? null;
   const kind = file ? fileKind(file.name, file.mime) : 'other';
+  /** CSV, TSV and Excel open as a grid of rows and columns rather than as text or "no preview". */
+  const sheet = file ? sheetFormat(file.name, file.mime) : null;
 
   // ── view state ──
   const [zoom, setZoom] = useState(1);
@@ -227,7 +231,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
 
   // ── text files ──
   useEffect(() => {
-    if (!file || kind !== 'text' || !file.url) return;
+    if (!file || kind !== 'text' || sheet || !file.url) return;
     let cancelled = false;
     setLoading(true);
     fetch(file.url, { credentials: 'include' })
@@ -235,7 +239,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
       .then((t) => { if (!cancelled) { setTextBody(t.slice(0, 200_000)); setLoading(false); } })
       .catch((err) => { if (!cancelled) { setLoadError(err.message); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [file, kind]);
+  }, [file, kind, sheet]);
 
   // ── navigation ──
   const goTo = useCallback((step: 1 | -1) => {
@@ -556,7 +560,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                 <img ref={imgRef} src={file.url} alt={file.name} className="fv-image" draggable={false} onLoad={() => setLoading(false)} onError={() => setLoadError('the image did not load')} />
               </div>
             ) : null}
-            {kind === 'text' && textBody !== null ? (
+            {sheet && file.url ? <SheetPreview url={file.url} format={sheet} /> : null}
+            {!sheet && kind === 'text' && textBody !== null ? (
               <pre className="fv-text" style={{ transform: `scale(${fit ? 1 : zoom})` }}>{textBody}</pre>
             ) : null}
             {/* `preload="metadata"` is the whole fix for "videos load slowly" (owner, 2026-09-19).
@@ -576,7 +581,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
               />
             ) : null}
             {kind === 'audio' && file.url ? <audio className="fv-media" src={file.url} controls /> : null}
-            {(kind === 'other' || !file.url) && !loadError ? (
+            {((kind === 'other' && !sheet) || !file.url) && !loadError ? (
               <div className="fv-message">
                 <FileIcon size={28} aria-hidden="true" />
                 <p>{file.url ? 'No preview for this kind of file.' : 'This file has no preview.'} {file.url ? 'Save it to open it on your computer.' : ''}</p>
