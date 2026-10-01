@@ -40,9 +40,9 @@ export const RECORDING_NOTICE = 'This call may be recorded for quality and recor
 // Owner, 2026-09-11: first 20 s, then "can we make it 15 seconds instead of 20 to make sure that it
 // doesn't go to voicemail?" His carrier's voicemail answers at about 22 s; 15 leaves a clear margin
 // so the whisper never plays into his voicemail box.
-// Owner, 2026-10-01: "shorten the 15 seconds of ringing to 12 seconds" — callers were hanging up on
-// Ellie, and reaching her three seconds sooner is part of the fix.
-export const RING_SECONDS = 12;
+// Owner, 2026-10-01: tried 12, then went back to 15 the same day ("do the 15 seconds then please"),
+// so Hank has time to reach the phone in the field; the shorter Ellie greeting does the rest.
+export const RING_SECONDS = 15;
 
 /** What the caller hears before the owner's phone rings: the notice, and a reason to stay on. */
 export function holdNotice(): string {
