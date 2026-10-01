@@ -14,6 +14,7 @@ import { parseTrv, type TrvDocument } from '@/lib/cad/io/trv-parser';
 import { buildTrvModel } from '@/lib/cad/io/trv-model';
 import { decodeTextBytes } from '@/lib/cad/io/trv-encoding';
 import { stashPendingCadOpen } from '@/lib/cad/io/pending-open';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 import {
   TRV_MAX_BYTES, TRV_SVG_DEFS, fitViewBox, frameFor, panelLayers, renderTrvSvg, summaryLine, zoomViewBox,
 } from '@/lib/files/trv-preview';
@@ -22,12 +23,7 @@ import './TrvPreview.css';
 type ViewBox = { x: number; y: number; w: number; h: number };
 
 async function loadTrv(url: string): Promise<TrvDocument> {
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const declared = Number(res.headers.get('content-length'));
-  if (declared > TRV_MAX_BYTES) throw new Error('this file is too large to preview — save it to open it');
-  const buf = await res.arrayBuffer();
-  if (buf.byteLength > TRV_MAX_BYTES) throw new Error('this file is too large to preview — save it to open it');
+  const buf = await fetchFileForPreview(url, { maxBytes: TRV_MAX_BYTES });
   return parseTrv(decodeTextBytes(buf));
 }
 

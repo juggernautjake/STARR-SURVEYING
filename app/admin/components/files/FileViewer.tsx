@@ -33,6 +33,7 @@ import { formatBytes, formatWhen } from './format';
 import FileExplorerDialog from './FileExplorerDialog';
 import SheetPreview from './SheetPreview';
 import { sheetFormat } from '@/lib/files/sheet-preview';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 import './FileViewer.css';
 
 export interface FileViewerProps {
@@ -240,8 +241,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     if (!file || kind !== 'text' || sheet || !file.url) return;
     let cancelled = false;
     setLoading(true);
-    fetch(file.url, { credentials: 'include' })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    fetchFileForPreview(file.url)
+      .then((buf) => new TextDecoder('utf-8').decode(buf))
       .then((t) => { if (!cancelled) { setTextBody(t.slice(0, 200_000)); setLoading(false); } })
       .catch((err) => { if (!cancelled) { setLoadError(err.message); setLoading(false); } });
     return () => { cancelled = true; };
