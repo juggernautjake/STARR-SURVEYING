@@ -216,6 +216,69 @@
   cursor: text;
 }
 .fv-media { max-width: 100%; max-height: 100%; }
+/* ── SPREADSHEETS (owner, 2026-10-01): CSV, TSV and Excel as rows and columns ──────────────────
+ * The sheet fills the stage and scrolls itself. The stage is set up for drag-to-pan (no touch
+ * scrolling, no text selection); both come back on inside the table, so a finger scrolls the rows
+ * on a field tablet and a value can be selected and copied. */
+.fv-sheet {
+  position: absolute;
+  inset: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: default;
+  touch-action: auto;
+  user-select: text;
+  min-width: 0;
+}
+.fv-sheet__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); }
+.fv-sheet__tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.fv-sheet__tab { border: 1px solid var(--theme-border, #CBD5E1); background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-fg-primary, #0F172A); border-radius: 6px; padding: 0.2rem 0.6rem; font: inherit; font-weight: 600; cursor: pointer; }
+.fv-sheet__tab--on { background: var(--theme-accent, #1D3095); border-color: var(--theme-accent, #1D3095); color: #FFFFFF; }
+.fv-sheet__count { font-variant-numeric: tabular-nums; }
+.fv-sheet__toggle { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+.fv-sheet__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #CBD5E1);
+  border-radius: 8px;
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 18%, transparent);
+}
+.fv-sheet__scroll:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 2px; }
+.fv-sheet__table { border-collapse: separate; border-spacing: 0; font-size: 0.8rem; color: var(--theme-fg-primary, #0F172A); font-variant-numeric: tabular-nums; }
+.fv-sheet__table th, .fv-sheet__table td {
+  padding: 0.25rem 0.6rem;
+  border-right: 1px solid var(--theme-border-subtle, #E2E8F0);
+  border-bottom: 1px solid var(--theme-border-subtle, #E2E8F0);
+  white-space: nowrap;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  vertical-align: top;
+}
+.fv-sheet__table thead th { position: sticky; z-index: 2; background: var(--theme-bg-elevated, #F1F5F9); }
+.fv-sheet__table thead tr:first-child th { top: 0; color: var(--theme-fg-muted, #64748B); font-weight: 600; text-align: center; font-size: 0.72rem; }
+.fv-sheet__headrow th { top: 1.6rem; font-weight: 700; background: color-mix(in srgb, var(--theme-accent, #1D3095) 9%, var(--theme-bg-surface, #FFFFFF)); }
+.fv-sheet__rownum {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 2.75rem;
+  text-align: right !important;
+  color: var(--theme-fg-muted, #64748B);
+  font-weight: 500;
+  font-size: 0.72rem;
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+.fv-sheet__table thead .fv-sheet__rownum, .fv-sheet__corner { left: 0; z-index: 3; position: sticky; background: var(--theme-bg-elevated, #F1F5F9); }
+.fv-sheet__table tbody tr:hover td { background: color-mix(in srgb, var(--theme-accent, #1D3095) 6%, transparent); }
+.fv-sheet__more { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); }
+.fv-sheet__morebtn { border: 1px solid var(--theme-border, #CBD5E1); background: var(--theme-bg-surface, #FFFFFF); color: var(--theme-accent, #1D3095); border-radius: 6px; padding: 0.2rem 0.7rem; font: inherit; font-weight: 600; cursor: pointer; }
+
 .fv-loading, .fv-message {
   position: absolute;
   inset: auto;
