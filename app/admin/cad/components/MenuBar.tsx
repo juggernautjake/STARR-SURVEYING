@@ -37,6 +37,7 @@ import { validateAndMigrateDocument } from '@/lib/cad/validate';
 import { downloadCsv, downloadPnezd } from '@/lib/cad/persistence/export-csv';
 // cad-trv-import-export Slice 4 — File menu Import / Export TRV.
 import { downloadTrv, importTrvFromText, formatRenderedElements, type TrvImportReport } from '@/lib/cad/io/trv-io';
+import { readTextFile } from '@/lib/cad/io/trv-encoding';
 import { confirmAction, alertAction } from './ConfirmDialog';
 import { requestDiscard } from '../hooks/useUnsavedChangesGuard';
 // cad-trv-import-export-deep-semantic Pass 6 — apply TRV metadata
@@ -323,15 +324,25 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       })();
     };
     const onClearRecent = () => { void clearRecentFiles(); };
+    // trv-full-support — "Open in Starr CAD" from the file viewer hands
+    // the fetched file over as `{ name, text }` (see CADLayout).
+    const onOpenContents = (e: Event) => {
+      const detail = (e as CustomEvent<{ name?: string; text?: string }>).detail;
+      if (!detail || typeof detail.name !== 'string' || typeof detail.text !== 'string') return;
+      setFileLoading(true);
+      void processOpenedCadFile(detail.name, detail.text);
+    };
     window.addEventListener('cad:openFileDialog', onOpen);
     window.addEventListener('cad:saveDocumentAs', onSaveAs);
     window.addEventListener('cad:openRecentFile', onOpenRecent);
     window.addEventListener('cad:clearRecentFiles', onClearRecent);
+    window.addEventListener('cad:openFileContents', onOpenContents);
     return () => {
       window.removeEventListener('cad:openFileDialog', onOpen);
       window.removeEventListener('cad:saveDocumentAs', onSaveAs);
       window.removeEventListener('cad:openRecentFile', onOpenRecent);
       window.removeEventListener('cad:clearRecentFiles', onClearRecent);
+      window.removeEventListener('cad:openFileContents', onOpenContents);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -464,7 +475,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // Route TRV files through the same import flow as
         // File → Import → "Import Traverse PC (.TRV)…" with
         // the count preview + non-destructive title-block apply.
-        const report: TrvImportReport = importTrvFromText(text, { fileName: name });
+        const report: TrvImportReport = importTrvFromText(text, { fileName: name, layerMode: 'source' });
         const noteSummary = report.notes.length > 0
           ? `\n\n${report.notes.length} note(s):\n  - ${report.notes.slice(0, 5).join('\n  - ')}${report.notes.length > 5 ? `\n  …and ${report.notes.length - 5} more` : ''}`
           : '';
@@ -615,7 +626,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       setFileLoading(true);
       let text = '';
       try {
-        text = await file.text();
+        // trv-full-support — TRV files are Windows-1252; readTextFile keeps
+        // UTF-8 (.starr) intact and decodes ANSI bytes correctly.
+        text = await readTextFile(file);
       } catch (err) {
         const diag = buildFileLoadDiagnostic(file.name, '', err, 'sniff');
         cadLog.error('FileIO', formatFileLoadDiagnostic(diag), err);
@@ -700,10 +713,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      const text = await file.text();
+      const text = await readTextFile(file);
       let report: TrvImportReport;
       try {
-        report = importTrvFromText(text, { fileName: file.name });
+        report = importTrvFromText(text, { fileName: file.name, layerMode: 'source' });
       } catch (err) {
         cadLog.error('FileIO', 'TRV parse failed', err);
         await confirmAction({

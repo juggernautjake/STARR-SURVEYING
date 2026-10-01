@@ -198,6 +198,10 @@
 .fv-canvas { display: block; background: var(--theme-bg-surface, #FFFFFF); box-shadow: 0 8px 30px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 25%, transparent); }
 .fv-image { max-width: calc(100vw - 6rem); max-height: calc(100vh - 12rem); object-fit: contain; box-shadow: 0 8px 30px color-mix(in srgb, var(--theme-fg-primary, #0F172A) 25%, transparent); background: var(--theme-bg-surface, #FFFFFF); }
 .fv-stage--zoomed .fv-image { max-width: none; max-height: none; }
+/* A Traverse PC drawing (TrvPreview) draws its own stage; the text / "no preview" fallbacks must
+ * not show underneath it (a .TRV can arrive typed text/plain). */
+.fv-stage--trv > .fv-text, .fv-stage--trv > .fv-message:not([role="alert"]) { display: none; }
+.fv-stage--trv { cursor: default; }
 .fv-text {
   margin: 1rem;
   max-width: 100%;

@@ -43,6 +43,11 @@ export interface TrvImportReport {
     elementPolylines: number;
     elementLines: number;
     textAnnotations: number;
+    /** trv-full-support — true arcs (traverse curves, element arcs,
+     *  standalone curves). */
+    curves?: number;
+    /** trv-full-support — TPC labels placed as text (source layers). */
+    labels?: number;
   };
 }
 
@@ -54,6 +59,10 @@ export interface ImportTrvOptions {
    *  the imported layers are named after the FILE rather than a
    *  generic "TRV". */
   fileName?: string;
+  /** trv-full-support — see `TrvToDrawingOptions.layerMode`. Forge's
+   *  import passes `'source'` (the file's own layers); the default keeps
+   *  the two-layer Drawing / Points layout. */
+  layerMode?: 'dual' | 'source';
 }
 
 /** Parse a TRV file's text + map it into our layers + features.
@@ -62,7 +71,10 @@ export interface ImportTrvOptions {
 export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): TrvImportReport {
   const trv = parseTrv(text);
   const layerPrefix = opts.fileName ? fileBaseName(opts.fileName) : undefined;
-  const mapped = trvToDrawing(trv, layerPrefix ? { layerPrefix } : {});
+  const mapped = trvToDrawing(trv, {
+    ...(layerPrefix ? { layerPrefix } : {}),
+    ...(opts.layerMode ? { layerMode: opts.layerMode } : {}),
+  });
   // cad-trv-dual-layer-filename Slice 2 — count the CANONICAL points
   // only; the Drawing-layer mirrors are render echoes and shouldn't
   // double the count shown in the import-confirm dialog.
@@ -117,6 +129,12 @@ export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): Tr
       elementPolylines: byKind('ELEMENT_POLYLINE'),
       elementLines: byKind('ELEMENT_LINE'),
       textAnnotations: byKind('ELEMENT_TEXT'),
+      curves: mapped.features.filter((f) => f.type === 'ARC' && (
+        f.properties.trvCurveSource === 'LINES'
+        || f.properties.trvElementKind === 'ELEMENT_ARC'
+        || f.properties.trvElementKind === 'TRV_CURVE'
+      )).length,
+      labels: byKind('ELEMENT_LABEL'),
     },
   };
 }
@@ -152,6 +170,8 @@ export function formatRenderedElements(r: TrvImportReport['renderedElements']): 
   if (r.elementPolylines > 0) parts.push(`${r.elementPolylines} polyline(s)`);
   if (r.elementLines > 0) parts.push(`${r.elementLines} line(s)`);
   if (r.textAnnotations > 0) parts.push(`${r.textAnnotations} text label(s)`);
+  if (r.curves) parts.push(`${r.curves} curve(s)`);
+  if (r.labels) parts.push(`${r.labels} Traverse PC label(s)`);
   return parts.join(', ');
 }
 
