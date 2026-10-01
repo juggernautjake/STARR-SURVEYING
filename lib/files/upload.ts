@@ -4,7 +4,8 @@
 // The private bucket + signed-URL plumbing lives in the routes; this is the
 // testable validation + path/mime logic.
 
-import { uploadCapBytes, isVideoUpload } from '@/lib/storage/uploads';
+import { uploadCapBytes } from '@/lib/storage/uploads';
+import { contentTypeForAnyFile } from '@/lib/files/upload-resilience';
 
 export const FILE_EXPLORER_BUCKET = 'file-explorer';
 
@@ -67,20 +68,9 @@ export function isPreviewable(m: string | null | undefined): boolean {
 }
 
 /** A content type worth storing, even when the browser hands over an empty one — which some Android
- *  camera apps do for their own recordings. Without it the row says `application/octet-stream` and
- *  the viewer has no idea it is holding a video. */
+ *  camera apps do for their own recordings, and Android does for every survey file (.job, .rw5,
+ *  .csv on some builds). Without it the row says `application/octet-stream` and the viewer has no
+ *  idea what it is holding. One table for every upload surface: `contentTypeForAnyFile`. */
 export function contentTypeForUpload(name: string, mime?: string | null): string {
-  const given = (mime ?? '').trim();
-  if (given) return given;
-  return isVideoUpload(name, null) ? videoTypeByExtension(name) : 'application/octet-stream';
-}
-
-function videoTypeByExtension(name: string): string {
-  const ext = name.toLowerCase().split('.').pop() ?? '';
-  const byExt: Record<string, string> = {
-    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
-    mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', '3g2': 'video/3gpp2',
-    mpg: 'video/mpeg', mpeg: 'video/mpeg', hevc: 'video/hevc',
-  };
-  return byExt[ext] ?? 'application/octet-stream';
+  return contentTypeForAnyFile(name, mime);
 }

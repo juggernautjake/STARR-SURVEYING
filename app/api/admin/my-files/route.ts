@@ -3,7 +3,10 @@
 // caller's email — users only ever see/manage their own files.
 //
 // GET    /api/admin/my-files            — list my files (each with a signed download URL)
-// POST   /api/admin/my-files            — upload { dataUrl, name, folder?, description? }
+// POST   /api/admin/my-files            — save a row for bytes already in storage
+//                                          { storage_path, name, size_bytes, mime_type?, folder?, description? }
+//                                          (signed by /api/admin/my-files/upload — 2026-10-01), or the
+//                                          legacy { dataUrl, name, folder?, description? } for small files
 // DELETE /api/admin/my-files?id=<id>    — delete a file (storage object + row)
 //
 // Storage: seeds/295_user_files.sql (private `user-files` bucket + user_files table).
@@ -14,6 +17,8 @@ import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
 import { DELETE_HANDLERS } from '@/lib/files/delete-handlers';
+import { checkMyFilesUpload, ownsStoragePath } from '@/lib/files/my-files-upload';
+import { contentTypeForAnyFile } from '@/lib/files/upload-resilience';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -59,7 +64,44 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json() as { dataUrl?: string; name?: string; folder?: string; description?: string };
+  const body = await req.json().catch(() => ({})) as {
+    dataUrl?: string; name?: string; folder?: string; description?: string;
+    storage_path?: string; size_bytes?: number; mime_type?: string;
+  };
+
+  // ── The bytes went straight to storage (the path for every file since 2026-10-01) ──
+  if (body.storage_path !== undefined) {
+    const email = session.user.email;
+    if (!ownsStoragePath(email, body.storage_path)) {
+      return NextResponse.json({ error: 'That upload does not belong to you.' }, { status: 403 });
+    }
+    const check = checkMyFilesUpload({ name: body.name, sizeBytes: body.size_bytes });
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
+    // The object must really be there — a row pointing at nothing is a file that cannot be opened.
+    const slash = body.storage_path.lastIndexOf('/');
+    const { data: found } = await supabaseAdmin.storage.from(BUCKET)
+      .list(body.storage_path.slice(0, slash), { search: body.storage_path.slice(slash + 1), limit: 1 });
+    if (!found?.length) {
+      return NextResponse.json({ error: 'The file did not finish uploading. Try again.' }, { status: 409 });
+    }
+    const fileName = (body.name ?? 'file').trim() || 'file';
+    const { data, error } = await supabaseAdmin
+      .from('user_files')
+      .insert({
+        user_email: email,
+        file_name: fileName,
+        file_type: contentTypeForAnyFile(fileName, body.mime_type),
+        file_size: body.size_bytes,
+        storage_path: body.storage_path,
+        folder: body.folder && VALID_FOLDERS.has(body.folder) ? body.folder : 'other',
+        description: body.description ?? null,
+      })
+      .select(SELECT_COLS)
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ file: data }, { status: 201 });
+  }
+
   if (typeof body.dataUrl !== 'string' || !body.dataUrl.startsWith('data:')) {
     return NextResponse.json({ error: 'Expected a base64 data URL in "dataUrl".' }, { status: 400 });
   }

@@ -16,6 +16,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { UploadCloud, FileCheck, AlertTriangle } from 'lucide-react';
+import {
+  FUNCTION_BODY_LIMIT_BYTES, fitsThroughFunction, snapshotFile, runWithRetry, asStep, classifyError,
+  classifyUploadFailure, readJsonLoose,
+} from '@/lib/files/upload-resilience';
+import { startFailure } from '@/lib/jobs/upload-client';
 
 interface Batch {
   id: string;
@@ -51,25 +56,44 @@ export default function CollectorArrivals({ jobId }: { jobId?: string }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const upload = useCallback(async (file: File) => {
+  const upload = useCallback(async (picked: File) => {
     setBusy(true);
     setResult(null);
+    const ctx = { fileName: picked.name, sizeBytes: picked.size, buffered: true };
     try {
+      // The whole file travels in this request, through a function Vercel caps at 4.5 MB. Said
+      // before sending, with where a bigger file can go instead (2026-10-01).
+      if (!fitsThroughFunction(picked.size)) {
+        setResult({
+          ok: false,
+          message: `“${picked.name}” is ${(picked.size / 1024 / 1024).toFixed(1)} MB — too big to import here (up to `
+            + `${FUNCTION_BODY_LIMIT_BYTES / 1024 / 1024} MB). Use Upload files on the job to store it in the CAD folder, or export a smaller file (for example a CSV of just the points).`,
+        });
+        return;
+      }
+      // A copy in memory: Android aborts a request whose file changed after it was picked — a job
+      // still open in Trimble Access — and reports it as a network error.
+      const file = await snapshotFile(picked);
       const form = new FormData();
       form.append('file', file);
       if (jobId) form.append('jobId', jobId);
-      const res = await fetch('/api/admin/field-ingest', { method: 'POST', body: form });
-      const d = await res.json();
+      const res = await runWithRetry(async () => {
+        const r = await asStep('send', () => fetch('/api/admin/field-ingest', { method: 'POST', body: form }));
+        if (r.status >= 500 || r.status === 429 || r.status === 408) throw await startFailure(r, file.name, 'start');
+        return r;
+      }, { classify: (err) => classifyError(err, { ...ctx, online: navigator.onLine !== false }) });
+      const d = await readJsonLoose(res);
       if (!res.ok) {
         // The parser's own message is shown rather than a generic failure: "no recognisable points"
         // and "this is a Leica GSI-8 with a truncated block" send the reader to different places.
-        setResult({ ok: false, message: d.error || 'That file could not be read.' });
+        const fallback = classifyUploadFailure({ status: res.status, phase: 'start' }, ctx).message;
+        setResult({ ok: false, message: d.error || fallback });
         return;
       }
-      setResult({ ok: true, message: d.message, warnings: d.warnings ?? [] });
+      setResult({ ok: true, message: String(d.message ?? 'Imported.'), warnings: (d.warnings as string[] | undefined) ?? [] });
       void refresh();
-    } catch {
-      setResult({ ok: false, message: 'The upload did not reach the server.' });
+    } catch (err) {
+      setResult({ ok: false, message: err instanceof Error ? err.message : 'The upload did not reach the server.' });
     } finally {
       setBusy(false);
     }

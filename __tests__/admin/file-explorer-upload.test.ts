@@ -69,7 +69,9 @@ describe('a video kept in the Files area is watchable there', () => {
     expect(contentTypeForUpload('clip.MP4', null)).toBe('video/mp4');
     // A type the browser DID give is authoritative — guessing over it is how a .bin becomes a video.
     expect(contentTypeForUpload('drawing.pdf', 'application/pdf')).toBe('application/pdf');
-    expect(contentTypeForUpload('points.csv', '')).toBe('application/octet-stream');
+    // 2026-10-01: every extension the table knows, not only video — Android sends no type for a CSV.
+    expect(contentTypeForUpload('points.csv', '')).toBe('text/csv');
+    expect(contentTypeForUpload('Smith.job', '')).toBe('application/octet-stream');
   });
 });
 

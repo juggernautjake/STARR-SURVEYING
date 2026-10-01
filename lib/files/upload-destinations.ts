@@ -21,6 +21,7 @@ import {
   type JobFolderKey, type NamedFolderRoot,
 } from './job-folders';
 import { fileKind } from './viewer-model';
+import { SURVEY_FILE_EXT } from './upload-resilience';
 
 export type UploadOwner =
   | { kind: 'job'; jobId: string }
@@ -215,8 +216,41 @@ export function suggestFolderKey(file: { name: string; type?: string | null }): 
   const kind = fileKind(file.name, file.type ?? null);
   if (kind === 'image') return 'photos';
   if (kind === 'video') return 'videos';
-  if (/\.(dwg|dxf|dgn|jxl|dc|job|vce|starr|crd|rw5|raw|csv|txt)$/i.test(file.name)) return 'cad';
+  // Every survey-instrument and CAD format, including the Trimble ones Android cannot name a type
+  // for (.job, .trv, .trb, .rw5, .dc) — see SURVEY_FILE_EXT.
+  if (SURVEY_FILE_EXT.test(file.name)) return 'cad';
   return 'documents';
+}
+
+/**
+ * A FOLDER INSTEAD OF A REFUSAL (2026-10-01).
+ *
+ * A file inherits the folder the person was looking at. When that folder takes one medium only —
+ * a `.job` dropped while Photos was open — the file used to sit there with no folder and a red
+ * "photos only", which on a phone reads as "this website will not take my file". Now it goes to
+ * the folder it belongs in (CAD for a survey file, Documents for the rest) and says so; the
+ * dropdown is right there to change it.
+ *
+ * Returns the id to use ('' when nothing fits), and a note when it moved the file.
+ */
+export function resolveDestination(
+  destinations: readonly UploadDestination[],
+  chosenId: string,
+  file: { name: string; type?: string | null },
+): { id: string; rerouted: boolean; note?: string } {
+  const chosen = destinations.find((d) => d.id === chosenId);
+  if (!chosen) return { id: chosenId, rerouted: false };
+  if (destinationAccepts(chosen, file)) return { id: chosen.id, rerouted: false };
+  // The same job's suggestion first; then that job's catch-all Documents; then nothing.
+  const sameGroup = destinations.filter((d) => d.groupId === chosen.groupId);
+  const suggestion = suggestDestination(sameGroup, file);
+  const docs = sameGroup.find((d) => d.folderId === null && parseJobFolderId(d.id)?.folder === 'documents');
+  const fallback = [suggestion, docs].find((d): d is UploadDestination => Boolean(d && destinationAccepts(d, file)));
+  if (!fallback) return { id: '', rerouted: false };
+  return {
+    id: fallback.id, rerouted: true,
+    note: `${chosen.label} takes ${refusalFor(chosen)}, so this goes in ${fallback.label} — change it if you like.`,
+  };
 }
 
 /**

@@ -29,21 +29,27 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Upload, X, FolderPlus, FileText, Image as ImageIcon, Film, Music, Archive, CheckCircle2, AlertCircle, Loader2,
-  RotateCcw, Trash2, Scissors, Sparkles,
+  RotateCcw, Trash2, Scissors, Sparkles, Camera, Video, Images, FolderOpen, HardDrive, WifiOff, HelpCircle,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import type { MountTree } from '@/lib/files/mount-node';
 import {
   destinationsFromTree, destinationAccepts, refusalFor, suggestDestination, groupDestinations, withNewFolder,
-  planAutoSort, canAutoSort,
+  planAutoSort, canAutoSort, resolveDestination,
   type UploadDestination, type NewFolderParent,
 } from '@/lib/files/upload-destinations';
 import { checkFolderName, detectJobFileType } from '@/lib/files/job-folders';
 import { fileKind } from '@/lib/files/viewer-model';
-import { uploadJobFileBytes, uploadProjectFileBytes, putWithProgress } from '@/lib/jobs/upload-client';
+import { uploadJobFileBytes, uploadProjectFileBytes, putWithProgress, startFailure, type JobUploadResult } from '@/lib/jobs/upload-client';
 import { contentTypeForUpload } from '@/lib/files/upload';
+import {
+  snapshotFile, planSnapshots, preflight, classifyError, runWithRetry, asStep, planPickers, isJunkFile,
+  duplicateNames, MAX_ATTEMPTS, TRIMBLE_HELP, type PickerPlan,
+} from '@/lib/files/upload-resilience';
+import { prepareFilesForUpload } from '@/lib/images/heic';
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { maxBytesFor, isVideoUpload } from '@/lib/jobs/file-storage';
-import { contentTypeFor, megabytes } from '@/lib/storage/uploads';
+import { contentTypeFor, megabytes, uploadCapBytes } from '@/lib/storage/uploads';
 import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
 import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
@@ -82,6 +88,27 @@ interface Item {
   loaded: number;
   error?: string;
   split?: { phase: 'measuring' | 'confirm' | 'splitting'; message: string; plan?: SplitPlan };
+  /** Being copied into memory (see `snapshotFile` — the TDC600 "network error" fix). */
+  reading?: boolean;
+  /** Copied into memory: the upload no longer depends on the file on the device. */
+  buffered?: boolean;
+  /** The device would not let the page read it; a retry tries reading again. */
+  unreadable?: boolean;
+  /** Why the folder was chosen for it ("Photos takes photos only, so this goes in CAD"). */
+  note?: string;
+  /** What the automatic retry is doing right now. */
+  retryNote?: string;
+}
+
+/** Wait for the browser to say it is back online (at most ten minutes, then try anyway). */
+function waitForOnline(onWait: () => void): Promise<void> {
+  if (typeof navigator === 'undefined' || navigator.onLine !== false) return Promise.resolve();
+  onWait();
+  return new Promise((resolve) => {
+    const done = () => { window.removeEventListener('online', done); window.clearTimeout(timer); resolve(); };
+    const timer = window.setTimeout(done, 10 * 60_000);
+    window.addEventListener('online', done);
+  });
 }
 
 interface NewFolderDraft {
@@ -94,6 +121,12 @@ interface NewFolderDraft {
 }
 
 const NEW_FOLDER = '__new__';
+
+/** The sentence for a 0-byte file — the same one `preflight` refuses it with. */
+function emptyMessage(name: string): string {
+  const check = preflight({ name, size: 0 }, Number.MAX_SAFE_INTEGER);
+  return check.ok ? '' : check.message;
+}
 let seq = 0;
 
 function KindIcon({ file }: { file: File }) {
@@ -123,6 +156,14 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
   const [keepInBackground, setKeepInBackground] = useState(false);
   const [batch, setBatch] = useState<{ at: number; total: number }>({ at: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
+  const photosRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const recordRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement | null>(null);
+  const [picker, setPicker] = useState<PickerPlan | null>(null);
+  const [online, setOnline] = useState(true);
+  const itemsRef = useRef<Item[]>([]);
+  itemsRef.current = items;
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const dragDepth = useRef(0);
@@ -165,8 +206,17 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
     setDraft(null);
     setDragOver(false);
     setKeepInBackground(false);
-    setItems(makeItems(initialFiles ?? [], initialDestinationId ?? '', []));
+    itemsRef.current = [];
+    setItems([]);
+    if (initialFiles?.length) addFiles(initialFiles, []);
     setScopeId(rootId);
+    // Which pickers this device gets — decided in the browser, never during a server render.
+    setPicker(planPickers({
+      userAgent: navigator.userAgent,
+      hasOpenFilePicker: typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === 'function',
+      coarsePointer: Boolean(window.matchMedia?.('(pointer: coarse)').matches),
+      supportsDirectory: 'webkitdirectory' in document.createElement('input'),
+    }));
     setTree(null);
     void loadTree(rootId);
     if (allowScopeChange) void loadScopes();
@@ -246,18 +296,75 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
   }, [open, uploading, draft, onClose]);
 
   // ── adding files ──
-  const addFiles = useCallback((list: FileList | File[] | null) => {
-    if (!list || list.length === 0) return;
-    const files = Array.from(list);
-    setItems((cur) => {
-      // A new file inherits the folder every other waiting file shares, when they all share one.
-      const waiting = cur.filter((i) => i.status === 'waiting');
-      const shared = waiting.length > 0 && waiting.every((i) => i.destId === waiting[0].destId) ? waiting[0].destId : '';
-      return [...cur, ...makeItems(files, shared || initialDestinationId || '', cur)];
-    });
+  /**
+   * Every picker, drop and paste lands here. Two things happen that did not before 2026-10-01:
+   *
+   *   - a file that failed is REPLACED when it is chosen again, rather than refused as a duplicate
+   *     (choosing it again is exactly what the "could not read" message tells people to do);
+   *   - small files are copied into memory straight away (`snapshotFile`). On Android, Chrome
+   *     aborts an upload whose file changed after it was picked, and reports it as a network error
+   *     — the TDC600 failure. A copy in memory cannot change.
+   */
+  const addFiles = useCallback((list: FileList | File[] | null, base?: Item[]) => {
+    // Copied BEFORE the inputs are cleared: `input.files` is live, and clearing the input empties it.
+    const files = Array.from(list ?? []).filter((f) => !isJunkFile(f.name));
+    for (const el of [inputRef.current, photosRef.current, cameraRef.current, recordRef.current, folderRef.current]) {
+      if (el) el.value = '';
+    }
+    if (files.length === 0) return;
+    const cur = base ?? itemsRef.current;
+    const names = new Set(files.map((f) => f.name));
+    const kept = cur.filter((i) => !(i.status === 'failed' && names.has(i.file.name)));
+    // A new file inherits the folder every other waiting file shares, when they all share one.
+    const waiting = kept.filter((i) => i.status === 'waiting');
+    const shared = waiting.length > 0 && waiting.every((i) => i.destId === waiting[0].destId) ? waiting[0].destId : '';
+    const fresh = makeItems(files, shared || initialDestinationId || '', kept);
+    const inMemory = kept.filter((i) => i.buffered).reduce((n, i) => n + i.file.size, 0);
+    const plan = planSnapshots(fresh.map((i) => i.file.size), inMemory);
+    const marked = fresh.map((i, n) => (plan[n] ? { ...i, reading: true } : i));
+    const next = [...kept, ...marked];
+    itemsRef.current = next;
+    setItems(next);
     if (phase === 'finished') setPhase('choose');
-    if (inputRef.current) inputRef.current.value = '';
+    void bufferItems(marked.filter((i) => i.reading));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [makeItems, initialDestinationId, phase]);
+
+  /** Copy picked files into memory, one at a time (a controller has little RAM to spare). */
+  async function bufferItems(list: Item[]) {
+    for (const it of list) {
+      try {
+        const copy = await snapshotFile(it.file);
+        update(it.key, { file: copy, reading: false, buffered: true, unreadable: false });
+      } catch (err) {
+        update(it.key, { reading: false, unreadable: true, status: 'failed', error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+
+  /**
+   * "Choose files…". On Android Chrome 132+ this opens the SYSTEM Files picker directly (internal
+   * storage, Downloads, Drive and every other provider in its side menu) — the browser's own chooser
+   * there can offer Drive and Photos without the Files app the owner needs. Anywhere else, and if
+   * the system picker fails for any reason but "cancelled", it is the ordinary file input, which
+   * has no `accept` on purpose: a type list narrows Android's picker and greys out `.job` files.
+   */
+  async function chooseFiles() {
+    if (picker?.primary === 'system-files') {
+      const w = window as unknown as { showOpenFilePicker?: (o: { multiple: boolean }) => Promise<Array<{ getFile(): Promise<File> }>> };
+      try {
+        const handles = await w.showOpenFilePicker!({ multiple: true });
+        const picked = await Promise.all(handles.map((h) => h.getFile()));
+        // The HEIC guard watches <input> events; files from this picker go through it by hand.
+        const prepared = await prepareFilesForUpload(picked, { destination: 'any-file' });
+        addFiles(prepared.files);
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      }
+    }
+    inputRef.current?.click();
+  }
 
   const update = (key: string, patch: Partial<Item> | ((i: Item) => Partial<Item>)) =>
     setItems((cur) => cur.map((i) => (i.key === key ? { ...i, ...(typeof patch === 'function' ? patch(i) : patch) } : i)));
@@ -398,105 +505,150 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
   }
 
   // ── uploading ──
+  /**
+   * One file: sign → send the bytes straight to storage → save the row, tried up to MAX_ATTEMPTS
+   * times with a growing wait when the failure is one that can pass (a dropped connection, a 5xx,
+   * an expired link). Offline, it waits for the connection instead of failing. Once the bytes are
+   * in storage, a retry repeats only the save — never the transfer. Whatever finally fails is said
+   * in words: what failed, and what to do.
+   */
   async function uploadOne(item: Item, dest: UploadDestination): Promise<boolean> {
-    const onProgress = (p: { pct: number; loaded: number }) =>
-      update(item.key, { pct: p.pct, loaded: p.loaded, status: p.pct >= 100 ? 'finishing' : 'uploading' });
+    let file = item.file;
+    const check = preflight(file, maxBytesFor(file.name, file.type));
+    if (!check.ok) { update(item.key, { status: 'failed', error: check.message }); return false; }
 
-    // ── A File Explorer folder: the explorer's own three-step (sign → PUT → complete) ──
-    if (dest.owner.kind === 'explorer') {
-      const parentId = dest.owner.parentId;
-      update(item.key, { status: 'uploading', pct: 0, loaded: 0, error: undefined });
+    // A file the device would not hand over: try reading it once more before anything else.
+    let buffered = Boolean(item.buffered);
+    if (item.unreadable) {
+      update(item.key, { status: 'uploading', pct: 0, loaded: 0, error: undefined, retryNote: 'Reading the file again…' });
       try {
-        const init = await fetch('/api/admin/files/upload', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parent_id: parentId, name: item.file.name, size_bytes: item.file.size }),
-        });
-        if (!init.ok) throw new Error((await init.json().catch(() => ({}))).error ?? `Could not start uploading ${item.file.name}.`);
-        const { signed_url, path } = await init.json();
-        await putWithProgress(signed_url, item.file, onProgress);
-        update(item.key, { status: 'finishing', pct: 100 });
-        const done = await fetch('/api/admin/files/upload/complete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parent_id: parentId, name: item.file.name, path, mime_type: contentTypeForUpload(item.file.name, item.file.type), size_bytes: item.file.size }),
-        });
-        if (!done.ok) throw new Error((await done.json().catch(() => ({}))).error ?? `The file went up, but ${item.file.name} could not be saved to the folder.`);
-        update(item.key, { status: 'done', pct: 100, loaded: item.file.size });
-        return true;
+        file = await snapshotFile(file);
+        buffered = true;
+        update(item.key, { file, buffered: true, unreadable: false });
       } catch (err) {
-        update(item.key, { status: 'failed', error: err instanceof Error ? err.message : `Could not upload ${item.file.name}.` });
+        update(item.key, { status: 'failed', retryNote: undefined, error: err instanceof Error ? err.message : String(err) });
         return false;
       }
     }
 
-    const owner = dest.owner.kind === 'job' ? { job_id: dest.owner.jobId } : { project_id: dest.owner.projectId };
-    const rowBody = (bytes: { file_id: string; storage_path: string; storage_bucket: string }) => ({
+    const onProgress = (p: { pct: number; loaded: number }) =>
+      update(item.key, { pct: p.pct, loaded: p.loaded, status: p.pct >= 100 ? 'finishing' : 'uploading', retryNote: undefined });
+    const ctx = { fileName: file.name, sizeBytes: file.size, buffered };
+    const owner = dest.owner.kind === 'job' ? { job_id: dest.owner.jobId } : dest.owner.kind === 'project' ? { project_id: dest.owner.projectId } : {};
+    const mime = contentTypeForUpload(file.name, file.type);
+    const rowBody = (bytes: JobUploadResult) => ({
       ...owner,
       file_id: bytes.file_id, storage_path: bytes.storage_path, storage_bucket: bytes.storage_bucket,
-      file_name: item.file.name, file_type: dest.fileType ?? detectJobFileType(item.file.name),
-      file_size: item.file.size, mime_type: item.file.type, section: dest.section, description: '',
+      file_name: file.name, file_type: dest.fileType ?? detectJobFileType(file.name),
+      file_size: file.size, mime_type: mime, section: dest.section, description: '',
       ...(dest.folderId ? { folder_id: dest.folderId } : {}),
     });
 
-    update(item.key, { status: 'uploading', pct: 0, loaded: 0, error: undefined });
-    try {
-      if (keepInBackground && bgAvailable) {
-        const init = await fetch('/api/admin/jobs/files/upload', {
+    // What has already happened, kept across attempts so a retry never re-sends the bytes.
+    let sent: { explorerPath?: string; bytes?: JobUploadResult } | null = null;
+
+    const attemptOnce = async (): Promise<'done' | 'handed-off'> => {
+      // ── A File Explorer folder: the explorer's own three-step (sign → PUT → complete) ──
+      if (dest.owner.kind === 'explorer') {
+        const parentId = dest.owner.parentId;
+        if (!sent) {
+          const init = await asStep('start', () => fetch('/api/admin/files/upload', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent_id: parentId, name: file.name, size_bytes: file.size }),
+          }));
+          if (!init.ok) throw await startFailure(init, file.name);
+          const { signed_url, path } = await init.json();
+          await putWithProgress(signed_url, file, onProgress);
+          sent = { explorerPath: path };
+        }
+        update(item.key, { status: 'finishing', pct: 100 });
+        const explorerPath = sent.explorerPath;
+        const done = await asStep('save', () => fetch('/api/admin/files/upload/complete', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...owner, name: item.file.name, size_bytes: item.file.size, mime_type: item.file.type }),
-        });
-        if (!init.ok) throw new Error((await init.json().catch(() => ({}))).error ?? `Could not start uploading ${item.file.name}.`);
+          body: JSON.stringify({ parent_id: parentId, name: file.name, path: explorerPath, mime_type: mime, size_bytes: file.size }),
+        }));
+        if (!done.ok) throw await startFailure(done, file.name, 'save');
+        return 'done';
+      }
+
+      if (!sent && keepInBackground && bgAvailable) {
+        const init = await asStep('start', () => fetch('/api/admin/jobs/files/upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size, mime_type: mime }),
+        }));
+        if (!init.ok) throw await startFailure(init, file.name);
         const started = await init.json();
+        const bytes: JobUploadResult = { file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket };
         const handed = await startBackgroundUpload({
-          signedUrl: started.signed_url, file: item.file, contentType: contentTypeFor(item.file.name, item.file.type),
+          signedUrl: started.signed_url, file, contentType: contentTypeFor(file.name, mime),
           row: {
             id: started.file_id, rowEndpoint: '/api/admin/jobs/files',
-            rowBody: rowBody({ file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket }),
-            fileName: item.file.name, sizeBytes: item.file.size,
-            openUrl: dest.owner.kind === 'job' ? `/admin/jobs/${dest.owner.jobId}` : `/admin/projects/${dest.owner.projectId}`,
+            rowBody: rowBody(bytes),
+            fileName: file.name, sizeBytes: file.size,
+            openUrl: dest.owner.kind === 'job' ? `/admin/jobs/${dest.owner.jobId}` : dest.owner.kind === 'project' ? `/admin/projects/${dest.owner.projectId}` : '/admin/files',
           },
         });
-        if (handed) { update(item.key, { status: 'handed-off', pct: 100 }); return true; }
+        if (handed) return 'handed-off';
         // Declined: the signed URL is unused, so the same one goes up in the page instead.
-        await putInPage(item, started.signed_url);
-        await saveRow(rowBody({ file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket }), item.file.name);
-      } else {
-        const bytes = dest.owner.kind === 'job'
-          ? await uploadJobFileBytes(dest.owner.jobId, item.file, onProgress)
-          : await uploadProjectFileBytes(dest.owner.projectId, item.file, onProgress);
-        update(item.key, { status: 'finishing', pct: 100 });
-        await saveRow(rowBody(bytes), item.file.name);
+        await putWithProgress(started.signed_url, file, onProgress);
+        sent = { bytes };
       }
-      update(item.key, { status: 'done', pct: 100, loaded: item.file.size });
+      if (!sent) {
+        const bytes = dest.owner.kind === 'job'
+          ? await uploadJobFileBytes(dest.owner.jobId, file, onProgress)
+          : await uploadProjectFileBytes(dest.owner.kind === 'project' ? dest.owner.projectId : '', file, onProgress);
+        sent = { bytes };
+      }
+      update(item.key, { status: 'finishing', pct: 100 });
+      await saveRow(rowBody(sent.bytes!), file.name);
+      return 'done';
+    };
+
+    update(item.key, { status: 'uploading', pct: 0, loaded: 0, error: undefined, retryNote: undefined });
+    try {
+      const outcome = await runWithRetry(async (attempt) => {
+        if (attempt > 1 && !sent) update(item.key, { status: 'uploading', pct: 0, loaded: 0 });
+        return attemptOnce();
+      }, {
+        classify: (err) => classifyError(err, { ...ctx, online: typeof navigator === 'undefined' ? true : navigator.onLine !== false }),
+        waitForOnline: () => waitForOnline(() => update(item.key, { retryNote: 'This device is offline — waiting for the connection to come back…' })),
+        onRetry: ({ nextAttempt, delayMs, failure }) => update(item.key, {
+          retryNote: `${failure.message} Trying again${delayMs > 0 ? ` in ${Math.max(1, Math.round(delayMs / 1000))} s` : ''} (try ${nextAttempt} of ${MAX_ATTEMPTS}).`,
+        }),
+      });
+      update(item.key, { status: outcome, pct: 100, loaded: file.size, retryNote: undefined, error: undefined });
       return true;
     } catch (err) {
-      update(item.key, { status: 'failed', error: err instanceof Error ? err.message : `Could not upload ${item.file.name}.` });
+      update(item.key, { status: 'failed', retryNote: undefined, error: err instanceof Error ? err.message : `Could not upload ${file.name}.` });
       return false;
     }
   }
 
-  async function putInPage(item: Item, signedUrl: string) {
-    const res = await fetch(signedUrl, { method: 'PUT', headers: { 'Content-Type': contentTypeFor(item.file.name, item.file.type) }, body: item.file });
-    if (!res.ok) throw new Error(`Could not upload ${item.file.name} (HTTP ${res.status}).`);
-  }
-
   async function saveRow(body: Record<string, unknown>, name: string) {
-    const res = await fetch('/api/admin/jobs/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? `The file went up, but ${name} could not be saved to the folder.`); }
+    const res = await asStep('save', () => fetch('/api/admin/jobs/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+    if (!res.ok) throw await startFailure(res, name, 'save');
   }
 
+  /** A file with nothing in it — known only once it has been read, since Android can report 0 for a
+   *  file it has not opened yet. */
+  const isEmpty = (i: Item) => !i.reading && i.file.size === 0;
   const pending = items.filter((i) => i.status === 'waiting' || i.status === 'failed');
-  const needFolder = pending.filter((i) => !destOf(i) && !tooBig(i.file));
+  const needFolder = pending.filter((i) => !destOf(i) && !tooBig(i.file) && !isEmpty(i));
   const oversize = pending.filter((i) => tooBig(i.file));
-  const ready = pending.filter((i) => destOf(i) && !tooBig(i.file) && !i.split);
-  const canUpload = !uploading && ready.length > 0 && needFolder.length === 0 && !draft;
+  const reading = items.filter((i) => i.reading);
+  const ready = pending.filter((i) => destOf(i) && !tooBig(i.file) && !isEmpty(i) && !i.split && !i.reading);
+  const failedReady = ready.filter((i) => i.status === 'failed');
+  const canUpload = !uploading && ready.length > 0 && needFolder.length === 0 && reading.length === 0 && !draft;
+  const dupes = useMemo(() => duplicateNames(items.map((i) => i.file)), [items]);
 
-  async function uploadAll() {
+  /** Every file still to go, one at a time. A file that fails never stops the ones after it. */
+  async function uploadAll(onlyFailed = false) {
     if (!canUpload) return;
     if (keepInBackground && bgAvailable) await ensureNotifyPermission();
     setPhase('uploading');
     const used = new Set<string>();
     let saved = 0;
-    const batchItems = ready;
+    const batchItems = onlyFailed ? failedReady : ready;
     for (const [n, item] of batchItems.entries()) {
       const dest = destOf(item);
       if (!dest) continue;
@@ -516,6 +668,60 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
     setPhase('finished');
     if (ok) onUploaded?.({ count: 1, destinationIds: [dest.id] });
   }
+
+  // ── a file that inherited a folder which refuses it goes where it belongs instead ──
+  useEffect(() => {
+    if (destinations.length === 0) return;
+    setItems((cur) => {
+      let changed = false;
+      const next = cur.map((i) => {
+        if (i.status !== 'waiting' || !i.destId) return i;
+        const r = resolveDestination(destinations, i.destId, i.file);
+        if (!r.rerouted) return i;
+        changed = true;
+        return { ...i, destId: r.id, note: r.note };
+      });
+      return changed ? next : cur;
+    });
+  }, [destinations, items.length]);
+
+  // ── online / offline, shown in the pop-up and waited for by every upload ──
+  useEffect(() => {
+    if (!open) return;
+    const set = () => setOnline(navigator.onLine !== false);
+    set();
+    window.addEventListener('online', set);
+    window.addEventListener('offline', set);
+    return () => { window.removeEventListener('online', set); window.removeEventListener('offline', set); };
+  }, [open]);
+
+  // ── keep the screen on while uploading, and warn before leaving mid-upload ──
+  // A controller that sleeps mid-transfer suspends the page and the upload with it. The Wake Lock
+  // is released by the browser whenever the page is hidden, so it is asked for again on return.
+  useEffect(() => {
+    if (phase !== 'uploading') return;
+    type Sentinel = { release(): Promise<void> };
+    const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<Sentinel> } };
+    let lock: Sentinel | null = null;
+    let finished = false;
+    const acquire = () => {
+      if (!nav.wakeLock) return;
+      nav.wakeLock.request('screen')
+        .then((l) => { if (finished) void l.release().catch(() => {}); else lock = l; })
+        .catch(() => { /* refused (battery saver, no permission): uploads still run */ });
+    };
+    acquire();
+    const onVisible = () => { if (document.visibilityState === 'visible') acquire(); };
+    const onLeave = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('beforeunload', onLeave);
+    return () => {
+      finished = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('beforeunload', onLeave);
+      void lock?.release().catch(() => {});
+    };
+  }, [phase]);
 
   // ── drag and drop anywhere on the pop-up ──
   const onDragEnter = (e: React.DragEvent) => {
@@ -654,18 +860,76 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
               </select>
             </label>
           )}
-          {/* ── 1. add files ── */}
+          {/* ── 1. add files ──
+              Several pickers, because one cannot serve every device (2026-10-01):
+                · "Choose files…" — no `accept` at all, ever. A type list narrows Android's picker to
+                  apps that claim those types (Photos, Drive) and greys out .job/.rw5/.trv files it
+                  cannot name. On Android Chrome 132+ it opens the system Files picker directly.
+                · "Other apps" — the browser's own chooser, beside the system picker (Drive etc.).
+                · "Photos & videos" — the gallery, on touch devices.
+                · "Take photo" / "Record video" — `capture`, which must never be on the general
+                  picker or it can only open the camera.
+                · "Choose a folder…" — desktop only, where `webkitdirectory` really works. */}
           <input ref={inputRef} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input" />
+          <input ref={photosRef} type="file" multiple hidden accept={`image/*,${HEIC_ACCEPT},video/*`} onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input-photos" />
+          <input ref={cameraRef} type="file" hidden accept="image/*" capture="environment" onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input-camera" />
+          <input ref={recordRef} type="file" hidden accept="video/*" capture="environment" onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input-record" />
+          <input
+            ref={(el) => { folderRef.current = el; el?.setAttribute('webkitdirectory', ''); }}
+            type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} data-testid="ufd-input-folder"
+          />
           <div className={`ufd__drop${items.length > 0 ? ' ufd__drop--compact' : ''}${dragOver ? ' ufd__drop--over' : ''}`}>
             <span className="ufd__drop-icon"><Upload size={items.length > 0 ? 20 : 34} aria-hidden="true" /></span>
             <div className="ufd__drop-text">
-              <strong>{dragOver ? 'Let go to add these files' : items.length > 0 ? 'Add more files' : 'Drag and drop files here'}</strong>
-              <span>{items.length > 0 ? 'Drop them here, or' : 'or choose them from your computer'}</span>
+              <strong>{dragOver ? 'Let go to add these files' : items.length > 0 ? 'Add more files' : picker?.photos ? 'Add files from this device' : 'Drag and drop files here'}</strong>
+              <span>{items.length > 0 ? (picker?.photos ? 'Choose more, or take a photo' : 'Drop them here, or') : picker?.photos ? 'Any file: survey data, photos, videos, PDFs' : 'or choose them from your computer'}</span>
             </div>
-            <button type="button" className="ufd__btn ufd__btn--primary ufd__btn--big" onClick={() => inputRef.current?.click()} disabled={uploading} data-testid="ufd-choose">
-              Choose files…
-            </button>
+            <div className="ufd__pickers">
+              <button type="button" className="ufd__btn ufd__btn--primary ufd__btn--big" onClick={() => void chooseFiles()} disabled={uploading} data-testid="ufd-choose">
+                {picker?.android ? <HardDrive size={16} aria-hidden="true" /> : null}
+                {picker?.android ? 'Choose files (Files app)…' : 'Choose files…'}
+              </button>
+              {picker?.otherApps && (
+                <button type="button" className="ufd__btn" onClick={() => inputRef.current?.click()} disabled={uploading} data-testid="ufd-choose-apps">
+                  <FolderOpen size={15} aria-hidden="true" /> Other apps (Drive…)
+                </button>
+              )}
+              {picker?.photos && (
+                <button type="button" className="ufd__btn" onClick={() => photosRef.current?.click()} disabled={uploading} data-testid="ufd-choose-photos">
+                  <Images size={15} aria-hidden="true" /> Photos &amp; videos
+                </button>
+              )}
+              {picker?.camera && (
+                <>
+                  <button type="button" className="ufd__btn" onClick={() => cameraRef.current?.click()} disabled={uploading} data-testid="ufd-take-photo">
+                    <Camera size={15} aria-hidden="true" /> Take photo
+                  </button>
+                  <button type="button" className="ufd__btn" onClick={() => recordRef.current?.click()} disabled={uploading} data-testid="ufd-record-video">
+                    <Video size={15} aria-hidden="true" /> Record video
+                  </button>
+                </>
+              )}
+              {picker?.folder && (
+                <button type="button" className="ufd__btn" onClick={() => folderRef.current?.click()} disabled={uploading} data-testid="ufd-choose-folder">
+                  <FolderOpen size={15} aria-hidden="true" /> Choose a folder…
+                </button>
+              )}
+            </div>
           </div>
+          <p className="ufd__limits" data-testid="ufd-limits">
+            Any file type — .job, .jxl, .csv, .rw5, .dc, .trv, .dxf, .dwg, PDFs, photos (HEIC too) and videos. Up to {megabytes(uploadCapBytes())} MB per file.
+          </p>
+          {picker?.photos && (
+            <details className="ufd__help" data-testid="ufd-trimble-help">
+              <summary><HelpCircle size={14} aria-hidden="true" /> {TRIMBLE_HELP.summary}</summary>
+              <ol>{TRIMBLE_HELP.steps.map((step) => <li key={step}>{step}</li>)}</ol>
+            </details>
+          )}
+          {!online && (
+            <p className="ufd__offline" role="status" data-testid="ufd-offline">
+              <WifiOff size={14} aria-hidden="true" /> This device is offline. Uploads will wait and carry on when the connection comes back — keep this window open.
+            </p>
+          )}
 
           {treeError && (
             <p className="ufd__error" role="alert">
@@ -726,8 +990,8 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
                   const refused = chosen && !destinationAccepts(chosen, item.file);
                   const big = tooBig(item.file);
                   const locked = item.status !== 'waiting' && item.status !== 'failed';
-                  const suggestion = !dest && !big ? suggestDestination(destinations, item.file) : null;
-                  const missing = !dest && !big && !locked;
+                  const suggestion = !dest && !big && !isEmpty(item) ? suggestDestination(destinations, item.file) : null;
+                  const missing = !dest && !big && !isEmpty(item) && !locked;
                   return (
                     <li key={item.key} className={`ufd__item ufd__item--${item.status}${missing && phase === 'choose' ? ' ufd__item--missing' : ''}`} data-testid="ufd-item">
                       <div className="ufd__item-main">
@@ -739,6 +1003,8 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
 
                         {big ? (
                           <span className="ufd__badge ufd__badge--bad">Too large</span>
+                        ) : isEmpty(item) ? (
+                          <span className="ufd__badge ufd__badge--bad">Empty</span>
                         ) : locked ? (
                           <span className="ufd__dest-locked" title={chosen ? `${chosen.group} › ${chosen.label}` : undefined}>
                             {chosen ? (multiGroup ? `${chosen.group} › ${chosen.label}` : chosen.label) : '—'}
@@ -779,11 +1045,20 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
                           <span className="ufd__progress-bar" style={{ width: `${item.pct}%` }} />
                         </div>
                       )}
-                      {item.status === 'uploading' && <p className="ufd__note">{formatBytes(item.loaded)} of {formatBytes(item.file.size)} · {item.pct}%</p>}
+                      {item.reading && <p className="ufd__note" data-testid="ufd-reading"><Loader2 size={12} className="ufd__spin motion-essential" aria-hidden="true" /> Reading the file…</p>}
+                      {item.retryNote && <p className="ufd__note ufd__note--warn" role="status" data-testid="ufd-retry-note">{item.retryNote}</p>}
+                      {item.status === 'uploading' && !item.retryNote && <p className="ufd__note">{formatBytes(item.loaded)} of {formatBytes(item.file.size)} · {item.pct}%</p>}
                       {item.status === 'finishing' && <p className="ufd__note">Saving it to the folder…</p>}
                       {item.status === 'done' && dest && <p className="ufd__note ufd__note--ok">Saved in {multiGroup ? `${dest.group} › ` : ''}{dest.label}</p>}
                       {item.status === 'handed-off' && <p className="ufd__note ufd__note--ok">Uploading in the background — you will be notified when it is done.</p>}
 
+                      {item.note && !locked && !refused && <p className="ufd__note" data-testid="ufd-reroute-note">{item.note}</p>}
+                      {dupes.has(item.file.name.toLowerCase()) && !locked && (
+                        <p className="ufd__note">Another file in this list has the same name — both will be kept.</p>
+                      )}
+                      {isEmpty(item) && item.status !== 'failed' && (
+                        <p className="ufd__note ufd__note--warn">{emptyMessage(item.file.name)}</p>
+                      )}
                       {refused && !locked && <p className="ufd__note ufd__note--warn">{chosen!.label} takes {refusalFor(chosen!)} — choose another folder.</p>}
                       {suggestion && !locked && !refused && (
                         <p className="ufd__note">
@@ -840,10 +1115,12 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
               <span><Loader2 size={14} className="ufd__spin motion-essential" aria-hidden="true" /> Uploading {batch.at} of {batch.total}… please keep this window open.</span>
             ) : phase === 'finished' && failedCount === 0 && pending.length === 0 ? (
               <span className="ufd__done"><CheckCircle2 size={16} aria-hidden="true" /> {doneCount} file{doneCount === 1 ? '' : 's'} uploaded.</span>
+            ) : reading.length > 0 ? (
+              <span><Loader2 size={14} className="ufd__spin motion-essential" aria-hidden="true" /> Reading {reading.length} file{reading.length === 1 ? '' : 's'}…</span>
             ) : needFolder.length > 0 ? (
               <span className="ufd__warn">Choose a folder for {needFolder.length} file{needFolder.length === 1 ? '' : 's'}.</span>
             ) : failedCount > 0 ? (
-              <span className="ufd__warn">{failedCount} file{failedCount === 1 ? '' : 's'} did not upload — press Retry, or Upload again.</span>
+              <span className="ufd__warn" data-testid="ufd-failed-summary">{failedCount} file{failedCount === 1 ? '' : 's'} did not upload — the reason is under each one. Press Retry failed to try again.</span>
             ) : (
               <span>{items.length} file{items.length === 1 ? '' : 's'} · {formatBytes(totalBytes)}{oversize.length > 0 ? ` · ${oversize.length} too large` : ''}</span>
             )}
@@ -857,6 +1134,11 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
             ) : (
               <>
                 <button type="button" className="ufd__btn" onClick={onClose} disabled={uploading}>Cancel</button>
+                {!uploading && failedReady.length > 0 && (
+                  <button type="button" className="ufd__btn" onClick={() => void uploadAll(true)} disabled={!canUpload} data-testid="ufd-retry-failed">
+                    <RotateCcw size={15} aria-hidden="true" /> Retry failed ({failedReady.length})
+                  </button>
+                )}
                 <button type="button" className="ufd__btn ufd__btn--primary ufd__btn--big" onClick={() => void uploadAll()} disabled={!canUpload} data-testid="ufd-upload">
                   {uploading ? <Loader2 size={16} className="ufd__spin motion-essential" aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}
                   {ready.length > 0 ? `Upload ${ready.length} file${ready.length === 1 ? '' : 's'}` : 'Upload'}
