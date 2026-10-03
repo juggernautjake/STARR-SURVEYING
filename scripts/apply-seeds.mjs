@@ -9,6 +9,7 @@
 //   node scripts/apply-seeds.mjs --from 220   # only files with prefix >= 220
 //   node scripts/apply-seeds.mjs --only 092_phase13_tables.sql
 //   node scripts/apply-seeds.mjs --dry-run     # list the plan, connect, apply nothing
+//   node scripts/apply-seeds.mjs --plan-only   # list the plan and stop — never connects
 //
 // Why this exists: the seeds are numbered for ordering (000, 001, 010, …,
 // 243) and almost all are idempotent — every CREATE TABLE uses
@@ -55,7 +56,10 @@ const getOpt = (name) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const INCLUDE_RESET = hasFlag('--reset');
-const DRY_RUN = hasFlag('--dry-run');
+// --plan-only is --dry-run without the connection: everything up to and including the guard and the
+// plan, then stop. It is what the guard's tests use, so they neither need nor touch a real database.
+const PLAN_ONLY = hasFlag('--plan-only');
+const DRY_RUN = hasFlag('--dry-run') || PLAN_ONLY;
 // Keep going past a file that errors (e.g. an INSERT colliding with rows
 // already live — many seeds are NOT fully idempotent). Each file manages
 // its own BEGIN/COMMIT, so on failure we ROLLBACK to clear the connection's
@@ -171,6 +175,7 @@ async function main() {
   }
   if (DRY_RUN) {
     files.forEach((f) => console.log('  · ' + f));
+    if (PLAN_ONLY) { console.log('plan-only: not connecting, applying nothing.'); return; }
     console.log('dry-run: connecting to verify credentials, applying nothing.');
   }
 

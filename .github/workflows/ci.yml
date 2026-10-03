@@ -24,6 +24,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history: some tests read the code as it was at an earlier commit (the hours portal
+          # checks its roles against the pages it replaced; design staleness diffs `<sha>~1`). The
+          # default depth-1 clone has neither, and those tests failed on every run.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
