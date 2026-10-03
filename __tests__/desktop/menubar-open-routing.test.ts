@@ -39,7 +39,8 @@ describe('MenuBar — processOpenedCadFile extraction', () => {
     const body = SRC.slice(start, end);
     expect(body).not.toMatch(/file\.text\(\)/);
     expect(body).not.toMatch(/file\.name/);
-    expect(body).toMatch(/importTrvFromText\(text, \{ fileName: name \}\)/);
+    // layerMode 'source' — File > Open keeps the TRV's own layers (trv-full-support).
+    expect(body).toMatch(/importTrvFromText\(text, \{ fileName: name, layerMode: 'source' \}\)/);
     expect(body).toMatch(/detectFileFormat\(name, text\)/);
     expect(body).toMatch(/Open \$\{name\} as a Traverse PC TRV\?/);
   });
@@ -83,7 +84,8 @@ describe('MenuBar — openFileDialog routes through both branches', () => {
 
   it('the web branch routes its loaded text through the same processOpenedCadFile helper', () => {
     expect(SRC).toMatch(
-      /text = await file\.text\(\)[\s\S]*?await processOpenedCadFile\(file\.name, text\)/,
+      // readTextFile, not file.text(): TRVs are Windows-1252 and file.text() assumes UTF-8.
+      /text = await readTextFile\(file\)[\s\S]*?await processOpenedCadFile\(file\.name, text\)/,
     );
   });
 });

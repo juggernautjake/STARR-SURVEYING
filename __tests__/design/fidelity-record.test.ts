@@ -27,6 +27,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { ENTRIES } from '@/lib/design/catalogue';
 
 const RECORD_PATH = 'lib/design/fidelity.generated.json';
@@ -203,14 +204,31 @@ describe('the editor matches the pages it stands in for', () => {
   });
 });
 
+// When the catalogue was last really edited. A file's mtime is not that: a fresh clone (every CI
+// run) stamps every file with the moment of checkout, so the record always looked months stale
+// there. The last commit is the edit time for committed files; mtime still counts for a file with
+// uncommitted changes, which is the case the check exists to catch while someone is working.
+function lastEdited(dir: string): number {
+  const mtime = (f: string) => fs.statSync(path.join(dir, f)).mtimeMs;
+  try {
+    const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+    const committed = Number(git('log', '-1', '--format=%ct', '--', dir)) * 1000;
+    const dirty = git('status', '--porcelain', '--', dir).split('\n').filter(Boolean)
+      .map((line) => path.basename(line.slice(3)))
+      .filter((f) => fs.existsSync(path.join(dir, f)));
+    if (!committed) throw new Error('no history');
+    return Math.max(committed, ...dirty.map(mtime));
+  } catch {
+    return fs.readdirSync(dir).map(mtime).reduce((a, b) => Math.max(a, b), 0);
+  }
+}
+
 describe('the record describes the catalogue that exists now', () => {
   it('is newer than the catalogue files it describes', () => {
     if (!record) return;
     const measured = Date.parse(record.measuredAt);
     const curated = 'lib/design/catalogue/curated';
-    const newest = fs.readdirSync(curated)
-      .map((f) => fs.statSync(path.join(curated, f)).mtimeMs)
-      .reduce((a, b) => Math.max(a, b), 0);
+    const newest = lastEdited(curated);
     // A record older than the entries it describes is describing something else. Half a day of
     // slack, because a curated file gets touched for a comment far more often than for a size.
     const SLACK_MS = 12 * 60 * 60 * 1000;

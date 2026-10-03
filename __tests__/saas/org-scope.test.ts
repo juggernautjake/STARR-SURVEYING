@@ -224,11 +224,16 @@ describe('the scope belongs to one request', () => {
     // The mechanism, reproduced exactly: the store is entered SYNCHRONOUSLY and filled later. Set it
     // inside the promise callback instead and this assertion fails — the continuation after `await`
     // resumes in the context captured when the await started.
-    async function handler() {
+    //
+    // Dispatched from its own setImmediate, as every request here is: a server gives each request
+    // its own async resource. Called straight from the test body, `enterWith` lands on vitest's
+    // runner instead, and on Node 20 that store outlives the test — the "does not leak" case below
+    // then saw STARR and failed, a leak between tests rather than between requests.
+    const handler = () => new Promise<string | null>((resolve) => setImmediate(async () => {
       const holder = beginOrgScope();
       await Promise.resolve().then(() => { holder.orgId = STARR; });
-      return currentRequestOrgId();
-    }
+      resolve(currentRequestOrgId());
+    }));
     await expect(handler()).resolves.toBe(STARR);
   });
 
