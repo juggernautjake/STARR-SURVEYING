@@ -90,10 +90,12 @@ export interface ProblemTemplate {
 // MATH EVALUATION ENGINE
 // ============================================================================
 
-// Safe math scope with surveying-specific functions
+// Safe math scope with surveying-specific functions.
+// The variables are spread LAST so they win: `min` is minutes of arc, and with the helpers applied
+// on top `Math.min` replaced it, so `deg + min/60` evaluated to NaN and every question using it was
+// unanswerable.
 function createMathScope(vars: Record<string, number | string>): Record<string, unknown> {
   return {
-    ...vars,
     PI: Math.PI,
     E: Math.E,
     sin: Math.sin,
@@ -132,6 +134,7 @@ function createMathScope(vars: Record<string, number | string>): Record<string, 
     // Surveying-specific
     sign: Math.sign,
     hypot: Math.hypot,
+    ...vars,
   };
 }
 
