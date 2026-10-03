@@ -77,6 +77,14 @@ describe('evalFormula — surveying helpers', () => {
       evalFormula('cos(toRad(bearing)) * dist', { bearing: 0, dist: 100 })
     ).toBe(100);
   });
+
+  it('a variable named like a helper wins over the helper (min = minutes of arc)', () => {
+    expect(evalFormula('deg + min/60 + sec/3600', { deg: 45, min: 30, sec: 0 })).toBeCloseTo(45.5, 10);
+  });
+
+  it('helpers are still there when no variable shadows them', () => {
+    expect(evalFormula('min(a, b)', { a: 3, b: 7 })).toBe(3);
+  });
 });
 
 describe('substituteTemplate — basic substitution', () => {
