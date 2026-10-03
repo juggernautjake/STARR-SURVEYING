@@ -11,7 +11,10 @@
 //     shipped as a module the course loads, because a calculator that only had
 //     its manual would be a book, not a calculator.
 //
-//   node scripts/export-fs-calculator.mjs
+//   node scripts/export-fs-calculator.mjs [--out <dir>]
+//
+// Default out: ../../02-projects/lantern/app/fs  (relative to this repo). The
+// JSON goes to <out>/data, the engine files to <out> itself.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -23,7 +26,10 @@ const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = resolve(ROOT, '..', '..', '02-projects', 'lantern', 'app', 'fs');
+const argOut = process.argv.indexOf('--out');
+const OUT = argOut > -1 && process.argv[argOut + 1]
+  ? resolve(process.argv[argOut + 1])
+  : resolve(ROOT, '..', '..', '02-projects', 'lantern', 'app', 'fs');
 
 // ── a tiny TypeScript module loader ─────────────────────────────────────────
 // Enough to run the handful of data modules: it strips the types, resolves the
@@ -101,7 +107,8 @@ writeFileSync(join(OUT, 'data', 'calculator.json'), JSON.stringify(DATA, null, 1
 
 // ── code ────────────────────────────────────────────────────────────────────
 // The maths module is pure and self-contained; transpiled to an IIFE it becomes
-// the course's calculator engine with no build step of its own.
+// the course's calculator engine with no build step of its own. It hangs off
+// `globalThis.Course`, the namespace Lantern's course kit shares across a pack.
 function toBrowser(tsPath, globalName) {
   const src = readFileSync(join(ROOT, 'lib', 'calculators', tsPath), 'utf8');
   const js = ts.transpileModule(src, {
@@ -109,12 +116,12 @@ function toBrowser(tsPath, globalName) {
   }).outputText;
   return `// Generated from lib/calculators/${tsPath} by scripts/export-fs-calculator.mjs.
 // Do not edit here — edit the source and re-export.
-(function (FS) {
+(function (Course) {
   'use strict';
   var exports = {}, module = { exports: exports };
 ${js.split('\n').map((l) => '  ' + l).join('\n')}
-  FS.${globalName} = module.exports;
-})(globalThis.FS = globalThis.FS || {});
+  Course.${globalName} = module.exports;
+})(globalThis.Course = globalThis.Course || {});
 `;
 }
 
