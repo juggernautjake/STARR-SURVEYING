@@ -18,7 +18,8 @@ export function detectFileFormat(filename: string, text: string): DetectedFileFo
   const lower = filename.toLowerCase();
   // Extension hints first.
   if (lower.endsWith('.starr')) return 'STARR';
-  if (lower.endsWith('.trv')) return 'TRV';
+  // .TRB is Traverse PC's backup copy of a .TRV — same format.
+  if (lower.endsWith('.trv') || lower.endsWith('.trb')) return 'TRV';
   // Content sniff: TRV files start with `#,TRAVERSE PC` or
   // `999,begin` (in some exports). STARR files are JSON.
   const head = text.slice(0, 256);

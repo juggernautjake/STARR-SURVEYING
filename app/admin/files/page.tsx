@@ -28,6 +28,9 @@ import FileExplorerDialog from '@/app/admin/components/files/FileExplorerDialog'
 // 2026-09-15 — uploads go through THE Upload files pop-up, the same one on every job and project:
 // drop or pick files, choose "Save into" and a folder for each one, watch each file go up.
 import UploadFilesDialog from '@/app/admin/components/files/UploadFilesDialog';
+import RecentBadge from '@/app/admin/components/files/RecentBadge';
+import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
+import { toggle as toggleInSelection } from '@/lib/files/selection';
 import { uploadScopeFor } from '@/lib/files/upload-destinations';
 import {
   Folder,
@@ -88,6 +91,9 @@ interface FileNode {
   mime_type: string | null;
   size_bytes: number | null;
   updated_at: string;
+  /** When the file was uploaded: `created_at` on an explorer file, `uploaded_at` on a mounted one. */
+  created_at?: string | null;
+  uploaded_at?: string | null;
   access: AccessLevel;
   /** seed 634 — a person's note and tags, on files and folders alike. */
   notes?: string | null;
@@ -194,6 +200,12 @@ export default function FilesPage(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Deletes go through the shared flow (2026-09-27): one confirmation naming what goes and how
+  // many, the per-item permission-checked API, Undo for ~10 s, and a report of anything that
+  // could not be deleted — instead of window.confirm and a loop that stopped reporting at the
+  // first error. Deleted items still land in this page's bin.
+  const deleter = useDeleteFiles({ onDone: () => { setSelected(new Set()); load(parentId); } });
+  const selectAnchor = useRef<string | null>(null);
   // The Upload files pop-up, and files dropped on the page before it opened.
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadDrop, setUploadDrop] = useState<File[] | null>(null);
@@ -479,17 +491,13 @@ export default function FilesPage(): React.ReactElement {
     load(parentId);
   }
 
-  async function remove(n: FileNode) {
-    // The old copy promised "this can be undone by an admin", which was not true of any screen that
-    // existed — deletes were soft in the database and unreachable everywhere else. Now that the bin
-    // is real, the prompt names where the thing actually goes.
-    if (!window.confirm(`Delete "${n.name}"${n.node_type === 'folder' ? ' and everything inside it' : ''}? You can restore it from the bin.`)) return;
-    const res = await fetch(`/api/admin/files/${n.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError(await errOf(res, 'Could not delete.'));
-      return;
-    }
-    load(parentId);
+  /** A folder says so in the confirmation — deleting it takes everything inside with it. */
+  const asDeletable = (n: FileNode): DeletableItem => ({
+    kind: 'file_node', id: n.id, name: n.node_type === 'folder' ? `${n.name} (folder, with everything inside)` : n.name,
+  });
+
+  function remove(n: FileNode) {
+    deleter.request([asDeletable(n)]);
   }
 
   // ---- history (2026-08-19) ---------------------------------------------
@@ -669,13 +677,14 @@ export default function FilesPage(): React.ReactElement {
   }
 
   // ---- selection + clipboard --------------------------------------------
-  function toggleSelect(id: string) {
+  /** Shift-click selects the range from the last box clicked, in the order shown (lib/files/selection). */
+  function toggleSelect(id: string, shift = false) {
+    const order = visibleNodes.map((n) => n.id);
     setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
+      const next = toggleInSelection({ selected: s, anchor: selectAnchor.current }, id, order, shift);
+      return new Set(next.selected);
     });
+    selectAnchor.current = id;
   }
   const selectedNodes = () => nodes.filter((n) => selected.has(n.id));
   const allSelected = nodes.length > 0 && selected.size === nodes.length;
@@ -684,18 +693,10 @@ export default function FilesPage(): React.ReactElement {
     setSelected(new Set());
   }
 
-  async function deleteSelected() {
+  function deleteSelected() {
     const items = selectedNodes().filter((n) => canEdit(n.access));
     if (items.length === 0) return;
-    if (!window.confirm(`Delete ${items.length} item(s)? Folders include everything inside them. This can be undone by an admin.`)) return;
-    setBusy(true);
-    for (const n of items) {
-      const res = await fetch(`/api/admin/files/${n.id}`, { method: 'DELETE' });
-      if (!res.ok) setError(await errOf(res, `Could not delete ${n.name}.`));
-    }
-    setBusy(false);
-    clearSelection();
-    load(parentId);
+    deleter.request(items.map(asDeletable));
   }
 
   async function downloadSelected() {
@@ -1092,7 +1093,8 @@ export default function FilesPage(): React.ReactElement {
                   <input
                     type="checkbox"
                     checked={isSel}
-                    onChange={() => toggleSelect(n.id)}
+                    onClick={(e) => toggleSelect(n.id, e.shiftKey)}
+                    onChange={() => {}}
                     aria-label={`Select ${n.name}`}
                     data-testid={`fx-check-${n.id}`}
                   />
@@ -1106,6 +1108,12 @@ export default function FilesPage(): React.ReactElement {
                   <Icon size={18} className={isFolder ? 'fx__icon fx__icon--folder' : 'fx__icon'} aria-hidden />
                   <span className="fx__name-text">
                     {n.name}
+                    {!isFolder && <RecentBadge
+                      // A mounted file's created_at is stood in by its last change (a CAD edit), so only
+                      // its real upload time counts; an explorer file's row is made when it is uploaded.
+                      uploadedAt={isMountId(n.id) ? n.uploaded_at : (n.uploaded_at ?? n.created_at)}
+                      className="recent-badge--inline"
+                    />}
                     {/* F2 — where the hit lives. Only in search results: in browse mode you are
                         already standing in the folder, and repeating it would be noise. A result
                         you cannot locate is only half an answer. */}
@@ -1470,6 +1478,7 @@ export default function FilesPage(): React.ReactElement {
         </div>
       )}
 
+      {deleter.element}
       <style jsx>{styles}</style>
     </main>
   );

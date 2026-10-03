@@ -21,6 +21,8 @@
 
 import sharp from 'sharp';
 import { decideImage, extensionFor, type ImageFormat } from './image-format';
+import { isHeicBytes } from '@/lib/images/heic-detect';
+import { heicToJpeg } from './heic-server';
 
 export interface NormalisedImage {
   bytes: Buffer;
@@ -68,6 +70,21 @@ export async function normaliseImage(input: Buffer | Uint8Array): Promise<Normal
       decision.reason ?? 'Unsupported image format.',
       decision.format,
     );
+  }
+
+  // HEVC-coded HEIC (every iPhone photo) CANNOT go through sharp: the prebuilt binary's libheif has
+  // no HEVC decoder, and `sharp.format.heif.input === true` only means AVIF. That flag is what the
+  // 2026-08-08 audit read as "HEIF read = true" — so until 2026-09-27 this path threw on every real
+  // iPhone receipt. libheif-js decodes it (orientation applied by libheif), sharp encodes the JPEG.
+  if (decision.format === 'heic' && isHeicBytes(bytes)) {
+    return {
+      bytes: await heicToJpeg(bytes, JPEG_QUALITY),
+      format: 'jpeg',
+      extension: '.jpg',
+      contentType: 'image/jpeg',
+      originalFormat: decision.format,
+      converted: true,
+    };
   }
 
   // `rotate()` with no argument applies the EXIF orientation and then DROPS the tag. Without it a

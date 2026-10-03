@@ -1,5 +1,6 @@
 // app/admin/messages/page.tsx — Full Messages Inbox with inline conversation view
 'use client';
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SquarePen, MessageSquare, Users, Check, Smile, Paperclip, FileText, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
@@ -720,7 +721,7 @@ export default function MessagesInboxPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                accept={`image/*,${HEIC_ACCEPT},application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv`}
                 style={{ display: 'none' }}
                 onChange={e => handleAttachFiles(e.target.files)}
               />

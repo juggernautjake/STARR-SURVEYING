@@ -76,8 +76,10 @@ import {
   OWNER_NAME as OWNER, ASSISTANT_NAME,
 } from './knowledge';
 
-/** The first thing the caller hears. Says it is automated and that the line is recorded — both in
- *  the same breath as the greeting, not as a preamble.
+/** The first thing the caller hears from Ellie, in the owner's wording (2026-10-01). No recording
+ *  notice here: every caller has already heard it in the hold message before the owner's phone rang
+ *  (holdNotice in brain.ts), and saying it twice was the second notice callers hung up on. The
+ *  owner also dropped the "automated assistant" line (2026-09-29) to keep the opening short.
  *
  *  Texas is a one-party-consent state and requires neither disclosure, but a caller from a
  *  two-party state (California especially) is the case that matters, and the cure the courts have
@@ -85,7 +87,7 @@ import {
  *  business anywhere we operate; it is here because being asked "am I talking to a robot?" halfway
  *  through is worse for the firm than saying so at hello. */
 export function agentFirstMessage(): string {
-  return `${BUSINESS_NAME}, this is ${ASSISTANT_NAME} — I'm an automated assistant, and this call is recorded. How can I help you today?`;
+  return `This is ${ASSISTANT_NAME} with ${BUSINESS_NAME}, how can I help you today?`;
 }
 
 /** Words the transcriber should expect: names, places and trade terms a general model mishears.

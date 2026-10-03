@@ -5,13 +5,20 @@
 // user-files bucket via /api/admin/my-files.
 
 import '../styles/AdminMyNotes.css';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFileSelection } from '../components/files/useFileSelection';
+import { FileCheckbox, SelectAllCheckbox, SelectionBar } from '../components/files/SelectionControls';
+import { useDeleteFiles } from '../components/files/useDeleteFiles';
 import { useSession } from 'next-auth/react';
 import {
   Folder, MapPin, DraftingCompass, Camera, FileText, Mic, Package,
   Upload, Loader2, FolderOpen, type LucideIcon,
 } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
+import RecentBadge from '../components/files/RecentBadge';
+import { putWithProgress, startFailure } from '@/lib/jobs/upload-client';
+import { asStep, classifyError, contentTypeForAnyFile, planSnapshots, runWithRetry, snapshotFile } from '@/lib/files/upload-resilience';
+import { checkMyFilesUpload, MY_FILES_MAX_BYTES } from '@/lib/files/my-files-upload';
 
 interface UserFile {
   id: string;
@@ -40,20 +47,46 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function readAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.readAsDataURL(file);
+/**
+ * One file into My Files: sign → PUT straight to storage → save the row (2026-10-01).
+ *
+ * It used to POST the whole file as base64 JSON, which Vercel refuses above 4.5 MB — so anything
+ * over ~3.3 MB failed while the page promised 50. Small files are copied into memory first (the
+ * Android "changed after it was picked" failure), and a dropped connection is retried.
+ */
+async function uploadMyFile(file: File, folder: string): Promise<void> {
+  const check = checkMyFilesUpload({ name: file.name, sizeBytes: file.size });
+  if (!check.ok) throw new Error(check.error);
+  let body: File = file;
+  let buffered = false;
+  if (planSnapshots([file.size])[0]) { body = await snapshotFile(file); buffered = true; }
+  let path: string | null = null;
+  await runWithRetry(async () => {
+    if (!path) {
+      const init = await asStep('start', () => fetch('/api/admin/my-files/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: body.name, size_bytes: body.size }),
+      }));
+      if (!init.ok) throw await startFailure(init, body.name);
+      const started = (await init.json()) as { path: string; signed_url: string };
+      await putWithProgress(started.signed_url, body);
+      path = started.path;
+    }
+    const res = await asStep('save', () => fetch('/api/admin/my-files', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storage_path: path, name: body.name, size_bytes: body.size, mime_type: contentTypeForAnyFile(body.name, body.type), folder }),
+    }));
+    if (!res.ok) throw await startFailure(res, body.name, 'save');
+  }, {
+    classify: (err) => classifyError(err, { fileName: body.name, sizeBytes: body.size, buffered, online: navigator.onLine !== false }),
   });
 }
 
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = MY_FILES_MAX_BYTES;
 
 export default function MyFilesPanel() {
   const { data: session } = useSession();
-  const { safeFetch, safeAction } = usePageError('MyFilesPanel');
+  const { safeFetch, reportPageError } = usePageError('MyFilesPanel');
   const [files, setFiles] = useState<UserFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -80,45 +113,45 @@ export default function MyFilesPanel() {
     // Files uploaded while a specific folder is selected land in that folder.
     const targetFolder = folderFilter === 'all' ? 'other' : folderFilter;
     setUploading(true);
+    const failed: string[] = [];
     try {
       for (const file of list) {
         if (file.size > MAX_BYTES) {
           window.alert(`"${file.name}" exceeds the 50MB limit and was skipped.`);
           continue;
         }
-        const dataUrl = await readAsDataURL(file);
-        if (!dataUrl) continue;
-        await safeAction(`uploading ${file.name}`, async () => {
-          const res = await fetch('/api/admin/my-files', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ dataUrl, name: file.name, folder: targetFolder }),
-          });
-          if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
-        });
+        // One file failing never stops the rest; each reason is collected and said once, in words.
+        try {
+          await uploadMyFile(file, targetFolder);
+        } catch (err) {
+          failed.push(err instanceof Error ? err.message : `"${file.name}" did not upload.`);
+          reportPageError(err instanceof Error ? err : String(err), { element: `uploading ${file.name}` });
+        }
       }
       await load();
+      if (failed.length > 0) {
+        const head = failed.length === 1 ? 'A file did not upload' : `${failed.length} files did not upload`;
+        window.alert(`${head}:\n\n${failed.join('\n\n')}`);
+      }
     } finally {
       setUploading(false);
     }
-  }, [folderFilter, safeAction, load]);
+  }, [folderFilter, reportPageError, load]);
 
-  async function deleteFile(id: string) {
-    if (!window.confirm('Delete this file? This cannot be undone.')) return;
-    await safeAction('deleting file', async () => {
-      const res = await fetch(`/api/admin/my-files?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? `Server ${res.status}`);
-    });
-    await load();
-  }
-
-  if (!session?.user) return null;
-
-  const filtered = files.filter(f => {
+  const filtered = useMemo(() => files.filter(f => {
     if (folderFilter !== 'all' && f.folder !== folderFilter) return false;
     if (search && !f.file_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  });
+  }), [files, folderFilter, search]);
+
+  // Delete and multi-select (owner, 2026-09-27): one confirmation naming the files, the same
+  // permission-checked API as every other file list, and a report of anything that failed.
+  // My Files deletes are permanent, and the confirmation says so.
+  const selection = useFileSelection(useMemo(() => filtered.map((f) => f.id), [filtered]));
+  const deleter = useDeleteFiles({ onDone: () => { selection.clear(); void load(); } });
+  const deleteFiles = (list: UserFile[]) => deleter.request(list.map((f) => ({ kind: 'user_file' as const, id: f.id, name: f.file_name })));
+
+  if (!session?.user) return null;
   const totalSize = files.reduce((sum, f) => sum + (f.file_size || 0), 0);
 
   return (
@@ -203,6 +236,17 @@ export default function MyFilesPanel() {
         </div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+          <div className="myfiles__select">
+            <SelectAllCheckbox selection={selection} total={filtered.length} />
+            <SelectionBar
+              selection={selection}
+              busy={deleter.busy}
+              onDelete={() => deleteFiles(filtered.filter((f) => selection.isSelected(f.id)))}
+              onDownload={() => {
+                for (const f of filtered.filter((x) => selection.isSelected(x.id) && x.file_url)) window.open(f.file_url as string, '_blank', 'noopener');
+              }}
+            />
+          </div>
           <div className="job-detail__field-data-row job-detail__field-data-row--header">
             <span>Name</span>
             <span>Folder</span>
@@ -212,7 +256,11 @@ export default function MyFilesPanel() {
           </div>
           {filtered.map(file => (
             <div key={file.id} className="job-detail__field-data-row">
-              <span>{file.file_name}</span>
+              <span className="myfiles__name">
+                <FileCheckbox id={file.id} name={file.file_name} selection={selection} />
+                {file.file_name}
+                <RecentBadge uploadedAt={file.uploaded_at} className="recent-badge--inline" />
+              </span>
               <span>{FOLDERS.find(f => f.key === file.folder)?.label || file.folder}</span>
               <span>{formatFileSize(file.file_size || 0)}</span>
               <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
@@ -220,12 +268,13 @@ export default function MyFilesPanel() {
                 {file.file_url
                   ? <a className="fw__btn fw__btn--sm" href={file.file_url} target="_blank" rel="noopener noreferrer">Download</a>
                   : <button className="fw__btn fw__btn--sm" disabled>Download</button>}
-                <button className="fw__btn fw__btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => void deleteFile(file.id)}>Delete</button>
+                <button className="fw__btn fw__btn--sm" style={{ color: 'var(--color-error)' }} onClick={() => deleteFiles([file])} aria-label={`Delete ${file.file_name}`}>Delete</button>
               </span>
             </div>
           ))}
         </div>
       )}
+      {deleter.element}
     </div>
   );
 }

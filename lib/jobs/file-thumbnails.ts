@@ -52,8 +52,16 @@ export const IMAGE_OWN_THUMB_MAX_BYTES = 200 * 1024;
  *  Unknown size is treated as too big. The sizes come from the storage row and a null there means
  *  nobody recorded one; assuming "small" would restore exactly the bug this exists to fix, and the
  *  cost of being wrong the other way is one 400 px WebP that did not need to be made. */
-export function imageIsItsOwnThumb(kind: MediaKind, sizeBytes: number | null | undefined): boolean {
+export function imageIsItsOwnThumb(
+  kind: MediaKind,
+  sizeBytes: number | null | undefined,
+  name?: string | null,
+  mime?: string | null,
+): boolean {
   if (kind !== 'image') return false;
+  // A HEIC can never be its own thumbnail however small it is: only Safari can draw one. It needs a
+  // generated (JPEG-derived) preview like a video does. (2026-09-27)
+  if (/\.(heic|heif|hif)$/i.test(name ?? '') || /^image\/hei[cf]/i.test(mime ?? '')) return false;
   const n = Number(sizeBytes);
   return Number.isFinite(n) && n > 0 && n <= IMAGE_OWN_THUMB_MAX_BYTES;
 }

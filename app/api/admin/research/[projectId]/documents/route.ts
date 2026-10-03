@@ -1,9 +1,11 @@
 // app/api/admin/research/[projectId]/documents/route.ts — Document upload & list
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { processDocument, validateUploadFile, ACCEPTED_FILE_TYPES } from '@/lib/research/document.service';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
+import { DELETE_HANDLERS } from '@/lib/files/delete-handlers';
 
 // Allow up to 120 seconds for uploads (large files + storage round-trip + OCR extraction)
 export const maxDuration = 120;
@@ -59,7 +61,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const results: { document: unknown; error?: string }[] = [];
 
-  for (const file of files) {
+  for (const upload of files) {
+    // HEIC → JPEG (2026-09-27). The browser converts before sending; this is the net for the mobile
+    // app, scripts and anything else that did not. Decided by the BYTES, so an untyped HEIC is caught
+    // too. A document store keeps the original if conversion fails — a HEIC is still a legitimate
+    // deed photo, and the viewer converts HEIC on display.
+    const norm = await normaliseHeicOrKeep({
+      bytes: Buffer.from(await upload.arrayBuffer()),
+      name: upload.name,
+      type: upload.type,
+    });
+    const buffer = norm.bytes;
+    const file = { name: norm.name, size: buffer.length, type: norm.contentType };
+
     // Validate
     const validationError = validateUploadFile(file.name, file.size);
     if (validationError) {
@@ -68,8 +82,6 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
     // Skip if an identical file (same name + size) already exists in this project
     const { data: existingFile } = await supabaseAdmin
@@ -253,35 +265,22 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const docId = searchParams.get('id');
   if (!docId) return NextResponse.json({ error: 'Document id is required' }, { status: 400 });
 
-  // Get the document — verify it belongs to this project
+  // Verify the document belongs to this project before handing it to the shared handler.
   const { data: doc } = await supabaseAdmin
     .from('research_documents')
-    .select('storage_path, research_project_id')
+    .select('research_project_id')
     .eq('id', docId)
-    .single();
-
+    .maybeSingle();
   if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-
-  // Enforce project ownership
   if (projectId && doc.research_project_id !== projectId) {
     return NextResponse.json({ error: 'Document does not belong to this project' }, { status: 403 });
   }
 
-  // Delete from storage
-  if (doc.storage_path) {
-    await supabaseAdmin.storage
-      .from(RESEARCH_DOCUMENTS_BUCKET)
-      .remove([doc.storage_path])
-      .catch(() => {}); // Best-effort storage cleanup
-  }
-
-  // Delete from database (cascades to extracted_data_points)
-  const { error } = await supabaseAdmin
-    .from('research_documents')
-    .delete()
-    .eq('id', docId);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+  // Role check, row-then-object delete and the history entry live in lib/files/delete-handlers.ts,
+  // shared with the bulk delete. Until 2026-09-27 this route checked only that someone was signed in.
+  const out = await DELETE_HANDLERS.research_document.delete(docId, {
+    email: session.user.email, roles: session.user.roles ?? [], admin: isAdmin(session.user.roles),
+  });
+  if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
   return NextResponse.json({ success: true });
 }, { routeName: 'research/documents' });

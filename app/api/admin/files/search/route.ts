@@ -79,6 +79,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
           created_by: null,
           created_at: n.updated_at,
           updated_at: n.updated_at,
+          uploaded_at: n.uploaded_at ?? null,
           access: n.access,
           path: root.name,
           ...(n.open_href ? { open_href: n.open_href } : {}),

@@ -112,7 +112,7 @@ export default function ReceptionistTestPage(): React.ReactElement {
   }, []);
 
   // ── which receptionist answers LIVE calls, and which one a test call runs ──────────────────────
-  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean; fallback?: { silentFallback: boolean; statement: string } } | null>(null);
+  const [live, setLive] = useState<{ version: ReceptionistVersion; voice: string | null; updatedBy: string | null; updatedAt: string | null; elevenLabsReady?: boolean; fallback?: { silentFallback: boolean; statement: string }; agentHealth?: { warn: boolean; statement: string } | null } | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
   // Which version the owner is about to put in front of real callers, while they confirm it.
   const [confirmAgent, setConfirmAgent] = useState<ReceptionistVersion | null>(null);
@@ -439,6 +439,13 @@ export default function ReceptionistTestPage(): React.ReactElement {
               </p>
             ) : live.fallback?.statement ? (
               <p className="rtest__status" data-testid="rtest-live-answered">{live.fallback.statement}</p>
+            ) : null}
+            {/* Reached is not the same as talked to (2026-09-29): a week of calls "answered" by the
+                agent in which every caller hung up within seconds looked healthy above. */}
+            {live.agentHealth?.warn ? (
+              <p className="rtest__live-fallback" role="alert" data-testid="rtest-live-health">
+                <b>Callers are hanging up on the receptionist.</b> {live.agentHealth.statement}
+              </p>
             ) : null}
 
             <p className="rtest__status">Voice: <b>{(RECEPTIONIST_VOICES.find((v) => v.id === (live.voice ?? DEFAULT_VOICE_ID)) ?? RECEPTIONIST_VOICES[0]).name}</b></p>

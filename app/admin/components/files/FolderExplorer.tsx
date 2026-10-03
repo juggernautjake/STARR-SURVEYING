@@ -39,16 +39,22 @@ import FileComments from './FileComments';
 import FileExplorerDialog from './FileExplorerDialog';
 import UploadFilesDialog from './UploadFilesDialog';
 import InlineRename from './InlineRename';
+import RecentBadge from './RecentBadge';
 import { formatBytes, formatWhen } from './format';
 import { downloadFile } from '@/lib/files/download';
 import { fileKind } from '@/lib/files/viewer-model';
+import { isRecentUpload } from '@/lib/files/recent';
 import type { MountNode, MountTree, MountTreeFolder } from '@/lib/files/mount-node';
 import {
   jobFolder, isJobFolderKey, parseJobFolderId, parseProjectDocsId, parseNamedFolderId, parseJobNodeId, uploadSpecForRoot,
   detectJobFileType, checkFolderName, type JobFolderKey,
 } from '@/lib/files/job-folders';
-import { mountNodeToViewerFile, mountCapabilities, mountViewUrl } from '@/lib/files/adapters/mount';
+import { mountNodeToViewerFile, mountCapabilities, mountViewUrl, mountViewResult } from '@/lib/files/adapters/mount';
 import { useFileThumbnails, kindOfNode, wantsThumb } from './useFileThumbnails';
+import { useFileSelection } from './useFileSelection';
+import { FileCheckbox, SelectAllCheckbox, SelectionBar } from './SelectionControls';
+import { useDeleteFiles } from './useDeleteFiles';
+import { deleteTargetForMountNode } from '@/lib/files/bulk-delete';
 import './FolderExplorer.css';
 
 export type FolderExtraKey = JobFolderKey | 'root' | 'docs' | 'job';
@@ -167,11 +173,14 @@ function FileIcon({ node }: { node: MountNode }) {
   }
 }
 
-async function downloadEntry(id: string): Promise<{ url: string; name: string; mime: string | null } | null> {
+/** A file's download link. Throws with the route's own reason ("You do not have access to this
+ *  file.", a timeout) so the notice says why, instead of the old "no download location". */
+async function downloadEntry(id: string): Promise<{ url: string; name: string; mime: string | null }> {
   const res = await fetch(`/api/admin/files/${id}/download`);
-  if (!res.ok) return null;
-  const { url, name, mime_type } = await res.json();
-  return typeof url === 'string' ? { url, name: (name as string) ?? id, mime: (mime_type as string) ?? null } : null;
+  const json = (await res.json().catch(() => ({}))) as { url?: unknown; name?: unknown; mime_type?: unknown; error?: unknown };
+  if (!res.ok) throw new Error(typeof json.error === 'string' && json.error ? json.error : `HTTP ${res.status}`);
+  if (typeof json.url !== 'string') throw new Error('The server did not return a link.');
+  return { url: json.url, name: typeof json.name === 'string' ? json.name : id, mime: typeof json.mime_type === 'string' ? json.mime_type : null };
 }
 
 export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className, refreshKey }: FolderExplorerProps) {
@@ -308,6 +317,23 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     files: viewerNodes.filter((n) => !n.open_href).map((n) => mountNodeToViewerFile(n, urls[n.id] ?? null, folderNameOf(n))),
   }), [currentId, current, viewerNodes, urls, folderNameOf]);
 
+  // ── Select and delete (owner, 2026-09-27) ──
+  // The selection follows what is SHOWN — this folder, or every file below it in "All files" — so a
+  // Shift-click range is the range on screen. Deletes go through one flow (useDeleteFiles): confirm
+  // with names and count, per-item permission on the server, Undo for job files and Explorer
+  // documents, and a report naming anything that could not be deleted.
+  const shownIds = useMemo(() => viewerNodes.map((n) => n.id), [viewerNodes]);
+  const selection = useFileSelection(shownIds);
+  const deleter = useDeleteFiles({ onDone: () => { selection.clear(); void load(); } });
+  const selectedNodes = useMemo(() => viewerNodes.filter((n) => selection.isSelected(n.id)), [viewerNodes, selection]);
+  const deletableSelected = useMemo(() => selectedNodes.map(deleteTargetForMountNode).filter((t): t is NonNullable<typeof t> => t !== null), [selectedNodes]);
+  const deleteNodes = useCallback((nodes: MountNode[]) => {
+    const items = nodes.map(deleteTargetForMountNode).filter((t): t is NonNullable<typeof t> => t !== null);
+    const skipped = nodes.length - items.length;
+    if (skipped > 0) setNotice(`${skipped} of the selected ${skipped === 1 ? 'is' : 'are'} deleted where ${skipped === 1 ? 'it lives' : 'they live'} (a drawing in CAD, a receipt in Receipts), so ${skipped === 1 ? 'it was' : 'they were'} left out.`);
+    deleter.request(items);
+  }, [deleter]);
+
   const viewerCapabilities = useMemo(() => mountCapabilities({
     nodeFor: (id) => fileById.get(id),
     onChanged: load,
@@ -337,9 +363,11 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const openFile = useCallback(async (n: MountNode) => {
     if (n.open_href) { window.location.href = n.open_href; return; }
     setBusy(`Opening ${n.name}…`);
-    const url = urls[n.id] ?? await mountViewUrl(n.id);
+    const cached = urls[n.id];
+    const result = cached ? { url: cached } : await mountViewResult(n.id);
     setBusy(null);
-    if (!url) { setNotice(`Could not open ${n.name}.`); return; }
+    if (!('url' in result)) { setNotice(`Could not open ${n.name}: ${result.error}`); return; }
+    const url = result.url;
     setUrls((m) => ({ ...m, [n.id]: url }));
     setViewerId(n.id);
   }, [urls]);
@@ -383,7 +411,6 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     setBusy(`Preparing ${n.name}…`);
     try {
       const entry = await downloadEntry(n.id);
-      if (!entry) throw new Error('no download location');
       const outcome = await downloadFile(entry.url, n.original_name ?? entry.name ?? n.name, entry.mime ?? n.mime_type);
       if (outcome === 'saved') setNotice(`Saved ${n.name}.`);
     } catch (err) {
@@ -393,13 +420,19 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     }
   }, []);
 
+  /** "3 selected → Download": each through the same save path as its own Download button. */
+  const downloadSelected = useCallback(async () => {
+    for (const n of selectedNodes.filter((x) => !x.open_href)) await save(n);
+  }, [selectedNodes, save]);
+
   /** The zip: the folder's files, or the whole subtree with its folder paths kept. */
   const zipEntries = useCallback(async () => {
     const items = mode === 'all'
       ? groups.flatMap((g) => g.files.filter((n) => !n.open_href).map((n) => ({ n, folder: g.folder.path.slice(current?.depth ?? 0).join('/') })))
       : folderFiles.filter((n) => !n.open_href).map((n) => ({ n, folder: '' }));
     const resolved = await Promise.all(items.map(async ({ n, folder }) => {
-      const e = await downloadEntry(n.id);
+      // One file that cannot be linked is left out of the zip, not allowed to sink the other forty.
+      const e = await downloadEntry(n.id).catch(() => null);
       return e ? { name: n.original_name ?? e.name ?? n.name, url: e.url, folder } : null;
     }));
     return resolved.filter((e): e is { name: string; url: string; folder: string } => e !== null);
@@ -589,10 +622,11 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     return (
       <li
         key={n.id}
-        className="fe__card m-stagger"
+        className={`fe__card m-stagger${selection.isSelected(n.id) ? ' fe__card--selected' : ''}`}
         style={{ '--i': i } as React.CSSProperties}
         ref={(el) => watchTile(el, n)}
       >
+        <FileCheckbox id={n.id} name={n.name} selection={selection} className="fe__card-check" />
         <button type="button" className="fe__card-open" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
           <span className="fe__card-thumb">
             {preview ? (
@@ -601,6 +635,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
             ) : (
               <span className="fe__card-icon"><FileIcon node={n} /></span>
             )}
+            <RecentBadge uploadedAt={n.uploaded_at} className="recent-badge--tile" />
           </span>
           <span className="fe__card-name">{n.name}</span>
         </button>
@@ -612,6 +647,9 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
             <button type="button" className="fe__icon-btn" onClick={() => void openFile(n)} title="Open in the viewer" aria-label={`Open ${n.name}`}><Eye size={14} aria-hidden="true" /></button>
           )}
           <button type="button" className="fe__icon-btn" onClick={() => void save(n)} title="Save to your computer" aria-label={`Download ${n.name}`}><Download size={14} aria-hidden="true" /></button>
+          {deleteTargetForMountNode(n) && (
+            <button type="button" className="fe__icon-btn fe__icon-btn--danger" onClick={() => deleteNodes([n])} title="Delete" aria-label={`Delete ${n.name}`} data-testid={`fe-delete-${n.id}`}><Trash2 size={14} aria-hidden="true" /></button>
+          )}
         </span>
       </li>
     );
@@ -620,11 +658,12 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   /** One list of files, in whichever view is chosen. Both call sites go through this so the folder
    *  view and the all-files groups can never disagree about what "Large" means. */
   const renderFiles = (files: MountNode[]) => (view === 'list'
-    ? <ul className="fe__rows">{files.map(renderRow)}</ul>
+    ? <ul className="fe__rows fe__rows--select">{files.map(renderRow)}</ul>
     : <ul className={`fe__grid fe__grid--${view}`}>{files.map(renderTile)}</ul>);
 
   const renderRow = (n: MountNode, i: number) => (
-    <li key={n.id} className="fe__row m-stagger" style={{ '--i': i } as React.CSSProperties}>
+    <li key={n.id} className={`fe__row m-stagger${selection.isSelected(n.id) ? ' fe__row--selected' : ''}`} style={{ '--i': i } as React.CSSProperties}>
+      <FileCheckbox id={n.id} name={n.name} selection={selection} />
       <span className="fe__row-icon"><FileIcon node={n} /></span>
       {/* The pencil is a SIBLING of the name button, never inside it — a button within a button is
           invalid markup, and the browsers that tolerate it fire both handlers on one click. */}
@@ -639,7 +678,12 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       >
         <button type="button" className="fe__row-name" onClick={() => void openFile(n)} title={n.open_href ? 'Open in Starr CAD' : 'Open in the viewer'}>
           <span className="fe__row-text">{n.name}</span>
-          {(n.tags?.length ?? 0) > 0 && <span className="fe__row-tags">{n.tags!.slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}</span>}
+          {(isRecentUpload(n.uploaded_at) || (n.tags?.length ?? 0) > 0) && (
+            <span className="fe__row-tags">
+              <RecentBadge uploadedAt={n.uploaded_at} />
+              {(n.tags ?? []).slice(0, 4).map((t) => <span key={t} className="fe__tag">{t}</span>)}
+            </span>
+          )}
           {n.notes && <span className="fe__row-note">{n.notes}</span>}
         </button>
       </InlineRename>
@@ -652,12 +696,29 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
           <button type="button" className="fe__icon-btn" onClick={() => void openFile(n)} title="Open in the viewer" aria-label={`Open ${n.name}`}><Eye size={15} aria-hidden="true" /></button>
         )}
         <button type="button" className="fe__icon-btn" onClick={() => void save(n)} title="Save to your computer" aria-label={`Download ${n.name}`}><Download size={15} aria-hidden="true" /></button>
+        {deleteTargetForMountNode(n) && (
+          <button type="button" className="fe__icon-btn fe__icon-btn--danger" onClick={() => deleteNodes([n])} title="Delete" aria-label={`Delete ${n.name}`} data-testid={`fe-delete-${n.id}`}><Trash2 size={15} aria-hidden="true" /></button>
+        )}
       </span>
     </li>
   );
 
+  /** Select all + the "3 selected · Delete · Download · Clear" bar, above whichever list is shown. */
+  const selectHead = viewerNodes.length > 0 ? (
+    <>
+      <div className="fe__select-head"><SelectAllCheckbox selection={selection} total={viewerNodes.length} /></div>
+      <SelectionBar
+        selection={selection}
+        busy={deleter.busy}
+        onDelete={() => deleteNodes(selectedNodes)}
+        onDownload={() => void downloadSelected()}
+        deleteDisabledReason={deletableSelected.length === 0 ? 'None of the selected files are deleted here (drawings in CAD, receipts in Receipts).' : null}
+      />
+    </>
+  ) : null;
+
   return (
-    <section className={`fe${className ? ` ${className}` : ''}`} aria-label={title ?? current?.name ?? 'Files'} data-testid="folder-explorer">
+    <section className={`fe${className ? ` ${className}` : ''}${selection.count > 0 ? ' fe--selecting' : ''}`} aria-label={title ?? current?.name ?? 'Files'} data-testid="folder-explorer">
       {/* ── header: crumbs + the view switch ── */}
       <header className="fe__head">
         <nav className="fe__crumbs" aria-label="Folder path">
@@ -838,7 +899,10 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                     {q ? 'Nothing here matches.' : target ? `Nothing in ${target.label} yet — drag files here, or press Upload files above.` : 'Nothing here yet.'}
                   </p>
                 ) : (
-                  renderFiles(folderFiles)
+                  <>
+                    {selectHead}
+                    {renderFiles(folderFiles)}
+                  </>
                 )}
               </div>
             )}
@@ -848,6 +912,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
         {tree && current && mode === 'all' && (
           <div className="fe__all" data-testid="fe-all-view">
             {tree.truncated && <p className="fe__note">This view is capped; open a folder to see the rest.</p>}
+            {selectHead}
             {groups.every((g) => g.files.length === 0) ? (
               <p className="fe__empty">{q ? 'Nothing below matches.' : 'No files in this folder or its subfolders yet.'}</p>
             ) : groups.map((g) => ((q && g.files.length === 0) || (g.folder.id === current.id && g.files.length === 0) ? null : (
@@ -917,6 +982,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       )}
       {/* The job under this folder, for the panels a page hangs here. */}
       {jobUnderCurrent ? <span hidden data-job-id={jobUnderCurrent} /> : null}
+      {deleter.element}
     </section>
   );
 }

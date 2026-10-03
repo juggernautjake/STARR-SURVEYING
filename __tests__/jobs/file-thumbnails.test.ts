@@ -128,7 +128,7 @@ describe('the route and the library agree with the module', () => {
   it('the library hands back the generated preview, and says what still needs one', () => {
     const server = read('lib/jobs/property-map-server.ts');
     expect(server).toContain('thumbState');
-    expect(server, 'only a SMALL image previews from itself').toContain('imageIsItsOwnThumb(kind, sizeOf(f))');
+    expect(server, 'only a SMALL image previews from itself').toContain('imageIsItsOwnThumb(kind, sizeOf(f), displayName(f), mimeOf(f))');
     expect(server, 'the full-size fallback is the bug, and is gone').not.toContain("(kind === 'image' ? url : null)");
     expect(server, 'signed with everything else, in bulk').toContain('if (t.thumb_path && t.thumb_bucket) toSign.push');
   });

@@ -383,7 +383,8 @@ describe('handing a test call to the ElevenLabs agent', () => {
   it('a dial that never connects falls back to the answering machine instead of silence', () => {
     const src = read('app/api/twilio/receptionist/agent-ended/route.ts');
     for (const status of ['busy', 'failed', 'no-answer', 'canceled']) expect(src).toContain(`'${status}'`);
-    expect(src).toContain('machineStart(live.voice)');
+    // 2026-09-29: the fallback may open with an apology, so the call carries a second argument.
+    expect(src).toContain('machineStart(live.voice');
     // a completed leg is wrapped up once, through the one function that notifies
     expect(src).toContain('finishCall(callSid, from, { facts: {}, turns: [] }');
     expect(src).toContain("answered_by: 'ai'");
@@ -457,7 +458,7 @@ describe('handing a test call to the ElevenLabs agent', () => {
     // THE BOUNDARY STANDS. This is not a precedent for 11500. The next rule comes out of the
     // system prompt and goes into the knowledge base, which is what that mechanism is for.
     expect(p.length, 'roughly under 2000 tokens').toBeLessThan(10500);
-    expect(agentFirstMessage()).toMatch(/automated assistant, and this call is recorded/);
+    expect(agentFirstMessage()).toBe('This is Ellie with Starr Surveying, how can I help you today?');
     expect(AGENT_KEYWORDS).toContain('Bell County');
     // and the script builds it from the module rather than holding its own copy
     const script = read('scripts/elevenlabs-agent.mjs');

@@ -247,3 +247,20 @@
   font-size: 0.78rem;
   font-weight: 600;
 }
+
+/* ── Pickers for every device (2026-10-01) ─────────────────────────────────────────────────────
+   Several buttons rather than one: the Files app, other apps, the gallery, the camera. They wrap on
+   a phone and stay big enough to hit with a gloved thumb on a field controller. */
+.ufd__pickers { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+.ufd__drop--compact .ufd__pickers { justify-content: flex-end; }
+.ufd__pickers .ufd__btn { min-height: 44px; }
+.ufd__limits { margin: 0.45rem 0 0; font-size: 0.78rem; color: var(--theme-fg-muted, #64748B); }
+.ufd__help { margin-top: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--theme-border, #E2E8F0); border-radius: 10px; background: var(--theme-bg-elevated, #F8FAFC); font-size: 0.84rem; }
+.ufd__help summary { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-weight: 600; color: var(--theme-fg-secondary, #475569); min-height: 32px; }
+.ufd__help ol { margin: 0.4rem 0 0.2rem; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+.ufd__offline { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0; padding: 0.5rem 0.75rem; border-radius: 10px; background: var(--theme-warning-bg, #FEF3C7); color: var(--theme-warning-fg, #B45309); font-size: 0.85rem; font-weight: 600; }
+@media (max-width: 560px) {
+  .ufd__drop--compact { flex-direction: column; align-items: stretch; text-align: center; }
+  .ufd__drop--compact .ufd__pickers { justify-content: center; }
+  .ufd__pickers .ufd__btn { flex: 1 1 auto; justify-content: center; }
+}

@@ -3,7 +3,10 @@
 // caller's email — users only ever see/manage their own files.
 //
 // GET    /api/admin/my-files            — list my files (each with a signed download URL)
-// POST   /api/admin/my-files            — upload { dataUrl, name, folder?, description? }
+// POST   /api/admin/my-files            — save a row for bytes already in storage
+//                                          { storage_path, name, size_bytes, mime_type?, folder?, description? }
+//                                          (signed by /api/admin/my-files/upload — 2026-10-01), or the
+//                                          legacy { dataUrl, name, folder?, description? } for small files
 // DELETE /api/admin/my-files?id=<id>    — delete a file (storage object + row)
 //
 // Storage: seeds/295_user_files.sql (private `user-files` bucket + user_files table).
@@ -12,6 +15,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { normaliseHeicOrKeep } from '@/lib/media/heic-server';
+import { DELETE_HANDLERS } from '@/lib/files/delete-handlers';
+import { checkMyFilesUpload, ownsStoragePath } from '@/lib/files/my-files-upload';
+import { contentTypeForAnyFile } from '@/lib/files/upload-resilience';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -57,21 +64,61 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json() as { dataUrl?: string; name?: string; folder?: string; description?: string };
+  const body = await req.json().catch(() => ({})) as {
+    dataUrl?: string; name?: string; folder?: string; description?: string;
+    storage_path?: string; size_bytes?: number; mime_type?: string;
+  };
+
+  // ── The bytes went straight to storage (the path for every file since 2026-10-01) ──
+  if (body.storage_path !== undefined) {
+    const email = session.user.email;
+    if (!ownsStoragePath(email, body.storage_path)) {
+      return NextResponse.json({ error: 'That upload does not belong to you.' }, { status: 403 });
+    }
+    const check = checkMyFilesUpload({ name: body.name, sizeBytes: body.size_bytes });
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
+    // The object must really be there — a row pointing at nothing is a file that cannot be opened.
+    const slash = body.storage_path.lastIndexOf('/');
+    const { data: found } = await supabaseAdmin.storage.from(BUCKET)
+      .list(body.storage_path.slice(0, slash), { search: body.storage_path.slice(slash + 1), limit: 1 });
+    if (!found?.length) {
+      return NextResponse.json({ error: 'The file did not finish uploading. Try again.' }, { status: 409 });
+    }
+    const fileName = (body.name ?? 'file').trim() || 'file';
+    const { data, error } = await supabaseAdmin
+      .from('user_files')
+      .insert({
+        user_email: email,
+        file_name: fileName,
+        file_type: contentTypeForAnyFile(fileName, body.mime_type),
+        file_size: body.size_bytes,
+        storage_path: body.storage_path,
+        folder: body.folder && VALID_FOLDERS.has(body.folder) ? body.folder : 'other',
+        description: body.description ?? null,
+      })
+      .select(SELECT_COLS)
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ file: data }, { status: 201 });
+  }
+
   if (typeof body.dataUrl !== 'string' || !body.dataUrl.startsWith('data:')) {
     return NextResponse.json({ error: 'Expected a base64 data URL in "dataUrl".' }, { status: 400 });
   }
   const match = body.dataUrl.match(/^data:([^;]*);base64,(.*)$/s);
   if (!match) return NextResponse.json({ error: 'Only base64 data URLs are supported.' }, { status: 400 });
 
-  const mime = match[1] || 'application/octet-stream';
-  const bytes = Buffer.from(match[2], 'base64');
-  if (bytes.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  // HEIC → JPEG (2026-09-27), by the bytes; a file that cannot be converted is kept as sent.
+  const raw = Buffer.from(match[2], 'base64');
+  if (raw.length === 0) return NextResponse.json({ error: 'Empty file.' }, { status: 400 });
+  const norm = await normaliseHeicOrKeep({ bytes: raw, name: body.name, type: match[1] || 'application/octet-stream' });
+  const mime = norm.contentType;
+  const bytes = norm.bytes;
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: `File exceeds ${Math.round(MAX_BYTES / 1024 / 1024)} MB.` }, { status: 413 });
   }
 
-  const fileName = (body.name ?? 'file').trim() || 'file';
+  const fileName = ((norm.converted ? norm.name : body.name) ?? 'file').trim() || 'file';
   const folder = body.folder && VALID_FOLDERS.has(body.folder) ? body.folder : 'other';
 
   await ensureStorageBucket(BUCKET, { public: false, fileSizeLimit: MAX_BYTES });
@@ -115,20 +162,11 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing required query param: id' }, { status: 400 });
 
-  // Only the owner may delete; fetch first to get the storage path + verify ownership.
-  const { data: row, error: fetchErr } = await supabaseAdmin
-    .from('user_files')
-    .select('id, storage_path, user_email')
-    .eq('id', id)
-    .maybeSingle();
-  if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-  if (!row) return NextResponse.json({ error: 'File not found' }, { status: 404 });
-  if ((row as { user_email: string }).user_email !== session.user.email) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  await supabaseAdmin.storage.from(BUCKET).remove([(row as { storage_path: string }).storage_path]).catch(() => {});
-  const { error } = await supabaseAdmin.from('user_files').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Owner-only check, row-then-object delete and the history entry: lib/files/delete-handlers.ts,
+  // shared with the bulk delete.
+  const out = await DELETE_HANDLERS.user_file.delete(id, {
+    email: session.user.email, roles: session.user.roles ?? [], admin: false,
+  });
+  if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
   return NextResponse.json({ success: true });
 }, { routeName: 'admin/my-files' });

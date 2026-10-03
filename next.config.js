@@ -43,7 +43,11 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '50mb',
     },
-    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium', '@resvg/resvg-js'],
+    // `libheif-js` (2026-09-27): the HEIC decoder behind lib/media/heic-server.ts. External so its
+    // ~2 MB WebAssembly bundle is required from node_modules at run time instead of being copied into
+    // every route bundle that imports an upload helper. The BROWSER converter bundles its own ESM
+    // build inside a lazily-loaded Web Worker chunk and is unaffected by this list.
+    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium', '@resvg/resvg-js', 'libheif-js'],
   },
   // Note: Per-route body size limits are configured via route segment config
   // exports in individual API route files (e.g., export const maxDuration = 60)

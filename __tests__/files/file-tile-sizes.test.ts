@@ -103,9 +103,15 @@ describe('making the previews that are missing', () => {
   it('does not make a preview of a small photograph', () => {
     // It is already being shown as its own tile; a 40 KB copy of a 60 KB photo saves nobody
     // anything. Same threshold as the map panel, and it lives with the rest of the policy.
-    expect(hook).toContain('imageIsItsOwnThumb(t.kind, t.sizeBytes)');
+    expect(hook).toContain('imageIsItsOwnThumb(t.kind, t.sizeBytes, t.name, t.mime)');
     expect(imageIsItsOwnThumb('image', 50 * 1024)).toBe(true);
     expect(imageIsItsOwnThumb('image', 9 * 1024 * 1024)).toBe(false);
+  });
+
+  it('but a small HEIC is NOT its own thumbnail — only Safari can draw one (2026-09-27)', () => {
+    expect(imageIsItsOwnThumb('image', 50 * 1024, 'IMG_1.HEIC')).toBe(false);
+    expect(imageIsItsOwnThumb('image', 50 * 1024, 'photo', 'image/heif')).toBe(false);
+    expect(imageIsItsOwnThumb('image', 50 * 1024, 'IMG_1.jpg', 'image/jpeg')).toBe(true);
   });
 
   it('never fetches a full-size original just to fill a tile', () => {

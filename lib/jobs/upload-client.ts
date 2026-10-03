@@ -9,7 +9,8 @@
 // Browser-only (XHR, File). The pure decisions it depends on are tested next door; what is left
 // here is the network, which is why this module is deliberately thin.
 
-import { contentTypeFor, explainPutFailure } from '@/lib/storage/uploads';
+import { explainPutFailure } from '@/lib/storage/uploads';
+import { UploadError, asStep, contentTypeForAnyFile } from '@/lib/files/upload-resilience';
 
 export interface JobUploadStarted {
   file_id: string;
@@ -55,7 +56,9 @@ export function putWithProgress(url: string, file: File, onProgress?: (p: Upload
     // Android camera apps do for their own recordings. The video bucket has a MIME allowlist, so an
     // empty type is rejected with a message about MIME types that means nothing to somebody holding
     // a phone. `contentTypeFor` falls back to the extension and the upload simply works.
-    xhr.setRequestHeader('Content-Type', contentTypeFor(file.name, file.type));
+    // 2026-10-01: from the extension for every kind of file, not only video — a `.csv` picked on
+    // Android arrives with no type at all, and storage then serves it back as a download blob.
+    xhr.setRequestHeader('Content-Type', contentTypeForAnyFile(file.name, file.type));
     xhr.upload.onprogress = (ev) => {
       if (!onProgress) return;
       // `lengthComputable` is false on some proxies. Falling back to the File's own size keeps the
@@ -70,9 +73,14 @@ export function putWithProgress(url: string, file: File, onProgress?: (p: Upload
     xhr.onload = () =>
       (xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new Error(explainPutFailure(xhr.status, xhr.responseText, file))));
-    xhr.onerror = () => reject(new Error('Network error during upload. Check your connection and try again.'));
-    xhr.onabort = () => reject(new Error('Upload cancelled.'));
+        : reject(new UploadError(explainPutFailure(xhr.status, xhr.responseText, file), {
+          status: xhr.status, phase: 'send', responseText: xhr.responseText,
+        })));
+    // Status 0: no answer at all. On Android this is ALSO what a file that changed after it was
+    // picked looks like (net::ERR_UPLOAD_FILE_CHANGED) — `classifyUploadFailure` words it for both,
+    // and the dialog copies small files into memory first so it cannot happen to them.
+    xhr.onerror = () => reject(new UploadError('The connection dropped while sending the file.', { status: 0, phase: 'send' }));
+    xhr.onabort = () => reject(new UploadError('Upload cancelled.', { status: 0, phase: 'send', kind: 'refused' }));
     // NO `xhr.timeout` is set, deliberately. A 500 MB video over a field connection can legitimately
     // take the better part of an hour, and any fixed deadline would kill exactly the uploads this
     // whole path exists to make possible. A genuinely dead connection surfaces through `onerror`.
@@ -116,18 +124,30 @@ async function uploadAttachmentBytes(
   file: File,
   onProgress?: (p: UploadProgress) => void,
 ): Promise<JobUploadResult> {
-  const init = await fetch('/api/admin/jobs/files/upload', {
+  const init = await asStep('start', () => fetch('/api/admin/jobs/files/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size, mime_type: file.type }),
-  });
+    // The type from the extension when Android gave none: the server picks the bucket (and the
+    // video cap) from it, so an untyped .mp4 must still say it is a video.
+    body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size, mime_type: contentTypeForAnyFile(file.name, file.type) }),
+  }));
 
-  if (!init.ok) {
-    const body = (await init.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Could not start uploading ${file.name}.`);
-  }
+  if (!init.ok) throw await startFailure(init, file.name);
 
   const started = (await init.json()) as JobUploadStarted;
   await putWithProgress(started.signed_url, file, onProgress);
   return { file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket };
+}
+
+/**
+ * The error for a refused JSON step, with its status kept so the caller can tell "signed out" from
+ * "try again". Reads the body as text first: a platform 413 or a proxy's error page is not JSON,
+ * and `res.json()` throwing on it used to turn a clear refusal into "did not reach the server".
+ */
+export async function startFailure(res: Response, fileName: string, phase: 'start' | 'save' = 'start'): Promise<UploadError> {
+  const text = await res.text().catch(() => '');
+  let serverMessage: string | undefined;
+  try { serverMessage = (JSON.parse(text) as { error?: string }).error ?? undefined; } catch { /* not JSON */ }
+  const fallback = phase === 'start' ? `Could not start uploading ${fileName}.` : `The file went up, but ${fileName} could not be saved to the folder.`;
+  return new UploadError(serverMessage ?? fallback, { status: res.status, phase, serverMessage, responseText: text });
 }

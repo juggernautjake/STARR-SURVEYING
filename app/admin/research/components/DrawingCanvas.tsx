@@ -1,6 +1,7 @@
 // app/admin/research/components/DrawingCanvas.tsx — Interactive SVG canvas with full drawing tools
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import type { RenderedDrawing, DrawingElement, ViewMode } from '@/types/research';
@@ -1502,7 +1503,7 @@ export default function DrawingCanvas({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={`image/*,${HEIC_ACCEPT}`}
         style={{ display: 'none' }}
         onChange={handleImageUpload}
       />

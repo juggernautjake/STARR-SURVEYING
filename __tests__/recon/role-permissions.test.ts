@@ -72,6 +72,7 @@ const { mockSupabaseSingle, mockSupabaseMaybeSingle, mockSupabaseFrom } = vi.hoi
   const mockSupabaseFrom = vi.fn(() => ({
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    abortSignal: vi.fn().mockReturnThis(),
     single: mockSupabaseSingle,
     maybeSingle: mockSupabaseMaybeSingle,
     update: vi.fn().mockReturnThis(),
@@ -246,6 +247,7 @@ describe('getUserRolesFromDB', () => {
     mockSupabaseFrom.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      abortSignal: vi.fn().mockReturnThis(),
       single: mockSupabaseSingle,
       maybeSingle: mockSupabaseMaybeSingle,
       update: vi.fn().mockReturnThis(),
@@ -433,6 +435,7 @@ describe('isUserBlocked', () => {
     mockSupabaseFrom.mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      abortSignal: vi.fn().mockReturnThis(),
       single: mockSupabaseSingle,
       maybeSingle: mockSupabaseMaybeSingle,
       update: vi.fn().mockReturnThis(),

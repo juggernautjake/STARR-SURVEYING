@@ -19,6 +19,7 @@
 // so attachment bytes can flow through.
 
 import { useEffect, useRef, useState } from 'react';
+import { FUNCTION_BODY_LIMIT_BYTES, fitsThroughFunction } from '@/lib/files/upload-resilience';
 import { useToast } from '@/app/admin/components/Toast';
 // LR4 — template picker + variable interpolation. LR9 — the body
 // uses the HTML-safe variant so customer-supplied vars can't XSS the
@@ -197,6 +198,13 @@ export default function ReplyDialog({
     }
     if (!subject.trim()) {
       addToast('Subject is required', 'error');
+      return;
+    }
+    // Everything travels in one request through a function Vercel caps at 4.5 MB; refusing here
+    // says so, instead of a 413 that reads as a network failure (2026-10-01).
+    const attachedBytes = attachments.reduce((n, f) => n + f.size, 0);
+    if (!fitsThroughFunction(attachedBytes)) {
+      addToast(`Attachments total ${(attachedBytes / 1024 / 1024).toFixed(1)} MB — email replies take up to ${FUNCTION_BODY_LIMIT_BYTES / 1024 / 1024} MB. Remove some, or share large files from the Files page instead.`, 'error');
       return;
     }
     const bodyHtml = editorRef.current?.innerHTML.trim() ?? '';

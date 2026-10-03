@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, CAD_IMAGES_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { convertHeicForImageRoute } from '@/lib/media/heic-server';
+import { isHeicMime } from '@/lib/images/heic-detect';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -59,12 +61,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!match) {
     return NextResponse.json({ error: 'Only base64 data URLs are supported.' }, { status: 400 });
   }
-  const mime = match[1];
+  let mime = match[1];
+  let bytes = Buffer.from(match[2], 'base64');
+  // HEIC → JPEG (2026-09-27), by the bytes. The drawing canvas cannot paint a HEIC.
+  if (isHeicMime(mime) || mime === 'application/octet-stream') {
+    const heic = await convertHeicForImageRoute({ bytes, name: body.name, type: mime });
+    if (!heic.ok) return NextResponse.json({ error: heic.error }, { status: heic.status });
+    bytes = heic.bytes;
+    mime = heic.contentType;
+  }
   const ext = EXT_BY_MIME[mime];
   if (!ext) {
     return NextResponse.json({ error: `Unsupported image type ${mime}.` }, { status: 415 });
   }
-  const bytes = Buffer.from(match[2], 'base64');
   if (bytes.length > MAX_BYTES) {
     return NextResponse.json({ error: `Image exceeds ${Math.round(MAX_BYTES / 1024 / 1024)} MB.` }, { status: 413 });
   }

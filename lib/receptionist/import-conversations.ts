@@ -15,7 +15,7 @@
 // Never throws. A cron that 500s is retried and alerted on, and "ElevenLabs was briefly unhappy"
 // is neither retryable nor news — the failures come back in `errors` for the log line instead.
 import { supabaseAdmin } from '@/lib/supabase';
-import { startCall, updateCall } from '@/lib/receptionist/calls';
+import { getCallBySid, startCall, updateCall } from '@/lib/receptionist/calls';
 import { agentIdFor, elevenLabsKey, getConversation, listConversations, toCallTurns, type AgentKind } from '@/lib/receptionist/elevenlabs-agents';
 
 export interface ImportResult {
@@ -61,7 +61,11 @@ export async function fileOneConversation(conversationId: string, kind: AgentKin
 
   const callSid = `EL-${full.conversation_id}`;
   const started = full.start_time_unix_secs ? new Date(full.start_time_unix_secs * 1000).toISOString() : new Date().toISOString();
-  const existing = await startCall(supabaseAdmin, {
+  // Look first, open only if missing. `startCall` is an UPSERT that writes `transcript: []` and
+  // `status: 'ringing'`, so calling it on a row that already exists blanked the transcript every
+  // fifteen minutes until the update below put it back — and made every tick report every
+  // conversation as newly "imported" (the cron logged "imported 23" on each run, 2026-09-29).
+  const existing = (await getCallBySid(supabaseAdmin, callSid)) ?? await startCall(supabaseAdmin, {
     callSid,
     from: `browser:${kind}`,
     to: kind === 'starr' ? 'Starr receptionist agent' : 'General conversation agent',

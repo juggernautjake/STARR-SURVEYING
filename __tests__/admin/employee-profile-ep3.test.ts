@@ -62,7 +62,8 @@ describe('ProfilePanel — change-photo affordance (EP3)', () => {
   it('wraps the avatar in a <label> that hosts the hidden file input', () => {
     expect(SRC).toMatch(/data-testid="profile-avatar-change"/);
     expect(SRC).toMatch(/data-testid="profile-avatar-input"/);
-    expect(SRC).toMatch(/accept="image\/png,image\/jpeg,image\/webp,image\/gif"/);
+    // HEIC added 2026-09-27 so a desktop picker shows iPhone photos (converted to JPEG on the way in).
+    expect(SRC).toMatch(/accept=\{`image\/png,image\/jpeg,image\/webp,image\/gif,\$\{HEIC_ACCEPT\}`\}/);
   });
 
   it("renders liveAvatarUrl when set (overrides the session image after a successful upload)", () => {

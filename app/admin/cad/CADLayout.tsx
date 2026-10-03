@@ -110,6 +110,9 @@ import UnsavedChangesModal from './components/UnsavedChangesModal';
 import { useHotkeys } from './hooks/useHotkeys';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import { consumePendingCadOpen, PENDING_OPEN_PARAM } from '@/lib/cad/io/pending-open';
+import { decodeTextBytes } from '@/lib/cad/io/trv-encoding';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 import {
   mountLinkedInstanceSubscriber,
   unmountLinkedInstanceSubscriber,
@@ -341,6 +344,32 @@ export default function CADLayout() {
       // in the URL for SaveToDBDialog to read on save.
       if (drawingStore.document.layerOrder.length === 0) setShowNewDrawingDialog(true);
       return;
+    }
+
+    // ── File viewer → CAD ("Open in Starr CAD" on a .TRV preview) ────────────
+    // trv-full-support — the viewer parks { url, name } in sessionStorage
+    // (lib/cad/io/pending-open.ts) and navigates to /admin/cad?open=file.
+    // Fetch + decode the file here; MenuBar opens it through the normal
+    // File → Open path (count preview, layers, paper fit).
+    if (cadParams.get(PENDING_OPEN_PARAM) === 'file') {
+      const u = new URL(window.location.href);
+      u.searchParams.delete(PENDING_OPEN_PARAM);
+      window.history.replaceState(null, '', u.toString());
+      const pending = consumePendingCadOpen();
+      if (pending) {
+        (async () => {
+          try {
+            const text = decodeTextBytes(await fetchFileForPreview(pending.url));
+            window.dispatchEvent(new CustomEvent('cad:openFileContents', { detail: { name: pending.name, text } }));
+          } catch (err) {
+            cadLog.error('FileIO', `Could not open ${pending.name} from the file viewer`, err);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `Could not open ${pending.name}. Open it again from the file viewer, or use File → Open.` },
+            }));
+          }
+        })();
+        return; // Skip RECON / Compass / autosave flows for a hand-off.
+      }
     }
 
     // ── RECON → CAD import ──────────────────────────────────────────────────

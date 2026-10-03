@@ -4,6 +4,7 @@
 // Supports public/private visibility and job-linked notes.
 'use client';
 
+import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -499,7 +500,7 @@ export default function Fieldbook() {
                 </div>
                 <span className="fb__toolbar-sep" />
                 <button className="fb__tool fb__tool--save" onClick={() => saveEntry(true)} title="Save now">💾</button>
-                <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleFileUpload} />
+                <input ref={fileInputRef} type="file" multiple accept={`image/*,${HEIC_ACCEPT},video/*,.pdf,.doc,.docx`} style={{ display: 'none' }} onChange={handleFileUpload} />
               </div>
 
               {/* Entry metadata */}

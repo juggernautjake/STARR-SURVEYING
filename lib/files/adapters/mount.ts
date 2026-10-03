@@ -11,11 +11,23 @@ import type { ViewerFile, ViewerCapabilities, Destination } from '../viewer-mode
 import type { MountNode } from '../mount-node';
 import { jobFolder, parseJobFolderId, parseNamedFolderId, parseProjectDocsId, uploadSpecForRoot } from '../job-folders';
 
+/** A file's viewing URL, or the reason there is none — the route's own words ("You do not have access
+ *  to this file.") rather than a bare failure, so the person who cannot open it can say why. */
+export async function mountViewResult(id: string): Promise<{ url: string } | { error: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/admin/files/${id}/download?inline=1`);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+  const json = (await res.json().catch(() => ({}))) as { url?: unknown; error?: unknown };
+  if (!res.ok) return { error: typeof json.error === 'string' && json.error ? json.error : `HTTP ${res.status}` };
+  return typeof json.url === 'string' ? { url: json.url } : { error: 'The server did not return a link.' };
+}
+
 export async function mountViewUrl(id: string): Promise<string | null> {
-  const res = await fetch(`/api/admin/files/${id}/download?inline=1`);
-  if (!res.ok) return null;
-  const { url } = await res.json();
-  return typeof url === 'string' ? url : null;
+  const r = await mountViewResult(id);
+  return 'url' in r ? r.url : null;
 }
 
 export function mountNodeToViewerFile(n: MountNode, url: string | null, folderName?: string | null): ViewerFile {

@@ -27,9 +27,13 @@ import {
   type ViewerCollection, type ViewerFile, type ViewerCapabilities,
 } from '@/lib/files/viewer-model';
 import { downloadFile, canChooseWhereToSave, type SaveOutcome } from '@/lib/files/download';
+import { trvFormat } from '@/lib/files/trv-preview';
 import { nextRotation, rotationFit, clampZoom, type Rotation } from '@/lib/viewers/viewer-fit';
 import { formatBytes, formatWhen } from './format';
 import FileExplorerDialog from './FileExplorerDialog';
+import SheetPreview from './SheetPreview';
+import { sheetFormat } from '@/lib/files/sheet-preview';
+import { fetchFileForPreview } from '@/lib/files/fetch-file';
 import './FileViewer.css';
 
 export interface FileViewerProps {
@@ -86,6 +90,9 @@ function loadPdfLib(): Promise<PdfLib> {
   return pdfLibPromise;
 }
 
+/** The TRV drawing preview — parser, model and SVG — is fetched only when a .TRV is opened. */
+const TrvPreview = React.lazy(() => import('./TrvPreview'));
+
 // ── Small pieces ──────────────────────────────────────────────────────────
 
 function KindIcon({ file }: { file: ViewerFile }) {
@@ -136,6 +143,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const index = files.findIndex((f) => f.id === currentId);
   const file = files[index] ?? files[0] ?? null;
   const kind = file ? fileKind(file.name, file.mime) : 'other';
+  /** CSV, TSV and Excel open as a grid of rows and columns rather than as text or "no preview". */
+  const sheet = file ? sheetFormat(file.name, file.mime) : null;
 
   // ── view state ──
   const [zoom, setZoom] = useState(1);
@@ -158,6 +167,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const fitScaleRef = useRef<number | null>(null);
   const renderTaskRef = useRef<{ cancel(): void } | null>(null);
   const [textBody, setTextBody] = useState<string | null>(null);
+  /** Traverse PC .TRV / .TRB files open as a drawing (TrvPreview), not as text or "no preview". */
+  const trv = file ? trvFormat(file.name, file.mime) : null;
 
   // A new file resets the view.
   useEffect(() => {
@@ -227,15 +238,15 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
 
   // ── text files ──
   useEffect(() => {
-    if (!file || kind !== 'text' || !file.url) return;
+    if (!file || kind !== 'text' || sheet || !file.url) return;
     let cancelled = false;
     setLoading(true);
-    fetch(file.url, { credentials: 'include' })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    fetchFileForPreview(file.url)
+      .then((buf) => new TextDecoder('utf-8').decode(buf))
       .then((t) => { if (!cancelled) { setTextBody(t.slice(0, 200_000)); setLoading(false); } })
       .catch((err) => { if (!cancelled) { setLoadError(err.message); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [file, kind]);
+  }, [file, kind, sheet]);
 
   // ── navigation ──
   const goTo = useCallback((step: 1 | -1) => {
@@ -537,7 +548,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
         <div className="fv-body">
           <div
             ref={stageRef}
-            className={`fv-stage${!fit ? ' fv-stage--zoomed' : ''}`}
+            className={`fv-stage${!fit ? ' fv-stage--zoomed' : ''}${trv && file.url ? ' fv-stage--trv' : ''}`}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -545,6 +556,12 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
           >
             {loading ? <div className="fv-loading"><Loader2 size={22} className="fv-spin motion-essential" aria-hidden="true" /> Loading…</div> : null}
             {loadError ? <div className="fv-message" role="alert"><AlertTriangle size={18} aria-hidden="true" /> Could not open this file: {loadError}</div> : null}
+            {/* Traverse PC drawings draw themselves (lib/files/trv-preview.ts), loaded only when one opens. */}
+            {trv && file.url ? (
+              <React.Suspense fallback={<div className="fv-loading"><Loader2 size={22} className="fv-spin motion-essential" aria-hidden="true" /> Loading drawing…</div>}>
+                <TrvPreview url={file.url} name={file.name} />
+              </React.Suspense>
+            ) : null}
             {kind === 'pdf' && file.url ? (
               <div className="fv-stage__inner" style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
                 <canvas ref={canvasRef} className="fv-canvas" />
@@ -556,7 +573,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                 <img ref={imgRef} src={file.url} alt={file.name} className="fv-image" draggable={false} onLoad={() => setLoading(false)} onError={() => setLoadError('the image did not load')} />
               </div>
             ) : null}
-            {kind === 'text' && textBody !== null ? (
+            {sheet && file.url ? <SheetPreview url={file.url} format={sheet} /> : null}
+            {!sheet && kind === 'text' && textBody !== null ? (
               <pre className="fv-text" style={{ transform: `scale(${fit ? 1 : zoom})` }}>{textBody}</pre>
             ) : null}
             {/* `preload="metadata"` is the whole fix for "videos load slowly" (owner, 2026-09-19).
@@ -576,7 +594,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
               />
             ) : null}
             {kind === 'audio' && file.url ? <audio className="fv-media" src={file.url} controls /> : null}
-            {(kind === 'other' || !file.url) && !loadError ? (
+            {((kind === 'other' && !sheet) || !file.url) && !loadError ? (
               <div className="fv-message">
                 <FileIcon size={28} aria-hidden="true" />
                 <p>{file.url ? 'No preview for this kind of file.' : 'This file has no preview.'} {file.url ? 'Save it to open it on your computer.' : ''}</p>

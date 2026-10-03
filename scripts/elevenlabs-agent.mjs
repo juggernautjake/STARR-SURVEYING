@@ -89,9 +89,29 @@ async function buildPrompt() {
  *  Derived from TWILIO_AUTH_TOKEN exactly as the route derives it (lib/receptionist/agent-init.ts) —
  *  the one secret that is provably in both this machine's .env.local and the deployment, so the two
  *  sides cannot disagree about the token and fail silently. */
+const PRODUCTION_SITE = 'https://www.starr-surveying.com';
+
+/**
+ * The public site ElevenLabs can reach. This script runs on the owner's machine, where
+ * NEXT_PUBLIC_SITE_URL is usually the local dev server — and ElevenLabs cannot POST to
+ * `http://localhost:3000`. Production logs for 2026-09-27 → 09-29 show NO request to
+ * /api/elevenlabs/conversation-init at all, including during a live call the agent answered. So
+ * anything that is not a public https address is replaced by the production site, loudly.
+ */
+function publicSiteFor(env) {
+  const given = (env.ELEVENLABS_WEBHOOK_SITE ?? env.NEXT_PUBLIC_SITE_URL ?? env.SITE_URL ?? '').trim().replace(/[/]+$/, '');
+  let ok = false;
+  try {
+    const u = new URL(given);
+    ok = u.protocol === 'https:' && !/^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(u.hostname) && !u.hostname.endsWith('.local') && !u.hostname.endsWith('.localhost') && !u.hostname.endsWith('.test');
+  } catch { ok = false; }
+  if (!ok && given) console.warn(`initiation webhook: ${given} is not a public https address ElevenLabs can reach — using ${PRODUCTION_SITE}`);
+  return ok ? given : PRODUCTION_SITE;
+}
+
 function initWebhook(env) {
   const secret = (env.TWILIO_AUTH_TOKEN ?? '').trim();
-  const site = (env.NEXT_PUBLIC_SITE_URL ?? env.SITE_URL ?? 'https://www.starr-surveying.com').replace(/[/]$/, '');
+  const site = publicSiteFor(env);
   if (!secret) return null;
   const token = crypto.createHash('sha256').update(`${secret}:elevenlabs-conversation-init:v1`).digest('hex').slice(0, 32);
   return { url: `${site}/api/elevenlabs/conversation-init?t=${token}`, request_headers: {} };
@@ -150,7 +170,7 @@ function agentPayload({ prompt, first, keywords }, opts, knowledgeBase = [], ini
           overrides: {
             agent: {
               first_message:
-                'Starr Surveying, le atiende Ellie. Soy un asistente automatizado y esta llamada se graba. ¿En qué puedo ayudarle?',
+                'Le habla Ellie de Starr Surveying, ¿en qué puedo ayudarle hoy?',
               // The Spanish-only craft lives HERE rather than in the base prompt, because it only
               // applies once the call is already in Spanish — and the base prompt is sent on every
               // turn of every call, English ones included. The guide's own warning is that length
@@ -220,6 +240,11 @@ Esta llamada es en español. Todo lo anterior se aplica igual.
       // Ask us who is calling before answering. Null clears it, so a deployment without a cron
       // secret does not leave a stale URL pointing at an endpoint that cannot authenticate it.
       workspace_overrides: { conversation_initiation_client_data_webhook: initHook },
+      // ...and actually CALL it. Setting the URL alone does nothing: the agent must also be allowed
+      // to take its first-turn data from the webhook. Found off on 2026-10-01 — every live call since
+      // the URL was fixed still reached Ellie with only the SIP call ids, so she never knew the
+      // caller's number, their history with the firm, or whether the office was open.
+      overrides: { enable_conversation_initiation_client_data_from_webhook: Boolean(initHook) },
       // ── WHAT THE CALL IS FOR, EXTRACTED AFTER IT ENDS ─────────────────────────────────────────
       // The live model's job is to have the conversation; pulling structured fields out of it mid
       // call is work it does badly and pays for in latency. These run once, afterwards, and each

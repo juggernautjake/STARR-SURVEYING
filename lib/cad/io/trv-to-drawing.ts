@@ -50,6 +50,11 @@ import { extractTrvFillSummary } from './trv-fill-styling';
 // cad-trv-straight-line-styling Slice 1 — decode 51/71 → line
 // type + weight + fill.
 import { decodeTrvLineStyle } from './trv-line-style';
+// trv-full-support — true arcs from the `#,LINES` curve records, the
+// shared resolved model (layers, labels, element arcs, leaders) and the
+// per-sheet element filter.
+import { arcFromChordAndRadius, type TrvArc } from './trv-geometry';
+import { buildTrvModel, sheetElements, type TrvModel } from './trv-model';
 
 /** Output of the mapper. Caller writes layers + features into the
  *  store; `notes` collects non-fatal mapping issues (missing point
@@ -306,6 +311,7 @@ function mapTraverse(
   pointById: Map<string, TrvPoint>,
   layerIdByTrvId: Map<string, string>,
   notes: string[],
+  curveFor: (fromId: string, toId: string) => number | null = () => null,
 ): Feature[] {
   // cad-trv-drawing-parsing Slice 1 — Traverse PC names
   // master point lists from a CSV / TXT import with the import
@@ -323,8 +329,12 @@ function mapTraverse(
     return [];
   }
   // Resolve coords by point id; skip missing refs but record them.
-  const resolved: Array<{ id: string; x: number; y: number }> = [];
-  for (const ref of t.pointIds) {
+  const resolved: Array<{ id: string; x: number; y: number; penUp?: boolean }> = [];
+  // trv-full-support — per-ref pen state (`11` bit 16), aligned with
+  // pointIds when the parser captured refs.
+  const refPenUp = t.refs && t.refs.length === t.pointIds.length ? t.refs.map((r) => r.penUp) : null;
+  for (let refIdx = 0; refIdx < t.pointIds.length; refIdx++) {
+    const ref = t.pointIds[refIdx];
     const p = pointById.get(ref);
     if (!p) {
       notes.push(`Traverse "${t.name ?? 'unnamed'}" — missing point "${ref}"`);
@@ -337,7 +347,7 @@ function mapTraverse(
     // the survey, and produce visible spaghetti lines once the
     // view auto-fits.
     if (p.north === 0 && p.east === 0 && (p.elevation === 0 || p.elevation === null)) continue;
-    resolved.push({ id: ref, x: p.east, y: p.north });
+    resolved.push({ id: ref, x: p.east, y: p.north, ...(refPenUp?.[refIdx] ? { penUp: true } : {}) });
   }
   if (resolved.length < 2) {
     notes.push(`Traverse "${t.name ?? 'unnamed'}" — fewer than 2 resolvable points; skipped`);
@@ -372,7 +382,46 @@ function mapTraverse(
   const traverseId = traverseKey(t.sourceLine);
   const curveFeatures: Feature[] = [];
   const detectedRuns: Array<{ startIndex: number; endIndex: number; kind: 'ARC' | 'SPLINE'; residual: number }> = [];
-  const runs = detectCurvedRuns(vertices.map((v) => ({ x: v.x, y: v.y })));
+
+  // trv-full-support — the file's OWN curves. A `#,LINES` record with a
+  // signed radius between two consecutive refs makes that edge a TRUE
+  // arc. The polyline keeps the chord vertex (so the boundary, its area
+  // and its fill stay one closed shape) but the chord edge is hidden via
+  // `hiddenSegments`, and an editable ARC feature draws the curve. A
+  // pen-up ref (`11` bit 16) hides the edge into it the same way.
+  // Edge i runs resolved[i] → resolved[i+1]; for a closed traverse the
+  // last edge ends on the closing duplicate, which matches the polygon's
+  // closing-edge index (vertexCount - 1).
+  const hiddenSegments: number[] = [];
+  const edgeCount = closed ? vertices.length : vertices.length - 1;
+  let explicitCurves = 0;
+  for (let i = 0; i < edgeCount; i++) {
+    const a = resolved[i];
+    const b = resolved[i + 1];
+    if (!a || !b) continue;
+    if (b.penUp) { hiddenSegments.push(i); continue; }
+    const r = curveFor(a.id, b.id);
+    if (r === null) continue;
+    const arc = arcFromChordAndRadius({ x: a.x, y: a.y }, { x: b.x, y: b.y }, r);
+    if (!arc) {
+      notes.push(`Traverse "${t.name ?? 'unnamed'}" — curve ${a.id}→${b.id} radius ${r} is shorter than half its chord; drawn straight`);
+      continue;
+    }
+    hiddenSegments.push(i);
+    curveFeatures.push(arcFeature(`${traverseId}:curve:${i}`, arc, r, layerId, {
+      curveOfTraverse: traverseId,
+      curveKind: 'ARC',
+      trvCurveSource: 'LINES',
+      trvCurveFromId: a.id,
+      trvCurveToId: b.id,
+      trvCurveEdgeIndex: i,
+    }));
+    explicitCurves++;
+  }
+
+  // Pass 7 fallback — only when the file carries no curve records for
+  // this traverse, look for densified (chorded) curves and fit arcs.
+  const runs = explicitCurves > 0 ? [] : detectCurvedRuns(vertices.map((v) => ({ x: v.x, y: v.y })));
   let curveIdx = 0;
   for (const run of runs) {
     const slice = vertices.slice(run.startIndex, run.endIndex + 1).map((v) => ({ x: v.x, y: v.y }));
@@ -475,18 +524,61 @@ function mapTraverse(
       properties.trvFillName = lineStyle.tpcFillName;
     }
   }
+  // trv-full-support — TPC's own area (`33`) and id (`31`), and the
+  // count of true curves drawn for this traverse.
+  if (typeof t.area === 'number') properties.trvArea = t.area;
+  if (t.trvId) properties.trvTraverseId = t.trvId;
+  if (explicitCurves > 0) properties.trvCurveCount = explicitCurves;
+  // The curve features share the traverse's line type.
+  for (const c of curveFeatures) c.style.lineTypeId = style.lineTypeId;
   const polyline: Feature = {
     id: traverseId,
     type,
     geometry: {
       type,
       vertices: vertices.map((v) => ({ x: v.x, y: v.y })),
+      ...(hiddenSegments.length > 0 ? { hiddenSegments } : {}),
     } as Feature['geometry'],
     layerId,
     style,
     properties,
   } as Feature;
   return [polyline, ...curveFeatures];
+}
+
+/** trv-full-support — an editable ARC feature for a true TRV curve. The
+ *  survey data a surveyor reads off a curve (signed radius, Δ, length,
+ *  chord) rides along in properties. */
+function arcFeature(
+  id: string,
+  arc: TrvArc,
+  signedRadius: number,
+  layerId: string,
+  extra: Record<string, string | number | boolean>,
+): Feature {
+  return {
+    id,
+    type: 'ARC',
+    geometry: {
+      type: 'ARC',
+      arc: {
+        center: { x: arc.center.x, y: arc.center.y },
+        radius: arc.radius,
+        startAngle: arc.startAngle,
+        endAngle: arc.endAngle,
+        anticlockwise: arc.anticlockwise,
+      },
+    },
+    layerId,
+    style: defaultStyle(),
+    properties: {
+      trvRadius: signedRadius,
+      trvDeltaDeg: (arc.delta * 180) / Math.PI,
+      trvArcLength: arc.length,
+      trvChord: arc.chord,
+      ...extra,
+    },
+  } as Feature;
 }
 
 /** cad-trv-import-polish Slice 3 — synthetic destination layers
@@ -517,12 +609,40 @@ export interface TrvToDrawingOptions {
    *  the imported FILE's name on the layers, e.g. "Smith Boundary —
    *  Drawing"). Falls back to the project-name prefix when omitted. */
   layerPrefix?: string;
+  /** trv-full-support — how imported features are layered:
+   *   - `'dual'` (default): two synthetic layers, `<prefix> — Drawing`
+   *     (everything, with point copies) and `<prefix> — Points`.
+   *   - `'source'`: Traverse PC's own drawing layers (Lines, Point
+   *     Labels, Line Labels, Lot Areas, user layers …) with their
+   *     colours and visibility, a Points layer, and TPC's labels as
+   *     editable TEXT at TPC's positions. What Forge's TRV import uses. */
+  layerMode?: 'dual' | 'source';
 }
 
 /** Project a parsed `TrvDocument` into the layers + features the
  *  drawing store consumes. Pure: no I/O, no zustand. */
 export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): TrvMappingResult {
   const notes: string[] = [];
+  // trv-full-support — a file can hold several sheets (`28,0`) that
+  // repeat the same labels; draw only the primary sheet's elements.
+  const elements = sheetElements(doc);
+  // The shared resolved model: element arcs, leaders, labels, layers.
+  const model = buildTrvModel(doc);
+  // `#,LINES` curves keyed by travel direction (first record wins).
+  const curveRadius = new Map<string, number>();
+  for (const le of doc.lineEntities ?? []) {
+    if (le.radius === null || le.radius === 0) continue;
+    const k = `${le.fromId}>${le.toId}`;
+    if (!curveRadius.has(k)) curveRadius.set(k, le.radius);
+  }
+  const usedCurvePairs = new Set<string>();
+  const curveFor = (a: string, b: string): number | null => {
+    const fw = curveRadius.get(`${a}>${b}`);
+    if (fw !== undefined) { usedCurvePairs.add(`${a}>${b}`); return fw; }
+    const bw = curveRadius.get(`${b}>${a}`);
+    if (bw !== undefined) { usedCurvePairs.add(`${b}>${a}`); return -bw; }
+    return null;
+  };
   // Internal scratch maps for the per-feature stamping below.
   // layerIdByTrvId continues to map "TRV layer id → Starr layer
   // id" the way mapPoint / mapTraverse expect; we use the
@@ -575,7 +695,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   // the point doesn't already have a description (point's own
   // `1,<description>` line wins when both exist). Falls back
   // silently when no labels are present.
-  const labels = extractPointLabels(doc.drawingElements);
+  const labels = extractPointLabels(elements);
   if (labels.length > 0) {
     const featByTrvId = new Map<string, Feature>();
     for (const f of pointFeatures) {
@@ -609,7 +729,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
     // optional ARC/SPLINE curve features) so each detected curve
     // run becomes an editable native curve alongside the
     // boundary polyline.
-    const feats = mapTraverse(t, pointById, layerIdByTrvId, notes);
+    const feats = mapTraverse(t, pointById, layerIdByTrvId, notes, curveFor);
     // cad-trv-fidelity Slice 5 — TPC working COPIES / DUPLICATES /
     // parallel OFFSET traverses are construction artifacts it doesn't
     // plot. Import them HIDDEN so they don't show as stray lines
@@ -643,8 +763,8 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   // explicit 28,15 still get our computed bearing (which already
   // matches TPC to the second). Stored as JSON on the polyline
   // so the render + round-trip paths can consume + re-emit them.
-  const lineLabels = extractLineLabels(doc.drawingElements);
-  const areaLabels = extractAreaLabels(doc.drawingElements);
+  const lineLabels = extractLineLabels(elements);
+  const areaLabels = extractAreaLabels(elements);
   // cad-trv-fidelity Slice 4 — the lot AREA label (28,14, e.g.
   // "43362 SqFt / 0.995 Acres") was captured as metadata but never
   // rendered. Capture its text + the boundary centroid here, then emit
@@ -753,7 +873,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   //     `28` block so the round-trip serializer never re-emits them.
   const connectorFeatures: Feature[] = [];
   {
-    const connectors = extractConnectors(doc.drawingElements);
+    const connectors = extractConnectors(elements);
     if (connectors.length > 0) {
       const featByTrvId = new Map<string, Feature>();
       for (const f of pointFeatures) {
@@ -818,7 +938,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   // the round-trip source of truth.
   const elementShapeFeatures: Feature[] = [];
   {
-    const shapes = extractElementShapes(doc.drawingElements);
+    const shapes = extractElementShapes(elements);
     let nPoly = 0;
     let nLine = 0;
     for (const s of shapes) {
@@ -867,8 +987,15 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
   const textFeatures: Feature[] = [];
   {
     let nText = 0;
-    for (const t of extractTextElements(doc.drawingElements)) {
-      if (t.space !== 'WORLD') continue;
+    // trv-full-support — world vs paper comes from the shared model: a
+    // note inside the survey's extents is world text even in a LOCAL
+    // (5000/5000) coordinate file, which the magnitude test alone sent
+    // to paper space and dropped. The model also carries the rotation.
+    const worldNotes = new Map<number, number>();
+    for (const e of model.entities) if (e.kind === 'text' && e.role === 'note') worldNotes.set(e.sourceLine, e.rotationDeg);
+    for (const t of extractTextElements(elements)) {
+      if (!worldNotes.has(t.sourceLine)) continue;
+      const rotDeg = worldNotes.get(t.sourceLine) ?? 0;
       // cad-trv-fidelity Slice 4 — follow TPC's exact placement (the
       // world x/y) + font size. We keep TPC's own line breaks when
       // present; otherwise we balance-wrap the label (whole words only)
@@ -879,7 +1006,7 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       textFeatures.push({
         id: `trv-text:${t.sourceLine}`,
         type: 'TEXT',
-        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: content },
+        geometry: { type: 'TEXT', point: { x: t.x, y: t.y }, textContent: content, ...(rotDeg ? { textRotation: (rotDeg * Math.PI) / 180 } : {}) },
         layerId: drawingLayerId,
         style: defaultStyle(),
         properties: {
@@ -915,6 +1042,75 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
       notes.push('Rendered the lot area annotation as editable text');
     }
   }
+  // trv-full-support — geometry the earlier passes never drew: TRUE arcs
+  // drawn as elements (`28,8`), standalone `#,LINES` curves no traverse
+  // uses, and leaders (`28,27`). Tagged `trvDerived` like the other
+  // element features so the verbatim records stay the round-trip source.
+  const extraFeatures: Feature[] = [];
+  {
+    let nArc = 0;
+    let nCurve = 0;
+    let nLeader = 0;
+    for (const e of model.entities) {
+      if (e.kind === 'arc') {
+        const kind = e.source === 'lines' ? 'TRV_CURVE' : 'ELEMENT_ARC';
+        const f = arcFeature(`trv-arc:${e.sourceLine}`, e.arc, e.signedRadius, drawingLayerId, {
+          trvDerived: true,
+          trvElementKind: kind,
+          trvElementSourceLine: e.sourceLine,
+        });
+        f.style.lineTypeId = strokeLineTypeId(e.stroke);
+        extraFeatures.push(f);
+        if (e.source === 'lines') nCurve++; else nArc++;
+      } else if (e.kind === 'polyline' && e.source === 'leader') {
+        extraFeatures.push({
+          id: `trv-leader:${e.sourceLine}`,
+          type: 'POLYLINE',
+          geometry: { type: 'POLYLINE', vertices: e.vertices.map((v) => ({ x: v.x, y: v.y })) },
+          layerId: drawingLayerId,
+          style: defaultStyle(),
+          properties: { trvDerived: true, trvElementKind: 'ELEMENT_LEADER', trvElementSourceLine: e.sourceLine },
+        });
+        nLeader++;
+      }
+    }
+    if (nArc + nCurve + nLeader > 0) {
+      notes.push(`Rendered ${nArc} arc(s) + ${nLeader} leader(s) from drawing elements and ${nCurve} standalone curve(s)`);
+    }
+    // The element's own line type (29,2) on the element lines / polylines.
+    const strokeByLine = new Map<number, string>();
+    for (const e of model.entities) {
+      if (e.kind === 'line' || e.kind === 'polyline') strokeByLine.set(e.sourceLine, strokeLineTypeId(e.stroke));
+    }
+    for (const f of [...connectorFeatures, ...elementShapeFeatures]) {
+      const lt = strokeByLine.get(Number(f.properties.trvElementSourceLine));
+      if (lt) f.style.lineTypeId = lt;
+    }
+    // TPC point symbols (28,11) — remembered on the point.
+    const featByTrvId = new Map<string, Feature>();
+    for (const f of pointFeatures) {
+      const tid = f.properties.trvPointId;
+      if (typeof tid === 'string') featByTrvId.set(tid, f);
+    }
+    for (const e of model.entities) {
+      if (e.kind !== 'point' || !e.symbolId) continue;
+      const f = featByTrvId.get(e.id);
+      if (f) f.properties.trvSymbolId = e.symbolId;
+    }
+  }
+
+  if (opts.layerMode === 'source') {
+    return toSourceLayers({
+      model,
+      prefix,
+      pointFeatures,
+      traverseFeatures,
+      derived: [...connectorFeatures, ...elementShapeFeatures, ...textFeatures.filter((f) => !f.properties.trvAreaAnnotation), ...extraFeatures],
+      traverseGroupSpecs,
+      notes,
+    });
+  }
+
   // cad-trv-dual-layer-filename Slice 2 — the surveyor wants two
   // INDEPENDENT layers that happen to start with the same points:
   // the Points layer holds just the points, the Drawing layer holds
@@ -958,7 +1154,115 @@ export function trvToDrawing(doc: TrvDocument, opts: TrvToDrawingOptions = {}): 
 
   return {
     layers,
-    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures, ...textFeatures],
+    features: [...pointFeatures, ...pointMirrors, ...traverseFeatures, ...connectorFeatures, ...elementShapeFeatures, ...textFeatures, ...extraFeatures],
+    featureGroups,
+    notes,
+  };
+}
+
+/** trv-full-support — Starr line type for a TPC stroke kind. */
+function strokeLineTypeId(stroke: 'solid' | 'dashed' | 'fence'): string {
+  return stroke === 'fence' ? 'FENCE_BARBED_WIRE' : stroke === 'dashed' ? 'DASHED' : 'SOLID';
+}
+
+/** trv-full-support — `layerMode: 'source'`: put every feature on the
+ *  Traverse PC drawing layer it lives on in the file (colours and
+ *  visibility from `29,0,7`), points on a Points layer, and TPC's point /
+ *  segment / area labels in as editable TEXT at TPC's own positions. No
+ *  Drawing-layer point copies are made. */
+function toSourceLayers(args: {
+  model: TrvModel;
+  prefix: string;
+  pointFeatures: Feature[];
+  traverseFeatures: Feature[];
+  derived: Feature[];
+  traverseGroupSpecs: Array<{ name: string; featureIds: string[] }>;
+  notes: string[];
+}): TrvMappingResult {
+  const { model, prefix, pointFeatures, traverseFeatures, derived, traverseGroupSpecs, notes } = args;
+  const slug = slugify(prefix);
+  const starrLayerId = (key: string) => `trv-src:${slug}:${slugify(key)}`;
+  const modelLayer = new Map(model.layers.map((l) => [l.key, l]));
+  const layerKeyByLine = new Map<number, string>();
+  for (const e of model.entities) layerKeyByLine.set(e.sourceLine, e.layerKey);
+  const used = new Map<string, number>();
+  const assign = (f: Feature, key: string) => {
+    f.layerId = starrLayerId(key);
+    used.set(key, (used.get(key) ?? 0) + 1);
+  };
+
+  for (const f of pointFeatures) assign(f, 'points');
+  for (const f of traverseFeatures) {
+    const owner = typeof f.properties.curveOfTraverse === 'string' ? f.properties.curveOfTraverse : f.id;
+    const line = Number(/^trv-traverse:(\d+)/.exec(owner)?.[1]);
+    assign(f, layerKeyByLine.get(line) ?? (f.properties.trvConstruction ? 'construction' : 'lines'));
+  }
+  for (const f of derived) {
+    const line = Number(f.properties.trvElementSourceLine);
+    assign(f, layerKeyByLine.get(line) ?? 'drawing');
+  }
+
+  // TPC's labels, verbatim text at TPC's placement.
+  const labelFeatures: Feature[] = [];
+  for (const e of model.entities) {
+    if (e.kind !== 'text' || e.role === 'note') continue;
+    const f: Feature = {
+      id: `trv-label:${e.sourceLine}`,
+      type: 'TEXT',
+      geometry: {
+        type: 'TEXT',
+        point: { x: e.x, y: e.y },
+        textContent: e.text,
+        ...(e.rotationDeg ? { textRotation: (e.rotationDeg * Math.PI) / 180 } : {}),
+      },
+      layerId: '',
+      style: defaultStyle(),
+      properties: {
+        trvDerived: true,
+        trvElementKind: 'ELEMENT_LABEL',
+        trvLabelRole: e.role,
+        trvElementSourceLine: e.sourceLine,
+        ...(e.ref ? { trvLabelRef: e.ref } : {}),
+        fontSize: e.sizePt,
+        fontFamily: 'Arial',
+        textAlign: e.hAlign === 'middle' ? 'center' : 'left',
+      },
+    };
+    assign(f, e.layerKey);
+    labelFeatures.push(f);
+  }
+  if (labelFeatures.length > 0) notes.push(`Placed ${labelFeatures.length} Traverse PC label(s) as editable text`);
+
+  const synthNames: Record<string, string> = {
+    points: 'Points', lines: 'Lines', labels: 'Labels', symbols: 'Symbols', drawing: 'Drawing',
+    construction: 'Construction (not plotted)',
+  };
+  const keys = [...used.keys()];
+  // Points first, then the file's own layer order.
+  keys.sort((a, b) => (a === 'points' ? -1 : b === 'points' ? 1 : 0));
+  const layers: Layer[] = keys.map((key, i) => {
+    const ml = modelLayer.get(key);
+    const l = makeLayer(starrLayerId(key), `${prefix} — ${ml?.name ?? synthNames[key] ?? key}`, 1000 + i);
+    if (ml?.color) l.color = ml.color;
+    l.visible = ml ? ml.visible : key !== 'construction';
+    if (ml?.sourceName) l.description = `Traverse PC layer "${ml.sourceName}"`;
+    return l;
+  });
+
+  const featById = new Map<string, Feature>();
+  for (const f of traverseFeatures) featById.set(f.id, f);
+  const featureGroups: FeatureGroup[] = [];
+  traverseGroupSpecs.forEach((spec, i) => {
+    const memberIds = spec.featureIds.filter((id) => featById.has(id));
+    if (memberIds.length === 0) return;
+    const groupId = `trv-traverse-group:${slug}:${i}`;
+    for (const id of memberIds) featById.get(id)!.featureGroupId = groupId;
+    featureGroups.push({ id: groupId, name: spec.name, layerId: featById.get(memberIds[0])!.layerId, featureIds: memberIds, parentGroupId: null });
+  });
+
+  return {
+    layers,
+    features: [...pointFeatures, ...traverseFeatures, ...derived, ...labelFeatures],
     featureGroups,
     notes,
   };
