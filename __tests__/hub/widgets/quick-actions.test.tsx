@@ -36,12 +36,13 @@ describe('quick-actions catalog', () => {
   // `new-job` is KEPT in the catalogue: hubs with a saved layout already name it, and removing the
   // entry would leave those tiles rendering nothing. It is simply no longer a default. So the
   // catalogue is 9, the default set is 8, and these are no longer the same assertion.
-  it('ships the 9 catalogue entries, with new-project ahead of new-job', () => {
+  it('ships the 10 catalogue entries, with new-project ahead of new-job', () => {
     const ids = QUICK_ACTIONS_CATALOG.map((a) => a.id);
     expect(ids).toEqual([
       'clock-in-out',
       'new-project',
       'new-job',
+      'review-hours',
       'approve-receipts',
       'view-reports',
       'open-cad',
@@ -51,9 +52,11 @@ describe('quick-actions catalog', () => {
     ]);
   });
 
-  it('defaults to 8, offering New Project and NOT New Job', () => {
+  it('defaults to 9, offering New Project and NOT New Job', () => {
     expect(DEFAULT_QUICK_ACTION_IDS).toEqual([
       'clock-in-out',
+      // Owner, 2026-10-05: "add a review employee hours as a quick action". Approver roles only.
+      'review-hours',
       'new-project',
       'approve-receipts',
       'view-reports',

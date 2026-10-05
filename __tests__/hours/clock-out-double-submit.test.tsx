@@ -125,13 +125,15 @@ describe('the route refuses the second copy regardless', () => {
   });
 
   it('is wired into the route, and reported rather than hidden', () => {
-    expect(ROUTE).toMatch(/findRecentDuplicate\(prior, entry, nowMs\)/);
+    // `priorForDuplicates` = the day's rows minus any this request is replacing (2026-10-05): an
+    // unchanged resubmission must not be echoed as a duplicate of the row it is about to delete.
+    expect(ROUTE).toMatch(/findRecentDuplicate\(priorForDuplicates, entry, nowMs\)/);
     expect(ROUTE).toMatch(/duplicates_suppressed: duplicatesSuppressed/);
   });
 
   it('also collapses two identical entries inside ONE request', () => {
     // A double-submit is the common case; a client looping over an array it built twice is the same
     // defect arriving by a different road. The route pushes each insert back onto the list it checks.
-    expect(ROUTE).toMatch(/if \(data\) prior\.push\(\{/);
+    expect(ROUTE).toMatch(/if \(data\) priorForDuplicates\.push\(\{/);
   });
 });

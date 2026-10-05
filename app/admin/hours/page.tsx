@@ -38,7 +38,7 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList, Users } from 'lucide-react';
+import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList, Users, History } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import MyHoursPanel from '../my-hours/MyHoursPanel';
@@ -46,6 +46,7 @@ import ApprovalsTab from './_tabs/ApprovalsTab';
 import AssignmentsTab from './_tabs/AssignmentsTab';
 import TeamTab from './_tabs/TeamTab';
 import TimeOffTab from './_tabs/TimeOffTab';
+import HistoryTab from './_tabs/HistoryTab';
 import AvailabilityClient from '../availability/AvailabilityClient';
 import '../availability/Availability.css';
 import './HoursPortal.css';
@@ -105,6 +106,17 @@ const PORTAL: PortalSpec = {
       icon: Users,
       hint: 'Who is on the clock, where, and how to reach them.',
       roles: ['admin', 'tech_support'],
+    },
+    {
+      // ── HOURS HISTORY (owner, 2026-10-05) ─────────────────────────────────────────────────
+      // "We need to know who posts their hours, and then who reviews them and makes the decisions
+      // for them" … "be able to retrieve the hours if deleted." Everybody who logs hours sees the
+      // history of their OWN (the API scopes it); an admin sees everyone's and can restore.
+      id: 'history',
+      label: 'History',
+      icon: History,
+      hint: 'Every change to hours — who posted, who reviewed and decided, every edit, and deleted entries you can restore.',
+      roles: ['admin', 'developer', 'field_crew', 'employee', 'tech_support'],
     },
     {
       id: 'time-off',
@@ -187,6 +199,7 @@ export default function HoursPortal() {
         {active === 'assignments' && <AssignmentsTab />}
         {active === 'approvals' && <ApprovalsTab />}
         {active === 'team' && <TeamTab />}
+        {active === 'history' && <HistoryTab />}
         {active === 'time-off' && <TimeOffTab />}
         {active === 'availability' && <AvailabilityClient />}
       </div>

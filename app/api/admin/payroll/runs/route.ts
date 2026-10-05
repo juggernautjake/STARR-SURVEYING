@@ -170,7 +170,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { data: timeLogs, error: logsError } = await supabaseAdmin
     .from('daily_time_logs')
     .select('id, user_email, log_date, work_type, hours, adjusted_hours, job_id, job_name, effective_rate, status')
-    .eq('status', 'approved')
+    // 'adjusted' is an approver's decision too — see lib/payroll/owed-loader.ts. Excluding it left
+    // every trimmed day out of the payroll run.
+    .in('status', ['approved', 'adjusted'])
     .gte('log_date', pay_period_start)
     .lte('log_date', pay_period_end);
 

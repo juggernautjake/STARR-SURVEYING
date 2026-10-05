@@ -42,7 +42,7 @@ const WIDGET_SOURCES: Record<string, WidgetSource | undefined> = {
   'quiz-history':            { path: '/admin/learn/quiz-attempts?limit=20' },
   'recommended-lessons':     { path: '/admin/learn/recommended?limit=10' },
   'streak-counter':          { path: '/admin/learn/streak' },
-  'hours-this-week':         { path: '/admin/time-logs?week_start=auto' },
+  'hours-this-week':         { path: '/admin/time-logs?mine=1&week_start=auto' },
   'equipment-out-today':     { path: '/admin/equipment/today?status=checked-out&mine=true' },
   'maintenance-due':         { path: '/admin/equipment/maintenance?due=month' },
   'low-consumables':         { path: '/admin/equipment/consumables?below=25' },

@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildHoursDecisionNotifications } from '@/lib/notifications/hours-decision';
+import { auditStamp } from '@/lib/hours/audit';
 
 // POST: Bulk approve/reject time logs
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -63,8 +64,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .update(paying
         // `payout_batch_id` stays null: a person did this, not a payroll run. When a run does the
         // marking it stamps its batch, and the two cases remain distinguishable forever.
-        ? { paid_at: now, paid_by: session.user.email, updated_at: now }
-        : { paid_at: null, paid_by: null, payout_batch_id: null, updated_at: now })
+        ? { paid_at: now, paid_by: session.user.email, updated_at: now, ...auditStamp(session.user.email, 'paid') }
+        : { paid_at: null, paid_by: null, payout_batch_id: null, updated_at: now, ...auditStamp(session.user.email, 'unpaid') })
       .in('id', ids)
       .select();
 
@@ -87,7 +88,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     approved_by: session.user.email,
     approved_at: now,
     updated_at: now,
+    ...auditStamp(session.user.email, action === 'approve' ? 'approved' : 'rejected'),
   };
+
+  // ── PAID HOURS ARE NOT REJECTED IN BULK (2026-10-05) ─────────────────────────────────────────
+  // A rejection of a day somebody has already been paid for leaves the payout and the timesheet
+  // contradicting each other. Mark it unpaid first, deliberately, if that is really what happened.
+  if (action === 'reject') {
+    const { data: paid } = await supabaseAdmin
+      .from('daily_time_logs')
+      .select('id')
+      .in('id', ids)
+      .not('paid_at', 'is', null);
+    if ((paid ?? []).length > 0) {
+      return NextResponse.json({
+        error: `${paid!.length} of these ${paid!.length === 1 ? 'entry has' : 'entries have'} already been paid. Mark them unpaid first if they really should be rejected.`,
+      }, { status: 400 });
+    }
+  }
 
   if (action === 'approve') {
     updateData.status = 'approved';

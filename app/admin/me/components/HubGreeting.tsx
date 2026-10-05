@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/time-tracking/clock-session';
+import { CLOCK_SESSION_EVENT, CLOCK_SESSION_KEY, readClockSession } from '@/lib/time-tracking/clock-session';
 import type { UserRole } from '@/lib/auth-roles';
 import RolePills from './RolePills';
 // hub-widget-excellence-01 Slice 5 — the pure greeting helpers moved to
@@ -81,7 +81,11 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
       if (e.key === CLOCK_SESSION_KEY) sync();
     }
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(CLOCK_SESSION_EVENT, sync);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(CLOCK_SESSION_EVENT, sync);
+    };
   }, []);
 
   const greeting = now ? partOfDay(now, greetingPrefix) : (greetingPrefix ?? 'Welcome');

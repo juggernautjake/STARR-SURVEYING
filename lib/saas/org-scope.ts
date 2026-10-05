@@ -237,6 +237,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'subscription_events',
   'subscriptions',
   'support_tickets',
+  'time_log_events',
   'time_log_pay_decision_history',
   'time_log_pay_decisions',
   'typing_indicators',

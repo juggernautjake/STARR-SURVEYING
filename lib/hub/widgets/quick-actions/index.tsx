@@ -13,8 +13,11 @@
 // handler (opens the same ClockInModal/ClockOutModal the top-bar pill
 // uses) rather than a link to an archived hours tab.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+// The context, not `useSession()`: the hook throws outside a provider (tests, the UX harness), and a
+// widget that cannot render without a session is a widget that breaks the hub it sits on.
+import { SessionContext } from 'next-auth/react';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import { useElementSize } from '@/lib/hub/use-element-size';
@@ -22,6 +25,7 @@ import { useQuickActionBadges } from '@/lib/hub/use-hub-badges';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import { ClockInModal, ClockOutModal } from '@/lib/time-tracking/clock-modals';
 import {
+  CLOCK_SESSION_EVENT,
   CLOCK_SESSION_KEY,
   clearClockSession,
   elapsedHours,
@@ -29,6 +33,7 @@ import {
   writeClockSession,
   type ClockSession,
 } from '@/lib/time-tracking/clock-session';
+import { buildClockOutEntries, describeOutcome, submitClockOut } from '@/lib/time-tracking/pending-hours';
 import { useActivityTags, type ActivityTag } from '@/lib/time-tracking/use-activity-tags';
 import { gridCapacity, listCapacity, splitForCapacity } from './capacity';
 import {
@@ -41,9 +46,20 @@ import {
 import {
   QUICK_ACTIONS_CATALOG,
   DEFAULT_QUICK_ACTION_IDS,
+  PROMOTED_QUICK_ACTION_IDS,
+  actionAllowedFor,
   findQuickAction,
+  withPromotedActions,
   type QuickActionDef,
 } from '@/lib/hub/quick-actions-catalog';
+
+/** The signed-in person's roles, or null before the session has loaded / outside a provider. */
+function useViewerRoles(): string[] | null {
+  const ctx = useContext(SessionContext);
+  const user = ctx?.data?.user as { roles?: string[]; role?: string } | undefined;
+  if (!user) return null;
+  return user.roles ?? (user.role ? [user.role] : []);
+}
 import {
   CUSTOM_ACTION_ICON_GROUPS,
   CUSTOM_ACTION_LABEL_MAX,
@@ -80,6 +96,9 @@ export interface QuickActionsContent extends Record<string, unknown> {
   /** When true, attaches ⌘1–⌘9 keyboard shortcuts to the first 9
    *  visible actions. Off by default — power users can opt in. */
   enableShortcuts: boolean;
+  /** Promoted actions this person took off their hub. Remembered so a promotion never comes back
+   *  after somebody removed it. See PROMOTED_QUICK_ACTION_IDS. */
+  dismissedActionIds?: string[];
 }
 
 const DEFAULTS: QuickActionsContent = {
@@ -146,8 +165,14 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     function onStorage(e: StorageEvent) {
       if (e.key === CLOCK_SESSION_KEY) setClockSession(readClockSession());
     }
+    // Same-tab changes (the top-bar pill clocking out), so this tile can never log a shift twice.
+    const onLocal = () => setClockSession(readClockSession());
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(CLOCK_SESSION_EVENT, onLocal);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(CLOCK_SESSION_EVENT, onLocal);
+    };
   }, []);
 
   const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
@@ -159,48 +184,28 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
 
   const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes, lunchMinutes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => {
     if (!clockSession) { setClockModal('none'); return; }
-    const totalAllocated = Object.values(perJobAllocations).reduce((sum, h) => sum + h, 0);
-    const elapsed = elapsedHours(clockSession.startedAt);
-    const today = new Date().toISOString().slice(0, 10);
-    const entries = totalAllocated > 0
-      ? Object.entries(perJobAllocations)
-          .filter(([, h]) => h > 0)
-          .map(([job_id, hours]) => ({
-            log_date: today,
-            work_type: 'general',
-            hours,
-            job_id,
-            description: 'Clock-out entry from Quick Actions widget',
-            notes,
-            activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
-          }))
-          // ── THE LUNCH IS ONE LUNCH ──────────────────────────────────────────────────────────
-          // A day split across three jobs is three rows, and putting the lunch on each would tell
-          // an approver somebody was at lunch for three times as long as they were. It goes on the
-          // first row only; they had one lunch, and the day's total is what is being asked about.
-          .map((e, i) => (i === 0 ? { ...e, lunch_minutes: lunchMinutes } : e))
-      : [{
-          log_date: today,
-          work_type: 'general',
-          hours: elapsed,
-          job_id: clockSession.jobId,
-          description: 'Clock-out entry from Quick Actions widget',
-          notes,
-          activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
-          lunch_minutes: lunchMinutes,
-        }];
-    try {
-      await fetch('/api/admin/time-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries }),
-      });
-    } catch {
-      /* swallow — clearing the session is the safer outcome than leaving the user "stuck on" */
+    // Same path as the top-bar pill: saved on this device first, sent, retried until the server has
+    // it. This used to swallow a failed POST and clear the session anyway — the hours just vanished,
+    // with nothing on screen to say so.
+    const entries = buildClockOutEntries({
+      session: clockSession,
+      perJobAllocations,
+      tagIds,
+      notes,
+      lunchMinutes,
+      description: 'Clock-out entry from Quick Actions widget',
+    });
+    const outcome = await submitClockOut(entries);
+    if (outcome.status !== 'failed') {
+      clearClockSession();
+      setClockSession(null);
     }
-    clearClockSession();
-    setClockSession(null);
     setClockModal('none');
+    if (outcome.status !== 'posted' && typeof window !== 'undefined') {
+      // The pill's toast is not on this surface; a plain alert is the honest minimum for "your
+      // hours did not reach the server yet".
+      window.alert(describeOutcome(outcome, `${outcome.hours}h`));
+    }
   }, [clockSession]);
 
   const dispatchAction = useCallback((actionId: string) => {
@@ -210,7 +215,13 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   }, [clockSession]);
 
   // Resolve ids → defs, over the catalog and the user's own links. Skips retired ids gracefully.
-  const actions: QuickActionDef[] = resolveActions(settings.actionIds, settings.customActions);
+  // Newly promoted tiles are slotted into saved hubs; catalog tiles a person's roles do not allow
+  // are hidden (their page would refuse them anyway). Before the session loads, gated tiles wait.
+  const viewerRoles = useViewerRoles();
+  const actions: QuickActionDef[] = resolveActions(
+    withPromotedActions(settings.actionIds, settings.dismissedActionIds ?? [], viewerRoles),
+    settings.customActions,
+  ).filter((a) => viewerRoles === null || actionAllowedFor(a, viewerRoles));
 
   // ⌘1–⌘9 shortcuts on first 9. Defensive: skip when SSR (no window)
   // and when the user has disabled shortcuts.
@@ -439,7 +450,9 @@ function QuickActionsSettings({ value, onChange }: WidgetSettingsFormProps<Quick
   // "add" candidates are the catalog entries not yet chosen, in catalog
   // order — doc 15's reorderable chip/multi-select, built on the shared
   // ordered-list helpers (Foundation Doc 02 Slice 4).
-  const selected = settings.actionIds.filter((id) => allIds.includes(id));
+  const viewerRoles = useViewerRoles();
+  const dismissed = settings.dismissedActionIds ?? [];
+  const selected = withPromotedActions(settings.actionIds, dismissed, viewerRoles).filter((id) => allIds.includes(id));
   const addable = unselectedOptions(selected, allIds);
 
   /** Definition for a chosen id, whether it came from the catalog or the user's own links. */
@@ -449,7 +462,11 @@ function QuickActionsSettings({ value, onChange }: WidgetSettingsFormProps<Quick
   };
 
   function setIds(next: string[]) {
-    onChange({ ...settings, actionIds: next });
+    // A promoted tile taken off is remembered, so it is not slotted back in on the next render; put
+    // back on, it is forgotten again.
+    const removed = PROMOTED_QUICK_ACTION_IDS.filter((id) => selected.includes(id) && !next.includes(id));
+    const nextDismissed = [...new Set([...dismissed, ...removed])].filter((id) => !next.includes(id));
+    onChange({ ...settings, actionIds: next, dismissedActionIds: nextDismissed });
   }
 
   /** Save a link — new or edited. A new one is appended to the shown list too, because a link the
@@ -1152,6 +1169,7 @@ function emojiForAction(iconName: string): string {
     // through to the generic bolt, which says nothing about what the tile does.
     FolderPlus: '📁',
     BadgeCheck: '✔︎',
+    ClipboardCheck: '📋',
     FileBarChart: '📊',
     PenTool: '✏️',
     MessageSquarePlus: '💬',
