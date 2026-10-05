@@ -44,28 +44,46 @@ interface LogRow {
  * number presented as a right one, and it is the number somebody gets paid.
  */
 export async function loadOwed(scopeToEmail?: string | null): Promise<LoadOwedResult> {
-  let logQuery = supabaseAdmin
-    .from('daily_time_logs')
-    .select('id, user_email, log_date, hours, adjusted_hours, total_pay')
-    .eq('status', 'approved')
-    .order('log_date');
-  if (scopeToEmail) logQuery = logQuery.eq('user_email', scopeToEmail);
-
-  const { data: logRows, error: logError } = await logQuery;
-  if (logError) return { rows: [], error: logError.message };
-  const logs = (logRows ?? []) as LogRow[];
+  // ── 'adjusted' IS APPROVED (2026-10-05) ──────────────────────────────────────────────────
+  // An approver who trims a day from 10h to 8h sets status 'adjusted' — a decision, and a payable
+  // one. Filtering on 'approved' alone dropped every adjusted day from what people are owed, with
+  // nothing on screen saying so. `adjusted_hours` is already preferred below.
+  //
+  // ── PAGED, NOT CAPPED ──
+  // PostgREST returns at most 1,000 rows per request. Ordered oldest-first, the rows silently
+  // dropped past that point were the NEWEST approved hours — exactly the ones not yet paid.
+  const PAGE = 1000;
+  const logs: LogRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    let logQuery = supabaseAdmin
+      .from('daily_time_logs')
+      .select('id, user_email, log_date, hours, adjusted_hours, total_pay')
+      .in('status', ['approved', 'adjusted'])
+      .order('log_date')
+      .order('id')
+      .range(offset, offset + PAGE - 1);
+    if (scopeToEmail) logQuery = logQuery.eq('user_email', scopeToEmail);
+    const { data: logRows, error: logError } = await logQuery;
+    if (logError) return { rows: [], error: logError.message };
+    logs.push(...((logRows ?? []) as LogRow[]));
+    if ((logRows ?? []).length < PAGE) break;
+  }
 
   // The approver's decisions OUTRANK the figure resolved at submission. A balance built from the
   // pre-decision amounts would owe people numbers that were explicitly overridden.
   const decisionByLog = new Map<string, { total_pay: number; undecided_hours: number }>();
   if (logs.length > 0) {
-    const { data, error } = await supabaseAdmin
-      .from('time_log_pay_decisions')
-      .select('time_log_id, total_pay, undecided_hours')
-      .in('time_log_id', logs.map((l) => l.id));
-    if (error) return { rows: [], error: `pay decisions could not be read: ${error.message}` };
-    for (const d of (data ?? []) as { time_log_id: string; total_pay: number; undecided_hours: number }[]) {
-      decisionByLog.set(d.time_log_id, d);
+    // In slices: a thousand uuids in one `in()` is a URL too long for the gateway.
+    const ids = logs.map((l) => l.id);
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabaseAdmin
+        .from('time_log_pay_decisions')
+        .select('time_log_id, total_pay, undecided_hours')
+        .in('time_log_id', ids.slice(i, i + 200));
+      if (error) return { rows: [], error: `pay decisions could not be read: ${error.message}` };
+      for (const d of (data ?? []) as { time_log_id: string; total_pay: number; undecided_hours: number }[]) {
+        decisionByLog.set(d.time_log_id, d);
+      }
     }
   }
 

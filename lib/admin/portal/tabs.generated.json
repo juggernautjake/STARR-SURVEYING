@@ -171,6 +171,10 @@
           "label": "Field team"
         },
         {
+          "id": "history",
+          "label": "History"
+        },
+        {
           "id": "time-off",
           "label": "Time off"
         },

@@ -4,6 +4,8 @@ import '../../styles/AdminTimeLogs.css';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
+// Today on THIS device's calendar — `toISOString()` is UTC, which is tomorrow after ~7pm in Texas.
+import { localDateOf } from '@/lib/time-tracking/pending-hours';
 import { usePageError } from '../../hooks/usePageError';
 import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
 import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/late-entry';
@@ -332,7 +334,7 @@ export default function HoursApprovalPage() {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [entryForm, setEntryForm] = useState({
     user_email: '',
-    log_date: new Date().toISOString().split('T')[0],
+    log_date: localDateOf(Date.now()),
     hours: '',
     work_type: '',
     description: '',
@@ -350,7 +352,7 @@ export default function HoursApprovalPage() {
   const [showBonusForm, setShowBonusForm] = useState(false);
   const [bonusForm, setBonusForm] = useState({
     user_email: '', amount: '', bonus_type: 'performance', reason: '',
-    scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', notes: '',
+    scheduled_date: localDateOf(Date.now()), scheduled_time: '09:00', notes: '',
   });
 
   const loadData = useCallback(async () => {
@@ -801,7 +803,7 @@ export default function HoursApprovalPage() {
   // NOT make the advance recoverable — "Mark paid" does that, because recovering against money
   // that was blessed but never handed over takes back something the person never received.
   const approveAdvance = async (id: string) => {
-    const payDate = prompt('Pay date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const payDate = prompt('Pay date (YYYY-MM-DD):', localDateOf(Date.now()));
     if (!payDate) return;
     // Blank means the whole balance comes out of the next cheque, which is right for a small
     // advance. A larger one is spread by entering a figure. Either way a cheque is never
@@ -879,7 +881,7 @@ export default function HoursApprovalPage() {
         return;
       }
       setShowBonusForm(false);
-      setBonusForm({ user_email: '', amount: '', bonus_type: 'performance', reason: '', scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', notes: '' });
+      setBonusForm({ user_email: '', amount: '', bonus_type: 'performance', reason: '', scheduled_date: localDateOf(Date.now()), scheduled_time: '09:00', notes: '' });
       await loadData();
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error('Bonus creation failed'));
@@ -1254,6 +1256,35 @@ export default function HoursApprovalPage() {
             </div>
           )}
 
+          {/* ── ONE CARD PER EMPLOYEE (owner, 2026-10-05) ───────────────────────────────────────
+              "make it more obvious that the admin/user needs to click on someone's name in the hours
+              page to expand their hours … The element should look kind of like a project or job
+              element … and when clicked it will expand downward. We will be able to click it to
+              collapse it as well."
+              Said in words above the list, and on every card, because a chevron alone was not
+              enough for anybody to know there was more underneath. */}
+          {employeeGroups.length > 0 && (
+            <div className="tl-employee-cards__intro">
+              <span>
+                <strong>{employeeGroups.length}</strong> {employeeGroups.length === 1 ? 'employee' : 'employees'} logged hours
+                {range === 'week' ? ' this week' : range === 'month' ? ' this month' : ''}.
+                {' '}Click a name to see and approve their hours.
+              </span>
+              <span className="tl-employee-cards__bulk">
+                <button
+                  type="button"
+                  className="tl-btn tl-btn--sm"
+                  onClick={() => setOpenEmployees(new Set(employeeGroups.map((g) => g.email)))}
+                >
+                  Expand all
+                </button>
+                <button type="button" className="tl-btn tl-btn--sm" onClick={() => setOpenEmployees(new Set())}>
+                  Collapse all
+                </button>
+              </span>
+            </div>
+          )}
+
           {/* Grouped by employee */}
           {employeeGroups.map((group) => {
             const email = group.email;
@@ -1264,7 +1295,10 @@ export default function HoursApprovalPage() {
             const isOpen = openEmployees.has(email);
             const panelId = `tl-emp-${email.replace(/[^a-z0-9]/gi, '-')}`;
             return (
-              <div key={email} className={`tl-employee-group${isOpen ? ' tl-employee-group--open' : ''}`}>
+              <div
+                key={email}
+                className={`tl-employee-group tl-employee-card${isOpen ? ' tl-employee-group--open' : ''}${group.pendingCount > 0 ? ' tl-employee-card--due' : ''}`}
+              >
                 {/* A real <button>, not a div with onClick: this is the control that opens the
                     panel, and it has to be reachable and announced as one. */}
                 <button
@@ -1275,11 +1309,18 @@ export default function HoursApprovalPage() {
                   onClick={() => toggleEmployee(email)}
                   data-testid={`tl-employee-toggle-${email}`}
                 >
-                  <span className={`tl-employee-group__chevron${isOpen ? ' tl-employee-group__chevron--open' : ''}`} aria-hidden="true">&#9656;</span>
-                  <div>
+                  <span className="tl-employee-card__avatar" aria-hidden="true">
+                    {nameFromEmail(email).split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                  <div className="tl-employee-card__who">
                     <span className="tl-employee-group__email">{nameFromEmail(email)}</span>
                     <span className="tl-employee-group__domain">{email}</span>
                   </div>
+                  {/* Says what clicking does, in words, on every card. */}
+                  <span className="tl-employee-card__toggle" aria-hidden="true">
+                    {isOpen ? 'Hide hours' : `View ${empLogs.length} ${empLogs.length === 1 ? 'entry' : 'entries'}`}
+                    <span className={`tl-employee-group__chevron${isOpen ? ' tl-employee-group__chevron--open' : ''}`}>&#9662;</span>
+                  </span>
                   <div className="tl-employee-group__stats">
                     {/* Pending first and loudest: it is the only figure here that is a job to do.
                         Shown even at zero, so "nothing waiting" is stated rather than left to be

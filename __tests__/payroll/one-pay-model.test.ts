@@ -106,7 +106,9 @@ describe('the pay model has exactly one implementation', () => {
 
   it('the payroll run pays only approved hours', () => {
     const source = code(read('app/api/admin/payroll/runs/route.ts'));
-    expect(source).toContain("eq('status', 'approved')");
+    // 'adjusted' is an approver's decision too (2026-10-05) — excluding it left every trimmed day
+    // out of payroll. Still never pending, rejected or disputed.
+    expect(source).toContain(".in('status', ['approved', 'adjusted'])");
   });
 
   it('the payroll run honours the approver’s decision over the resolved rate', () => {

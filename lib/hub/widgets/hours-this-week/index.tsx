@@ -53,7 +53,7 @@ function HoursThisWeekWidget({ size, content }: WidgetProps<HoursThisWeekContent
     setStatus('loading');
     try {
       const ws = weekStartIso(settings.weekStart, new Date());
-      const res = await fetch(`/api/admin/time-logs?week_start=${ws}`);
+      const res = await fetch(`/api/admin/time-logs?mine=1&week_start=${ws}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { logs?: TimeLog[] } = await res.json();
       const list = data.logs ?? [];

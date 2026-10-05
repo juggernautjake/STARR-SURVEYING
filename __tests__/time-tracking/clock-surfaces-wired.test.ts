@@ -60,8 +60,12 @@ describe('the clock survived the shell it used to live in', () => {
 
   it('clocking out still posts to the payroll hours endpoint', () => {
     // The one line in this file that is really about money.
-    expect(quickActions).toMatch(/'\/api\/admin\/time-logs'/);
-    expect(pill).toMatch(/'\/api\/admin\/time-logs'/);
+    // Both surfaces now go through the device-side queue (2026-10-05), which is what POSTs — so a
+    // clock-out with no signal is kept and retried instead of being lost.
+    const queue = read('lib/time-tracking/pending-hours.ts');
+    expect(queue).toMatch(/'\/api\/admin\/time-logs'/);
+    expect(quickActions).toMatch(/submitClockOut\(/);
+    expect(pill).toMatch(/submitClockOut\(/);
   });
 
   it('the activity-tag catalog is served from lib/time-tracking', () => {

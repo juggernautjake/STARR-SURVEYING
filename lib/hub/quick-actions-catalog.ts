@@ -92,6 +92,21 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     allowedRoles: ['admin'],
     tint: 'accent',
   },
+  // ── REVIEW EMPLOYEE HOURS (owner, 2026-10-05) ─────────────────────────────────────────────────
+  // "Please add a review employee hours as a quick action in the quick actions widget on the hub,
+  // and make it available to the users with the proper credentials." One click to the approvals
+  // queue. Roles are the Approvals tab's own list (APPROVERS in app/admin/hours/page.tsx) — a tile
+  // offered to somebody the tab would refuse is a dead end.
+  {
+    id: 'review-hours',
+    label: 'Review Employee Hours',
+    description: 'Open the hours approval queue — every employee, week by week.',
+    iconName: 'ClipboardCheck',
+    kind: 'link',
+    href: '/admin/hours?tab=approvals',
+    allowedRoles: ['admin', 'developer', 'tech_support'],
+    tint: 'warning',
+  },
   // consolidation Slice 9 (2026-05-30) — intentional widget-equivalent
   // shortcut. The `approvals` / `pending-receipts` widgets already
   // summarize the queue on the hub canvas; this tile gives 1-click
@@ -207,6 +222,7 @@ export function quickActionsForRoles(roles: UserRole[]): QuickActionDef[] {
  */
 export const DEFAULT_QUICK_ACTION_IDS: ReadonlyArray<string> = [
   'clock-in-out',
+  'review-hours',
   'new-project',
   'approve-receipts',
   'view-reports',
@@ -215,3 +231,36 @@ export const DEFAULT_QUICK_ACTION_IDS: ReadonlyArray<string> = [
   'capture-receipt',
   'schedule',
 ];
+
+/**
+ * Actions added AFTER people had already saved their hubs.
+ *
+ * A saved layout stores its own list of ids, so a new default never reaches anybody who has opened
+ * their hub before — which is everybody the owner asked for it for. These are slotted in after the
+ * first tile for anyone whose roles allow them, unless that person has taken the tile off (that
+ * choice is remembered in `dismissedActionIds` and wins).
+ */
+export const PROMOTED_QUICK_ACTION_IDS: ReadonlyArray<string> = ['review-hours'];
+
+/** True when these roles may see this action. Unknown roles (no session yet) see nothing gated. */
+export function actionAllowedFor(action: Pick<QuickActionDef, 'allowedRoles'>, roles: ReadonlyArray<string> | null): boolean {
+  if (action.allowedRoles.length === 0) return true;
+  if (!roles) return false;
+  return action.allowedRoles.some((r) => roles.includes(r));
+}
+
+/** The saved ids with any promoted action this person may see, and has not dismissed, slotted in. */
+export function withPromotedActions(
+  actionIds: ReadonlyArray<string>,
+  dismissed: ReadonlyArray<string>,
+  roles: ReadonlyArray<string> | null,
+): string[] {
+  const out = [...actionIds];
+  for (const id of PROMOTED_QUICK_ACTION_IDS) {
+    if (out.includes(id) || dismissed.includes(id)) continue;
+    const def = findQuickAction(id);
+    if (!def || !actionAllowedFor(def, roles)) continue;
+    out.splice(Math.min(1, out.length), 0, id);
+  }
+  return out;
+}

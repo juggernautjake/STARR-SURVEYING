@@ -20,6 +20,7 @@ import { isClockEligible } from '@/lib/time-tracking/clock-eligibility';
 import { formatElapsed } from '@/app/admin/me/components/greeting-helpers';
 import { ClockInModal, ClockOutModal } from '@/lib/time-tracking/clock-modals';
 import {
+  CLOCK_SESSION_EVENT,
   CLOCK_SESSION_KEY,
   clearClockSession,
   elapsedHours,
@@ -29,6 +30,15 @@ import {
   type ClockSession,
 } from '@/lib/time-tracking/clock-session';
 import { useActivityTags } from '@/lib/time-tracking/use-activity-tags';
+import {
+  PENDING_HOURS_EVENT,
+  PENDING_HOURS_KEY,
+  buildClockOutEntries,
+  describeOutcome,
+  readPendingHours,
+  startPendingHoursSync,
+  submitClockOut,
+} from '@/lib/time-tracking/pending-hours';
 import type { UserRole } from '@/lib/auth-roles';
 
 /** "4h 30m" / "45m" from a number of hours. */
@@ -50,6 +60,26 @@ export default function ClockInPill() {
   // Preloaded + cached across all clock surfaces so the modal opens with its
   // tags already present (no empty→filled reflow on open).
   const catalog = useActivityTags();
+  // Clock-outs saved on this device that the server has not acknowledged yet.
+  const [unsent, setUnsent] = useState(0);
+  // Guards the Submit button for the whole save, so a second press cannot start a second save.
+  const [savingOut, setSavingOut] = useState(false);
+
+  // The pill is on every admin page for anybody who can clock in, so it is where waiting hours get
+  // retried from: on load, when the connection comes back, when the tab is shown, and every minute.
+  useEffect(() => {
+    const refresh = () => setUnsent(readPendingHours().length);
+    refresh();
+    const stop = startPendingHoursSync();
+    const onStorage = (e: StorageEvent) => { if (e.key === PENDING_HOURS_KEY) refresh(); };
+    window.addEventListener(PENDING_HOURS_EVENT, refresh);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      stop();
+      window.removeEventListener(PENDING_HOURS_EVENT, refresh);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   const roles: UserRole[] =
     (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[];
@@ -66,8 +96,15 @@ export default function ClockInPill() {
     function onStorage(e: StorageEvent) {
       if (e.key === CLOCK_SESSION_KEY) setActive(readClockSession());
     }
+    // Same-tab changes (the hub tile clocking out) — `storage` never fires in the tab that wrote.
+    const onLocal = () => setActive(readClockSession());
     window.addEventListener('storage', onStorage);
-    return () => { cancelled = true; window.removeEventListener('storage', onStorage); };
+    window.addEventListener(CLOCK_SESSION_EVENT, onLocal);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(CLOCK_SESSION_EVENT, onLocal);
+    };
   }, []);
 
   // Tick the elapsed timer every 30s while clocked in.
@@ -86,64 +123,34 @@ export default function ClockInPill() {
 
   const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes, lunchMinutes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => {
     if (!active) { setModal('none'); return; }
-    const totalAllocated = Object.values(perJobAllocations).reduce((sum, h) => sum + h, 0);
-    const elapsed = elapsedHours(active.startedAt);
-    const today = new Date().toISOString().slice(0, 10);
-
-    // Build one entry per job allocation, or a single bucket-of-time
-    // entry when the user didn't break down per job.
-    const entries = totalAllocated > 0
-      ? Object.entries(perJobAllocations)
-          .filter(([, h]) => h > 0)
-          .map(([job_id, hours]) => ({
-            log_date: today,
-            work_type: 'general',
-            hours,
-            job_id,
-            description: 'Clock-out entry from top-bar pill',
-            notes,
-            activity_tag_ids: [...new Set([...active.tagIds, ...tagIds])],
-          }))
-          // ── THE LUNCH IS ONE LUNCH ──────────────────────────────────────────────────────────
-          // A day split across three jobs is three rows, and putting the lunch on each would tell
-          // an approver somebody was at lunch for three times as long as they were. It goes on the
-          // first row only; the person had one lunch, and the day's total is what is being asked
-          // about. (Owner, 2026-09-19.)
-          .map((e, i) => (i === 0 ? { ...e, lunch_minutes: lunchMinutes } : e))
-      : [{
-          log_date: today,
-          work_type: 'general',
-          hours: elapsed,
-          job_id: active.jobId,
-          description: 'Clock-out entry from top-bar pill',
-          notes,
-          activity_tag_ids: [...new Set([...active.tagIds, ...tagIds])],
-          lunch_minutes: lunchMinutes,
-        }];
-
-    let ok = false;
+    if (savingOut) return;
+    setSavingOut(true);
     try {
-      const res = await fetch('/api/admin/time-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries }),
+      const entries = buildClockOutEntries({
+        session: active,
+        perJobAllocations,
+        tagIds,
+        notes,
+        lunchMinutes,
+        description: 'Clock-out entry from top-bar pill',
       });
-      ok = res.ok;
-    } catch {
-      /* swallow — clearing the session is the safer outcome than leaving the user "stuck on" */
+      // ── SAVED ON THE DEVICE FIRST, THEN SENT (2026-10-05) ────────────────────────────────────
+      //
+      // This used to POST once, swallow any failure, and clear the session regardless — so a
+      // clock-out with no signal was simply lost. Now the hours are written to this device before
+      // anything else, retried until the server takes them, and the session is only kept when the
+      // device could not store them either (then it is the only copy, so it stays).
+      const outcome = await submitClockOut(entries);
+      if (outcome.status !== 'failed') {
+        clearClockSession();
+        setActive(null);
+      }
+      setModal('none');
+      setConfirmation(describeOutcome(outcome, formatHoursLabel(outcome.hours)));
+    } finally {
+      setSavingOut(false);
     }
-
-    const totalLogged = totalAllocated > 0 ? totalAllocated : elapsed;
-    clearClockSession();
-    setActive(null);
-    setModal('none');
-    // Confirm it saved so the user knows their hours were recorded.
-    setConfirmation(
-      ok
-        ? `Clocked out — ${formatHoursLabel(totalLogged)} logged. Pending approval.`
-        : `Clocked out — couldn't save your hours. Add them on the My Hours page.`,
-    );
-  }, [active]);
+  }, [active, savingOut]);
 
   // Auto-dismiss the clock-out confirmation.
   useEffect(() => {
@@ -214,6 +221,24 @@ export default function ClockInPill() {
           <span aria-hidden style={{ fontSize: '0.7em' }}>▶</span>
           <span>Clock In</span>
         </button>
+      )}
+
+      {unsent > 0 && (
+        <a
+          href="/admin/hours?tab=my-time"
+          title="Hours saved on this device that have not reached the server yet. They retry automatically — open My time to see them."
+          style={{
+            ...baseStyle,
+            marginLeft: 6,
+            textDecoration: 'none',
+            background: 'color-mix(in srgb, var(--theme-warning, #D97706) 15%, var(--theme-bg-elevated))',
+            color: 'var(--theme-warning, #D97706)',
+            borderColor: 'color-mix(in srgb, var(--theme-warning, #D97706) 40%, var(--theme-border))',
+          }}
+        >
+          <span aria-hidden>⟳</span>
+          <span>{unsent} unsent</span>
+        </a>
       )}
 
       <ClockInModal

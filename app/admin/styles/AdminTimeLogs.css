@@ -1246,3 +1246,109 @@
   background: var(--theme-success-bg, #DCFCE7);
   color: var(--theme-success-fg, #166534);
 }
+
+/* ── EMPLOYEE CARDS (owner, 2026-10-05) ─────────────────────────────────────────────────────────
+ * "for each week, I want people's hours to be listed in an expandable element that you can click on
+ * and that drops down. The element should look kind of like a project or job element."
+ *
+ * The same card language as `.job-card` in AdminJobs.css — surface, light border, 10px radius, a
+ * lift on hover — so it reads as "a thing you open", not as a heading. Pending work gets an amber
+ * edge, because that is the card somebody came here to open. */
+.tl-employee-cards__intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--theme-fg-secondary, #374151);
+}
+.tl-employee-cards__bulk { display: inline-flex; gap: 0.4rem; }
+
+.tl-employee-card {
+  margin-bottom: 0.75rem;
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-left: 4px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.tl-employee-card--due { border-left-color: var(--theme-warning, #D97706); }
+.tl-employee-card:hover {
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.08);
+}
+.tl-employee-card:not(.tl-employee-group--open):hover { transform: translateY(-1px); }
+.tl-employee-card.tl-employee-group--open {
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 4px 14px rgba(29, 48, 149, 0.10);
+}
+.tl-employee-card .tl-employee-group__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "avatar who toggle" "stats stats stats";
+  align-items: center;
+  gap: 0.6rem 0.85rem;
+  padding: 0.9rem 1rem;
+  margin: 0;
+  border-bottom: none;
+}
+.tl-employee-card.tl-employee-group--open .tl-employee-group__header {
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+}
+.tl-employee-card__avatar {
+  grid-area: avatar;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-brand-navy, #1D3095) 12%, transparent);
+  color: var(--color-brand-navy, #1D3095);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.tl-employee-card__who {
+  grid-area: who;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tl-employee-card__who .tl-employee-group__email { font-size: 1.02rem; }
+.tl-employee-card__who .tl-employee-group__domain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-employee-card__toggle {
+  grid-area: toggle;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #F9FAFB);
+  color: var(--color-brand-navy, #1D3095);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tl-employee-card .tl-employee-group__header:hover .tl-employee-card__toggle {
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: #fff;
+}
+.tl-employee-card__toggle .tl-employee-group__chevron { margin: 0; color: inherit; }
+.tl-employee-card__toggle .tl-employee-group__chevron--open { transform: rotate(180deg); }
+.tl-employee-card .tl-employee-group__stats {
+  grid-area: stats;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+.tl-employee-card .tl-employee-group__panel { padding: 0.75rem 1rem 1rem; }
+
+@media (max-width: 640px) {
+  .tl-employee-card .tl-employee-group__header { padding: 0.75rem; }
+  .tl-employee-card__toggle { padding: 0.3rem 0.6rem; font-size: 0.78rem; }
+  .tl-employee-card .tl-employee-group__stats { gap: 0.6rem 1rem; }
+}

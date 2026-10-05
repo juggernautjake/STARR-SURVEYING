@@ -9,8 +9,11 @@ import '../styles/AdminTimeLogs.css';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
+// Today on THIS device's calendar — `toISOString()` is UTC, which is tomorrow after ~7pm in Texas.
+import { localDateOf } from '@/lib/time-tracking/pending-hours';
 import { usePageError } from '../hooks/usePageError';
 import { summarizeWeek } from '@/lib/payroll/week-summary';
+import PendingHoursPanel from '@/lib/time-tracking/PendingHoursPanel';
 import {
   summariseHours, totalOf, labelFor, type Grain, type SummarisableLog,
 } from '@/lib/hours/summarise';
@@ -78,6 +81,8 @@ interface TimeEntry {
   notes: string;
   job_id: string;
   job_name: string;
+  /** Lunch reported at clock-out, carried through an edit so resubmitting does not erase it. */
+  lunch_minutes?: number | null;
 }
 
 interface TimeLog {
@@ -89,6 +94,9 @@ interface TimeLog {
   description: string;
   notes: string | null;
   job_name: string | null;
+  /** The job these hours were worked on. Carried through an edit so resubmitting a day keeps it. */
+  job_id?: string | null;
+  lunch_minutes?: number | null;
   status: 'pending' | 'approved' | 'rejected' | 'disputed' | 'adjusted';
   rejection_reason: string | null;
   adjustment_note: string | null;
@@ -187,7 +195,7 @@ export default function MyHoursPanel() {
   const [submitting, setSubmitting] = useState(false);
 
   // Date selection — default to today
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => localDateOf(Date.now()));
 
   // Entries for the selected date
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -234,6 +242,8 @@ export default function MyHoursPanel() {
   // pending"). That sentence belongs on the page, not in a browser alert box that disappears
   // the moment it is dismissed.
   const [advanceError, setAdvanceError] = useState<string | null>(null);
+  /** Why the last timesheet submission failed, shown next to the button that did it. */
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -245,7 +255,9 @@ export default function MyHoursPanel() {
       })();
 
       const [logsRes, advRes, lockRes] = await Promise.all([
-        fetch(`/api/admin/time-logs?week_start=${weekStart}`),
+        // `mine=1`: this is MY time. Without it an admin is handed every employee's rows, and the edit
+        // form below once deleted another person's pending days along with its own (2026-10-03).
+        fetch(`/api/admin/time-logs?mine=1&week_start=${weekStart}`),
         fetch('/api/admin/time-logs/advances'),
         fetch(`/api/admin/time-logs/lock-period?from=${weekStart}&to=${weekEnd}`),
       ]);
@@ -330,10 +342,11 @@ export default function MyHoursPanel() {
         // No bounds at all for "all time" — the whole point of it. Every other grain keeps its
         // window, because an unbounded fetch on a phone grows without limit and the day view does
         // not need 2019.
-        const params = new URLSearchParams();
+        // Mine only — an admin's totals were silently summing the whole company's hours.
+        const params = new URLSearchParams({ mine: '1' });
         if (days !== null) {
-          params.set('date_from', new Date(to.getTime() - days * 86_400_000).toISOString().slice(0, 10));
-          params.set('date_to', to.toISOString().slice(0, 10));
+          params.set('date_from', localDateOf(to.getTime() - days * 86_400_000));
+          params.set('date_to', localDateOf(to));
         }
         const res = await fetch(`/api/admin/time-logs?${params.toString()}`);
         if (res.ok && !cancelled) {
@@ -363,8 +376,10 @@ export default function MyHoursPanel() {
   // read-only below and must NOT be pre-filled, or re-submitting the day
   // would create duplicate pending rows alongside the locked ones.
   useEffect(() => {
+    const mine = (session?.user?.email ?? '').toLowerCase();
     const editable = logs.filter(
-      (l) => l.log_date === selectedDate && (l.status === 'pending' || l.status === 'rejected'),
+      (l) => l.log_date === selectedDate && (l.status === 'pending' || l.status === 'rejected')
+        && l.user_email.toLowerCase() === mine,
     );
     if (editable.length > 0) {
       setEntries(editable.map((l) => ({
@@ -375,13 +390,16 @@ export default function MyHoursPanel() {
         hours: l.hours,
         description: l.description,
         notes: l.notes || '',
-        job_id: '',
+        // Kept, not blanked: an edit-and-resubmit used to strip the job from the day, so the hours
+        // fell out of that job's costing.
+        job_id: l.job_id || '',
         job_name: l.job_name || '',
+        lunch_minutes: l.lunch_minutes ?? null,
       })));
     } else {
       setEntries([]);
     }
-  }, [selectedDate, logs]);
+  }, [selectedDate, logs, session?.user?.email]);
 
   const addEntry = () => {
     setEntries((prev) => [...prev, {
@@ -408,7 +426,10 @@ export default function MyHoursPanel() {
   const existingForDate = logs.filter((l) => l.log_date === selectedDate);
   // Editable = pending or rejected (the form replaces these on submit).
   // Locked = approved/adjusted/disputed (shown read-only; only an admin changes them).
-  const editableForDate = existingForDate.filter((l) => l.status === 'pending' || l.status === 'rejected');
+  const me = (session?.user?.email ?? '').toLowerCase();
+  const editableForDate = existingForDate.filter(
+    (l) => (l.status === 'pending' || l.status === 'rejected') && l.user_email.toLowerCase() === me,
+  );
   const lockedForDate = existingForDate.filter(
     (l) => l.status === 'approved' || l.status === 'adjusted' || l.status === 'disputed',
   );
@@ -428,18 +449,19 @@ export default function MyHoursPanel() {
     }
 
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      // Replace this date's editable (pending/rejected) logs with the freshly
-      // submitted entries. Locked logs (approved/adjusted/disputed) are left
-      // untouched so we never duplicate already-approved hours.
-      for (const log of editableForDate) {
-        await fetch(`/api/admin/time-logs?id=${log.id}`, { method: 'DELETE' });
-      }
-
+      // ── REPLACE ON THE SERVER, AFTER THE SAVE (2026-10-05) ──────────────────────────────────
+      //
+      // This used to DELETE the day's editable rows from the browser and THEN post the new ones.
+      // A post that failed — a dropped connection, a locked week, a server error — left the day
+      // empty. The rows to replace now travel with the new entries; the server saves first and
+      // removes the old versions only once the new ones exist, and only if they are this person's.
       const res = await fetch('/api/admin/time-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          replace_ids: editableForDate.map((l) => l.id),
           entries: valid.map((e) => ({
             log_date: selectedDate,
             work_type: e.work_type,
@@ -447,20 +469,24 @@ export default function MyHoursPanel() {
             description: e.description.trim(),
             notes: e.notes.trim() || undefined,
             job_name: e.job_name.trim() || undefined,
+            job_id: e.job_id || undefined,
+            lunch_minutes: e.lunch_minutes ?? undefined,
           })),
         }),
       });
 
       if (!res.ok) {
         const problem = await res.json().catch(() => ({}));
-        setAdvanceError(problem.error || 'Could not submit that request.');
+        // Shown beside the Submit button. It used to land in the ADVANCES error slot, on a different
+        // part of the page, so a failed timesheet looked exactly like a successful one.
+        setSubmitError(`${problem.error || `Could not save your hours (HTTP ${res.status}).`} Nothing was removed — your earlier entries for this day are unchanged.`);
         return;
       }
-      setAdvanceError(null);
 
       await loadData();
       setTab('history');
     } catch (err) {
+      setSubmitError('Could not reach the server. Nothing was removed — check your connection and press Submit again.');
       reportPageError(err instanceof Error ? err : new Error('Submit failed'));
     } finally {
       setSubmitting(false);
@@ -550,6 +576,10 @@ export default function MyHoursPanel() {
 
   return (
     <div className="tl-page">
+      {/* Clock-outs saved on this device that have not reached the server yet. Renders nothing
+          when there are none. */}
+      <PendingHoursPanel onPosted={loadData} />
+
       {/* Week navigation */}
       <div className="tl-week-nav">
         <button className="tl-btn tl-btn--sm" onClick={prevWeek}>&#9664; Prev</button>
@@ -621,7 +651,7 @@ export default function MyHoursPanel() {
           const dayHrs = dayLogs.reduce((s, l) => s + effectiveHours(l), 0);
           const hasRejected = dayLogs.some((l) => l.status === 'rejected');
           const allApproved = dayLogs.length > 0 && dayLogs.every((l) => l.status === 'approved');
-          const isToday = day === new Date().toISOString().split('T')[0];
+          const isToday = day === localDateOf(Date.now());
           return (
             <button
               key={day}
@@ -893,6 +923,7 @@ export default function MyHoursPanel() {
                   : submitting ? 'Submitting...'
                     : hasExistingEditable ? 'Update & Resubmit' : 'Submit Hours'}
               </button>
+              {submitError && <div className="tl-pay-error" role="alert">{submitError}</div>}
             </div>
           )}
         </div>

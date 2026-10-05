@@ -4,6 +4,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { findRecentDuplicate } from '@/lib/hours/duplicate-submission';
+import { auditStamp, deleteTimeLogAudited } from '@/lib/hours/audit';
 import { notify } from '@/lib/notifications';
 import {
   buildHoursDecisionNotifications,
@@ -55,12 +56,27 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const dateFrom = searchParams.get('date_from');
   const dateTo = searchParams.get('date_to');
   const status = searchParams.get('status');
-  const weekStart = searchParams.get('week_start');
+  // `auto` = this week. The hub's "hours this week" feed has always asked for it, and
+  // `new Date('auto')` threw — dozens of "Invalid time value" 500s in error_reports.
+  const weekStartRaw = searchParams.get('week_start');
+  const weekStart = weekStartRaw === 'auto' ? currentMondayCentral() : weekStartRaw;
 
   const admin = isAdmin(session.user.roles);
+  const self = session.user.email.toLowerCase();
+
+  // ── DATES ARE CHECKED, NOT TRUSTED (2026-10-05) ──────────────────────────────────────────────
+  //
+  // `new Date('garbage').toISOString()` throws RangeError, and error_reports held dozens of
+  // "Invalid time value" 500s from exactly that line. A bad date is the caller's mistake: say so
+  // with a 400 rather than failing the whole page.
+  for (const [name, value] of [['week_start', weekStart], ['date_from', dateFrom], ['date_to', dateTo]] as const) {
+    if (value && !isIsoDate(value)) {
+      return NextResponse.json({ error: `${name} must be YYYY-MM-DD` }, { status: 400 });
+    }
+  }
 
   // Non-admins can only view their own
-  if (!admin && email && email !== session.user.email) {
+  if (!admin && email && email.toLowerCase() !== self) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -70,9 +86,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .order('log_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  const targetEmail = admin ? email : session.user.email;
+  // ── `mine=1`: A PERSONAL VIEW IS PERSONAL, EVEN FOR AN ADMIN (2026-10-05) ────────────────────
+  //
+  // An admin calling this with no `email` gets every employee's rows — right for the approval
+  // queue, and catastrophic for "My time", whose edit form deleted every pending row it had loaded
+  // for a date before re-posting the day. On 2026-10-03 that erased four of another employee's
+  // clock-outs. A personal screen now says so, and the server scopes it to the caller regardless of
+  // role.
+  const mine = searchParams.get('mine') === '1';
+  // Emails are stored lowercased (see the insert below); compare that way so a mixed-case session
+  // address does not quietly match nothing.
+  const targetEmail = mine || !admin ? self : email?.toLowerCase();
   if (targetEmail) query = query.eq('user_email', targetEmail);
-  if (!admin) query = query.eq('user_email', session.user.email);
 
   if (dateFrom) query = query.gte('log_date', dateFrom);
   if (dateTo) query = query.lte('log_date', dateTo);
@@ -83,10 +108,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', statuses[0]);
   }
   if (weekStart) {
-    const ws = new Date(weekStart);
-    const we = new Date(ws);
-    we.setDate(we.getDate() + 6);
-    query = query.gte('log_date', ws.toISOString().split('T')[0]).lte('log_date', we.toISOString().split('T')[0]);
+    // Pure calendar arithmetic in UTC on a date with no time — no server time zone can move it.
+    query = query.gte('log_date', weekStart).lte('log_date', addDaysIso(weekStart, 6));
   }
 
   const { data, error } = await query;
@@ -131,6 +154,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 }, { routeName: 'time-logs' });
 
+function isUuid(v: unknown): v is string {
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+/** This week's Monday on the business's calendar (Texas). `week_start=auto` asks for it. */
+function currentMondayCentral(): string {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+  const d = new Date(`${today}T00:00:00Z`);
+  const dow = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+/** `YYYY-MM-DD` that is also a real calendar date. */
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+}
+
+/** Add whole days to a `YYYY-MM-DD`, in UTC so the answer never depends on where the server is. */
+function addDaysIso(value: string, days: number): string {
+  const d = new Date(`${value}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 // POST: Submit daily time log entries
 /** A reported lunch, or null when there is nothing to record.
  *
@@ -151,7 +201,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { entries, user_email: forEmail } = body as {
+  const { entries, user_email: forEmail, replace_ids: replaceIdsRaw } = body as {
     entries: Array<{
       log_date: string;
       work_type?: string | null;
@@ -163,9 +213,21 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       role_on_job?: string | null;
       /** Minutes at lunch, reported at clock-out. See seeds/650: recorded, never deducted. */
       lunch_minutes?: number | null;
+      /** A key the device made when this entry was created. A retry of the same clock-out carries
+       *  the same key, and the second arrival returns the first row instead of making another. */
+      client_submission_id?: string | null;
     }>;
     /** Whose timesheet these belong to. Admin only — see below. */
     user_email?: string;
+    /**
+     * Rows this submission REPLACES — the "edit my day and resubmit" flow.
+     *
+     * Previously the browser deleted the old rows itself and then posted the new ones, so a post
+     * that failed left the day empty, and a form that had been handed another person's rows
+     * deleted theirs too (2026-10-03). Now the server inserts first, then removes only rows that
+     * belong to the same person as the new entries — never anybody else's.
+     */
+    replace_ids?: string[];
   };
 
   if (!entries || !entries.length) {
@@ -280,11 +342,41 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // The rule itself lives in `lib/hours/duplicate-submission.ts` — testable without a database,
   // and shared so the route's SUPPRESSION and the review queue's duplicate FLAG cannot drift into
   // disagreeing about what a duplicate is.
+  // Rows being replaced are about to go, so they are not "already submitted" — otherwise an
+  // unchanged resubmission would be echoed as a duplicate of the very row it is replacing, and then
+  // that row would be deleted, leaving nothing.
+  const replaceIds = new Set(
+    (Array.isArray(replaceIdsRaw) ? replaceIdsRaw : []).filter((x): x is string => typeof x === 'string' && x.length > 0),
+  );
+  const priorForDuplicates = prior.filter((r) => !replaceIds.has(r.id));
+
+  const actor = session.user.email.toLowerCase();
+  const insertAction = onBehalf ? 'entered_by_office' : replaceIds.size > 0 ? 'resubmitted' : 'submitted';
+
   const nowMs = Date.now();
   const results = [];
   let duplicatesSuppressed = 0;
   for (const entry of entries) {
-    const echo = findRecentDuplicate(prior, entry, nowMs);
+    // ── THE SAME CLOCK-OUT, ARRIVING AGAIN ───────────────────────────────────────────────────
+    // A device that saved a clock-out while offline retries it until it is acknowledged. If the
+    // first attempt landed but the reply was lost, the retry finds the row by its key.
+    const clientKey = typeof entry.client_submission_id === 'string' && entry.client_submission_id.trim()
+      ? entry.client_submission_id.trim().slice(0, 120)
+      : null;
+    if (clientKey) {
+      const { data: already } = await supabaseAdmin
+        .from('daily_time_logs')
+        .select('*')
+        .eq('client_submission_id', clientKey)
+        .maybeSingle();
+      if (already) {
+        duplicatesSuppressed += 1;
+        results.push(already);
+        continue;
+      }
+    }
+
+    const echo = findRecentDuplicate(priorForDuplicates, entry, nowMs);
     if (echo) {
       duplicatesSuppressed += 1;
       console.warn('[admin/time-logs] suppressed a duplicate submission', {
@@ -310,8 +402,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         // is exactly what makes it resolve to base pay.
         work_type: entry.work_type || UNSPECIFIED_WORK_TYPE,
         hours: entry.hours,
-        job_id: entry.job_id || null,
-        job_name: entry.job_name || null,
+        // ── A JOB NUMBER IS NOT A JOB ID (2026-10-05) ────────────────────────────────────────
+        // The clock-in modal takes a free-text job number, and it arrived here as `job_id` — a
+        // uuid column. "26159" failed the insert with a 500 and the clock-out was lost. Anything
+        // that is not a uuid is kept as the job's NAME instead, so the hours always save and the
+        // number is still on the row for whoever approves it.
+        job_id: isUuid(entry.job_id) ? entry.job_id : null,
+        job_name: entry.job_name || (entry.job_id && !isUuid(entry.job_id) ? String(entry.job_id).slice(0, 200) : null),
         description: entry.description,
         notes: entry.notes || null,
         // ── LUNCH (owner, 2026-09-19) ─────────────────────────────────────────────────────────
@@ -343,20 +440,66 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         // "worked for free" instead of "waiting on a decision", and the difference is somebody's
         // wages.
         total_pay: resolved.rate === null ? null : Math.round(resolved.rate * entry.hours * 100) / 100,
+        client_submission_id: clientKey,
+        // Who did this, for the hours history (seeds/664).
+        ...auditStamp(actor, insertAction),
       })
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // Two retries of one clock-out racing each other: the unique key let exactly one in. The
+      // loser returns the winner's row — the hours are saved, once.
+      if (clientKey && (error as { code?: string }).code === '23505') {
+        const { data: winner } = await supabaseAdmin
+          .from('daily_time_logs')
+          .select('*')
+          .eq('client_submission_id', clientKey)
+          .maybeSingle();
+        if (winner) { duplicatesSuppressed += 1; results.push(winner); continue; }
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     // Added to the same list the echo check reads, so two identical entries inside ONE request
     // collapse as well. A double-submit is the common case; a client looping over an array it
     // built twice is the same defect arriving by a different road.
-    if (data) prior.push({
+    if (data) priorForDuplicates.push({
       id: data.id, log_date: data.log_date, hours: data.hours,
       description: data.description, job_id: data.job_id,
       created_at: data.created_at ?? new Date().toISOString(),
     });
     results.push(data);
+  }
+
+  // ── NOW, AND ONLY NOW, REMOVE WHAT WAS REPLACED ──────────────────────────────────────────────
+  //
+  // Every new row is saved before any old one goes, so a failure anywhere above leaves the old day
+  // intact. And a row is removed only if it belongs to the SAME person as the new entries: many
+  // people log the same date, and one person's resubmission must never touch another's hours —
+  // whatever ids a confused or stale form sends.
+  let replaced = 0;
+  const replaceRefused: string[] = [];
+  const keptIds = new Set(results.map((r) => (r as { id?: string } | null)?.id).filter(Boolean));
+  for (const id of replaceIds) {
+    if (keptIds.has(id)) continue; // a retry echoed this very row back — it is the new day now
+    const { data: old } = await supabaseAdmin
+      .from('daily_time_logs')
+      .select('id, user_email, status, log_date')
+      .eq('id', id)
+      .maybeSingle();
+    if (!old) continue; // already gone
+    const sameOwner = String(old.user_email).toLowerCase() === targetEmail;
+    const editable = actingAsAdmin || canEmployeeDelete(old.status);
+    const locked = !actingAsAdmin && (await isDateLocked(old.log_date));
+    if (!sameOwner || !editable || locked) {
+      replaceRefused.push(id);
+      console.warn('[admin/time-logs] refused to replace a row', {
+        id, by: actor, row_owner: old.user_email, target: targetEmail, status: old.status,
+      });
+      continue;
+    }
+    const { error: delError } = await deleteTimeLogAudited(id, actor, 'replaced');
+    if (delError) replaceRefused.push(id); else replaced += 1;
   }
 
   // Log activity
@@ -485,7 +628,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // `duplicates_suppressed` is reported rather than hidden. A client that submitted twice gets a
   // success carrying the rows that exist — which is the truth — and anything watching this route can
   // tell a genuine save from a swallowed retry without diffing the table.
-  return NextResponse.json({ logs: results, duplicates_suppressed: duplicatesSuppressed }, { status: 201 });
+  return NextResponse.json({
+    logs: results,
+    duplicates_suppressed: duplicatesSuppressed,
+    replaced,
+    replace_refused: replaceRefused,
+  }, { status: 201 });
 }, { routeName: 'time-logs' });
 
 // PUT: Update a time log (employee can edit pending, admin can approve/reject/adjust)
@@ -520,7 +668,11 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   // Admin approval actions
   if (action && admin) {
-    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const decision = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : action === 'adjust' ? 'adjusted' : 'disputed';
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      ...auditStamp(session.user.email, decision),
+    };
 
     if (action === 'approve') {
       updateData.status = 'approved';
@@ -609,13 +761,14 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Employee dispute
-  if (action === 'dispute' && existing.user_email === session.user.email) {
+  if (action === 'dispute' && String(existing.user_email).toLowerCase() === session.user.email.toLowerCase()) {
     const { data, error } = await supabaseAdmin
       .from('daily_time_logs')
       .update({
         status: 'disputed',
         notes: updates.notes || existing.notes,
         updated_at: new Date().toISOString(),
+        ...auditStamp(session.user.email, 'disputed'),
       })
       .eq('id', id)
       .select()
@@ -625,7 +778,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Employee editing their own pending entry
-  if (existing.user_email !== session.user.email && !admin) {
+  if (String(existing.user_email).toLowerCase() !== session.user.email.toLowerCase() && !admin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   if (!admin && !canEmployeeEdit(existing.status)) {
@@ -635,7 +788,10 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
   }
 
-  const editUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const editUpdates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    ...auditStamp(session.user.email, 'edited'),
+  };
   if (updates.hours !== undefined) editUpdates.hours = updates.hours;
   if (updates.description !== undefined) editUpdates.description = updates.description;
   if (updates.notes !== undefined) editUpdates.notes = updates.notes;
@@ -672,14 +828,16 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   const { data: existing } = await supabaseAdmin
     .from('daily_time_logs')
-    .select('user_email, status')
+    // `log_date` too: the lock check below reads it, and without it every check asked about
+    // `undefined` and answered "not locked".
+    .select('user_email, status, log_date')
     .eq('id', id)
     .single();
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const admin = isAdmin(session.user.roles);
-  if (!admin && existing.user_email !== session.user.email) {
+  if (!admin && String(existing.user_email).toLowerCase() !== session.user.email.toLowerCase()) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   // Employees may remove their own pending OR rejected logs — a rejected
@@ -693,8 +851,9 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
   }
 
-  const { error } = await supabaseAdmin.from('daily_time_logs').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Recorded with who did it, and the whole row kept, so it can be restored from Hours history.
+  const { error } = await deleteTimeLogAudited(id, session.user.email, 'deleted');
+  if (error) return NextResponse.json({ error }, { status: 500 });
 
   return NextResponse.json({ success: true });
 }, { routeName: 'time-logs' });

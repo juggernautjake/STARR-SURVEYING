@@ -16,6 +16,19 @@
 
 export const CLOCK_SESSION_KEY = 'starr-clock-session';
 
+/**
+ * Fired on `window` in the SAME tab whenever the session is written or cleared.
+ *
+ * The browser's `storage` event only reaches OTHER tabs, so the top-bar pill and the hub's Quick
+ * Actions tile — two surfaces in one tab — never heard about each other's changes. Clock out from
+ * the tile and the pill still showed "Clock Out · 8h"; press it and the same shift was logged twice.
+ */
+export const CLOCK_SESSION_EVENT = 'starr-clock-session-changed';
+
+function announce(): void {
+  try { window.dispatchEvent(new Event(CLOCK_SESSION_EVENT)); } catch { /* old browser */ }
+}
+
 export interface ClockSession {
   /** ISO timestamp when the user clicked Clock In. */
   startedAt: string;
@@ -52,6 +65,7 @@ export function writeClockSession(session: ClockSession): void {
   } catch {
     /* swallow — quota / disabled storage */
   }
+  announce();
   // Mirror to the server (best-effort) so the team page + the 6pm
   // still-clocked-in reminder cron can see who's on the clock. localStorage
   // stays the fast path; a failure here (offline / signed-out) is non-fatal.
@@ -70,6 +84,7 @@ export function clearClockSession(): void {
   } catch {
     /* swallow */
   }
+  announce();
   void fetch('/api/admin/clock-session', { method: 'DELETE' }).catch(() => { /* best-effort */ });
 }
 
