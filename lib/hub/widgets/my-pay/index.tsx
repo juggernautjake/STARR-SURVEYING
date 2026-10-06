@@ -176,13 +176,12 @@ function MyPayWidget({ size, content }: WidgetProps<MyPayContent>) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          // Only the privacy toggle: the widget's own title already says "My Pay", and a second
+          // "My pay" directly under it was the same heading twice (UI pass, 2026-10-06).
+          justifyContent: 'flex-end',
           gap: 'var(--hub-spc-2, 8px)',
         }}
       >
-        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>
-          My pay
-        </span>
         <button
           type="button"
           onClick={() => setPrivacyOverride((p) => !p)}

@@ -125,7 +125,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       + 'not being triggered — check that the hourly cron is running on this deployment. "Run AI" on a '
       + 'row will read it now.';
   } else if (failed > 0 && lastError) {
-    message = `${failed} receipt${failed === 1 ? '' : 's'} failed to extract. Most recent reason: ${lastError}`;
+    // Plain words for the failures a person can act on (2026-10-06 — the banner was printing the
+    // provider's raw JSON, which ran off the side of a phone and said nothing anyone could do).
+    const why = /credit balance is too low/i.test(String(lastError))
+      ? 'the AI account is out of credits. Add credits in the Anthropic console (Plans & Billing) and the stored photos will be read automatically.'
+      : /invalid x-api-key|authentication/i.test(String(lastError))
+        ? 'the AI key was refused. Check ANTHROPIC_API_KEY in the deployment settings.'
+        : /overloaded|rate limit|529|429/i.test(String(lastError))
+          ? 'the AI service was busy. It will retry on its own.'
+          : `the most recent error was: ${String(lastError).slice(0, 200)}`;
+    message = `${failed} receipt${failed === 1 ? '' : 's'} could not be read — ${why}`;
   }
 
   // The live probe. Deliberately the cheapest possible call — one token, no image — because its only

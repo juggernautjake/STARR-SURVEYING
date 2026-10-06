@@ -24,6 +24,10 @@ export default function FloatingActionMenu({ children }: FloatingActionMenuProps
     try {
       const stored = localStorage.getItem(FAB_STORAGE_KEY);
       if (stored !== null) setExpanded(stored === 'true');
+      // On a phone, start folded. Open, the toolbar is a 300px bar across a 390px screen, sitting on
+      // top of whatever the page has at the bottom — usually its Submit button. One tap opens it,
+      // and the choice is remembered. (Owner, 2026-10-06: things are "hard to find" and overlap.)
+      else if (window.matchMedia('(max-width: 767px)').matches) setExpanded(false);
     } catch { /* localStorage unavailable — use default */ }
   }, []);
 

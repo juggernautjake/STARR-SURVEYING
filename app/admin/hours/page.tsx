@@ -36,7 +36,7 @@
 // role-chosen default — not to interleave two 1,600-line components and hope the conditionals are
 // right. The merge that matters is the one in the sidebar.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList, Users, History } from 'lucide-react';
 
@@ -150,6 +150,11 @@ export default function HoursPortal() {
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
   const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
+  // On a phone the tab bar scrolls sideways; the open tab must be in view, not off the right edge
+  // (UI pass, 2026-10-06 — Approvals opened selected and invisible).
+  useEffect(() => {
+    document.getElementById(`hrs-tab-${active}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
   const activeTab = tabs.find((t) => t.id === active);
 
   return (

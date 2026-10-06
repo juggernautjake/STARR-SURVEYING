@@ -32,6 +32,8 @@
 // ledger stays a worker concern. The number on the receipt row — the one anybody actually audits —
 // is identical either way.
 
+import { scanReceiptForDuplicates } from '@/lib/receipts/duplicate-scan';
+import { implausibleDateFlag } from '@/lib/receipts/date-sanity';
 import Anthropic from '@anthropic-ai/sdk';
 
 import { supabaseAdmin } from '@/lib/supabase';
@@ -429,6 +431,17 @@ async function writeBack(
     if (extras) extras.review_flags = [...(extras.review_flags ?? []), recon.flag];
   }
 
+  // A year that cannot be right (2000, 2016… on a receipt photographed this year) — flagged for a
+  // person, never silently rewritten. See lib/receipts/date-sanity.ts.
+  {
+    const dateFlag = implausibleDateFlag(
+      (update.transaction_at as string | null | undefined) ?? cur.transaction_at ?? null,
+      new Date().toISOString(),
+    );
+    const extras = update.ai_extras as { review_flags?: string[] } | undefined;
+    if (dateFlag && extras) extras.review_flags = [...(extras.review_flags ?? []), dateFlag];
+  }
+
   // ── IS THIS CARD ONE OF OURS? (owner request, 2026-08-12) ──────────────────────────────────────
   //
   // *"if a receipt uses a card that is not on file, it needs to be flagged."*
@@ -643,6 +656,12 @@ async function writeBack(
     );
     if (insertErr) return `line-items insert: ${insertErr.message}`;
   }
+
+  // ── IS THIS THE SAME RECEIPT AS ONE ALREADY FILED? (owner, 2026-10-06) ─────────────────────────
+  // Now that date, place, total, receipt number and line items are all known, compare against every
+  // other receipt — across ALL employees — and record any likely duplicate for a person to review
+  // side by side. Best-effort: a failed check must never fail the extraction.
+  await scanReceiptForDuplicates(row.id);
 
   return null;
 }

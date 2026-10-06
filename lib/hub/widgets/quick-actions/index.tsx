@@ -55,6 +55,20 @@ import {
   type QuickActionDef,
 } from '@/lib/hub/quick-actions-catalog';
 
+/** True on a phone-width screen (≤767px). False during SSR and on first paint. */
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+  return phone;
+}
+
 /** The signed-in person's roles, or null before the session has loaded / outside a provider. */
 function useViewerRoles(): string[] | null {
   const ctx = useContext(SessionContext);
@@ -142,6 +156,8 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     customActions: normalizeCustomActions(content?.customActions),
   };
   const bucket = sizeBucket(size.w, size.h);
+  // Called with the other hooks, before any early return (rules of hooks) — see the phone note below.
+  const isPhone = useIsPhone();
 
   // W-5 — unread counts per quick-action, from the shared hub badge feed. Keyed on the action id
   // (new-job, approve-receipts, capture-receipt); actions with no mapped events read 0.
@@ -177,8 +193,8 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     };
   }, []);
 
-  const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
-    const next: ClockSession = { startedAt: new Date().toISOString(), jobId, tagIds };
+  const handleClockInSubmit = useCallback(({ jobId, jobLabel, tagIds }: { jobId: string | null; jobLabel: string | null; tagIds: string[] }) => {
+    const next: ClockSession = { startedAt: new Date().toISOString(), jobId, jobLabel, tagIds };
     writeClockSession(next);
     setClockSession(next);
     setClockModal('none');
@@ -273,13 +289,19 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   const isRowLayout = bucket === 'tiny' || settings.layoutStyle === 'list';
   const rowDisplay = bucket === 'tiny' ? 'icon-only' : settings.displayStyle;
 
-  const { cap, cols } = computeCapacity({
-    bucket,
-    widthPx,
-    heightPx,
-    isRowLayout,
-    displayStyle: rowDisplay,
-  });
+  // ── ON A PHONE, EVERY ACTION (UI pass, 2026-10-06) ─────────────────────────────────────────────
+  // The phone hub stacks widgets in one column whose rows grow to fit their content, so there is no
+  // fixed box to fit. Measuring one anyway hid four of nine actions behind "+4" — Capture Receipt
+  // and Schedule among them, which is exactly "the things we need to use are hard to find".
+  const { cap, cols } = isPhone && !isRowLayout
+    ? { cap: actions.length, cols: widthPx > 0 && widthPx < 300 ? 2 : 3 }
+    : computeCapacity({
+        bucket,
+        widthPx,
+        heightPx,
+        isRowLayout,
+        displayStyle: rowDisplay,
+      });
   const { visible, overflow } = splitForCapacity(actions, cap);
 
   const clockedIn = !!clockSession;
@@ -372,7 +394,7 @@ function ClockModalsHost({
   clockSession: ClockSession | null;
   modal: 'none' | 'in' | 'out';
   onClose: () => void;
-  onClockInSubmit: (data: { jobId: string | null; tagIds: string[] }) => void;
+  onClockInSubmit: (data: { jobId: string | null; jobLabel: string | null; tagIds: string[] }) => void;
   onClockOutSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string; lunchMinutes: number | null }) => void;
   catalog: ActivityTag[];
 }) {
@@ -391,6 +413,9 @@ function ClockModalsHost({
           onSubmit={onClockOutSubmit}
           catalog={catalog}
           suggestedAllocations={clockSession.jobId ? { [clockSession.jobId]: elapsedHours(clockSession.startedAt) } : {}}
+          startedAt={clockSession.startedAt}
+          jobLabels={clockSession.jobId ? { [clockSession.jobId]: clockSession.jobLabel ?? 'Job' } : {}}
+          initialTagIds={clockSession.tagIds}
         />
       )}
     </>
@@ -1200,11 +1225,14 @@ const listFillStyle: React.CSSProperties = {
   height: '100%',
 };
 
+// Top-aligned, not centred (UI pass, 2026-10-06): centred, a one-line label ("Clock In") pushed its
+// icon lower than a two-line one ("Review Hours") beside it, so a row of tiles had icons at two
+// heights. Top-aligned, every icon sits on one line and every label starts on the next.
 const tileStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  justifyContent: 'center',
+  justifyContent: 'flex-start',
   gap: 'var(--hub-spc-2, 8px)',
   padding: 'var(--hub-spc-3, 12px) var(--hub-spc-2, 8px)',
   borderRadius: 8,

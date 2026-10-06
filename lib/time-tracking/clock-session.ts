@@ -32,8 +32,10 @@ function announce(): void {
 export interface ClockSession {
   /** ISO timestamp when the user clicked Clock In. */
   startedAt: string;
-  /** Optional active job id captured at clock-in. */
+  /** Optional active job id captured at clock-in (a real job's id, chosen with the job search). */
   jobId: string | null;
+  /** The job as a person reads it ("26159 — Smith Boundary"), so the clock never shows an id. */
+  jobLabel?: string | null;
   /** Activity-tag ids selected at clock-in. */
   tagIds: string[];
 }
@@ -50,6 +52,7 @@ export function readClockSession(): ClockSession | null {
     return {
       startedAt: parsed.startedAt,
       jobId: parsed.jobId ?? null,
+      jobLabel: parsed.jobLabel ?? null,
       tagIds: Array.isArray(parsed.tagIds) ? parsed.tagIds : [],
     };
   } catch {

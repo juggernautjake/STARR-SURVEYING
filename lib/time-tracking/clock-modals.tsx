@@ -1,79 +1,80 @@
 'use client';
 // lib/time-tracking/clock-modals.tsx
 //
-// Clock-in + clock-out modal dialogs. Triggered from the top-bar
-// `ClockInPill` (Slice 89) and Work Mode Exit "Clock out too?" path.
+// Clock-in + clock-out dialogs, opened from the top-bar `ClockInPill` and the hub's Quick Actions
+// tile. Slices 178 + 179 of customizable-hub-and-work-mode-2026-05-28.md.
 //
-// Slices 178 + 179 of customizable-hub-and-work-mode-2026-05-28.md.
+// ── UI PASS, 2026-10-06 ─────────────────────────────────────────────────────────────────────────
+// Owner: "work on the clock in and clock out pages and modals … everything needs to be simpler and
+// more straight forward." What changed, measured on a 390px phone:
+//   · A sheet with a pinned header and pinned buttons. The clock-out button used to be below the
+//     fold of a dialog that scrolled inside a page that scrolled — the one control that matters,
+//     out of sight.
+//   · Clock-out opens with what you worked ("8h 30m today · 8:00 AM – 4:30 PM"), which it never said.
+//   · The job is a real job search (the same picker receipts and hours use), not a free-text box
+//     whose typed number was then rejected by the database.
+//   · 28 tag chips are folded away until wanted; the ones picked at clock-in come pre-selected at
+//     clock-out instead of being asked again from scratch.
+//   · Lunch is four buttons that look like buttons, plus "Other" for anything else.
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import JobRefPicker, { jobRefLabel, type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
+import './ClockModals.css';
 
 interface ActivityTag { id: string; label: string; color: string; }
+
+/** "8h 30m" from hours. */
+export function formatWorked(hours: number): string {
+  const mins = Math.max(0, Math.round(hours * 60));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+const clockTime = (iso: string | number) =>
+  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+// ── Clock in ──────────────────────────────────────────────────────────────────────────────────────
 
 interface ClockInModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { jobId: string | null; tagIds: string[] }) => void | Promise<void>;
+  onSubmit: (data: { jobId: string | null; jobLabel: string | null; tagIds: string[] }) => void | Promise<void>;
   catalog: ActivityTag[];
 }
 
 export function ClockInModal({ open, onClose, onSubmit, catalog }: ClockInModalProps) {
-  const [jobId, setJobId] = useState<string>('');
+  const [job, setJob] = useState<JobRefOption | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
 
   if (!open) return null;
-  // clock-in-modal-polish-2026-06-22 — when no specific job applies
-  // (office work, equipment management, training, etc.) the user just
-  // picks the tags that describe their day. The optional-hint and the
-  // tag prompt below make that path obvious.
   return (
-    <ModalShell title="Clock in" onClose={onClose}>
-      <label style={fieldStyle}>
-        <span style={labelStyle}>Active job (optional)</span>
-        <input
-          type="text"
-          value={jobId}
-          placeholder="Job number — leave blank for office, equipment, training, etc."
-          onChange={(e) => setJobId(e.target.value)}
-          style={inputStyle}
+    <ModalShell
+      title="Clock in"
+      onClose={onClose}
+      footer={(
+        <ModalActions
+          onCancel={onClose}
+          onConfirm={() => onSubmit({ jobId: job?.id ?? null, jobLabel: job ? jobRefLabel(job) : null, tagIds })}
+          confirmLabel={`Clock in · ${clockTime(Date.now())}`}
+          busyLabel="Clocking in…"
         />
-        <span style={hintStyle}>
-          Skip this if you&rsquo;re not on a specific job — just pick tags below.
-        </span>
-      </label>
-      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
-        <legend style={labelStyle}>What are you working on?</legend>
-        <span style={{ ...hintStyle, display: 'block', marginBottom: 8 }}>
-          Pick every tag that might apply today. You can refine at clock-out.
-        </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {catalog.map((t) => {
-            const on = tagIds.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTagIds((arr) => on ? arr.filter((x) => x !== t.id) : [...arr, t.id])}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '4px 10px', borderRadius: 999,
-                  border: `1px solid ${t.color}`,
-                  background: on ? t.color : 'transparent',
-                  color: on ? 'var(--theme-accent-fg)' : t.color,
-                  fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                }}
-                aria-pressed={on}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ jobId: jobId || null, tagIds })} confirmLabel="Clock in" busyLabel="Clocking in…" />
+      )}
+    >
+      <JobRefPicker
+        value={job}
+        onChange={setJob}
+        label="Job (optional)"
+        clearLabel="No job — office, equipment, training…"
+        hint="Leave empty if you’re not on a specific job."
+      />
+      <TagPicker catalog={catalog} value={tagIds} onChange={setTagIds} summaryLabel="What are you working on? (optional)" />
     </ModalShell>
   );
 }
+
+// ── Clock out ─────────────────────────────────────────────────────────────────────────────────────
 
 interface ClockOutModalProps {
   open: boolean;
@@ -82,127 +83,203 @@ interface ClockOutModalProps {
   catalog: ActivityTag[];
   /** Map of job id → suggested hours, e.g. from the day's auto-tracked time. */
   suggestedAllocations: Record<string, number>;
+  /** When the shift started — shown, and used for the worked total. */
+  startedAt?: string;
+  /** Readable names for the job ids in `suggestedAllocations`. */
+  jobLabels?: Record<string, string>;
+  /** Tags chosen at clock-in, pre-selected here. */
+  initialTagIds?: string[];
 }
 
-export function ClockOutModal({ open, onClose, onSubmit, catalog, suggestedAllocations }: ClockOutModalProps) {
+const LUNCH_OPTIONS = [
+  { v: 0, label: 'None' },
+  { v: 30, label: '30 min' },
+  { v: 45, label: '45 min' },
+  { v: 60, label: '1 hr' },
+];
+
+export function ClockOutModal({
+  open, onClose, onSubmit, catalog, suggestedAllocations, startedAt, jobLabels = {}, initialTagIds = [],
+}: ClockOutModalProps) {
   const [allocations, setAllocations] = useState<Record<string, number>>(suggestedAllocations);
-  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [tagIds, setTagIds] = useState<string[]>(initialTagIds);
   const [notes, setNotes] = useState('');
-  // ── LUNCH (owner, 2026-09-19) ────────────────────────────────────────────────────────────────
-  // "whenever they log out, they should have the option of recording how long their lunch time was."
-  //
-  // `null` is the starting state and it is NOT zero: it means nobody has answered yet, which is
-  // what an approver sees as "no lunch recorded" rather than as "no lunch taken". Pressing the
-  // "None" chip is how somebody says zero, and that is a different fact — see seeds/650.
+  // ── LUNCH (owner, 2026-09-19) ──────────────────────────────────────────────────────────────────
+  // `null` is "nobody answered" and is NOT zero: an approver sees "no lunch recorded" rather than
+  // "no lunch taken". Pressing "None" is how somebody says zero — a different fact (seeds/650).
   const [lunch, setLunch] = useState<number | null>(null);
+  const [lunchOther, setLunchOther] = useState(false);
+
+  const worked = useMemo(() => {
+    if (!startedAt) return null;
+    const t = Date.parse(startedAt);
+    return Number.isFinite(t) ? Math.max(0, (Date.now() - t) / 3_600_000) : null;
+  }, [startedAt, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
+  const jobIds = Object.keys(allocations);
 
   return (
-    <ModalShell title="Wrap your day" onClose={onClose}>
-      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
-        <legend style={labelStyle}>Time by job</legend>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {Object.keys(allocations).length === 0 && (
-            <span style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>No jobs logged today.</span>
-          )}
-          {Object.entries(allocations).map(([jobId, hours]) => (
-            <label key={jobId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: '0.85rem' }}>{jobId}</span>
+    <ModalShell
+      title="Clock out"
+      onClose={onClose}
+      footer={(
+        <ModalActions
+          onCancel={onClose}
+          onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes, lunchMinutes: lunch })}
+          confirmLabel={worked != null ? `Clock out · ${formatWorked(worked)}` : 'Clock out'}
+          busyLabel="Saving your hours…"
+        />
+      )}
+    >
+      {worked != null && startedAt && (
+        <div className="clockm__summary" role="status">
+          <span className="clockm__summary-hours">{formatWorked(worked)}</span>
+          <span className="clockm__summary-span">
+            {clockTime(startedAt)} – {clockTime(Date.now())}
+            {worked > 14 ? ' · that’s a long day — check you didn’t miss a clock-out' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Only when the day had a job to split — "No jobs logged today" said nothing useful. */}
+      {jobIds.length > 0 && (
+        <div className="clockm__field">
+          <span className="clockm__label">Hours by job</span>
+          {jobIds.map((jobId) => (
+            <label key={jobId} className="clockm__alloc">
+              <span className="clockm__alloc-name">{jobLabels[jobId] ?? 'Job'}</span>
               <input
                 type="number"
+                inputMode="decimal"
                 min={0}
                 step={0.25}
-                value={hours}
+                value={allocations[jobId]}
                 onChange={(e) => setAllocations({ ...allocations, [jobId]: Number(e.target.value) })}
-                style={{ ...inputStyle, width: 80, textAlign: 'right' }}
+                className="clockm__input clockm__input--hours"
+                aria-label={`Hours on ${jobLabels[jobId] ?? 'this job'}`}
               />
             </label>
           ))}
         </div>
-      </fieldset>
-      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
-        <legend style={labelStyle}>Tags</legend>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {catalog.map((t) => {
-            const on = tagIds.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTagIds((arr) => on ? arr.filter((x) => x !== t.id) : [...arr, t.id])}
-                style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid ${t.color}`, background: on ? t.color : 'transparent', color: on ? 'var(--theme-accent-fg)' : t.color, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-      <fieldset style={{ border: '1px solid var(--theme-border)', borderRadius: 6, padding: 'var(--hub-spc-3, 12px)' }}>
-        <legend style={labelStyle}>Lunch</legend>
-        {/* Chips first, a box second. The honest common cases are none, half an hour and an hour,
-            and three taps beats typing at the end of a long day with gloves on. The box is there
-            for the day that was none of those. */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {[{ v: 0, label: 'None' }, { v: 30, label: '30 min' }, { v: 45, label: '45 min' }, { v: 60, label: '1 hour' }].map((opt) => {
-            const on = lunch === opt.v;
+      )}
+
+      <div className="clockm__field">
+        <span className="clockm__label">Lunch</span>
+        <div className="clockm__segmented" role="group" aria-label="Lunch">
+          {LUNCH_OPTIONS.map((opt) => {
+            const on = !lunchOther && lunch === opt.v;
             return (
               <button
                 key={opt.v}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setLunch(on ? null : opt.v)}
-                style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--theme-border)', background: on ? 'var(--theme-accent)' : 'transparent', color: on ? 'var(--theme-accent-fg)' : 'var(--theme-fg-secondary)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                className={`clockm__seg${on ? ' clockm__seg--on' : ''}`}
+                onClick={() => { setLunchOther(false); setLunch(on ? null : opt.v); }}
               >
                 {opt.label}
               </button>
             );
           })}
-          <input
-            type="number"
-            min={0}
-            max={480}
-            step={5}
-            inputMode="numeric"
-            aria-label="Minutes at lunch"
-            placeholder="min"
-            value={lunch ?? ''}
-            onChange={(e) => setLunch(e.target.value === '' ? null : Math.max(0, Math.min(480, Math.round(Number(e.target.value)) || 0)))}
-            style={{ ...inputStyle, width: 84 }}
-          />
+          <button
+            type="button"
+            aria-pressed={lunchOther}
+            className={`clockm__seg${lunchOther ? ' clockm__seg--on' : ''}`}
+            onClick={() => { setLunchOther(!lunchOther); if (lunchOther) setLunch(null); }}
+          >
+            Other
+          </button>
         </div>
-        <span style={hintStyle}>
-          Optional. Your hours are not reduced by this — whoever approves them sees it and decides.
-        </span>
-      </fieldset>
-      <label style={fieldStyle}>
-        <span style={labelStyle}>End-of-day debrief</span>
+        {lunchOther && (
+          <label className="clockm__inline">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={480}
+              step={5}
+              autoFocus
+              value={lunch ?? ''}
+              onChange={(e) => setLunch(e.target.value === '' ? null : Math.max(0, Math.min(480, Math.round(Number(e.target.value)) || 0)))}
+              className="clockm__input clockm__input--hours"
+              aria-label="Minutes at lunch"
+            />
+            <span>minutes</span>
+          </label>
+        )}
+        <span className="clockm__hint">Not taken off your hours — whoever approves them sees it and decides.</span>
+      </div>
+
+      <label className="clockm__field">
+        <span className="clockm__label">What did you get done? (optional)</span>
         <textarea
           value={notes}
-          rows={4}
-          placeholder="A few sentences on what you actually got done today — work performed, blockers, follow-ups."
+          rows={3}
+          placeholder="Work done, blockers, follow-ups"
           onChange={(e) => setNotes(e.target.value)}
-          style={{ ...inputStyle, height: 96, resize: 'vertical' }}
+          className="clockm__input clockm__textarea"
         />
-        <span style={hintStyle}>
-          A short recap so future-you and admins can reconstruct the day.
-        </span>
       </label>
-      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes, lunchMinutes: lunch })} confirmLabel="Submit + clock out" busyLabel="Saving your hours…" />
+
+      <TagPicker catalog={catalog} value={tagIds} onChange={setTagIds} summaryLabel="Tags (optional)" />
     </ModalShell>
   );
 }
 
-function ModalShell({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+// ── Shared pieces ─────────────────────────────────────────────────────────────────────────────────
+
+/** Tags, folded until wanted. The chosen ones are always visible in the summary line. */
+function TagPicker({ catalog, value, onChange, summaryLabel }: {
+  catalog: ActivityTag[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  summaryLabel: string;
+}) {
+  const chosen = catalog.filter((t) => value.includes(t.id));
   return (
-    <div role="dialog" aria-modal style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={modalStyle}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{title}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" style={closeButtonStyle}>×</button>
+    <details className="clockm__tags">
+      <summary className="clockm__tags-summary">
+        <span className="clockm__label">{summaryLabel}</span>
+        <span className="clockm__tags-chosen">
+          {chosen.length === 0 ? 'None' : chosen.map((t) => t.label).join(', ')}
+        </span>
+      </summary>
+      <div className="clockm__chips">
+        {catalog.map((t) => {
+          const on = value.includes(t.id);
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((x) => x !== t.id) : [...value, t.id])}
+              className={`clockm__chip${on ? ' clockm__chip--on' : ''}`}
+              style={{ '--chip': t.color } as React.CSSProperties}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
+function ModalShell({ title, children, onClose, footer }: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  footer: React.ReactNode;
+}) {
+  return (
+    <div role="dialog" aria-modal aria-label={title} className="clockm__overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="clockm__sheet">
+        <header className="clockm__header">
+          <h3 className="clockm__title">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="clockm__close">×</button>
         </header>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--hub-spc-3, 12px)' }}>{children}</div>
+        <div className="clockm__body">{children}</div>
+        <footer className="clockm__footer">{footer}</footer>
       </div>
     </div>
   );
@@ -211,18 +288,10 @@ function ModalShell({ title, children, onClose }: { title: string; children: Rea
 /**
  * The confirm button, which can be pressed exactly once.
  *
- * DOUBLE-LOGGED HOURS, 2026-08-24. `daily_time_logs` held two identical 7.56-hour rows for the
- * same person and the same day, created 3.2 seconds apart, both saying "Clock-out entry from
- * top-bar pill". Nobody worked fifteen hours: the button stayed live for the whole round-trip,
- * so a second click while the first request was still going posted the entire day again.
- *
- * The guard lives HERE rather than in either caller because there are two clock-out surfaces —
- * the top-bar pill and the Quick Actions tile — with two copies of the same handler, and a fix
- * written in one of them would have left the other one able to do it. Anything that opens this
- * modal in future gets the guard for free.
- *
- * Cancel is disabled too while the request is in flight. Closing the dialog mid-save would clear
- * the session on a submission the user could no longer see the outcome of.
+ * DOUBLE-LOGGED HOURS, 2026-08-24: two identical 7.56-hour rows 3.2 seconds apart — the button
+ * stayed live for the whole round-trip and was pressed twice. The guard lives HERE so both surfaces
+ * that open this modal get it. Cancel is disabled too while saving, so the dialog cannot be closed
+ * on a submission whose outcome the person could then not see.
  */
 function ModalActions({ onCancel, onConfirm, confirmLabel, busyLabel }: {
   onCancel: () => void;
@@ -231,45 +300,23 @@ function ModalActions({ onCancel, onConfirm, confirmLabel, busyLabel }: {
   busyLabel?: string;
 }) {
   const [busy, setBusy] = useState(false);
-
   const confirm = async () => {
     if (busy) return;
     setBusy(true);
     try {
       await onConfirm();
     } finally {
-      // The caller normally unmounts this modal on success, so this only runs when it did not —
-      // a thrown handler, or a flow that keeps the dialog open. Leaving `busy` true there would
-      // strand the user on a dead button with no way to retry.
+      // The caller normally unmounts this modal on success; this runs when it did not, so the
+      // person is never stranded on a dead button.
       setBusy(false);
     }
   };
-
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-      <button type="button" onClick={onCancel} disabled={busy} style={{ ...cancelButtonStyle, opacity: busy ? 0.5 : 1, cursor: busy ? 'default' : 'pointer' }}>Cancel</button>
-      <button
-        type="button"
-        onClick={confirm}
-        disabled={busy}
-        aria-busy={busy}
-        style={{ ...primaryButtonStyle, opacity: busy ? 0.7 : 1, cursor: busy ? 'progress' : 'pointer' }}
-      >
+    <>
+      <button type="button" onClick={onCancel} disabled={busy} className="clockm__btn clockm__btn--ghost">Cancel</button>
+      <button type="button" onClick={confirm} disabled={busy} aria-busy={busy} className="clockm__btn clockm__btn--primary">
         {busy ? (busyLabel ?? 'Saving…') : confirmLabel}
       </button>
-    </div>
+    </>
   );
 }
-
-const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--theme-bg-page) 70%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 12 };
-// Responsive: full-bleed-ish on phones (no fixed 360px min that overflows a
-// 390px screen), capped at 540px on larger screens, and scrollable when the
-// content (clock-out debrief) is taller than the viewport.
-const modalStyle: React.CSSProperties = { background: 'var(--theme-bg-surface)', borderRadius: 8, padding: 'var(--hub-spc-4, 16px)', width: 'min(540px, calc(100vw - 24px))', maxWidth: '100%', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' };
-const closeButtonStyle: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--theme-fg-secondary)', fontSize: '1.25rem', cursor: 'pointer' };
-const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600 };
-const hintStyle: React.CSSProperties = { fontSize: '0.78rem', color: 'var(--theme-fg-secondary)', lineHeight: 1.4 };
-const inputStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 4, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.85rem' };
-const cancelButtonStyle: React.CSSProperties = { padding: '6px 12px', borderRadius: 6, background: 'transparent', border: 'none', color: 'var(--theme-fg-secondary)', cursor: 'pointer' };
-const primaryButtonStyle: React.CSSProperties = { padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--theme-accent)', color: 'var(--theme-accent-fg)', fontWeight: 600, cursor: 'pointer' };

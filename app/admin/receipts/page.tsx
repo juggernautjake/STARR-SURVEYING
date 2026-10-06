@@ -32,7 +32,7 @@
 // tech_support. The union is the queue's own list, so the registry row is unchanged and the two
 // admin-only tabs carry their own gate — a developer opening this portal sees two tabs, not four.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Receipt, CreditCard, ArrowLeftRight, Car, Camera } from 'lucide-react';
@@ -75,6 +75,11 @@ export default function ReceiptsPortal() {
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
   const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
+  // On a phone the tab bar scrolls sideways; the open tab must be in view, not off the right edge
+  // (UI pass, 2026-10-06 — Approvals opened selected and invisible).
+  useEffect(() => {
+    document.getElementById(`rcp-tab-${active}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
   const activeTab = tabs.find((t) => t.id === active);
 
   return (

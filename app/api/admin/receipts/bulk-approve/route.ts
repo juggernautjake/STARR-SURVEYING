@@ -19,6 +19,7 @@
 //
 // Auth: admin / developer / tech_support. Same shape as the
 // per-row PATCH endpoint at /api/admin/receipts/[id].
+import { openDuplicateIds } from '@/lib/receipts/duplicate-scan';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -46,7 +47,8 @@ interface BulkApproveResult {
       | 'rejected'
       | 'exported'
       | 'soft_deleted'
-      | 'unknown_status';
+      | 'unknown_status'
+      | 'possible_duplicate';
   }>;
 }
 
@@ -129,7 +131,14 @@ export const POST = withErrorHandler(
     // not_found; everything else gets categorised by status +
     // deleted_at.
     const toApprove: string[] = [];
+    // A receipt with an open possible-duplicate is left for a person to compare first — approving
+    // both halves of a duplicate in one click is how the same expense gets paid twice (2026-10-06).
+    const flaggedDuplicates = await openDuplicateIds(ids);
     for (const id of ids) {
+      if (flaggedDuplicates.has(id)) {
+        result.skipped.push({ id, reason: 'possible_duplicate' });
+        continue;
+      }
       const row = seen.get(id);
       if (!row) {
         result.skipped.push({ id, reason: 'not_found' });

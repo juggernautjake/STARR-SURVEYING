@@ -1,0 +1,208 @@
+/* lib/time-tracking/ClockModals.css — the clock-in / clock-out sheet.
+ *
+ * Phone (≤767px): a bottom sheet, full width, header and buttons pinned so the action is always on
+ * screen. Desktop: a centred 520px dialog with the same structure. One body scrolls; never two. */
+
+.clockm__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95; /* above the floating toolbar (90) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, #0f172a 45%, transparent);
+}
+.clockm__sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(760px, calc(100dvh - 32px));
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #0f172a);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.clockm__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--theme-border, #e5e7eb);
+}
+.clockm__title { margin: 0; font-size: 1.1rem; font-weight: 700; }
+.clockm__close {
+  width: 40px;
+  height: 40px;
+  margin: -8px -10px -8px 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #6b7280);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.clockm__close:hover { background: var(--theme-bg-elevated, #f3f4f6); }
+
+.clockm__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.clockm__footer {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--theme-border, #e5e7eb);
+  background: var(--theme-bg-surface, #fff);
+}
+
+/* ── fields ── */
+.clockm__field { display: flex; flex-direction: column; gap: 8px; }
+.clockm__label { font-size: 0.85rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); }
+.clockm__hint { font-size: 0.8rem; line-height: 1.4; color: var(--theme-fg-muted, #6b7280); }
+.clockm__input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 16px; /* no iOS zoom-on-focus */
+}
+.clockm__input--hours { width: 96px; text-align: right; }
+.clockm__textarea { min-height: 84px; resize: vertical; }
+.clockm__inline { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+
+/* What you worked, first thing at clock-out. */
+.clockm__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theme-success, #059669) 10%, var(--theme-bg-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--theme-success, #059669) 30%, transparent);
+}
+.clockm__summary-hours { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+.clockm__summary-span { font-size: 0.85rem; color: var(--theme-fg-secondary, #374151); }
+
+.clockm__alloc { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.clockm__alloc-name { font-size: 0.95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Lunch: one row of equal buttons that look like buttons. */
+.clockm__segmented {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.clockm__seg {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #0f172a);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.clockm__seg--on {
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: #fff;
+}
+
+/* Tags, folded. */
+.clockm__tags { border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; }
+.clockm__tags-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 40px 10px 12px;
+  min-height: 44px;
+  justify-content: center;
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+.clockm__tags-summary::-webkit-details-marker { display: none; }
+.clockm__tags-summary::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--theme-fg-muted, #6b7280);
+  transition: transform 0.15s;
+}
+.clockm__tags[open] .clockm__tags-summary::after { transform: translateY(-50%) rotate(180deg); }
+.clockm__tags-chosen { font-size: 0.85rem; color: var(--theme-fg-muted, #6b7280); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clockm__chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px; }
+.clockm__chip {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--chip, #6b7280);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--chip, #6b7280);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.clockm__chip--on { background: var(--chip, #6b7280); color: #fff; }
+
+/* ── buttons ── */
+.clockm__btn {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.clockm__btn:disabled { opacity: 0.6; cursor: progress; }
+.clockm__btn--ghost {
+  border: 1px solid var(--theme-border, #d1d5db);
+  background: transparent;
+  color: var(--theme-fg-secondary, #374151);
+}
+.clockm__btn--primary {
+  flex: 1;
+  border: none;
+  background: var(--color-brand-navy, #1D3095);
+  color: #fff;
+}
+
+@media (min-width: 768px) {
+  .clockm__footer { justify-content: flex-end; }
+  .clockm__btn--primary { flex: 0 0 auto; min-width: 180px; }
+}
+
+/* Phone: a bottom sheet. */
+@media (max-width: 767px) {
+  .clockm__overlay { align-items: flex-end; padding: 0; }
+  .clockm__sheet {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    border-radius: 16px 16px 0 0;
+  }
+  .clockm__body { padding: 16px; gap: 16px; }
+  .clockm__header { padding: 12px 16px; }
+  .clockm__footer { padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 359px) {
+  .clockm__segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .clockm__seg { font-size: 0.85rem; }
+}

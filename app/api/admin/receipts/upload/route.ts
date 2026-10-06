@@ -235,7 +235,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // Stored on the row at INSERT, which is what makes them authoritative for free: the extractor
       // merges with `fillIfEmpty`, so a field that already holds a value is never overwritten by a
       // machine reading. No extra rule was needed to protect them — they simply arrive first.
-      transaction_at: declaration.value.dateIso,
+      // Noon UTC, not midnight: a bare '2026-09-24' is midnight UTC, which is the evening of the 23rd
+      // in Texas, and every screen showed the receipt a day early (2026-10-06).
+      transaction_at: `${declaration.value.dateIso}T12:00:00Z`,
       vendor_name: declaration.value.vendorName,
       total_cents: declaration.value.totalCents,
       category: declaration.value.category,

@@ -394,11 +394,45 @@ function enumOrNull<T extends string>(v: unknown, allowed: ReadonlyArray<T>): T 
   return allowed.includes(v as T) ? (v as T) : null;
 }
 
-function normalizeIsoOrNull(v: unknown): string | null {
+/**
+ * A receipt's printed date/time → an instant.
+ *
+ * ── THE DAY-EARLY BUG (2026-10-06) ──────────────────────────────────────────────────────────────
+ * A receipt prints a LOCAL date, and `Date.parse('2026-09-24')` is midnight UTC — 7 PM on the 23rd in
+ * Texas — so most receipts in the system displayed a day early. And a printed time with no zone was
+ * read in the server's zone (UTC), five hours off.
+ *
+ *   · date only ('2026-09-24')            → noon UTC: the same calendar day in every US zone.
+ *   · date + time, no zone ('…T19:30')    → that wall-clock time in Central (the firm's zone).
+ *   · anything with a zone or 'Z'         → as written.
+ */
+export function receiptInstant(v: unknown): string | null {
   if (typeof v !== 'string' || v.trim() === '') return null;
-  const t = Date.parse(v);
-  if (!Number.isFinite(t)) return null;
-  return new Date(t).toISOString();
+  const s = v.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const t = Date.parse(`${s}T12:00:00Z`);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  }
+  const naive = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/.exec(s);
+  if (naive) {
+    const [, y, mo, d, h, mi, se] = naive;
+    const asUtc = Date.UTC(+y, +mo - 1, +d, +h, +mi, +(se ?? 0));
+    if (!Number.isFinite(asUtc)) return null;
+    // The Central offset at that moment (CST −6 / CDT −5), from the platform's own tz data.
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(asUtc));
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    const shown = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+    return new Date(asUtc + (asUtc - shown)).toISOString();
+  }
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+function normalizeIsoOrNull(v: unknown): string | null {
+  return receiptInstant(v);
 }
 
 // ── Prompt ────────────────────────────────────────────────────────────────────

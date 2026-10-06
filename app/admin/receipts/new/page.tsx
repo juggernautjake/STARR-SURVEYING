@@ -742,17 +742,16 @@ export default function NewReceiptPage() {
     <main style={styles.page}>
       <header style={styles.header}>
         <div>
-          <h1 style={styles.title}>Capture receipt</h1>
+          <h1 style={styles.title}>Add receipts</h1>
           {/* F7b — this described one receipt at a time, which was the whole story before F4 added
               the batch picker. The bulk control carried a tooltip, but a tooltip is only found by
               someone already reaching for it: a person holding a fortnight of fuel receipts would
               read this and start uploading them one at a time. */}
+          {/* One line (UI pass, 2026-10-06). The paragraph this replaced explained the extraction
+              queue to somebody holding a petrol receipt. */}
           <p style={styles.subtitle}>
-            Snap a photo with your device camera, or pick files from disk &mdash;
-            <strong> one, or a whole batch at once</strong>. Photos and PDFs only.
-            Each is queued for AI extraction separately, so a file that fails
-            doesn&rsquo;t stop the rest, and every one that fails says why.
-            They land in the pending queue for approval.
+            Photograph or upload one receipt or a whole stack at once — photos or PDFs — fill in
+            the basics, and send.
           </p>
         </div>
         {/* Shown only to the roles middleware will actually let through — see `isBookkeeper`. */}
@@ -763,7 +762,7 @@ export default function NewReceiptPage() {
 
       <section style={styles.card}>
         <div style={styles.field}>
-          <span style={styles.label}>Receipt photo</span>
+
           {/* Fallback hidden inputs — used when getUserMedia is
               unavailable (older WebViews, http origins, locked-down
               MDM profiles) or when the user clicks "Choose a file". */}
@@ -824,39 +823,26 @@ export default function NewReceiptPage() {
                   aria-label="Take a photo with the device camera"
                 >
                   <span aria-hidden style={styles.captureBtnIcon}>📷</span>
-                  <span>{cameraStarting ? 'Starting camera…' : 'Take a photo'}</span>
+                  <span>{cameraStarting ? 'Starting camera…' : 'Take photos'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={openFilePicker}
-                  disabled={busy}
-                  style={styles.captureBtnSecondary}
-                  aria-label="Choose an image or PDF from your device"
-                >
-                  <span aria-hidden style={styles.captureBtnIcon}>📁</span>
-                  <span>Choose a file</span>
-                </button>
-                {/* F4 — the whole point of the slice: a stack of receipts in one go. */}
+                {/* One picker for one file or many (UI pass, 2026-10-06). "Choose a file" and
+                    "Upload several at once" were two buttons for one act — both have joined the
+                    same queue since 2026-08-18. */}
                 <button
                   type="button"
                   onClick={() => { setError(null); bulkRef.current?.click(); }}
                   disabled={busy}
                   style={styles.captureBtnSecondary}
-                  aria-label="Choose several receipts or invoices to upload at once"
-                  title="Pick many photos or PDFs at once. Each one is uploaded and queued for extraction separately, so one bad file doesn't stop the others."
+                  aria-label="Choose receipt photos or PDFs from your device — one or several"
                 >
-                  <span aria-hidden style={styles.captureBtnIcon}>🗂️</span>
-                  <span>Upload several at once</span>
+                  <span aria-hidden style={styles.captureBtnIcon}>📁</span>
+                  <span>Choose photos or PDFs</span>
                 </button>
               </div>
               {cameraError && (
                 <p role="alert" style={styles.cameraError}>{cameraError}</p>
               )}
-              <span style={styles.hint}>
-                Camera opens a live viewfinder in your browser. You may
-                need to grant camera permission the first time. Max 12 MB.
-                JPEG/PNG/WebP/HEIC and PDF accepted.
-              </span>
+              <span style={styles.hint}>JPG, PNG, HEIC or PDF · up to 12 MB each</span>
             </>
           )}
         </div>
@@ -873,6 +859,7 @@ export default function NewReceiptPage() {
                 These three are still mandatory and still stored per receipt; this simply lets one
                 answer satisfy all of them. Twenty identical dropdowns is how a required field turns
                 into something people click through without reading. */}
+            {shots.length > 1 && (
             <div style={styles.sharedBar}>
               <span style={styles.sharedBarLabel}>Same for all:</span>
               <select
@@ -912,6 +899,7 @@ export default function NewReceiptPage() {
               </select>
               <span style={styles.sharedHint}>Any receipt can differ — change it on the receipt.</span>
             </div>
+            )}
 
             <ul style={styles.reviewGrid}>
               {shots.map((s, i) => {
@@ -952,8 +940,10 @@ export default function NewReceiptPage() {
                       >
                         ✕
                       </button>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={s.url} alt={`Receipt ${i + 1}`} style={styles.reviewThumb} />
+                      {/\.pdf$/i.test(s.fileName)
+                        ? <div style={styles.pdfThumb} aria-label={`Receipt ${i + 1} (PDF)`}>PDF<br /><small>{s.fileName}</small></div>
+                        // eslint-disable-next-line @next/next/no-img-element
+                        : <img src={s.url} alt={`Receipt ${i + 1}`} style={styles.reviewThumb} />}
                       {/* The badge is a suggestion. Nothing is removed for you — two $5 coffees on
                           the same day are both real, and a queue that drops the second loses a
                           receipt. */}
@@ -997,7 +987,7 @@ export default function NewReceiptPage() {
                             value={own.total ?? ''}
                             onChange={(e) => setShotField(s.id, 'total', e.target.value)}
                             disabled={busy}
-                            placeholder="27.89"
+                            placeholder="0.00"
                             aria-label={`Total on receipt ${i + 1}`}
                             aria-invalid={bad('total')}
                             style={inputStyle('total')}
@@ -1212,57 +1202,26 @@ export default function NewReceiptPage() {
           </div>
         )}
 
-        {previewUrl && !cameraOpen && (
-          <div style={styles.previewWrap}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Receipt preview" style={styles.preview} />
-            <button
-              type="button"
-              onClick={clearFile}
-              disabled={busy}
-              style={styles.clearBtn}
-              aria-label="Remove the picked photo"
-            >
-              Retake / pick different
-            </button>
-          </div>
-        )}
-        {file && !previewUrl && !cameraOpen && (
-          <div style={styles.previewWrap}>
-            <p style={styles.fileSummary}>
-              {file.name} — {(file.size / 1024).toFixed(0)} KB. Preview not
-              available for this file type.
-            </p>
-            <button
-              type="button"
-              onClick={clearFile}
-              disabled={busy}
-              style={styles.clearBtn}
-              aria-label="Remove the picked file"
-            >
-              Pick a different file
-            </button>
-          </div>
-        )}
+
 
         <div style={styles.field}>
           <JobRefPicker
             value={job}
             onChange={setJob}
-            label="Job (optional)"
+            label={shots.length > 1 ? `Job for all ${shots.length} (optional)` : 'Job (optional)'}
             disabled={busy}
             clearLabel="No job — office / overhead expense"
-            hint="Search by job number, name, client or address. Working a job the office hasn’t entered yet? Create it here and the receipt files straight into it."
+            hint="Search by number, name, client or address — or create a new job."
           />
         </div>
 
         <label style={styles.field}>
-          <span style={styles.label}>Notes (optional)</span>
+          <span style={styles.label}>{shots.length > 1 ? `Note for all ${shots.length} (optional)` : 'Note (optional)'}</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="What was this for? e.g. fuel for Henry job, lunch with client, equipment battery"
-            rows={3}
+            placeholder="What was it for? e.g. fuel for the Henry job"
+            rows={2}
             disabled={busy}
             style={styles.textarea}
           />
@@ -1276,10 +1235,11 @@ export default function NewReceiptPage() {
           <p role="status" style={styles.sent}>✓ {sentMsg}</p>
         ) : null}
 
+        {/* Only when there is something to send — a greyed "Upload receipt" on an empty page was a
+            button that could only be explained by its absence. Pinned so it stays in reach under a
+            long stack. (UI pass, 2026-10-06.) */}
+        {(batchFiles.length > 0 || busy) && (
         <div style={styles.actions}>
-          {isBookkeeper ? (
-            <Link href="/admin/receipts" style={styles.cancelBtn}>Cancel</Link>
-          ) : null}
           {/* F4 — one button, two flows. Which one runs is decided by what the person picked, so
               there is no mode to set and get wrong. A finished batch disables it rather than
               re-uploading everything, which would duplicate every receipt that already landed. */}
@@ -1313,19 +1273,19 @@ export default function NewReceiptPage() {
                   {busy
                     ? 'Uploading…'
                     : bulk
-                      // "Upload 1 receipts" — harmless when the batch path was only ever reached by
-                      // the multi-file picker, and newly common now that one photograph from the
-                      // rapid-fire camera goes through the same queue.
-                      ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}`)
-                      : 'Upload receipt'}
+                      ? (bulkDone ? 'Sent' : `Send ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}`)
+                      : 'Send receipt'}
                 </button>
                 {incomplete && (
-                  <p id="upload-blocked" role="status" style={styles.blockedNote}>{blockingReason}</p>
+                  // Guidance until Send is pressed, a warning after — red before anyone has
+                  // touched anything read as an error the person had already made.
+                  <p id="upload-blocked" role="status" style={{ ...styles.blockedNote, ...(touched ? null : styles.blockedNoteQuiet) }}>{blockingReason}</p>
                 )}
               </>
             );
           })()}
         </div>
+        )}
       </section>
 
       {/* R8 — the other half of R1. Renders nothing at all until you have filed something, so a
@@ -1435,7 +1395,8 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     maxWidth: 720,
     margin: '0 auto',
-    padding: '1.5rem clamp(1rem, 3vw, 2rem)',
+    // The admin layout already pads the page; a second clamp(1rem…) here squeezed the form on a phone.
+    padding: '0.5rem clamp(0px, 2vw, 1rem) 1.5rem',
     fontFamily: 'var(--font-body, system-ui, sans-serif)',
     color: 'var(--color-text-primary, #111827)',
   },
@@ -1454,7 +1415,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--color-bg-card, #fff)',
     border: '1px solid var(--color-border, #e5e7eb)',
     borderRadius: 14,
-    padding: '1.25rem',
+    padding: 'clamp(0.85rem, 3vw, 1.25rem)',
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
@@ -1604,7 +1565,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shotFieldLabel: {
     display: 'block',
-    fontSize: '0.66rem',
+    fontSize: '0.72rem',
     fontWeight: 700,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
@@ -1614,9 +1575,9 @@ const styles: Record<string, React.CSSProperties> = {
   shotInput: {
     display: 'block',
     width: '100%',
-    minHeight: 38,
-    padding: '7px 9px',
-    borderRadius: 6,
+    minHeight: 42,
+    padding: '8px 10px',
+    borderRadius: 8,
     border: '1px solid var(--color-border)',
     background: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
@@ -1655,9 +1616,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   // The set-once bar. Sits directly above the receipts it governs, so the relationship is visible
   // rather than something a person has to be told.
+  // Equal columns that wrap together (UI pass, 2026-10-06) — as a flex row the three selects were
+  // three different widths, one per label length.
   sharedBar: {
-    display: 'flex',
-    flexWrap: 'wrap',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
     alignItems: 'center',
     gap: '0.4rem',
     padding: '0.5rem 0.6rem',
@@ -1667,6 +1630,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid var(--color-border)',
   },
   sharedBarLabel: {
+    gridColumn: '1 / -1',
     fontSize: '0.7rem',
     fontWeight: 700,
     letterSpacing: '0.04em',
@@ -1674,9 +1638,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-secondary)',
   },
   sharedSelect: {
-    minHeight: 34,
-    padding: '5px 8px',
-    borderRadius: 6,
+    width: '100%',
+    minHeight: 42,
+    padding: '8px 10px',
+    borderRadius: 8,
     border: '1px solid var(--color-border)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-text-primary)',
@@ -1684,11 +1649,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.78rem',
   },
   sharedHint: {
-    fontSize: '0.68rem',
+    gridColumn: '1 / -1',
+    fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
-    flexBasis: '100%',
   },
+  blockedNoteQuiet: { color: 'var(--color-text-secondary)', fontWeight: 500 },
   blockedNote: {
+    flexBasis: '100%',
     margin: '0.4rem 0 0',
     fontSize: '0.78rem',
     fontWeight: 600,
@@ -1868,7 +1835,24 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.9rem',
   },
   sent: { fontSize: '0.9rem', color: '#065F46', margin: 0 },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.25rem' },
+  actions: {
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 5,
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.6rem',
+    margin: '0.25rem -0.25rem 0',
+    padding: '0.6rem 0.25rem calc(0.6rem + env(safe-area-inset-bottom, 0px))',
+    background: 'var(--color-bg-card)',
+    borderTop: '1px solid var(--color-border)',
+  },
+  pdfThumb: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    minHeight: 140, borderRadius: 6, padding: '0.5rem', textAlign: 'center', overflowWrap: 'anywhere',
+    background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', fontWeight: 800, fontSize: '1.4rem',
+  },
   cancelBtn: {
     padding: '0.55rem 1rem',
     borderRadius: 9999,
@@ -1882,8 +1866,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
   },
   uploadBtn: {
+    flex: '1 1 240px',
+    minHeight: 48,
     padding: '0.55rem 1.2rem',
-    borderRadius: 9999,
+    borderRadius: 12,
     border: 'none',
     background: 'var(--gradient-green, linear-gradient(180deg, #10b981, #059669))',
     color: '#fff',

@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { sweepQueuedReceipts, countQueuedReceipts } from '@/lib/receipts/extract';
 import { sweepSamePurchase } from '@/lib/receipts/pair-sweep';
+import { scanAllReceipts } from '@/lib/receipts/duplicate-scan';
 import { rematchOpenReceipts } from '@/lib/receipts/rematch-cards';
 
 /** Each receipt is a Vision call, run in sequence. 300 s is the ceiling this plan allows. */
@@ -63,6 +64,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const catchUpDue = minute % 30 < 2;
 
   const runCatchUps = async () => {
+    // Duplicates across everybody's receipts (lib/receipts/duplicates.ts). Decided pairs are never
+    // re-flagged; this only finds new ones and closes open ones that no longer match.
+    try {
+      const dups = await scanAllReceipts();
+      if (dups.open > 0) console.log(`[cron/receipt-extraction] duplicates: ${dups.open} open pair(s) across ${dups.receipts} receipts`);
+    } catch (err) {
+      console.error('[cron/receipt-extraction] duplicate sweep failed:', err instanceof Error ? err.message : String(err));
+    }
     const pairing = await sweepSamePurchase();
     if (pairing.paired > 0 || pairing.repaired > 0 || pairing.errors.length > 0) {
       console.log(
