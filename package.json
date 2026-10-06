@@ -60,7 +60,8 @@
     "verify:viewer": "node --env-file=.env.local scripts/check-document-viewer.mjs",
     "verify:worker": "node --experimental-strip-types --no-warnings scripts/verify-worker.mjs",
     "verify:unmerged": "node scripts/verify-unmerged.mjs",
-    "e2e:research-responsive": "playwright test e2e/research-responsive.spec.ts"
+    "e2e:research-responsive": "playwright test e2e/research-responsive.spec.ts",
+    "audit:public-access": "node scripts/audit-public-access.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
