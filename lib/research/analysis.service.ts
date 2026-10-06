@@ -38,6 +38,7 @@ import type {
   DataCategory,
 } from '@/types/research';
 import { normaliseReviewProgress, reviewPercent, type ReviewStatus } from './review-progress';
+import { fetchStoredFile } from '@/lib/research/research-files';
 
 // ── Analysis Configuration ──────────────────────────────────────────────────
 
@@ -1794,7 +1795,8 @@ async function extractFromDocument(
     // The OCR result becomes the text fed into DATA_EXTRACTOR, ensuring boundary
     // calls, easements, legal descriptions and all other data in the image are captured.
     try {
-      const imgRes = await fetch(doc.storage_url, {
+      // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+      const imgRes = await fetchStoredFile(doc.storage_url, {
         signal: AbortSignal.timeout(30_000),
         headers: { 'Accept': 'image/*' },
       });

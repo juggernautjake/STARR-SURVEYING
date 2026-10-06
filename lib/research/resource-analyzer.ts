@@ -14,6 +14,8 @@ import {
   calculateExtractionScore,
 } from './extraction-objectives';
 import type { DataAtom, AtomCategory, AtomSource } from './cross-validation.service';
+import { fetchableUrl } from '@/lib/research/research-files';
+import { researchStorageKey } from '@/lib/research/research-file-url';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,10 +119,12 @@ export async function analyzeResource(input: AnalysisInput): Promise<AnalysisRes
   if (input.image_data) {
     const mediaType = input.image_media_type || 'image/png';
     // Check if it's a URL or base64
-    if (input.image_data.startsWith('http')) {
+    // A private research link is the app route (relative), so it counts as a URL too.
+    if (input.image_data.startsWith('http') || researchStorageKey(input.image_data)) {
       userParts.push({
         type: 'image',
-        source: { type: 'url', url: input.image_data },
+        // Signed when it is a private research file — the AI fetches it from outside the app.
+        source: { type: 'url', url: await fetchableUrl(input.image_data, 900) },
       });
     } else {
       userParts.push({

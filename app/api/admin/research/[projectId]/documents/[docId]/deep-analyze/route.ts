@@ -19,6 +19,7 @@ import { deepAnalyzeDocument, fetchSourceContent, buildBoundaryFetchText } from 
 import { fetchBoundaryCalls, extractPublicsearchItems } from '@/lib/research/boundary-fetch.service';
 import { callVision, callDocumentAI } from '@/lib/research/ai-client';
 import type { DocumentType } from '@/types/research';
+import { fetchStoredFile } from '@/lib/research/research-files';
 
 // Allow up to 5 minutes for deep analysis with tile-based scanning + Bell County lookup
 export const maxDuration = 300;
@@ -512,7 +513,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     if (!fileBuffer && doc.storage_url) {
       try {
-        const resp = await fetch(doc.storage_url, { signal: AbortSignal.timeout(30_000) });
+        // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+        const resp = await fetchStoredFile(doc.storage_url, { signal: AbortSignal.timeout(30_000) });
         if (resp.ok) {
           fileBuffer = Buffer.from(await resp.arrayBuffer());
           logger.detail(`Downloaded file from URL: ${fileBuffer.length} bytes`);
