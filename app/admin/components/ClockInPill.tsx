@@ -23,6 +23,8 @@ import {
   CLOCK_SESSION_EVENT,
   CLOCK_SESSION_KEY,
   clearClockSession,
+  serverStillClockedIn,
+  ALREADY_CLOCKED_OUT_PROMPT,
   elapsedHours,
   hydrateClockSessionFromServer,
   readClockSession,
@@ -126,6 +128,14 @@ export default function ClockInPill() {
     if (savingOut) return;
     setSavingOut(true);
     try {
+      // Clocked out already on another device? Ask before logging the same shift twice.
+      if ((await serverStillClockedIn(active)) === 'gone' && !window.confirm(ALREADY_CLOCKED_OUT_PROMPT)) {
+        clearClockSession();
+        setActive(null);
+        setModal('none');
+        setConfirmation('Clock cleared — those hours were already logged from another device.');
+        return;
+      }
       const entries = buildClockOutEntries({
         session: active,
         perJobAllocations,

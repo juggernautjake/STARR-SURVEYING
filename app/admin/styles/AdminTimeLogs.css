@@ -774,7 +774,9 @@
   transition: border-color 0.15s;
 }
 .tl-approval-entry--selected { border-color: var(--color-brand-navy); background: color-mix(in srgb, var(--theme-accent, #1D3095) 10%, var(--theme-bg-surface, #fff)); }
-.tl-approval-entry__check { margin-top: 0.25rem; accent-color: var(--color-brand-navy); }
+/* `width`/`flex` pinned: the marketing site's global `input { width: 100% }` turned this checkbox into a
+ * 1,000px-wide box and crushed the entry beside it anywhere `.admin-layout`'s reset did not reach. */
+.tl-approval-entry__check { margin-top: 0.25rem; accent-color: var(--color-brand-navy); width: auto; flex: 0 0 auto; }
 .tl-approval-entry__main { flex: 1; }
 .tl-approval-entry__top {
   display: flex;

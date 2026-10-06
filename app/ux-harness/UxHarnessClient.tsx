@@ -109,6 +109,7 @@ const PAGES: Record<string, ComponentType> = {
   // would be of an empty page that looked like a styling bug. Same fix as `vehicles` in C3.
   'hours-approval': nextDynamic(() => import('@/app/admin/hours/_tabs/ApprovalsTab'), { ssr: false }),
   'time-off': nextDynamic(() => import('@/app/admin/hours/_tabs/TimeOffTab'), { ssr: false }),
+  'hours-history': nextDynamic(() => import('@/app/admin/hours/_tabs/HistoryTab'), { ssr: false }),
   announcements: nextDynamic(() => import('@/app/admin/announcements/page'), { ssr: false }),
   audit: nextDynamic(() => import('@/app/admin/support/_tabs/AuditTab'), { ssr: false }),
   'error-log': nextDynamic(() => import('@/app/admin/support/_tabs/ErrorLogTab'), { ssr: false }),

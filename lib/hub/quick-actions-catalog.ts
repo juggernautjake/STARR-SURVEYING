@@ -99,8 +99,10 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
   // offered to somebody the tab would refuse is a dead end.
   {
     id: 'review-hours',
-    label: 'Review Employee Hours',
-    description: 'Open the hours approval queue — every employee, week by week.',
+    // "Review Hours", not "Review Employee Hours": three words wrapped to three lines on a tile and
+    // pushed its icon out of line with every other. The description carries the full wording.
+    label: 'Review Hours',
+    description: 'Review employee hours — the approval queue, every employee, week by week.',
     iconName: 'ClipboardCheck',
     kind: 'link',
     href: '/admin/hours?tab=approvals',

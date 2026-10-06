@@ -206,9 +206,13 @@ async function postEntries(entries: PendingEntry[], fetchImpl: typeof fetch): Pr
     // Signed out, timed out, rate-limited or a server fault: try again later, unchanged.
     // Anything else in the 4xx range is the server saying the entry itself is wrong.
     const retryable = res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 408 || res.status === 429;
+    // Retryable failures get a sentence that says what will happen; only a REFUSAL quotes the
+    // server, because then the person has something to fix. ("offline" alone told nobody anything.)
     const reason = res.status === 401 || res.status === 403
       ? 'You were signed out — it will send once you sign in again.'
-      : body.error || `The server answered HTTP ${res.status}.`;
+      : retryable
+        ? `The server could not take it just now (${body.error || `HTTP ${res.status}`}). It will retry automatically.`
+        : body.error || `The server refused it (HTTP ${res.status}).`;
     return { ok: false, retryable, reason };
   } catch {
     return { ok: false, retryable: true, reason: 'No connection — saved on this device and will send automatically.' };

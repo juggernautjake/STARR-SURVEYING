@@ -93,19 +93,25 @@ const REGISTRY: AiTool[] = [
       const [{ data: entries }, { data: active }] = await Promise.all([
         supabaseAdmin
           .from('daily_time_logs')
-          .select('work_date, hours, job_id, notes')
-          .eq('user_email', ctx.email)
-          .gte('work_date', since.slice(0, 10))
-          .order('work_date', { ascending: false })
+          // `log_date`, not `work_date` (2026-10-05): the column never existed, the query errored,
+          // and the assistant told everybody they had logged nothing.
+          .select('log_date, hours, adjusted_hours, status, job_id, job_name, notes')
+          .eq('user_email', ctx.email.toLowerCase())
+          .gte('log_date', since.slice(0, 10))
+          .order('log_date', { ascending: false })
           .limit(60),
-        supabaseAdmin.from('active_clock_sessions').select('clock_in_at, job_id').eq('user_email', ctx.email).maybeSingle(),
+        // `started_at`, not `clock_in_at` — same story: "not clocked in", always.
+        supabaseAdmin.from('active_clock_sessions').select('started_at, job_id').eq('user_email', ctx.email).maybeSingle(),
       ]);
-      const rows = (entries ?? []) as Array<{ hours: number | null }>;
+      // An approver's adjustment is the figure that counts; rejected days count for nothing.
+      const rows = (entries ?? []) as Array<{ hours: number | null; adjusted_hours: number | null; status: string | null }>;
       return {
         entries: entries ?? [],
-        total_hours: rows.reduce((a, r) => a + (r.hours ?? 0), 0),
+        total_hours: rows
+          .filter((r) => r.status !== 'rejected')
+          .reduce((a, r) => a + Number(r.adjusted_hours ?? r.hours ?? 0), 0),
         currently_clocked_in: !!active,
-        clocked_in_since: (active as { clock_in_at: string } | null)?.clock_in_at ?? null,
+        clocked_in_since: (active as { started_at: string } | null)?.started_at ?? null,
       };
     },
   },

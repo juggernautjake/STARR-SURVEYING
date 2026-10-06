@@ -77,6 +77,7 @@ function changedFields(e: HistoryEvent): string[] {
   if (!e.before_row || !e.after_row) return [];
   const out: string[] = [];
   for (const [key, label] of WATCHED) {
+    if (REASON_FIELDS.has(key)) continue;
     const a = e.before_row[key];
     const b = e.after_row[key];
     if (String(a ?? '') !== String(b ?? '')) out.push(`${label}: ${a ?? '—'} → ${b ?? '—'}`);
@@ -85,6 +86,13 @@ function changedFields(e: HistoryEvent): string[] {
 }
 
 const fmtHours = (h: number | string | null | undefined) => (h === null || h === undefined ? null : `${Number(h)}h`);
+
+/** "Mon, Sep 28" from `YYYY-MM-DD`, read as a calendar day (not UTC midnight, which is the day before in Texas). */
+const fmtDay = (d: string | null | undefined) =>
+  d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+
+/** Shown as the quoted reason, so not repeated in the list of changed fields. */
+const REASON_FIELDS = new Set(['rejection_reason', 'adjustment_note']);
 
 export default function HistoryTab() {
   const { data: session } = useSession();
@@ -143,7 +151,7 @@ export default function HistoryTab() {
     const warn = e.action === 'replaced'
       ? `\n\nThis entry was replaced by a resubmission. Restoring it may count the same day twice — check the employee's day after.`
       : '';
-    if (!window.confirm(`Restore ${h} for ${who(e.employee_email)} on ${e.log_date}? It comes back exactly as it was (same status, notes and pay).${warn}`)) return;
+    if (!window.confirm(`Restore ${h} for ${who(e.employee_email)} on ${fmtDay(e.log_date)}? It comes back exactly as it was (same status, notes and pay).${warn}`)) return;
     setRestoring(e.id);
     setNotice(null);
     try {
@@ -154,7 +162,7 @@ export default function HistoryTab() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-      setNotice(`Restored ${h} for ${who(e.employee_email)} on ${e.log_date}.`);
+      setNotice(`Restored ${h} for ${who(e.employee_email)} on ${fmtDay(e.log_date)}.`);
       await load();
     } catch (err) {
       setNotice(`Could not restore: ${err instanceof Error ? err.message : 'unknown error'}`);
@@ -251,9 +259,12 @@ export default function HistoryTab() {
                         <> · for <strong>{who(e.employee_email)}</strong></>
                       )}
                     </span>
-                    {e.log_date && <span>day worked {e.log_date}</span>}
+                    {e.log_date && <span>worked {fmtDay(e.log_date)}</span>}
                     {hoursText && <span>{hoursText}</span>}
-                    {e.status_after && e.status_before !== e.status_after && <span>status: {e.status_before ?? 'new'} → {e.status_after}</span>}
+                    {/* Only a real change of status — "new → pending" on every submission was noise. */}
+                    {e.status_before && e.status_after && e.status_before !== e.status_after && (
+                      <span>status: {e.status_before} → {e.status_after}</span>
+                    )}
                     <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--theme-fg-muted, #6B7280)' }}>
                       {new Date(e.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </span>

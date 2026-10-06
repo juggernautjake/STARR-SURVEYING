@@ -28,6 +28,8 @@ import {
   CLOCK_SESSION_EVENT,
   CLOCK_SESSION_KEY,
   clearClockSession,
+  serverStillClockedIn,
+  ALREADY_CLOCKED_OUT_PROMPT,
   elapsedHours,
   readClockSession,
   writeClockSession,
@@ -187,6 +189,13 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     // Same path as the top-bar pill: saved on this device first, sent, retried until the server has
     // it. This used to swallow a failed POST and clear the session anyway — the hours just vanished,
     // with nothing on screen to say so.
+    // Clocked out already on another device? Ask before logging the same shift twice.
+    if ((await serverStillClockedIn(clockSession)) === 'gone' && !window.confirm(ALREADY_CLOCKED_OUT_PROMPT)) {
+      clearClockSession();
+      setClockSession(null);
+      setClockModal('none');
+      return;
+    }
     const entries = buildClockOutEntries({
       session: clockSession,
       perJobAllocations,
