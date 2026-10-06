@@ -116,8 +116,8 @@ export default function ClockInPill() {
     return () => clearInterval(t);
   }, [active]);
 
-  const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
-    const session: ClockSession = { startedAt: new Date().toISOString(), jobId, tagIds };
+  const handleClockInSubmit = useCallback(({ jobId, jobLabel, tagIds }: { jobId: string | null; jobLabel: string | null; tagIds: string[] }) => {
+    const session: ClockSession = { startedAt: new Date().toISOString(), jobId, jobLabel, tagIds };
     writeClockSession(session);
     setActive(session);
     setModal('none');
@@ -212,7 +212,7 @@ export default function ClockInPill() {
             color: 'var(--theme-success)',
             borderColor: 'color-mix(in srgb, var(--theme-success) 35%, var(--theme-border))',
           }}
-          title={active.jobId ? `Clocked in to ${active.jobId}` : 'Currently clocked in'}
+          title={active.jobId ? `Clocked in to ${active.jobLabel ?? 'a job'}` : 'Currently clocked in'}
           aria-label="Open clock-out modal"
         >
           <span aria-hidden style={{ fontSize: '0.7em' }}>■</span>
@@ -265,6 +265,9 @@ export default function ClockInPill() {
           onSubmit={handleClockOutSubmit}
           catalog={catalog}
           suggestedAllocations={active.jobId ? { [active.jobId]: elapsedHours(active.startedAt) } : {}}
+          startedAt={active.startedAt}
+          jobLabels={active.jobId ? { [active.jobId]: active.jobLabel ?? 'Job' } : {}}
+          initialTagIds={active.tagIds}
         />
       )}
 

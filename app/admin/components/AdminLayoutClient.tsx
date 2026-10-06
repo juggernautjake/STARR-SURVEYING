@@ -57,6 +57,8 @@ import '../styles/AdminDiscussions.css';
 // Same reason again (audit §5 item 14): the assistant dock is mounted by this layout, so its
 // stylesheet has to be loaded on every admin page rather than by any one route.
 import '../styles/AdminAssistant.css';
+// Last, on purpose: the shared sizing for fields/buttons and the phone fixes (2026-10-06).
+import '../styles/AdminUniform.css';
 
 // Exported so the bug-report page selector (DiscussionThreadButton) can
 // offer the same admin route → label list the nav uses.

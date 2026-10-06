@@ -649,6 +649,40 @@ export default function HoursApprovalPage() {
     await loadData();
   };
 
+  /** Mark ONE entry paid or unpaid — the same route the bulk buttons use, for one id. */
+  const singlePaid = async (logId: string, paid: boolean) => {
+    const res = await fetch('/api/admin/time-logs/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [logId], action: paid ? 'mark_paid' : 'mark_unpaid' }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setEntryNotice(body.error ?? 'Those hours could not be updated.');
+      return;
+    }
+    await loadData();
+  };
+
+  /**
+   * Delete one entry (owner, 2026-10-06: "we also need to reject, delete, or modify or approve").
+   *
+   * Asked first, and said plainly that it can be undone: every delete is recorded in Hours → History
+   * with the whole entry, and an admin can restore it from there (seeds/664).
+   */
+  const deleteEntry = async (log: { id: string; user_email: string; log_date: string; hours: number }) => {
+    const who = staff.find((p) => p.email.toLowerCase() === log.user_email.toLowerCase())?.name || nameFromEmail(log.user_email);
+    if (!window.confirm(`Delete ${who}'s ${log.hours}h on ${formatDate(log.log_date)}?\n\nIt is recorded in History, where it can be restored.`)) return;
+    const res = await fetch(`/api/admin/time-logs?id=${encodeURIComponent(log.id)}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setEntryNotice(body.error ?? 'That entry could not be deleted.');
+      return;
+    }
+    setEntryNotice(`Deleted ${who}'s ${log.hours}h on ${formatDate(log.log_date)}. Restore it from Hours → History if that was a mistake.`);
+    await loadData();
+  };
+
   const bulkApprove = async () => {
     if (selected.size === 0) return;
 
@@ -1002,14 +1036,15 @@ export default function HoursApprovalPage() {
       {/* Week navigation. The arrows step the week even when a wider range is showing, because the
           week is still what gets locked and paid — widening changes what you can SEE, not the
           period you are working. */}
-      <div className="tl-week-nav">
-        <button className="tl-btn tl-btn--sm" onClick={prevWeek} disabled={range === 'all'}>&#9664; Prev</button>
+      {/* ◀ period ▶ on one row, the range switch under it on a phone (UI pass, 2026-10-06). */}
+      <div className="tl-week-nav tl-week-nav--approvals">
+        <button className="tl-btn tl-btn--sm tl-week-nav__arrow" onClick={prevWeek} disabled={range === 'all'} aria-label="Previous period">&#9664;</button>
         <span className="tl-week-nav__label">
           {range === 'week' && <>{formatDate(weekStart)} &mdash; {formatDate(weekEndStr)}</>}
           {range === 'month' && new Date(`${weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
           {range === 'all' && 'All time'}
         </span>
-        <button className="tl-btn tl-btn--sm" onClick={nextWeek} disabled={range === 'all'}>Next &#9654;</button>
+        <button className="tl-btn tl-btn--sm tl-week-nav__arrow" onClick={nextWeek} disabled={range === 'all'} aria-label="Next period">&#9654;</button>
 
         {/* How far the list reaches. "All Entries" used to mean every STATUS for one week, which is
             why a day entered for last month looked like it had not saved. */}
@@ -1375,9 +1410,16 @@ export default function HoursApprovalPage() {
                   const isSelected = selected.has(log.id);
                   return (
                     <div key={log.id} data-focus-id={log.id} className={`tl-approval-entry ${isSelected ? 'tl-approval-entry--selected' : ''}`}>
-                      {(log.status === 'pending' || log.status === 'disputed') && (
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(log.id)} className="tl-approval-entry__check" />
-                      )}
+                      {/* On every entry, not just pending ones: the bulk "Mark Paid" button acts on
+                          APPROVED hours, and approved hours had no box to tick — so it could never
+                          be used (UI pass, 2026-10-06). */}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(log.id)}
+                        className="tl-approval-entry__check"
+                        aria-label={`Select ${formatDate(log.log_date)}, ${log.hours}h`}
+                      />
                       <div className="tl-approval-entry__main">
                         <div className="tl-approval-entry__top">
                           <span className="tl-approval-entry__icon">{wt?.icon || '📋'}</span>
@@ -1463,35 +1505,32 @@ export default function HoursApprovalPage() {
                         )}
                       </div>
 
-                      {/* Actions */}
-                      {(log.status === 'pending' || log.status === 'disputed') ? (
-                        <div className="tl-approval-entry__actions">
+                      {/* ── ONE ROW OF ACTIONS, WHATEVER THE STATUS (UI pass, 2026-10-06) ─────────────
+                          Owner: "we also need to reject, delete, or modify or approve the hours and
+                          mark them as paid or not." There were two different button sets depending
+                          on status, no Delete, and no per-entry Paid. Now: the three main verbs are
+                          always in the same place, and the rest sit under "More". */}
+                      <div className="tl-approval-entry__actions">
+                        {log.status !== 'approved' && (
                           <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
-                          <button className="tl-btn tl-btn--sm" onClick={() => setPayLogId(log.id)}>Set pay</button>
-                          <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
+                        )}
+                        <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Change hours</button>
+                        {log.status !== 'rejected' && !log.paid_at && (
                           <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => singleAction(log.id, 'reject')}>Reject</button>
-                        </div>
-                      ) : (
-                        // Already approved/adjusted/rejected: an admin can still
-                        // revise any employee's hours (with a reason; they're
-                        // notified). H3 of the hours-correction plan.
-                        <div className="tl-approval-entry__actions">
-                          {/* Approve was MISSING here, which stranded every adjusted entry.
-                              `adjust` sets the status to 'adjusted', which is not 'pending', so the row
-                              fell into this branch and lost the Approve button — the approver could
-                              re-adjust forever but never finish. The API never had this restriction;
-                              only the UI did.
-                              Offered whenever the entry is not already approved, which also lets a
-                              rejection be reversed — a correction the API likewise always allowed. */}
-                          {log.status !== 'approved' && (
-                            <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
-                          )}
-                          {/* Pay stays revisable after approval — a payroll correction is a normal
-                              event, and the decision keeps its own history either way. */}
-                          <button className="tl-btn tl-btn--sm" onClick={() => setPayLogId(log.id)}>Set pay</button>
-                          <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
-                        </div>
-                      )}
+                        )}
+                        <details className="tl-more">
+                          <summary className="tl-btn tl-btn--sm tl-more__toggle" aria-label="More actions">More ▾</summary>
+                          <div className="tl-more__menu" role="menu">
+                            <button role="menuitem" type="button" onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; setPayLogId(log.id); }}>Set pay</button>
+                            {(log.status === 'approved' || log.status === 'adjusted') && (
+                              <button role="menuitem" type="button" onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; void singlePaid(log.id, !log.paid_at); }}>
+                                {log.paid_at ? 'Mark unpaid' : 'Mark paid'}
+                              </button>
+                            )}
+                            <button role="menuitem" type="button" className="tl-more__danger" onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; void deleteEntry(log); }}>Delete…</button>
+                          </div>
+                        </details>
+                      </div>
                     </div>
                   );
                 })}

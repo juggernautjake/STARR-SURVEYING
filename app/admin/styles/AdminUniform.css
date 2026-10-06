@@ -1,0 +1,130 @@
+/* app/admin/styles/AdminUniform.css — one look for the controls every admin page shares.
+ *
+ * Owner, 2026-10-06: "make all of the fields and options and toggles and everything on all of the
+ * modals and menus actually look good next to each other. Some of them overlap or are bigger than
+ * each other and look funny. I want it so that everything looks good and is uniform for both
+ * computer and the PWA on the phone."
+ *
+ * Loaded after AdminLayout/AdminResponsive, so it is the last word on the few properties it sets.
+ * It deliberately sets FEW: size, font size, radius and focus — the things that make two controls
+ * side by side line up. Colours stay with each component's own CSS and the theme tokens.
+ *
+ * Breakpoints used everywhere in this file:
+ *   ≤ 767px  phone (portrait and landscape)
+ *   ≤ 359px  small phone (iPhone SE 1st gen, small Androids at 320–359)
+ */
+
+/* ── 1. Text controls: one height, one radius, one focus ring ─────────────────────────────────── */
+.admin-layout :is(
+  input[type='text'], input[type='number'], input[type='date'], input[type='time'],
+  input[type='datetime-local'], input[type='email'], input[type='tel'], input[type='search'],
+  input[type='url'], input[type='password'], input:not([type]), select
+) {
+  min-height: 40px;
+  box-sizing: border-box;
+  border-radius: 8px;
+}
+.admin-layout textarea { box-sizing: border-box; border-radius: 8px; }
+.admin-layout :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-brand-navy, #1D3095);
+  outline-offset: 1px;
+}
+
+/* ── 2. Phones: no zoom-on-tap, and thumb-sized controls ─────────────────────────────────────────
+ *
+ * iOS Safari (and so every home-screen PWA on an iPhone) zooms the whole page in when you tap a
+ * field whose text is smaller than 16px — and does not zoom back out. Most fields in this app were
+ * 13–14px, which is a large part of why the PWA "looks terrible": every form left the page zoomed
+ * and cut off. 16px is the threshold; `!important` because many fields set their size inline. */
+@media (max-width: 767px) {
+  .admin-layout :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), select, textarea) {
+    font-size: 16px !important;
+  }
+  .admin-layout :is(
+    input[type='text'], input[type='number'], input[type='date'], input[type='time'],
+    input[type='datetime-local'], input[type='email'], input[type='tel'], input[type='search'],
+    input[type='url'], input[type='password'], input:not([type]), select
+  ) {
+    min-height: 44px;
+  }
+
+  /* The floating toolbar sits over the bottom-right of every page. Give every page enough room at
+   * the bottom that its last control can scroll clear of it, and keep the toolbar off the iPhone
+   * home indicator. */
+  .admin-layout__content { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  .fab-menu { bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* ── 3. Rows that scroll sideways must LOOK like they scroll ───────────────────────────────────────
+ *
+ * The Hours and Receipts tab bars, the status chips and the like are horizontal scrollers on a phone.
+ * With no cue they read as "cut off at the right edge". A soft fade on the trailing edge says
+ * "there is more this way" without stealing any space. */
+@media (max-width: 767px) {
+  .hrs-portal__tabs,
+  .rcp-portal__tabs,
+  .tl-tabs,
+  .tl-status-strip,
+  .uniform-scroll-x {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    padding-right: 24px;
+  }
+  .hrs-portal__tabs::-webkit-scrollbar,
+  .rcp-portal__tabs::-webkit-scrollbar,
+  .tl-tabs::-webkit-scrollbar,
+  .tl-status-strip::-webkit-scrollbar,
+  .uniform-scroll-x::-webkit-scrollbar { display: none; }
+}
+
+/* ── 4. Buttons placed side by side are the same height ─────────────────────────────────────────── */
+.admin-layout .uniform-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+.admin-layout .uniform-actions > :is(button, a) {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 767px) {
+  /* On a phone the main action takes the full width; anything beside it shares the row. */
+  .admin-layout .uniform-actions > :is(button, a) { flex: 1 1 auto; }
+}
+
+/* ── 5. The job picker is one control, wherever it is embedded ────────────────────────────────────
+ * It draws its own frame (.jobref__control). Pages with a generic `.form-group input { border… }`
+ * rule were drawing a second box inside it — "boxes inside boxes" on My time, the clock-in modal and
+ * elsewhere. The inner input never has a frame of its own. */
+.admin-layout .jobref .jobref__input,
+.admin-layout .jobref .jobref__input:focus {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+}
+.admin-layout .jobref .jobref__control:focus-within {
+  outline: 2px solid var(--color-brand-navy, #1D3095);
+  outline-offset: 1px;
+}
+/* Its label matches the labels of the fields around it, instead of being a size smaller. */
+.admin-layout .jobref__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #374151);
+}
+
+/* ── 6. Portal tab bars: scroll silently, at every width ──────────────────────────────────────── */
+.admin-layout .hrs-portal__tabs,
+.admin-layout .rcp-portal__tabs { scrollbar-width: none; }
+.admin-layout .hrs-portal__tabs::-webkit-scrollbar,
+.admin-layout .rcp-portal__tabs::-webkit-scrollbar { display: none; }

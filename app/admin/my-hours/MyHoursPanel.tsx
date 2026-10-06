@@ -14,6 +14,7 @@ import { localDateOf } from '@/lib/time-tracking/pending-hours';
 import { usePageError } from '../hooks/usePageError';
 import { summarizeWeek } from '@/lib/payroll/week-summary';
 import PendingHoursPanel from '@/lib/time-tracking/PendingHoursPanel';
+import JobRefPicker, { jobRefLabel, type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
 import {
   summariseHours, totalOf, labelFor, type Grain, type SummarisableLog,
 } from '@/lib/hours/summarise';
@@ -581,13 +582,17 @@ export default function MyHoursPanel() {
       <PendingHoursPanel onPosted={loadData} />
 
       {/* Week navigation */}
-      <div className="tl-week-nav">
-        <button className="tl-btn tl-btn--sm" onClick={prevWeek}>&#9664; Prev</button>
-        <button className="tl-btn tl-btn--sm" onClick={thisWeek}>This Week</button>
+      {/* One row on every screen: arrows either side of the week, and "This week" only when you are
+          looking at another one (UI pass, 2026-10-06 — it wrapped onto two ragged rows on a phone). */}
+      <div className="tl-week-nav tl-week-nav--compact">
+        <button className="tl-btn tl-btn--sm tl-week-nav__arrow" onClick={prevWeek} aria-label="Previous week">&#9664;</button>
         <span className="tl-week-nav__label">
-          {formatDate(weekStart)} &mdash; {formatDate(weekEndStr)}
+          {formatDate(weekStart)} &ndash; {formatDate(weekEndStr)}
         </span>
-        <button className="tl-btn tl-btn--sm" onClick={nextWeek}>Next &#9654;</button>
+        <button className="tl-btn tl-btn--sm tl-week-nav__arrow" onClick={nextWeek} aria-label="Next week">&#9654;</button>
+        {weekStart !== getMonday(new Date()).toISOString().split('T')[0] && (
+          <button className="tl-btn tl-btn--sm tl-week-nav__today" onClick={thisWeek}>This week</button>
+        )}
       </div>
 
       {/* Week summary cards */}
@@ -715,8 +720,7 @@ export default function MyHoursPanel() {
           </div>
 
           <p className="tl-log-help">
-            Forgot to clock in or out? Add or remove hours for any day here, then
-            submit them — your manager approves them at the end of the pay period.
+            Missed a clock-in or clock-out? Add the hours here and submit — your manager approves them.
           </p>
 
           {/* Said BEFORE the form, not after a failed save. The server enforces this with a 423
@@ -735,19 +739,13 @@ export default function MyHoursPanel() {
             they earn and has no way to tell which is right — which is exactly the report that
             started this work.
           */}
-          {payBasis && (
+          {payBasis && (payBasis.base_pay != null || payBasis.tier_label || payBasis.note) && (
             <div className="tl-pay-basis">
               {payBasis.base_pay != null && (
-                <span><strong>{formatCurrency(payBasis.base_pay)}/hr</strong> agreed base pay</span>
+                <span><strong>{formatCurrency(payBasis.base_pay)}/hr</strong> base pay</span>
               )}
               {payBasis.tier_label && <span>{payBasis.tier_label}</span>}
               {payBasis.note && <span className="tl-pay-basis__note">{payBasis.note}</span>}
-              {payBasis.base_pay != null && (
-                <span className="tl-pay-basis__note">
-                  Most work pays your base pay. A few activities have a set rate that is the same for
-                  everyone — those are marked below.
-                </span>
-              )}
             </div>
           )}
 
@@ -792,111 +790,104 @@ export default function MyHoursPanel() {
                 : rateMenu?.base ?? null;
             return (
               <div key={idx} className="tl-entry-card">
-                <div className="tl-entry-card__header">
-                  <span className="tl-entry-card__num">#{idx + 1}</span>
-                  <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => removeEntry(idx)}>Remove</button>
-                </div>
-                <div className="tl-entry-card__body">
-                  <div className="tl-entry-card__row">
-                    <div className="tl-form-group">
-                      <label>Work Type</label>
-                      <select
-                        value={entry.work_type}
-                        onChange={(e) => updateEntry(idx, 'work_type', e.target.value)}
-                      >
-                        {/*
-                          First, and selectable — the owner asked for both halves of this: "we
-                          should also be able to just apply the base pay too" and "we should be able
-                          to submit the hours without any payment option and the boss can decide
-                          what is fair". Those are the same row: no activity, agreed base pay, and a
-                          decision left to whoever approves it.
-                        */}
-                        {/* First, and the default. Optional means optional: an entry can be
-                            submitted with no rate on it at all. */}
-                        <option value={NO_RATE}>No pay rate — let whoever approves decide</option>
-                        {rateMenu?.base.rate != null && (
-                          <option value={BASE_PAY}>
-                            Base pay ({formatCurrency(rateMenu.base.rate)}/hr) — no specific activity
-                          </option>
-                        )}
-                        {/*
-                          Priced from the menu, never from `work_type_rates.base_rate` — for an
-                          ordinary activity that column is ignored entirely (field work pays the
-                          person's own rate), so showing it would put a number on screen that
-                          nobody is ever paid.
-                        */}
-                        {(rateMenu?.activities ?? []).map((a) => (
-                          <option key={a.work_type} value={a.work_type}>
-                            {a.icon} {a.label}
-                            {a.resolved.rate != null ? ` — ${formatCurrency(a.resolved.rate)}/hr` : ''}
-                            {a.rate_mode === 'flat' ? ' (set rate)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="tl-form-group tl-form-group--hours">
-                      <label>Hours</label>
-                      <input
-                        type="number"
-                        min="0.25"
-                        max="24"
-                        step="0.25"
-                        value={entry.hours || ''}
-                        onChange={(e) => updateEntry(idx, 'hours', parseFloat(e.target.value) || 0)}
-                        placeholder="0.0"
-                      />
-                    </div>
+                {/* A header only when there is more than one entry to tell apart. */}
+                {entries.length > 1 && (
+                  <div className="tl-entry-card__header">
+                    <span className="tl-entry-card__num">Entry {idx + 1}</span>
+                    <button className="tl-link-btn tl-link-btn--danger" onClick={() => removeEntry(idx)}>Remove</button>
                   </div>
-                  {/*
-                    Where the number came from, shown rather than implied. "$25.00/hr — base pay,
-                    the rate for field work" and "$15.00/hr — the set rate for driving, the same for
-                    everyone" are both checkable; a bare figure is what made this look like two
-                    systems disagreeing.
-                  */}
-                  {resolved && (
-                    <div className={`tl-entry-card__rate tl-entry-card__rate--${resolved.source}`}>
-                      <span className="tl-entry-card__rate-amount">
-                        {resolved.rate != null ? `${formatCurrency(resolved.rate)}/hr` : 'Rate not set'}
-                      </span>
-                      <span className="tl-entry-card__rate-why">{resolved.explanation}</span>
-                      {resolved.rate != null && entry.hours > 0 && (
-                        <span className="tl-entry-card__rate-total">
-                          = {formatCurrency(resolved.rate * entry.hours)} for {entry.hours}h
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {wt?.description && (
-                    <div className="tl-entry-card__type-desc">{wt.description}</div>
-                  )}
+                )}
+                <div className="tl-entry-card__body">
+                  {/* ── IN THE ORDER YOU FILL IT IN (UI pass, 2026-10-06) ─────────────────────────
+                      How long, what you did, which job — then, optionally, a pay rate. The rate menu
+                      used to come FIRST with "No pay rate — let whoever approves decide" as its
+                      default, followed by a yellow "Rate not set" box on every entry: the least
+                      important question, asked first, and then flagged as a problem. */}
+                  <div className="tl-form-group tl-form-group--hours">
+                    <label htmlFor={`hrs-${idx}`}>Hours *</label>
+                    <input
+                      id={`hrs-${idx}`}
+                      type="number"
+                      inputMode="decimal"
+                      min="0.25"
+                      max="24"
+                      step="0.25"
+                      value={entry.hours || ''}
+                      onChange={(e) => updateEntry(idx, 'hours', parseFloat(e.target.value) || 0)}
+                      placeholder="e.g. 8"
+                    />
+                  </div>
                   <div className="tl-form-group">
-                    <label>What did you do? *</label>
+                    <label htmlFor={`desc-${idx}`}>What did you do? *</label>
                     <textarea
+                      id={`desc-${idx}`}
                       value={entry.description}
                       onChange={(e) => updateEntry(idx, 'description', e.target.value)}
-                      placeholder="Describe what you worked on..."
+                      placeholder="e.g. Boundary survey on Smith job, set 4 pins"
                       rows={2}
                     />
                   </div>
-                  <div className="tl-entry-card__row">
-                    <div className="tl-form-group">
-                      <label>Job / Project (optional)</label>
-                      <input
-                        type="text"
-                        value={entry.job_name}
-                        onChange={(e) => updateEntry(idx, 'job_name', e.target.value)}
-                        placeholder="e.g. Smith Boundary Survey"
-                      />
-                    </div>
-                    <div className="tl-form-group">
-                      <label>Notes (optional)</label>
-                      <input
-                        type="text"
-                        value={entry.notes}
-                        onChange={(e) => updateEntry(idx, 'notes', e.target.value)}
-                        placeholder="Additional notes..."
-                      />
-                    </div>
+                  {/* A real job search, the same one receipts and clock-in use — a typed name matched
+                      no job, so the hours never reached that job's costing. */}
+                  <div className="tl-form-group">
+                    <JobRefPicker
+                      value={entry.job_id ? { id: entry.job_id, name: entry.job_name || 'Job', job_number: null } : null}
+                      onChange={(job: JobRefOption | null) => {
+                        updateEntry(idx, 'job_id', job?.id ?? '');
+                        updateEntry(idx, 'job_name', job ? jobRefLabel(job) : '');
+                      }}
+                      label="Job (optional)"
+                      clearLabel="No job — office / overhead"
+                      compact
+                    />
+                    {!entry.job_id && entry.job_name && (
+                      <span className="tl-field-hint">Previously entered as “{entry.job_name}”.</span>
+                    )}
+                  </div>
+                  <div className="tl-form-group">
+                    <label htmlFor={`notes-${idx}`}>Notes (optional)</label>
+                    <input
+                      id={`notes-${idx}`}
+                      type="text"
+                      value={entry.notes}
+                      onChange={(e) => updateEntry(idx, 'notes', e.target.value)}
+                      placeholder="Anything your manager should know"
+                    />
+                  </div>
+                  <div className="tl-form-group">
+                    <label htmlFor={`rate-${idx}`}>Pay rate (optional)</label>
+                    <select
+                      id={`rate-${idx}`}
+                      value={entry.work_type}
+                      onChange={(e) => updateEntry(idx, 'work_type', e.target.value)}
+                    >
+                      {/* Optional means optional: an entry can be submitted with no rate at all, and
+                          whoever approves it decides (owner, 2026-08-04). */}
+                      <option value={NO_RATE}>Let my manager decide</option>
+                      {rateMenu?.base.rate != null && (
+                        <option value={BASE_PAY}>
+                          My base pay ({formatCurrency(rateMenu.base.rate)}/hr)
+                        </option>
+                      )}
+                      {/* Priced from the menu, never from `work_type_rates.base_rate` — for an
+                          ordinary activity that column is ignored (field work pays the person's own
+                          rate), so showing it would put a number on screen nobody is paid. */}
+                      {(rateMenu?.activities ?? []).map((a) => (
+                        <option key={a.work_type} value={a.work_type}>
+                          {a.icon} {a.label}
+                          {a.resolved.rate != null ? ` — ${formatCurrency(a.resolved.rate)}/hr` : ''}
+                          {a.rate_mode === 'flat' ? ' (set rate)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Where the number came from, only when there is one. */}
+                    {resolved && resolved.rate != null && (
+                      <span className="tl-field-hint">
+                        {formatCurrency(resolved.rate)}/hr — {resolved.explanation}
+                        {entry.hours > 0 ? ` · ${formatCurrency(resolved.rate * entry.hours)} for ${entry.hours}h` : ''}
+                      </span>
+                    )}
+                    {wt?.description && <span className="tl-field-hint">{wt.description}</span>}
                   </div>
                 </div>
               </div>
@@ -905,9 +896,9 @@ export default function MyHoursPanel() {
 
           {entries.length > 0 && (
             <div className="tl-log-footer">
-              <button className="tl-btn" onClick={addEntry}>+ Add Another</button>
+              <button className="tl-link-btn" onClick={addEntry}>+ Add another entry for this day</button>
               <div className="tl-log-footer__total">
-                Total: <strong>{totalHours.toFixed(1)} hours</strong>
+                Total: <strong>{Number(totalHours.toFixed(2))} hours</strong>
               </div>
               {/* Disabled rather than left to fail: the server refuses a locked week with a 423
                   regardless, and letting somebody fill in a whole day first is the part that wastes
