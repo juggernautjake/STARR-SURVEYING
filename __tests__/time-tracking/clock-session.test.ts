@@ -43,7 +43,7 @@ describe('clock-session — read/write/clear', () => {
   });
 
   it('round-trips a written session', () => {
-    const session = { startedAt: '2026-05-29T12:00:00.000Z', jobId: 'job-1', tagIds: ['t1', 't2'] };
+    const session = { startedAt: '2026-05-29T12:00:00.000Z', jobId: 'job-1', jobLabel: '26159 — Smith Boundary', tagIds: ['t1', 't2'] };
     writeClockSession(session);
     expect(readClockSession()).toEqual(session);
     // Persisted under the documented key.
@@ -55,6 +55,7 @@ describe('clock-session — read/write/clear', () => {
     expect(readClockSession()).toEqual({
       startedAt: '2026-05-29T12:00:00.000Z',
       jobId: null,
+      jobLabel: null,
       tagIds: [],
     });
   });

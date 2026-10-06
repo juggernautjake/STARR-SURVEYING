@@ -11,6 +11,7 @@
 // CSS reuses utility classes from app/admin/styles/AdminCommon.css.
 'use client';
 
+import DuplicateReview from '../DuplicateReview';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Trash2, Wrench, X, AlertTriangle, Landmark, Copy, ChevronLeft, ChevronRight, Images } from 'lucide-react';
 import Link from 'next/link';
@@ -125,6 +126,17 @@ function categoryLabel(cat: string | null | undefined): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ReceiptsApprovalPage() {
+  // Possible duplicate pairs waiting on a decision (see DuplicateReview).
+  const [dupOpen, setDupOpen] = useState(0);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const refreshDupCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/receipts/duplicates?status=open');
+      if (res.ok) setDupOpen(((await res.json()).counts?.open as number) ?? 0);
+    } catch { /* the banner simply does not show */ }
+  }, []);
+  useEffect(() => { void refreshDupCount(); }, [refreshDupCount]);
+
   const { data: session } = useSession();
   const { safeFetch, safeAction } = usePageError('ReceiptsApprovalPage');
 
@@ -487,6 +499,28 @@ export default function ReceiptsApprovalPage() {
         </div>
       )}
 
+      {/* ── POSSIBLE DUPLICATES, SAID FIRST (owner, 2026-10-06) ──────────────────────────────────
+          "spot duplicate entries of the same receipt … flag the receipts and let the user review
+          them together and decide what to do." Compared across every employee's receipts on date,
+          place, total, receipt number and items (lib/receipts/duplicates.ts). */}
+      {(dupOpen > 0 || showDuplicates) && (
+        <div style={styles.dupBanner} role="status">
+          <span>
+            <strong>{dupOpen} possible duplicate receipt{dupOpen === 1 ? '' : 's'}</strong>
+            {' '}— compare them side by side and decide which to keep.
+          </span>
+          <button type="button" onClick={() => setShowDuplicates((v) => !v)} style={styles.dupBannerBtn}>
+            {showDuplicates ? 'Hide' : 'Compare side by side'}
+          </button>
+        </div>
+      )}
+      {showDuplicates && (
+        <DuplicateReview
+          onChanged={() => { void refreshDupCount(); void load(); }}
+          onClose={() => setShowDuplicates(false)}
+        />
+      )}
+
       <nav style={styles.tabs}>
         {STATUS_TABS.map((s) => (
           <button
@@ -838,6 +872,7 @@ export default function ReceiptsApprovalPage() {
               selected={selectedIds.has(r.id)}
               onToggleSelected={() => onToggleSelected(r.id)}
               onOpenSlideshow={() => setSlideshowAt(receipts.indexOf(r))}
+              onCompareDuplicates={() => { setShowDuplicates(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             />
           ))}
         </div>
@@ -908,6 +943,8 @@ interface ReceiptRowProps {
   /** Opens the slideshow starting on THIS receipt. The row's own expand-in-place is unchanged —
    *  the owner asked for both paths ("which we can also do"). */
   onOpenSlideshow?: () => void;
+  /** Open the side-by-side duplicate review. */
+  onCompareDuplicates?: () => void;
 }
 
 function ReceiptRow({
@@ -921,6 +958,7 @@ function ReceiptRow({
   onToggleSelected,
   onOpenSlideshow,
   onRefresh,
+  onCompareDuplicates,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -1260,8 +1298,11 @@ function ReceiptRow({
             {row.dedup_match_id ? (
               <div style={styles.dupBand} role="note">
                 <Copy size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
-                Looks like a possible duplicate — same vendor, total and date as an earlier receipt
-                from this person. Check before approving; it may still be a genuine second purchase.
+                Looks like a possible duplicate of an earlier receipt. It may still be a genuine second
+                purchase — compare them before approving.{' '}
+                <button type="button" style={styles.inlineLinkBtn} onClick={() => onCompareDuplicates?.()}>
+                  Compare side by side
+                </button>
               </div>
             ) : null}
 
@@ -1277,11 +1318,8 @@ function ReceiptRow({
               onAnswer={(label, body) => wrap(label, body)}
             />
 
-            {row.card_match_status === 'retired' ? (
-              <div style={styles.dupBand} role="note">
-                Paid on a company card marked retired — worth checking the purchase was authorised.
-              </div>
-            ) : null}
+            {/* The separate "retired card" band that sat here repeated what PayerDecision (above)
+                already shows and lets you answer — removed in the UI pass, 2026-10-06. */}
 
             {/* Seed 590. Not a duplicate warning: this row and another are the two pieces of paper
                 for one meal, and the totals already exclude whichever one is the itemisation. Said
@@ -1657,7 +1695,7 @@ function ReceiptRow({
                     if (
                       typeof window !== 'undefined' &&
                       window.confirm(
-                        `Approve ${row.vendor_name?.trim() || 'this receipt'} for ${total}? It will move to the exported queue and the surveyor can no longer edit it.`
+                        `Approve ${row.vendor_name?.trim() || 'this receipt'} for ${total}? It moves to Approved, and the person who submitted it can no longer edit it.`
                       )
                     ) {
                       void wrap('approving', { status: 'approved' });
@@ -2331,6 +2369,19 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 2,
     overflowWrap: 'anywhere',
+  },
+  inlineLinkBtn: {
+    border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 'inherit', fontWeight: 700, color: 'var(--color-brand-navy)', textDecoration: 'underline',
+  },
+  dupBanner: {
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem 0.75rem',
+    padding: '0.7rem 0.9rem', marginBottom: '0.9rem', borderRadius: 10,
+    border: '1px solid var(--color-warning)', background: 'var(--color-warning-bg)', fontSize: '0.9rem',
+  },
+  dupBannerBtn: {
+    minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+    background: 'var(--color-brand-navy)', color: 'var(--color-text-on-brand)', fontWeight: 600, fontFamily: 'inherit',
   },
   dupBand: {
     border: '1px solid #7C3AED',

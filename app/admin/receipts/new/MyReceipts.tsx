@@ -38,6 +38,9 @@ function when(iso: string | null): string {
 export default function MyReceipts({ refreshKey }: { refreshKey?: number }) {
   const [rows, setRows] = useState<MyReceiptRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The most recent few, with the rest one tap away — twenty full-height cards pushed everything
+  // else on the page out of reach (UI pass, 2026-10-06).
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -66,7 +69,7 @@ export default function MyReceipts({ refreshKey }: { refreshKey?: number }) {
       <h2 style={S.title}>Your recent receipts</h2>
       {error ? <p style={S.error}>{error}</p> : null}
       <ul style={S.list}>
-        {rows.map((r) => {
+        {(showAll ? rows : rows.slice(0, 8)).map((r) => {
           const chip = STATUS_STYLE[r.status] ?? {
             bg: '#E5E7EB',
             fg: '#374151',
@@ -88,20 +91,25 @@ export default function MyReceipts({ refreshKey }: { refreshKey?: number }) {
                   {r.job_label ? ` · ${r.job_label}` : ''}
                   {r.category ? ` · ${r.category.replace(/_/g, ' ')}` : ''}
                 </span>
+                {/* Under the name, not beside the amount: a long status beside the amount forced every
+                    row to wrap on a phone, leaving the amount floating mid-card. */}
+                <span style={{ ...S.chip, background: chip.bg, color: chip.fg }}>{chip.label}</span>
                 {/* The one thing a submitter must not miss. A rejection with no visible reason is
                     how a receipt sits unfixed for a month. */}
                 {r.status === 'rejected' && r.rejected_reason ? (
                   <span style={S.reason}>Reason: {r.rejected_reason}</span>
                 ) : null}
               </div>
-              <div style={S.right}>
-                <span style={S.total}>{money(r.total_cents)}</span>
-                <span style={{ ...S.chip, background: chip.bg, color: chip.fg }}>{chip.label}</span>
-              </div>
+              <span style={S.total}>{money(r.total_cents)}</span>
             </li>
           );
         })}
       </ul>
+      {!showAll && rows.length > 8 && (
+        <button type="button" onClick={() => setShowAll(true)} style={S.more}>
+          Show all {rows.length}
+        </button>
+      )}
     </section>
   );
 }
@@ -119,7 +127,6 @@ const S: Record<string, React.CSSProperties> = {
   // instead of pushing the row past the screen edge. M4's rule at the point of change.
   row: {
     display: 'flex',
-    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
@@ -129,7 +136,7 @@ const S: Record<string, React.CSSProperties> = {
     background: 'var(--theme-bg-surface, #FFFFFF)',
     minWidth: 0,
   },
-  main: { display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 200px', minWidth: 0 },
+  main: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3, flex: '1 1 0', minWidth: 0 },
   vendor: {
     fontSize: 14,
     fontWeight: 600,
@@ -144,6 +151,7 @@ const S: Record<string, React.CSSProperties> = {
   reason: { fontSize: 12, color: '#991B1B', overflowWrap: 'anywhere' },
   right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 },
   total: {
+    flexShrink: 0,
     fontSize: 15,
     fontWeight: 700,
     color: 'var(--theme-fg-primary, #1F2937)',
@@ -157,4 +165,15 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   error: { fontSize: 13, color: '#991B1B', margin: '0 0 8px' },
+  more: {
+    marginTop: 8,
+    width: '100%',
+    minHeight: 42,
+    border: '1px solid var(--theme-border, #E5E7EB)',
+    borderRadius: 8,
+    background: 'var(--theme-bg-surface, #FFFFFF)',
+    color: 'var(--color-brand-navy, #1D3095)',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 };

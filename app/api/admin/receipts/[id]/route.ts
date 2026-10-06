@@ -20,6 +20,7 @@
 //   `category_source = 'user'` when category changes — same convention
 //   as the mobile useUpdateReceipt hook.
 
+import { scanReceiptForDuplicates } from '@/lib/receipts/duplicate-scan';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -286,6 +287,12 @@ export const PATCH = withErrorHandler(
         code: (error as { code?: string }).code ?? null,
       });
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // A corrected date, place, total or receipt number can make — or unmake — a duplicate. Re-check
+    // this receipt against the rest whenever one of those changed (best-effort; never fails the save).
+    if (['vendor_name', 'transaction_at', 'total_cents', 'payment_last4', 'receipt_number'].some((k) => k in update || k in ((update.ai_extras as object | undefined) ?? {}))) {
+      await scanReceiptForDuplicates(id);
     }
 
     // hub-widget-excellence-03 Slice 2c — notify the submitter when the
