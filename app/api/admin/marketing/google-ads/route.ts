@@ -4,7 +4,7 @@
 //
 // GET    → { connected, customerId, connectedBy, scopeOk }
 // POST   { action: 'connect', customerId } → { url } to send the browser to
-// DELETE → forget the connection
+// DELETE → revoke the grant at Google, then forget the tokens
 //
 // Admin-only: authorising an upload path into the firm's ad account is not a general-staff action.
 //
@@ -15,7 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { ADS_OAUTH_COOKIE, adsRedirectUri, buildAdsAuthUrl, grantedAdsScope, normaliseCustomerId } from '@/lib/integrations/google-ads/oauth';
+import { ADS_OAUTH_COOKIE, adsRedirectUri, buildAdsAuthUrl, grantedAdsScope, normaliseCustomerId, revokeAdsToken } from '@/lib/integrations/google-ads/oauth';
 
 function baseUrl(req: NextRequest): string {
   return process.env.NEXTAUTH_URL ?? `${req.nextUrl.protocol}//${req.nextUrl.host}`;
@@ -91,6 +91,19 @@ export const DELETE = withErrorHandler(async () => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  // Revoke at Google FIRST. Clearing our copy alone left the grant alive for anyone holding another
+  // copy of the refresh token. A revoke that fails is reported, and the tokens are cleared anyway —
+  // the person asked to disconnect, and keeping a token they wanted gone is the worse outcome.
+  const { data: rows } = await supabaseAdmin
+    .from('google_ads_connections')
+    .select('refresh_token, access_token')
+    .not('customer_id', 'is', null);
+  const revocations: Array<{ revoked: boolean; detail: string }> = [];
+  for (const r of (rows ?? []) as Array<{ refresh_token: string | null; access_token: string | null }>) {
+    const token = r.refresh_token ?? r.access_token;
+    if (token) revocations.push(await revokeAdsToken(token));
+  }
+
   // Clear the tokens, keep the row's upload history intact — `conversion_upload_log` references what
   // was sent and must survive a reconnect, or a re-connect would re-upload everything.
   await supabaseAdmin
@@ -98,5 +111,10 @@ export const DELETE = withErrorHandler(async () => {
     .update({ access_token: null, refresh_token: null, token_expires_at: null, scope: null, updated_at: new Date().toISOString() })
     .not('customer_id', 'is', null);
 
-  return NextResponse.json({ success: true });
+  const failed = revocations.filter((r) => !r.revoked);
+  return NextResponse.json({
+    success: true,
+    revokedAtGoogle: failed.length === 0,
+    ...(failed.length ? { revokeWarning: `Disconnected here, but Google did not confirm the revoke: ${failed[0].detail}. Remove the app at myaccount.google.com/permissions to be sure.` } : {}),
+  });
 }, { routeName: 'admin/marketing/google-ads' });
