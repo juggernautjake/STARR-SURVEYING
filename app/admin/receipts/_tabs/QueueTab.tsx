@@ -107,6 +107,11 @@ function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
+  // A date with no time on the receipt is stored at noon UTC (seeds/670). Showing it as "7:00 AM"
+  // would invent a time nobody printed — date only.
+  if (d.getUTCHours() === 12 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+  }
   return d.toLocaleString([], {
     month: 'short',
     day: 'numeric',
@@ -146,8 +151,12 @@ export default function ReceiptsApprovalPage() {
   // way — and a to-date range is not a month, so `detectPeriod` correctly called it "custom" and the
   // preset row opened with nothing lit and no arrows. The default state of a control should be one
   // its own buttons can describe.
-  const [from, setFrom] = useState<string>(() => periodRange('month', todayIso()).from);
-  const [to, setTo] = useState<string>(() => periodRange('month', todayIso()).to);
+  // ── ALL DATES BY DEFAULT (UI pass, 2026-10-06) ──────────────────────────────────────────────
+  // The queue used to open on the current month. On 2026-10-06 that read "Pending 1" while 51
+  // receipts from August and September were waiting — the to-do list hid most of what was to do.
+  // A queue of things awaiting a decision is not a question about a month; narrow it if you want to.
+  const [from, setFrom] = useState<string>('');
+  const [to, setTo] = useState<string>('');
   const [emailFilter, setEmailFilter] = useState<string>('');
   // Derived from the dates rather than stored beside them. Storing it would let the two disagree —
   // type a date by hand and the "Month" button would still be lit over a range that is not a month.
@@ -471,13 +480,8 @@ export default function ReceiptsApprovalPage() {
 
   return (
     <div style={styles.page}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Receipts approval</h1>
-        <p style={styles.subtitle}>
-          Signed in as <strong>{session?.user?.email ?? '—'}</strong>. Tap any row
-          to expand the photo and AI-extracted fields.
-        </p>
-      </header>
+      {/* The page title and "Signed in as …" that sat here repeated the portal's own tab and hint
+          (UI pass, 2026-10-06). */}
 
       {/* ── SAY WHEN THE AI IS NOT RUNNING (owner, 2026-08-12) ────────────────────────────────────
           Ten receipts sat unread for a day while every surface stayed quiet: `extractReceipt` throws
@@ -521,7 +525,7 @@ export default function ReceiptsApprovalPage() {
         />
       )}
 
-      <nav style={styles.tabs}>
+      <nav style={styles.tabs} className="uniform-scroll-x">
         {STATUS_TABS.map((s) => (
           <button
             key={s}
@@ -546,6 +550,14 @@ export default function ReceiptsApprovalPage() {
           calendar lookup in two date fields, and one click here. */}
       <div style={styles.periodRow}>
         <div style={styles.periodPresets} role="group" aria-label="Show a whole day, week, month or year">
+          <button
+            type="button"
+            onClick={() => { setFrom(''); setTo(''); }}
+            aria-pressed={!from && !to}
+            style={{ ...styles.periodBtn, ...(!from && !to ? styles.periodBtnOn : null) }}
+          >
+            All
+          </button>
           {PERIODS.map((p) => (
             <button
               key={p}
@@ -643,6 +655,10 @@ export default function ReceiptsApprovalPage() {
           as a single line. Filters wrap onto a new line if the
           screen is narrow; the actions group always sits on the
           right of whatever row it ends up on. */}
+      {/* Folded (UI pass, 2026-10-06): the Day/Week/Month/Year/All row above is the everyday
+          control; the exact dates, search and the rest are one tap away instead of a wall of fields. */}
+      <details style={styles.moreFilters}>
+        <summary style={styles.moreFiltersSummary}>More filters, search and export</summary>
       <div style={styles.filterRow}>
         <div style={styles.filterFieldsGroup}>
           <label style={styles.filterLabel}>
@@ -809,6 +825,7 @@ export default function ReceiptsApprovalPage() {
           </label>
         </div>
       </div>
+      </details>
 
       {/* What the bulk re-read did. Persistent, not a toast — it reports the outcome of a paid
           action, including how much it cost, and that is worth being able to read twice. */}
@@ -1167,19 +1184,10 @@ function ReceiptRow({
           </span>
         </div>
       </button>
-      {/* Outside the summary button, because a button inside a button is invalid HTML and the
-          browser silently un-nests it — which drops the click handler. */}
-      {onOpenSlideshow ? (
-        <button
-          type="button"
-          onClick={onOpenSlideshow}
-          style={styles.rowViewBtn}
-          title="Open this receipt in the reviewer, with the photo enlarged and zoomable"
-          aria-label={`Review ${row.vendor_name ?? 'this receipt'} in the slideshow`}
-        >
-          Review
-        </button>
-      ) : null}
+      {/* A per-row "Review" button used to sit here, opening the carousel at this receipt. Tapping
+          the row already opens the same receipt with its photo and every action, so it was a second
+          way to do one thing — and the button that pushed every row past the edge of a phone
+          (UI pass, 2026-10-06). "Review N in a carousel" above still steps through them all. */}
       </div>
 
       {expanded ? (
@@ -1278,14 +1286,16 @@ function ReceiptRow({
             {/* Advisory, and it must read that way. A band that fires on ordinary receipts is one
                 people learn to scroll past — which is how the one real problem gets approved along
                 with the rest. The extractor is told an empty array is the common, correct answer. */}
-            {(row.ai_extras?.review_flags?.length ?? 0) > 0 ? (
+            {/* Card-number flags are left to PayerDecision just below, which states the same fact AND
+                takes the answer — three boxes saying "the card number is not legible" became one. */}
+            {(row.ai_extras?.review_flags?.filter((f) => !/card (number|last four)/i.test(f)).length ?? 0) > 0 ? (
               <div style={styles.flagBand} role="note">
                 <strong style={styles.flagTitle}>
                   <AlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
                   Worth a look before approving
                 </strong>
                 <ul style={styles.flagList}>
-                  {row.ai_extras!.review_flags!.map((f, i) => (
+                  {row.ai_extras!.review_flags!.filter((f) => !/card (number|last four)/i.test(f)).map((f, i) => (
                     <li key={i}>{f}</li>
                   ))}
                 </ul>
@@ -1439,6 +1449,11 @@ function ReceiptRow({
               precisely the failure this whole feature exists to detect.
               Spans the grid for the same reason the editor does: `styles.expanded` is auto-fit, so
               without it the transcript is squeezed into a ~200px column. */}
+          {/* Folded (UI pass, 2026-10-06): the expanded receipt was 3,400px tall on a phone with
+              Approve at the very bottom. The everyday decision needs the photo, the fields and the
+              flags; these extras are one tap away. */}
+          <details style={styles.fold}>
+            <summary style={styles.foldSummary}>Thorough AI read — slower, more careful</summary>
           <div style={{ gridColumn: '1 / -1' }}>
             <ReceiptDeepRead
               receiptId={row.id}
@@ -1455,6 +1470,7 @@ function ReceiptRow({
               onDone={onRefresh}
             />
           </div>
+          </details>
 
           {/* R6 / P2.2a — the lines on the receipt, EDITABLE, on the screen where they are judged.
               This is the part a bookkeeper genuinely cannot rebuild later: the photo fades, the
@@ -1476,6 +1492,10 @@ function ReceiptRow({
               ReceiptSlideshow.tsx — statically imported by THIS file, so the CSS ships in the same
               client chunk and applies here. Checked, because a component authored against another
               screen's stylesheet is how /admin/settings came out unstyled. */}
+          <details style={styles.fold}>
+            <summary style={styles.foldSummary}>
+              Line items{row.line_items?.length ? ` (${row.line_items.length})` : ''} — check or mark what counts as business
+            </summary>
           <ReceiptLineItems
             receiptId={row.id}
             receiptIsBusiness={row.expense_nature !== 'personal'}
@@ -1490,6 +1510,7 @@ function ReceiptRow({
             The receipt&rsquo;s own total above is what gets approved — the line totals are for
             deciding what counts, not what is paid.
           </p>
+          </details>
 
           {/* Inline overrides */}
           <div style={styles.editRow}>
@@ -1559,6 +1580,11 @@ function ReceiptRow({
             </div>
           </div>
 
+          <details style={styles.fold}>
+            <summary style={styles.foldSummary}>
+              Equipment — link to a maintenance event{row.category === 'equipment' ? ' or add as an asset' : ''}
+              {row.linked_maintenance_events.length > 0 ? ` (${row.linked_maintenance_events.length} linked)` : ''}
+            </summary>
           {/* F10.7 tail — equipment-maintenance cross-link prompt.
               Lets the bookkeeper link a receipt to a maintenance event
               so the parts-invoice / cal cert / vendor work-order
@@ -1680,6 +1706,7 @@ function ReceiptRow({
           {row.category === 'equipment' ? (
             <PromoteToAssetPanel row={row} onRefresh={onRefresh} />
           ) : null}
+          </details>
 
           {/* Workflow buttons */}
           <div style={styles.actionRow}>
@@ -1857,12 +1884,15 @@ function zeroCounters() {
 // ── Inline styles — keeps this self-contained with no extra CSS file ──────────
 
 const styles: Record<string, React.CSSProperties> = {
-  page: { padding: '24px', maxWidth: 1100, margin: '0 auto' },
+  page: { padding: 'clamp(0px, 2vw, 24px)', maxWidth: 1100, margin: '0 auto' },
   header: { marginBottom: 24 },
   title: { fontSize: 28, fontWeight: 700, margin: 0 },
   subtitle: { fontSize: 14, color: 'var(--theme-fg-secondary, #666)', marginTop: 8 },
-  tabs: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  // One row that scrolls on a phone (with a fade from AdminUniform's .uniform-scroll-x), not three rows of pills.
+  tabs: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'nowrap', overflowX: 'auto' },
   tabButton: {
+    flex: '0 0 auto',
+    whiteSpace: 'nowrap',
     padding: '8px 16px',
     borderRadius: 999,
     border: '1px solid #ccc',
@@ -1895,8 +1925,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     marginBottom: 12,
   },
+  // Equal shares of whatever width there is — five fixed-padding buttons ran past a 320px screen.
   periodPresets: {
-    display: 'flex',
+    display: 'grid',
+    gridAutoFlow: 'column',
+    gridAutoColumns: 'minmax(0, 1fr)',
+    maxWidth: 420,
     gap: 4,
     padding: 3,
     borderRadius: 8,
@@ -1904,7 +1938,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid var(--color-border)',
   },
   periodBtn: {
-    padding: '6px 14px',
+    padding: '6px 4px',
     borderRadius: 6,
     border: '1px solid transparent',
     background: 'transparent',
@@ -2128,7 +2162,9 @@ const styles: Record<string, React.CSSProperties> = {
     // Keeps the children inside the rounded corners. It is also what turned the misplaced expanded
     // panel from "off to the side" into "gone", so it is worth knowing this clips: anything that must
     // be visible has to be laid out inside the card, not merely appended to it.
-    overflow: 'hidden',
+    // `clip`, not `hidden` (2026-10-06): `hidden` makes the card a scroll container, which silently
+    // stops the pinned Approve bar inside it from pinning. `clip` clips the same and pins.
+    overflow: 'clip',
     display: 'flex',
     // M7. Was absent, which defaulted to `row` and put the expanded panel beside the summary button
     // instead of below it. See the comment on the wrapper in the JSX.
@@ -2192,18 +2228,20 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '12px 16px',
+    gap: 10,
+    padding: '12px 14px',
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
-    width: '100%',
+    flex: 1,
+    minWidth: 0,
     textAlign: 'left',
   },
   rowMain: { flex: 1, minWidth: 0 },
   rowVendor: { fontSize: 16, fontWeight: 600, marginBottom: 2 },
-  rowMeta: { fontSize: 13, color: 'var(--theme-fg-secondary, #555)' },
+  rowMeta: { fontSize: 13, color: 'var(--theme-fg-secondary, #555)', overflowWrap: 'anywhere' },
   rowMetaSecondary: { fontSize: 12, color: 'var(--theme-fg-muted, #888)', marginTop: 2 },
-  rowRight: { textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4 },
+  rowRight: { textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 },
   rowTotal: { fontSize: 17, fontWeight: 700 },
   statusChip: {
     display: 'inline-block',
@@ -2314,6 +2352,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
   },
   aiNoticeWarn: {
+    overflowWrap: 'anywhere',
     border: '1px solid #F59E0B',
     background: '#FFFBEB',
     color: '#92400E',
@@ -2374,6 +2413,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit',
     fontSize: 'inherit', fontWeight: 700, color: 'var(--color-brand-navy)', textDecoration: 'underline',
   },
+  moreFilters: { margin: '0 0 0.9rem', border: '1px solid var(--color-border)', borderRadius: 10, padding: '0 0.75rem' },
+  moreFiltersSummary: { cursor: 'pointer', minHeight: 44, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-secondary)' },
   dupBanner: {
     display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem 0.75rem',
     padding: '0.7rem 0.9rem', marginBottom: '0.9rem', borderRadius: 10,
@@ -2454,6 +2495,28 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     flexWrap: 'wrap',
     alignItems: 'center',
+    // Pinned while this receipt is open, so the decision is never 3,000px below the photo.
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 3,
+    margin: '0 -16px -16px',
+    padding: '10px 16px calc(10px + env(safe-area-inset-bottom, 0px))',
+    background: 'var(--color-bg-card)',
+    borderTop: '1px solid var(--color-border)',
+  },
+  fold: {
+    gridColumn: '1 / -1',
+    border: '1px solid var(--color-border)',
+    borderRadius: 10,
+    padding: '0 12px',
+  },
+  foldSummary: {
+    cursor: 'pointer',
+    minHeight: 44,
+    display: 'flex',
+    alignItems: 'center',
+    fontWeight: 600,
+    fontSize: '0.9rem',
   },
   button: {
     padding: '10px 20px',

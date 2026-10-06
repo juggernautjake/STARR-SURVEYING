@@ -128,3 +128,14 @@
 .admin-layout .rcp-portal__tabs { scrollbar-width: none; }
 .admin-layout .hrs-portal__tabs::-webkit-scrollbar,
 .admin-layout .rcp-portal__tabs::-webkit-scrollbar { display: none; }
+
+/* ── 7. Let pinned (sticky) bars pin ─────────────────────────────────────────────────────────────
+ * `overflow-x: hidden` on the layout's main panels turned each into a scroll container that never
+ * scrolls — so every `position: sticky` inside admin (the receipt Send bar, the queue's Approve bar)
+ * silently stopped pinning. `clip` clips the same and creates no scroll container. Browsers without
+ * `clip` ignore the line and keep `hidden`. */
+.admin-layout__main,
+.admin-layout__content { overflow-x: clip; }
+
+/* ── 8. No dropdown wider than the space it is in (long option text pushed some past a 320px screen). */
+.admin-layout select { max-width: 100%; }

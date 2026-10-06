@@ -750,7 +750,8 @@ export default function NewReceiptPage() {
           {/* One line (UI pass, 2026-10-06). The paragraph this replaced explained the extraction
               queue to somebody holding a petrol receipt. */}
           <p style={styles.subtitle}>
-            Photograph or upload one receipt or a whole stack, fill in the basics, and send.
+            Photograph or upload one receipt or a whole stack at once — photos or PDFs — fill in
+            the basics, and send.
           </p>
         </div>
         {/* Shown only to the roles middleware will actually let through — see `isBookkeeper`. */}
