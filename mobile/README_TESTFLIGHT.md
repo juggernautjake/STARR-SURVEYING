@@ -48,6 +48,25 @@ Replace the three `REPLACE_WITH_*` placeholders in
 
 > ⚠️ The `ascAppId` doesn't exist yet — fill it in after Step 2.
 
+### Build settings that live in EAS, not in `eas.json`
+
+This repository is **public**, so `eas.json` carries nothing that identifies the backend. The
+Supabase URL and anon key are EAS environment variables (the only place a cloud build reads them
+from):
+
+```bash
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_URL      --value <url> --environment preview
+npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <key> --environment preview
+# repeat with --environment production
+```
+
+`EXPO_PUBLIC_API_URL` — the web app's address, which clock-outs are posted to — IS in `eas.json`
+(it is the public website, not a secret). Without it a phone keeps every clock-out to itself.
+
+> `eas.json` must contain only `cli`, `build` and `submit` (and `$schema`). EAS rejects any other
+> top-level key — a `_comment` once made every build fail before it started. `npm run check-eas`
+> now refuses that too.
+
 ### Also fill the Supabase build env (required — the app can't reach the backend without it)
 
 `eas.json`'s `preview` + `production` profiles each carry an `env` block

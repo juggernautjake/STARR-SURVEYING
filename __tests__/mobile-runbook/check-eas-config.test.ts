@@ -170,3 +170,27 @@ describe('mobile/eas.json — no credentials, because the repo is public', () =>
     expect(serialised).not.toMatch(/supabase\.co/);
   });
 });
+
+describe('mobile/eas.json — EAS accepts it, and clock-outs have somewhere to go (2026-10-06)', () => {
+  const load = async () => import(pathToFileURL(path.join(repoRoot, 'mobile/scripts/check-eas-config.mjs')).href);
+
+  it('the committed eas.json has no problems of its own', async () => {
+    const { findEasConfigProblems } = await load();
+    expect(findEasConfigProblems(JSON.parse(read('mobile/eas.json')))).toEqual([]);
+  });
+
+  it('refuses a top-level key EAS would reject (a `_comment` once broke every build)', async () => {
+    const { findEasConfigProblems } = await load();
+    const eas = JSON.parse(read('mobile/eas.json'));
+    const problems = findEasConfigProblems({ _comment: ['x'], ...eas });
+    expect(problems.map((p: { what: string }) => p.what)).toContain('eas.json has a top-level "_comment" key');
+  });
+
+  it('refuses a shipping profile with no API address', async () => {
+    const { findEasConfigProblems } = await load();
+    const eas = JSON.parse(read('mobile/eas.json'));
+    delete eas.build.production.env.EXPO_PUBLIC_API_URL;
+    expect(findEasConfigProblems(eas).map((p: { what: string }) => p.what))
+      .toContain('build.production.env.EXPO_PUBLIC_API_URL is missing');
+  });
+});

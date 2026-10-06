@@ -102,6 +102,44 @@ export function findAppConfigProblems(app) {
  */
 const REQUIRED_BUILD_ENV = ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY'];
 
+/** Top-level keys eas.json may carry. EAS validates the file strictly and refuses anything else —
+ *  a `_comment` key here (added 2026-08) made every `eas build` fail with "eas.json is not valid"
+ *  before it started. Notes about the config live in README_TESTFLIGHT.md instead. */
+const EAS_TOP_LEVEL_KEYS = ['$schema', 'cli', 'build', 'submit'];
+
+/** Profiles that ship to a phone, and the build-time values each one must carry IN eas.json.
+ *  EXPO_PUBLIC_API_URL is the public web address clock-outs are posted to (lib/hoursOutbox.ts);
+ *  without it a phone keeps every clock-out to itself. It is not a secret, so it is committed. */
+const SHIPPING_PROFILES = ['preview', 'production'];
+const COMMITTED_BUILD_ENV = ['EXPO_PUBLIC_API_URL'];
+
+/** What is wrong with `eas.json` beyond placeholders. Exported for the tests. */
+export function findEasConfigProblems(eas) {
+  const problems = [];
+  for (const key of Object.keys(eas ?? {})) {
+    if (!EAS_TOP_LEVEL_KEYS.includes(key)) {
+      problems.push({
+        what: `eas.json has a top-level "${key}" key`,
+        why: 'EAS rejects unknown keys, so every build fails with "eas.json is not valid"',
+        fix: 'remove it (put notes in README_TESTFLIGHT.md)',
+      });
+    }
+  }
+  for (const profile of SHIPPING_PROFILES) {
+    for (const key of COMMITTED_BUILD_ENV) {
+      const value = eas?.build?.[profile]?.env?.[key];
+      if (typeof value !== 'string' || !/^https:\/\//.test(value)) {
+        problems.push({
+          what: `build.${profile}.env.${key} is missing`,
+          why: 'the app cannot post clock-outs to the office; they stay on the phone',
+          fix: `set it to the web app's https address, e.g. "https://www.<your-domain>.com"`,
+        });
+      }
+    }
+  }
+  return problems;
+}
+
 function readJson(path) {
   let raw;
   try {
@@ -126,7 +164,7 @@ function main() {
     ...findPlaceholders(easConfig).map((x) => ({ ...x, file: 'eas.json' })),
     ...findPlaceholders(appConfig).map((x) => ({ ...x, file: 'app.json' })),
   ];
-  const appProblems = findAppConfigProblems(appConfig);
+  const appProblems = [...findEasConfigProblems(easConfig), ...findAppConfigProblems(appConfig)];
 
   if (placeholders.length === 0 && appProblems.length === 0) {
     console.log('check-eas: ok (eas.json and app.json are operator-ready)');
@@ -151,7 +189,7 @@ function main() {
   }
   if (appProblems.length) {
     console.error('');
-    console.error('  app.json:');
+    console.error('  eas.json / app.json:');
     for (const { what, why, fix } of appProblems) {
       console.error(`    ${what}`);
       console.error(`      → ${why}`);

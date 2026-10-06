@@ -1,19 +1,4 @@
 {
-  "_comment": [
-    "EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY used to sit here as placeholders,",
-    "waiting to be filled in with real values. This repository is PUBLIC, so filling them in would",
-    "have committed them forever. EAS holds them instead — it is also the only place a cloud build",
-    "can read them from:",
-    "",
-    "  eas env:create --name EXPO_PUBLIC_SUPABASE_URL      --value <url> --environment preview",
-    "  eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <key> --environment preview",
-    "  (repeat with --environment production)",
-    "",
-    "If they are ever missing, mobile/lib/supabase.ts throws by name on first launch rather than",
-    "failing quietly. The Apple values below stay as placeholders on purpose: the pre-flight",
-    "(npm run check-eas) refuses to submit while they are, and a public repo is no place for an",
-    "Apple ID — pass them to `eas submit` as flags if you would rather not commit them at all."
-  ],
   "cli": {
     "version": ">= 13.0.0",
     "appVersionSource": "remote"
@@ -25,6 +10,9 @@
       "channel": "development",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.starr-surveying.com"
       }
     },
     "preview": {
@@ -35,11 +23,17 @@
       },
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.starr-surveying.com"
       }
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.starr-surveying.com"
+      }
     }
   },
   "submit": {

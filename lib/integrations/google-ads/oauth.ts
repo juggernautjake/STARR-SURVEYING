@@ -106,6 +106,33 @@ export async function exchangeAdsCode(code: string, redirectUri: string): Promis
   return res.json() as Promise<AdsTokens>;
 }
 
+/**
+ * Revoke a token AT GOOGLE, so it stops working everywhere — not just in our database.
+ *
+ * Disconnect used to null the columns and stop there, which left the refresh token valid at Google
+ * for anybody holding a copy. On 2026-10-05 the `google_ads_connections` row was found readable with
+ * the public anon key (closed by seeds/667), so "anybody holding a copy" was not hypothetical.
+ * Revoking a refresh token ends the whole grant: every access token issued from it dies too.
+ *
+ * Returns whether Google confirmed. A 400 `invalid_token` means it was already dead — the outcome we
+ * wanted — so that counts as revoked.
+ */
+export async function revokeAdsToken(token: string): Promise<{ revoked: boolean; detail: string }> {
+  try {
+    const res = await fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }),
+    });
+    if (res.ok) return { revoked: true, detail: 'revoked' };
+    const body = await res.text();
+    if (res.status === 400 && /invalid_token/.test(body)) return { revoked: true, detail: 'already invalid' };
+    return { revoked: false, detail: `Google answered ${res.status}: ${body.slice(0, 200)}` };
+  } catch (err) {
+    return { revoked: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /** Did the user actually grant the Ads scope?
  *
  *  Google's consent screen lets someone approve a subset of what was asked for. Storing a connection
