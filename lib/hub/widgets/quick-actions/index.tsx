@@ -156,6 +156,8 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     customActions: normalizeCustomActions(content?.customActions),
   };
   const bucket = sizeBucket(size.w, size.h);
+  // Called with the other hooks, before any early return (rules of hooks) — see the phone note below.
+  const isPhone = useIsPhone();
 
   // W-5 — unread counts per quick-action, from the shared hub badge feed. Keyed on the action id
   // (new-job, approve-receipts, capture-receipt); actions with no mapped events read 0.
@@ -291,7 +293,6 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   // The phone hub stacks widgets in one column whose rows grow to fit their content, so there is no
   // fixed box to fit. Measuring one anyway hid four of nine actions behind "+4" — Capture Receipt
   // and Schedule among them, which is exactly "the things we need to use are hard to find".
-  const isPhone = useIsPhone();
   const { cap, cols } = isPhone && !isRowLayout
     ? { cap: actions.length, cols: widthPx > 0 && widthPx < 300 ? 2 : 3 }
     : computeCapacity({
