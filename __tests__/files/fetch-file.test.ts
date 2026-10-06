@@ -9,9 +9,11 @@ import { credentialsFor, fetchFileForPreview } from '@/lib/files/fetch-file';
 const SITE = 'https://www.starr-surveying.com';
 
 describe('credentialsFor', () => {
-  it('sends cookies to our own routes only', () => {
-    expect(credentialsFor('/api/admin/files/x/download', SITE)).toBe('include');
-    expect(credentialsFor(`${SITE}/api/x`, SITE)).toBe('include');
+  it('sends cookies to our own routes only — and not across their redirect to storage', () => {
+    // 'same-origin': the session reaches our route; the 302 to a signed storage URL carries none.
+    expect(credentialsFor('/api/admin/files/x/download', SITE)).toBe('same-origin');
+    expect(credentialsFor(`${SITE}/api/x`, SITE)).toBe('same-origin');
+    expect(credentialsFor('/api/admin/research/file/p/a.pdf', SITE)).toBe('same-origin');
   });
   it('never to a signed storage link or any other origin', () => {
     expect(credentialsFor('https://abc.supabase.co/storage/v1/object/sign/job-files/a.trv?token=t', SITE)).toBe('omit');

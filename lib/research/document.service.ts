@@ -8,6 +8,7 @@ import type { ResearchDocument, DocumentType } from '@/types/research';
 // An unreadable page must say so rather than becoming a document with no facts (research plan R18).
 import { assessOcr, isLandRecordType, statusFor } from './ocr-quality';
 import { toConfidenceFraction } from './confidence-scale';
+import { fetchStoredFile } from '@/lib/research/research-files';
 
 // ── Processing Pipeline ──────────────────────────────────────────────────────
 
@@ -1023,7 +1024,8 @@ async function fetchFileBuffer(doc: ResearchDocument): Promise<Buffer | null> {
   const url = doc.storage_url || doc.source_url;
   if (url) {
     try {
-      const response = await fetch(url);
+      // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+      const response = await fetchStoredFile(url);
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);

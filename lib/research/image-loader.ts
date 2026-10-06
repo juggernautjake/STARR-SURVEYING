@@ -10,6 +10,7 @@
 
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import type { PipelineLogger } from './pipeline-logger';
+import { fetchStoredFile } from '@/lib/research/research-files';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,8 @@ export async function loadDocumentImage(
     // Try public URL first (faster than storage download)
     if (doc.storage_url) {
       try {
-        const res = await fetch(doc.storage_url, {
+        // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+        const res = await fetchStoredFile(doc.storage_url, {
           signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
         });
         if (res.ok) {

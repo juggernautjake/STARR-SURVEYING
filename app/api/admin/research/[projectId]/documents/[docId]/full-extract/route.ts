@@ -11,6 +11,7 @@ import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { analyzeResource, type AnalysisInput } from '@/lib/research/resource-analyzer';
 import type { ResourceType } from '@/lib/research/extraction-objectives';
+import { fetchStoredFile } from '@/lib/research/research-files';
 // sharp is imported dynamically for PDF rendering
 
 export const maxDuration = 300; // 5 minutes for full extraction
@@ -114,7 +115,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
 
       if (!imageBuffer && doc.storage_url) {
-        const resp = await fetch(doc.storage_url, { signal: AbortSignal.timeout(30_000) });
+        // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+        const resp = await fetchStoredFile(doc.storage_url, { signal: AbortSignal.timeout(30_000) });
         if (resp.ok) {
           imageBuffer = Buffer.from(await resp.arrayBuffer());
         }

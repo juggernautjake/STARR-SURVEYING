@@ -8,6 +8,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 // Static, not `await import(...)`: the orphan ratchet reads static imports, and a module reachable
 // only through a dynamic one is indistinguishable from a dead module to every guard in this repo.
 import { attachUploadedDocuments } from '@/lib/research/attach-uploaded-documents';
+import { fetchStoredFile } from '@/lib/research/research-files';
 
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
@@ -179,7 +180,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
       if (uploaded && uploaded.length > 0) {
         const result = await attachUploadedDocuments(uploaded, async (url) => {
-          const res = await fetch(url);
+          // The bucket is private (seeds/669): stored links are the app route, so read them signed.
+          const res = await fetchStoredFile(url);
           if (!res.ok) return null;
           return Buffer.from(await res.arrayBuffer());
         });
