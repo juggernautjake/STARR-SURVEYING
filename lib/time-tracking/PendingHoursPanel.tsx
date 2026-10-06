@@ -18,6 +18,11 @@ import {
   type PendingSubmission,
 } from './pending-hours';
 
+/** "Mon, Oct 5" from `YYYY-MM-DD`, as a calendar day. */
+function dayLabel(d: string | undefined): string {
+  return d ? new Date(`${d}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+}
+
 export default function PendingHoursPanel({ onPosted }: { onPosted?: () => void }) {
   const [items, setItems] = useState<PendingSubmission[]>([]);
   const [sending, setSending] = useState(false);
@@ -88,7 +93,7 @@ export default function PendingHoursPanel({ onPosted }: { onPosted?: () => void 
               }}
             >
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                <strong>{first?.log_date}</strong>
+                <strong>{dayLabel(first?.log_date)}</strong>
                 <span>{totalHoursOf(p.entries)}h</span>
                 {p.entries.length > 1 && <span>across {p.entries.length} jobs</span>}
                 {first?.lunch_minutes != null && <span>· lunch {first.lunch_minutes} min</span>}
@@ -146,7 +151,7 @@ export default function PendingHoursPanel({ onPosted }: { onPosted?: () => void 
                       type="button"
                       className="tl-btn"
                       onClick={() => {
-                        if (window.confirm(`Throw away ${totalHoursOf(p.entries)}h for ${first?.log_date}? They have NOT reached the server, so this cannot be undone.`)) {
+                        if (window.confirm(`Throw away ${totalHoursOf(p.entries)}h for ${dayLabel(first?.log_date)}? They have NOT reached the server, so this cannot be undone.`)) {
                           discardPendingHours(p.id);
                         }
                       }}

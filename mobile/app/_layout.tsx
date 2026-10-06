@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { useHoursOutboxSync } from '@/lib/hoursOutbox';
 import { Stack, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -303,6 +304,12 @@ function NotificationResponseHandler() {
   return null;
 }
 
+/** Posts saved mobile clock-outs to the office's hours (see lib/hoursOutbox.ts). Renders nothing. */
+function HoursOutboxSync() {
+  useHoursOutboxSync();
+  return null;
+}
+
 function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -311,6 +318,7 @@ function RootLayout() {
         <AuthProvider>
           <DatabaseProvider>
           <UploadQueueDrainer />
+          <HoursOutboxSync />
           <PinnedFilesReconciler />
           <OtaUpdatesReconciler />
           <AdminPingDispatcher />

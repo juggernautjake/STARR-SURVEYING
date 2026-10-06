@@ -173,7 +173,7 @@ function formatCurrency(n: number) {
  */
 function activityLabel(workType: string, label?: string | null): string {
   if (workType === 'unpriced') return 'No rate attached';
-  if (workType === 'unspecified') return 'General work';
+  if (workType === 'unspecified' || workType === 'general') return 'General work';
   return label || workType;
 }
 export default function HoursApprovalPage() {
@@ -1287,6 +1287,10 @@ export default function HoursApprovalPage() {
 
           {/* Grouped by employee */}
           {employeeGroups.map((group) => {
+            // The person's real name when the staff list has it. `nameFromEmail` guessed
+            // "Michaelgibbs" from the address, which is nobody's name. (UI review, 2026-10-05.)
+            const displayName = staff.find((p) => p.email.toLowerCase() === group.email.toLowerCase())?.name
+              || nameFromEmail(group.email);
             const email = group.email;
             const empLogs = group.logs;
             // Same rule as the page total: the decision wins over the rules' figure.
@@ -1310,10 +1314,10 @@ export default function HoursApprovalPage() {
                   data-testid={`tl-employee-toggle-${email}`}
                 >
                   <span className="tl-employee-card__avatar" aria-hidden="true">
-                    {nameFromEmail(email).split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                    {displayName.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
                   </span>
                   <div className="tl-employee-card__who">
-                    <span className="tl-employee-group__email">{nameFromEmail(email)}</span>
+                    <span className="tl-employee-group__email">{displayName}</span>
                     <span className="tl-employee-group__domain">{email}</span>
                   </div>
                   {/* Says what clicking does, in words, on every card. */}

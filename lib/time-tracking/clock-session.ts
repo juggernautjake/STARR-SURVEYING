@@ -88,6 +88,38 @@ export function clearClockSession(): void {
   void fetch('/api/admin/clock-session', { method: 'DELETE' }).catch(() => { /* best-effort */ });
 }
 
+/**
+ * Before a clock-out is logged: is this device's session still open on the server?
+ *
+ * `hydrateClockSessionFromServer` keeps the local session whenever one exists, so a person who
+ * clocked out on their phone still saw "Clock Out · 8h" on the desktop, and pressing it logged the
+ * same shift a second time (different device → different key → not caught as a duplicate).
+ *
+ * 'gone' only when the server ANSWERED and has no session, or one started at a different time.
+ * Offline, signed out or an error → 'unknown', and the clock-out proceeds: never block a real
+ * clock-out on a check that could not be made.
+ */
+/** Asked when `serverStillClockedIn` says 'gone'. OK logs the hours; Cancel only clears the clock. */
+export const ALREADY_CLOCKED_OUT_PROMPT =
+  'It looks like you already clocked out on another device — the server has no open clock for you. '
+  + 'Log these hours anyway?\n\nOK = log them.   Cancel = just clear this clock (nothing is logged).';
+
+export async function serverStillClockedIn(local: ClockSession): Promise<'yes' | 'gone' | 'unknown'> {
+  try {
+    const res = await fetch('/api/admin/clock-session', { cache: 'no-store' });
+    if (!res.ok) return 'unknown';
+    const body = (await res.json()) as { session?: { started_at?: string } | null };
+    if (!body.session) return 'gone';
+    const serverStart = Date.parse(body.session.started_at ?? '');
+    const localStart = Date.parse(local.startedAt);
+    // A minute of slack: the mirror is written a moment after the local session.
+    if (Number.isFinite(serverStart) && Number.isFinite(localStart) && Math.abs(serverStart - localStart) > 60_000) return 'gone';
+    return 'yes';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** Pull the open server session into localStorage when this device has none
  *  (e.g. the user clocked in on another device, or cleared site data). Local
  *  state always wins if present. Returns the active session or null.

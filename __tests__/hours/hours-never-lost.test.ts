@@ -81,7 +81,7 @@ describe('a clock-out is never thrown away', () => {
   it('server error: kept and retried, not flagged', async () => {
     const out = await submitClockOut(entries(), serverError);
     expect(out.status).toBe('queued');
-    expect(readPendingHours()[0].lastError).toBe('boom');
+    expect(readPendingHours()[0].lastError).toMatch(/boom[\s\S]*retry automatically/);
   });
 
   it('refused: kept and flagged for a person, never retried blindly or dropped', async () => {

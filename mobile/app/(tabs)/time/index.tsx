@@ -31,6 +31,7 @@ import {
   todayLocalISODate,
 } from '@/lib/timeFormat';
 import { useTimesheet } from '@/lib/timesheet';
+import { useHoursOutbox } from '@/lib/hoursOutbox';
 import { thisWeekRange, useSubmitWeek, useThisWeekTotal } from '@/lib/timesheetActions';
 import {
   tabletContainerStyle,
@@ -60,6 +61,7 @@ export default function TimeScreen() {
   const { days, isLoading: timesheetLoading } = useTimesheet(14);
   const { totalMinutes: weekMinutes } = useThisWeekTotal();
   const clockOut = useClockOut();
+  const outbox = useHoursOutbox();
   const submitWeek = useSubmitWeek();
   const [clockingOut, setClockingOut] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -235,6 +237,20 @@ export default function TimeScreen() {
         }
       >
         <ScreenHeader title="Time" />
+
+        {/* Clock-outs saved on this phone that the office has not received yet. They retry on
+            their own; this says so, and lets somebody push it along. */}
+        {outbox.items.length > 0 ? (
+          <View style={[styles.staleBanner, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <Text style={[styles.staleBannerTitle, { color: palette.text }]}>
+              {outbox.items.length} clock-out{outbox.items.length === 1 ? '' : 's'} waiting to send
+            </Text>
+            <Text style={[styles.staleBannerBody, { color: palette.muted }]}>
+              Saved on this phone. {outbox.items.find((x) => x.lastError)?.lastError ?? 'They send automatically when you have signal.'}
+            </Text>
+            <Button label="Send now" variant="secondary" onPress={() => { void outbox.sendNow(); }} />
+          </View>
+        ) : null}
 
         {active ? (
           <>

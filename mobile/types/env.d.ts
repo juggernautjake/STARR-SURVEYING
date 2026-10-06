@@ -25,6 +25,12 @@ declare namespace NodeJS {
     EXPO_PUBLIC_POWERSYNC_URL?: string;
 
     /**
+     * The web app's base URL. Clock-outs are posted to `<this>/api/admin/time-logs`
+     * (lib/hoursOutbox.ts). Without it they wait on the phone.
+     */
+    EXPO_PUBLIC_API_URL?: string;
+
+    /**
      * Sentry DSN. Optional — when missing, lib/sentry.ts skips
      * Sentry.init so dev runs without a Sentry account. Safe to
      * embed in client bundles per Sentry's design (DSN is a

@@ -19,6 +19,7 @@
  * queue is processed in arrival order — bucket-aware ordering is a
  * Phase F1 polish item.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   AbstractPowerSyncDatabase,
   PowerSyncBackendConnector,
@@ -101,32 +102,47 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       for (const op of tx.crud) {
         const tableName = op.table;
         const id = op.id;
-
-        switch (op.op) {
-          case 'PUT': {
-            // Insert (or upsert if the server already saw a previous
-            // op for this id from another device).
-            const row = { ...op.opData, id };
-            const { error } = await supabase.from(tableName).upsert(row);
-            if (error) throw error;
-            break;
+        try {
+          switch (op.op) {
+            case 'PUT': {
+              // Insert (or upsert if the server already saw a previous
+              // op for this id from another device).
+              const row = { ...op.opData, id };
+              const { error } = await supabase.from(tableName).upsert(row);
+              if (error) throw error;
+              break;
+            }
+            case 'PATCH': {
+              const { error } = await supabase.from(tableName).update(op.opData ?? {}).eq('id', id);
+              if (error) throw error;
+              break;
+            }
+            case 'DELETE': {
+              const { error } = await supabase.from(tableName).delete().eq('id', id);
+              if (error) throw error;
+              break;
+            }
+            default: {
+              // Defensive — should never happen with current PowerSync
+              // versions, but if a new UpdateType lands and we haven't
+              // updated this switch, the queue would silently drop ops.
+              throw new Error(`Unknown PowerSync op type: ${String(op.op)}`);
+            }
           }
-          case 'PATCH': {
-            const { error } = await supabase.from(tableName).update(op.opData ?? {}).eq('id', id);
-            if (error) throw error;
-            break;
-          }
-          case 'DELETE': {
-            const { error } = await supabase.from(tableName).delete().eq('id', id);
-            if (error) throw error;
-            break;
-          }
-          default: {
-            // Defensive — should never happen with current PowerSync
-            // versions, but if a new UpdateType lands and we haven't
-            // updated this switch, the queue would silently drop ops.
-            throw new Error(`Unknown PowerSync op type: ${String(op.op)}`);
-          }
+        } catch (opErr) {
+          // ── A ROW THE SERVER WILL NEVER ACCEPT MUST NOT JAM THE QUEUE (2026-10-05) ──────────
+          // PowerSync uploads strictly in order and retries a failed transaction forever. One row
+          // the database rejects permanently — a column the live table does not have, a NOT NULL
+          // or CHECK violation — blocked every later upload from this phone, indefinitely. Those
+          // are set aside on the device (kept, logged, never thrown away) and the queue moves on.
+          // Network and server faults are still thrown, so they retry as before.
+          if (!isPermanentRejection(opErr)) throw opErr;
+          await parkRejectedOp({ table: tableName, id, op: String(op.op), data: op.opData ?? null, error: opErr });
+          logError('db.connector.uploadData', 'row permanently rejected — parked on device', opErr, {
+            table: tableName,
+            id,
+            op: String(op.op),
+          });
         }
       }
 
@@ -143,5 +159,34 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       });
       throw err;
     }
+  }
+}
+
+// ── parked rows ──────────────────────────────────────────────────────────────────────────────────
+
+const PARKED_KEY = 'starr-sync-parked-v1';
+
+/** Postgres classes that no retry can fix: data (22), integrity (23), schema/syntax (42), plus
+ *  PostgREST's "column not in schema cache". */
+export function isPermanentRejection(err: unknown): boolean {
+  const code = String((err as { code?: unknown } | null)?.code ?? '');
+  return /^(22|23|42)[0-9A-Z]{3}$/.test(code) || code === 'PGRST204';
+}
+
+async function parkRejectedOp(entry: {
+  table: string;
+  id: string;
+  op: string;
+  data: unknown;
+  error: unknown;
+}): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(PARKED_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown[]) : [];
+    const e = entry.error as { code?: string; message?: string } | null;
+    list.push({ ...entry, error: { code: e?.code, message: e?.message }, parkedAt: new Date().toISOString() });
+    await AsyncStorage.setItem(PARKED_KEY, JSON.stringify(list.slice(-500)));
+  } catch {
+    /* parking is best-effort; the error is already logged to Sentry */
   }
 }

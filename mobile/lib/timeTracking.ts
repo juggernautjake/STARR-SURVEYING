@@ -36,6 +36,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { getCurrentPosition, type GpsFailureReason } from './location';
+import { buildMobileEntries, enqueueHours, flushHoursOutbox } from './hoursOutbox';
 import { logError, logInfo, logWarn } from './log';
 import {
   startBackgroundTracking,
@@ -392,8 +393,8 @@ export function useClockOut(): () => Promise<ClockOutResult> {
     }
 
     try {
-      const open = await db.getOptional<{ id: string; started_at: string | null }>(
-        `SELECT id, started_at FROM job_time_entries
+      const open = await db.getOptional<{ id: string; started_at: string | null; job_id: string | null; entry_type: string | null }>(
+        `SELECT id, started_at, job_id, entry_type FROM job_time_entries
          WHERE user_email = ? AND ended_at IS NULL
          LIMIT 1`,
         [userEmail]
@@ -436,6 +437,24 @@ export function useClockOut(): () => Promise<ClockOutResult> {
           open.id,
         ]
       );
+
+      // ── THE HOURS LEAVE THE PHONE (2026-10-05) ──────────────────────────────────────────────
+      // The row above lives only in this phone's SQLite; PowerSync has never been configured, so
+      // until now no mobile hour ever reached the approvals page. The outbox posts it to the same
+      // API the web clock uses, and keeps it until the server confirms. Best-effort here: a
+      // failure to queue must not undo a clock-out that already happened locally.
+      try {
+        await enqueueHours(buildMobileEntries({
+          entryId: open.id,
+          startedAt: open.started_at,
+          endedAt: nowIso,
+          jobId: open.job_id,
+          entryTypeLabel: open.entry_type ? entryTypeLabel(open.entry_type) : null,
+        }));
+        void flushHoursOutbox();
+      } catch (err) {
+        logWarn('timeTracking.clockOut', 'could not queue hours for upload', err, { entry_id: open.id });
+      }
 
       logInfo('timeTracking.clockOut', 'success', {
         entry_id: open.id,

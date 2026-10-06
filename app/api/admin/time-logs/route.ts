@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { findRecentDuplicate } from '@/lib/hours/duplicate-submission';
 import { auditStamp, deleteTimeLogAudited } from '@/lib/hours/audit';
+import { resolveHoursCaller } from '@/lib/hours/caller';
 import { notify } from '@/lib/notifications';
 import {
   buildHoursDecisionNotifications,
@@ -48,7 +49,7 @@ const LOCKED_MSG =
 
 // GET: List time logs — employees see own, admins see all (with filters)
 export const GET = withErrorHandler(async (req: NextRequest) => {
-  const session = await auth();
+  const session = await resolveHoursCaller(req); // web session, or the mobile app's Supabase token
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -197,7 +198,7 @@ function cleanLunch(raw: unknown): number | null {
 }
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  const session = await auth();
+  const session = await resolveHoursCaller(req); // web session, or the mobile app's Supabase token
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
@@ -216,6 +217,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       /** A key the device made when this entry was created. A retry of the same clock-out carries
        *  the same key, and the second arrival returns the first row instead of making another. */
       client_submission_id?: string | null;
+      /** Activity tags chosen at clock-in/out. Stored (uuid[]); invalid ids are dropped, never fatal. */
+      activity_tag_ids?: string[] | null;
     }>;
     /** Whose timesheet these belong to. Admin only — see below. */
     user_email?: string;
@@ -441,6 +444,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         // wages.
         total_pay: resolved.rate === null ? null : Math.round(resolved.rate * entry.hours * 100) / 100,
         client_submission_id: clientKey,
+        // Were sent by every clock surface and dropped here until 2026-10-05. Only well-formed ids
+        // are kept: a bad tag must never be the reason somebody's hours fail to save.
+        activity_tag_ids: Array.isArray(entry.activity_tag_ids)
+          ? (entry.activity_tag_ids.filter(isUuid).slice(0, 50) as string[])
+          : null,
         // Who did this, for the hours history (seeds/664).
         ...auditStamp(actor, insertAction),
       })
