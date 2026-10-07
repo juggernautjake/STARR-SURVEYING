@@ -183,3 +183,21 @@ describe('cutting long recordings into parts (owner: "10 3 minute long videos")'
     expect(src).not.toMatch(/writeFile\(input, await fetchFile/);
   });
 });
+
+describe('receipt scanning (owner, 2026-10-07) — only on the receipt page', () => {
+  it('the receipt page opens the scanner in receipts mode and feeds its queue', () => {
+    const src = readFileSync('app/admin/receipts/new/page.tsx', 'utf8');
+    expect(src).toContain('mode="receipts"');
+    expect(src).toMatch(/for \(const f of files\) enqueue\(f, await hashPickedFile\(f\)\)/);
+  });
+  it('no other Scan button uses receipts mode ("It should just be on the receipt page")', () => {
+    for (const f of ['app/admin/components/files/FolderExplorer.tsx', 'app/admin/files/page.tsx']) {
+      const src = readFileSync(f, 'utf8');
+      expect(src, f).toContain('<ScanDialog');
+      expect(src, f).not.toContain('mode="receipts"');
+    }
+  });
+  it('the scanner defaults to document mode, so nothing changes where receipts mode is not asked for', () => {
+    expect(readFileSync('app/admin/components/scan/ScanDialog.tsx', 'utf8')).toContain("mode = 'document'");
+  });
+});
