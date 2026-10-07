@@ -47,6 +47,8 @@ import {
   type FieldKey, type ReceiptDeclarationInput,
 } from '@/lib/receipts/required-fields';
 import MyReceipts from './MyReceipts';
+import ScanDialog from '@/app/admin/components/scan/ScanDialog';
+import { clientOs } from '@/lib/scan/helper-client';
 
 // HEIC listed explicitly so a desktop picker shows iPhone photos; they are converted to JPEG on the
 // way in (app/components/HeicUploadGuard.tsx).
@@ -96,6 +98,11 @@ export default function NewReceiptPage() {
   }, []);
 
   const [busy, setBusy] = useState(false);
+  // Scan receipts with a scanner or scanning app (owner, 2026-10-07). Computers only: on a phone the
+  // camera button above is the same act, and two buttons for one act is what the UI pass removed.
+  const [scanOpen, setScanOpen] = useState(false);
+  const [canScan, setCanScan] = useState(false);
+  useEffect(() => { const os = clientOs(); setCanScan(os !== 'ios' && os !== 'android'); }, []);
   const [error, setError] = useState<string | null>(null);
   // R8 — bumped after every successful upload so the "your receipts" list below refetches. That
   // list IS the confirmation now; see the note on `finishUpload`.
@@ -838,7 +845,31 @@ export default function NewReceiptPage() {
                   <span aria-hidden style={styles.captureBtnIcon}>📁</span>
                   <span>Choose photos or PDFs</span>
                 </button>
+                {canScan && (
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setScanOpen(true); }}
+                    disabled={busy}
+                    style={styles.captureBtnSecondary}
+                    aria-label="Scan receipts with a scanner or a scanning app"
+                    data-testid="receipts-scan"
+                  >
+                    <span aria-hidden style={styles.captureBtnIcon}>🖨️</span>
+                    <span>Scan receipts</span>
+                  </button>
+                )}
               </div>
+              <ScanDialog
+                open={scanOpen}
+                mode="receipts"
+                onClose={() => setScanOpen(false)}
+                // Each scanned page joins the same queue as a photo: duplicate check, the required
+                // fields, then the AI reading and the summary — nothing scan-specific downstream.
+                onConfirm={(files) => {
+                  setScanOpen(false);
+                  void (async () => { for (const f of files) enqueue(f, await hashPickedFile(f)); })();
+                }}
+              />
               {cameraError && (
                 <p role="alert" style={styles.cameraError}>{cameraError}</p>
               )}

@@ -35,6 +35,12 @@ export interface ScanDialogProps {
   destinationLabel?: string | null;
   /** The finished file(s): the caller opens the upload pop-up on the current folder with them. */
   onConfirm: (files: File[]) => void;
+  /**
+   * 'receipts' (owner, 2026-10-07: "I also want the scanning to work for the receipts too"): every
+   * page becomes its own JPG — one receipt each — so the receipt queue reads, checks and files them
+   * exactly like photographs. No format or name to choose.
+   */
+  mode?: 'document' | 'receipts';
 }
 
 interface Page extends PreviewPage { key: string; url: string }
@@ -44,7 +50,7 @@ type Step = 'pick' | 'settings' | 'scanning' | 'app' | 'preview' | 'building';
 const POLL_MS = 3000;
 let keySeq = 0;
 
-export default function ScanDialog({ open, onClose, destinationLabel, onConfirm }: ScanDialogProps): React.ReactElement | null {
+export default function ScanDialog({ open, onClose, destinationLabel, onConfirm, mode = 'document' }: ScanDialogProps): React.ReactElement | null {
   const [status, setStatus] = useState<HelperStatus | null>(null);
   const [checked, setChecked] = useState(false);
   const [step, setStep] = useState<Step>('pick');
@@ -64,6 +70,7 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
   const fileRef = useRef<HTMLInputElement>(null);
   const os = useMemo(() => clientOs(), []);
   const mobile = os === 'ios' || os === 'android';
+  const receipts = mode === 'receipts';
 
   // ── live detection while the picker is showing ──
   useEffect(() => {
@@ -198,7 +205,7 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
     setError(null);
     setStep('building');
     try {
-      const files = await buildScanFiles(pages, format, name);
+      const files = await buildScanFiles(pages, receipts ? 'jpg' : format, receipts ? `Receipt scan ${defaultScanName().slice(5)}` : name);
       if (job) void discardJob(job.id);
       for (const p of pages) URL.revokeObjectURL(p.url);
       fetched.current.clear();
@@ -234,7 +241,7 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
     <div className="scan__overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && step !== 'scanning' && step !== 'building') close(); }}>
       <div className="scan__sheet" role="dialog" aria-modal="true" aria-labelledby="scan-title" data-testid="scan-dialog">
         <header className="scan__header">
-          <h2 id="scan-title" className="scan__title"><ScanLine size={20} aria-hidden="true" /> Scan a document</h2>
+          <h2 id="scan-title" className="scan__title"><ScanLine size={20} aria-hidden="true" /> {receipts ? 'Scan receipts' : 'Scan a document'}</h2>
           <button type="button" className="scan__close" onClick={close} aria-label="Close" disabled={step === 'scanning' || step === 'building'}><X size={20} /></button>
         </header>
 
@@ -327,7 +334,9 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
                   ))}
                 </select>
               </label>
-              <p className="scan__muted">{paper === 'flatbed' ? 'Put the page face down on the glass.' : 'Put the pages in the feeder, top edge first.'}</p>
+              <p className="scan__muted">{receipts
+                ? (paper === 'flatbed' ? 'Put one receipt face down on the glass.' : 'Feed the receipts one after another, top edge first — each becomes its own receipt.')
+                : (paper === 'flatbed' ? 'Put the page face down on the glass.' : 'Put the pages in the feeder, top edge first.')}</p>
             </section>
           )}
 
@@ -348,7 +357,9 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
 
           {(step === 'preview' || step === 'building') && (
             <section className="scan__preview" aria-label="Preview">
-              <p className="scan__muted">Check every page. Turn any that are sideways, remove the ones you do not want, and put them in order.</p>
+              <p className="scan__muted">{receipts
+                ? 'Each page is one receipt. Turn any that are sideways and remove the ones you do not want — the rest go into the receipt queue to be read.'
+                : 'Check every page. Turn any that are sideways, remove the ones you do not want, and put them in order.'}</p>
               <ol className="scan__pages">
                 {pages.map((p, i) => (
                   <li key={p.key} className="scan__page" data-testid="scan-page">
@@ -371,10 +382,13 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
                 {source?.kind === 'device' && <button type="button" className="scan__btn" onClick={() => setStep('settings')}><Plus size={16} aria-hidden="true" /> Scan more pages</button>}
                 <button type="button" className="scan__btn" onClick={() => cameraRef.current?.click()}><Camera size={16} aria-hidden="true" /> Add a photo</button>
               </div>
+              {!receipts && (
               <label className="scan__field">
                 <span>Name</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} data-testid="scan-name" />
               </label>
+              )}
+              {!receipts && (
               <div className="scan__field">
                 <span>Save as</span>
                 <div className="scan__formats" role="radiogroup" aria-label="File type">
@@ -384,6 +398,7 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
                 </div>
                 <small className="scan__muted">{SCAN_FORMATS.find((f) => f.id === format)?.hint}</small>
               </div>
+              )}
             </section>
           )}
           {hidden}
@@ -407,7 +422,9 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm 
               <button type="button" className="scan__btn" onClick={reset} disabled={step === 'building'}>Start over</button>
               <button type="button" className="scan__btn scan__btn--primary" onClick={() => void confirm()} disabled={!pages.length || step === 'building'} data-testid="scan-confirm">
                 {step === 'building' ? <Loader2 size={16} className="scan__spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
-                {' '}Save {pages.length} page{pages.length === 1 ? '' : 's'}{destinationLabel ? ` to ${destinationLabel}` : ''}
+                {' '}{receipts
+                  ? `Add ${pages.length} receipt${pages.length === 1 ? '' : 's'}`
+                  : `Save ${pages.length} page${pages.length === 1 ? '' : 's'}${destinationLabel ? ` to ${destinationLabel}` : ''}`}
               </button>
             </>
           )}
