@@ -102,7 +102,21 @@ while ($true) {
     Write-Output ('{"error":"The scan failed (WIA ' + $code + ')."}'); exit 5
   }
   $n++
-  $file = Join-Path '${outDir.replace(/'/g, "''")}' ('page-{0:D3}.png' -f $n)
+  # Colour and grayscale pages are saved as JPEG (quality 92): a 300 dpi colour page is ~30 MB as
+  # PNG and ~1 MB as JPEG at the same resolution (measured 2026-10-07 on a DS-640). Black-and-white
+  # stays PNG, which is already small and keeps hard edges exact.
+  $ext = 'png'
+  if (${intent} -ne 4) {
+    try {
+      $ip = New-Object -ComObject WIA.ImageProcess
+      $ip.Filters.Add($ip.FilterInfos.Item('Convert').FilterID)
+      $ip.Filters.Item(1).Properties.Item('FormatID').Value = '{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}'
+      $ip.Filters.Item(1).Properties.Item('Quality').Value = 92
+      $img = $ip.Apply($img)
+      $ext = 'jpg'
+    } catch {}
+  }
+  $file = Join-Path '${outDir.replace(/'/g, "''")}' ('page-{0:D3}.{1}' -f $n, $ext)
   if (Test-Path $file) { Remove-Item $file }
   $img.SaveFile($file)
   Write-Output ('{"page":' + $n + ',"file":"' + ($file -replace '\\\\','/') + '"}')

@@ -3,7 +3,7 @@
 // Built by .github/workflows/scan-helper-release.yml on a `scan-helper-v*` tag and attached to that
 // GitHub release. The version here is the one the setup page offers; bump it with the tag.
 
-export const SCAN_HELPER_VERSION = '1.0.0';
+export const SCAN_HELPER_VERSION = '1.0.1';
 const BASE = `https://github.com/juggernautjake/STARR-SURVEYING/releases/download/scan-helper-v${SCAN_HELPER_VERSION}`;
 
 export interface HelperDownload {

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { adviseSetup } from '@/lib/scan/setup';
 import { encodeTiff } from '@/lib/scan/tiff';
 import { cleanBaseName, pageFileName, defaultScanName } from '@/lib/scan/build-output';
+import { trimPlan } from '@/lib/scan/trim';
 import { clientOs, type HelperStatus } from '@/lib/scan/helper-client';
 import { planSplit, isSplittableMedia } from '@/lib/jobs/video-split';
 import { partArgs } from '@/lib/jobs/video-split-run';
@@ -199,5 +200,33 @@ describe('receipt scanning (owner, 2026-10-07) — only on the receipt page', ()
   });
   it('the scanner defaults to document mode, so nothing changes where receipts mode is not asked for', () => {
     expect(readFileSync('app/admin/components/scan/ScanDialog.tsx', 'utf8')).toContain("mode = 'document'");
+  });
+});
+
+describe('trimming the blank paper a sheet feeder scans past the page (2026-10-07)', () => {
+  // A 100×140 "page": content in rows 0–99, then 40 rows of white — a letter page scanned 14" long.
+  it('cuts the blank strip under the content, keeping a margin', () => {
+    const rows = new Array(140).fill(0).map((_, i) => (i < 100 ? 30 : 0));
+    const cols = new Array(100).fill(50);
+    expect(trimPlan(rows, cols, 100, 140, 4)).toEqual({ left: 0, top: 0, width: 100, height: 104 });
+  });
+  it('crops a narrow receipt in the middle of a wide scan on all four sides', () => {
+    // 300×400 scan; the receipt's content spans columns 110–189 and rows 20–299.
+    const rows = new Array(400).fill(0).map((_, i) => (i >= 20 && i < 300 ? 40 : 0));
+    const cols = new Array(300).fill(0).map((_, i) => (i >= 110 && i < 190 ? 120 : 0));
+    expect(trimPlan(rows, cols, 300, 400, 5)).toEqual({ left: 105, top: 15, width: 90, height: 290 });
+  });
+  it('leaves a full page alone', () => {
+    expect(trimPlan(new Array(140).fill(30), new Array(100).fill(50), 100, 140, 4)).toBeNull();
+  });
+  it('leaves a blank page alone — the person decides', () => {
+    expect(trimPlan(new Array(140).fill(0), new Array(100).fill(0), 100, 140, 4)).toBeNull();
+  });
+  it('ignores a few specks of dust', () => {
+    const rows = new Array(140).fill(0).map((_, i) => (i < 100 ? 30 : i === 130 ? 1 : 0));
+    expect(trimPlan(rows, new Array(100).fill(50), 100, 140, 4)?.height).toBe(104);
+  });
+  it('the helper saves colour pages as JPEG', () => {
+    expect(readFileSync('scan-helper/src/drivers/wia.mjs', 'utf8')).toContain('{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}');
   });
 });
