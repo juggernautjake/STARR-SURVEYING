@@ -42,6 +42,8 @@ import { linesToReplaceOnReextract, type LineItem } from './line-items';
 import { breakdownCharges } from './charges';
 import { reconcileAmounts } from './reconcile';
 import { findSamePurchase, type ComparableReceipt } from './same-purchase';
+import { zoomRead, READ_MODEL, type ZoomReadResult } from './zoom-read';
+import { humanEditedFields, planCorrections } from './reread-corrections';
 import {
   EXTRACTION_PROMPT,
   MAX_TOKENS,
@@ -246,19 +248,30 @@ async function runExtraction(row: ClaimableReceipt): Promise<ExtractionResult> {
     return { receiptId: row.id, status: 'failed', error: msg };
   }
 
-  // A PDF receipt is a legitimate upload the storage bucket accepts, and Vision's image blocks do
-  // not take one. Saying so plainly beats sending the bytes and letting the API return something a
-  // bookkeeper has to decode.
-  if (row.photo_url.toLowerCase().endsWith('.pdf')) {
-    const msg = 'PDF receipts are stored but not yet read by the AI — enter the fields by hand.';
-    await markFailed(row.id, msg);
-    return { receiptId: row.id, status: 'failed', error: msg };
-  }
-
   let extracted: ExtractedReceipt;
   let inputTokens = 0;
   let outputTokens = 0;
+  let read: ZoomReadResult | null = null;
+
+  // ── THE ZOOMED, TWO-READ READING (2026-10-07) ─────────────────────────────────────────────────
+  // Every receipt — photo, scan or PDF — is read by lib/receipts/zoom-read.ts: cropped, cut into
+  // labelled full-resolution sections, read twice independently, checked, and anything the reads
+  // disagree on settled with a zoomed third look. If that path fails for any reason (an image sharp
+  // cannot decode, a model outage) the original single read below runs instead, so a receipt is
+  // never left unread because the better reader stumbled.
+  const isPdf = row.photo_url.toLowerCase().endsWith('.pdf');
   try {
+    read = await zoomRead(Buffer.from(imageBase64, 'base64'), { isPdf });
+    extracted = read.extracted;
+    inputTokens = read.inputTokens;
+    outputTokens = read.outputTokens;
+  } catch (err) {
+    console.error(`[receipts/extract] zoomed read failed for ${row.id}, falling back to a single read:`, err);
+    read = null;
+  }
+
+  if (!read) try {
+    if (isPdf) throw new Error('PDF could not be read by the zoomed reader, and the single read takes images only.');
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await client.messages.create({
       model: VISION_MODEL,
@@ -298,7 +311,7 @@ async function runExtraction(row: ClaimableReceipt): Promise<ExtractionResult> {
   }
 
   const costCents = costCentsFor(inputTokens, outputTokens);
-  const writeErr = await writeBack(row, extracted, costCents);
+  const writeErr = await writeBack(row, extracted!, costCents, read);
   if (writeErr) {
     await markFailed(row.id, `write-back: ${writeErr}`);
     return { receiptId: row.id, status: 'failed', error: writeErr, costCents };
@@ -385,6 +398,7 @@ async function writeBack(
   row: ClaimableReceipt,
   extracted: ExtractedReceipt,
   costCents: number,
+  read: ZoomReadResult | null = null,
 ): Promise<string | null> {
   // Read the row back first so a correction typed while the AI was thinking survives the answer.
   // Without this, somebody who fixes a total during the ten seconds an extraction takes watches
@@ -394,7 +408,7 @@ async function writeBack(
     .select(
       'vendor_name, vendor_address, transaction_at, subtotal_cents, tax_cents, tip_cents, ' +
         'total_cents, payment_method, payment_last4, category, category_source, ' +
-        'tax_deductible_flag, notes',
+        'tax_deductible_flag, notes, user_review_edits, declared_by_submitter',
     )
     .eq('id', row.id)
     .single();
@@ -402,6 +416,37 @@ async function writeBack(
 
   const cur = (current ?? {}) as Partial<ReceiptCurrentSnapshot>;
   const update = buildReceiptUpdate(cur, extracted, costCents, new Date().toISOString());
+  // How it was read, and how sure the reading is (seeds/675). 'needs_review' must be cleared by a
+  // person before the tax period it falls in can be locked (lib/receipts/audit-readiness.ts).
+  if (read) {
+    // A closer reading may correct what the old reader stored — never what a person entered
+    // (lib/receipts/reread-corrections.ts).
+    const cur2 = cur as Record<string, unknown>;
+    const corr = planCorrections({
+      current: cur2 as never,
+      read: extracted as never,
+      readStatus: read.status,
+      declaredBySubmitter: cur2.declared_by_submitter === true,
+      humanEdited: humanEditedFields(cur2.user_review_edits),
+    });
+    Object.assign(update, corr.set);
+    if (corr.corrections.length) read.details.notes.push(`Corrected from the earlier reading: ${corr.corrections.map((c) => `${c.field.replace(/_cents$/, '').replace(/_/g, ' ')} ${JSON.stringify(c.from)} → ${JSON.stringify(c.to)}`).join('; ')}.`);
+    (read.details as unknown as { corrections?: unknown }).corrections = corr.corrections;
+    if (corr.conflicts.length) {
+      read.status = 'needs_review';
+      const extras = update.ai_extras as { review_flags?: string[] } | undefined;
+      if (extras) extras.review_flags = [...(extras.review_flags ?? []), ...corr.conflicts.map((c) => c.message)];
+    }
+    update.read_status = read.status;
+    update.read_details = read.details;
+    update.read_model = read.model;
+    update.read_at = new Date().toISOString();
+    const transcript = (extracted as unknown as { transcript?: string[] }).transcript;
+    if (Array.isArray(transcript) && transcript.length) update.deep_transcript = transcript.join('\n');
+  } else {
+    update.read_model = VISION_MODEL;
+    update.read_at = new Date().toISOString();
+  }
 
   // ── THE ARITHMETIC IS CHECKED IN CODE, NOT TRUSTED TO THE MODEL ────────────────────────────────
   //
@@ -652,6 +697,10 @@ async function writeBack(
         quantity: li.quantity,
         position: keptCount + idx,
         source: 'ai',
+        // Each line's own category (owner, 2026-10-07: "split off all of the receipt items into
+        // categories"), falling back to the receipt's when the reader gave the line none.
+        category: li.category ?? extracted.category ?? null,
+        category_source: (li.category ?? extracted.category) ? 'ai' : null,
       })),
     );
     if (insertErr) return `line-items insert: ${insertErr.message}`;

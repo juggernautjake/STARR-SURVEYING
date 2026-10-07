@@ -18,6 +18,7 @@
 // stylesheet) so the batch lands without touching shared CSS.
 'use client';
 
+import AuditReadiness from './AuditReadiness';
 import { useCallback, useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useSession } from 'next-auth/react';
@@ -128,6 +129,8 @@ export default function FinancesPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [locking, setLocking] = useState(false);
+  // Duplicates and unconfirmed readings must be cleared first (AuditReadiness, 2026-10-07).
+  const [auditOk, setAuditOk] = useState<boolean | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [periodLabel, setPeriodLabel] = useState<string>(String(year));
 
@@ -320,11 +323,14 @@ export default function FinancesPage() {
             disabled={
               locking ||
               loading ||
+              auditOk !== true ||
               !data ||
               (data.receipts?.by_status?.approved?.count ?? 0) === 0
             }
             title={
-              !data
+              auditOk === false
+                ? 'Check the possible duplicates and unconfirmed receipts listed above first.'
+                : !data
                 ? 'Loading…'
                 : (data.receipts?.by_status?.approved?.count ?? 0) === 0
                   ? 'Nothing new to lock — every approved receipt in this window is already filed.'
@@ -337,6 +343,8 @@ export default function FinancesPage() {
           </button>
         </label>
       </div>
+
+      <AuditReadiness year={year} onReady={setAuditOk} />
 
       {actionMsg ? (
         <div

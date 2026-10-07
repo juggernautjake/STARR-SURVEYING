@@ -1,0 +1,50 @@
+/* app/admin/receipts/_tabs/SpendingTab.css — spending by kind of item (2026-10-07). */
+.spend {
+  --cat-fuel: #d97706; --cat-meals: #dc2626; --cat-supplies: #2563eb; --cat-equipment: #7c3aed;
+  --cat-tolls: #0891b2; --cat-parking: #64748b; --cat-lodging: #db2777; --cat-professional_services: #059669;
+  --cat-office_supplies: #4f46e5; --cat-client_entertainment: #ea580c; --cat-other: #94a3b8; --cat-uncategorized: #cbd5e1;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.spend__controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.spend__periods, .spend__cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.spend__chip, .spend__cat {
+  min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--theme-border, #d1d5db);
+  background: var(--theme-bg-surface, #fff); color: inherit; font: inherit; font-size: .88rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.spend__chip[aria-pressed="true"] { background: var(--color-brand-navy, #1D3095); border-color: var(--color-brand-navy, #1D3095); color: #fff; }
+.spend__cat[aria-pressed="true"] { border-color: var(--color-brand-navy, #1D3095); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-navy, #1D3095) 25%, transparent); }
+.spend__cat small { color: var(--theme-fg-muted, #6b7280); }
+.spend__range { display: flex; flex-wrap: wrap; gap: 8px; font-size: .85rem; }
+.spend__range label { display: flex; align-items: center; gap: 6px; }
+.spend__range input { min-height: 40px; font-size: 16px; padding: 0 8px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 8px; background: var(--theme-bg-surface, #fff); color: inherit; }
+.spend__summary { display: flex; flex-direction: column; gap: 2px; }
+.spend__big { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+.spend__muted { margin: 0; font-size: .85rem; color: var(--theme-fg-muted, #6b7280); }
+.spend__error { margin: 0; padding: 10px 12px; border-radius: 8px; background: #fef2f2; color: #991b1b; }
+.spend__swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--seg); }
+
+.spend__bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.spend__row { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: .85rem; }
+.spend__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spend__track { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--theme-bg-elevated, #f1f5f9); }
+.spend__seg { height: 100%; background: var(--seg); }
+.spend__amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.spend__cat--fuel { --seg: var(--cat-fuel); } .spend__cat--meals { --seg: var(--cat-meals); }
+.spend__cat--supplies { --seg: var(--cat-supplies); } .spend__cat--equipment { --seg: var(--cat-equipment); }
+.spend__cat--tolls { --seg: var(--cat-tolls); } .spend__cat--parking { --seg: var(--cat-parking); }
+.spend__cat--lodging { --seg: var(--cat-lodging); } .spend__cat--professional_services { --seg: var(--cat-professional_services); }
+.spend__cat--office_supplies { --seg: var(--cat-office_supplies); } .spend__cat--client_entertainment { --seg: var(--cat-client_entertainment); }
+.spend__cat--other { --seg: var(--cat-other); } .spend__cat--uncategorized { --seg: var(--cat-uncategorized); }
+
+.spend__h3 { margin: 6px 0 8px; font-size: .95rem; }
+.spend__table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.spend__table th, .spend__table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--theme-border, #e5e7eb); }
+.spend__table th:nth-child(n+3), .spend__table td:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .spend__row { grid-template-columns: minmax(0, 1fr) 80px; }
+  .spend__label { grid-column: 1 / -1; font-weight: 600; }
+  .spend__table th:nth-child(2), .spend__table td:nth-child(2) { display: none; }
+}

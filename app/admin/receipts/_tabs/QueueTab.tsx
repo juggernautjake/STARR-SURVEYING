@@ -30,6 +30,7 @@ import { ReceiptEditor } from '../ReceiptEditor';
 import ReceiptSlideshow from '../ReceiptSlideshow';
 import { ReceiptLineItems } from '../ReceiptLineItems';
 import { ReceiptDeepRead } from '../ReceiptDeepRead';
+import { ReceiptReadStatus } from '../ReceiptReadStatus';
 import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
 import {
   PERIODS, PERIOD_LABELS, describePeriod, detectPeriod, isCurrentPeriod, periodRange, shiftPeriod,
@@ -1282,6 +1283,9 @@ function ReceiptRow({
                 </div>
               );
             })()}
+
+            {/* How it was read (2026-10-07): agreed / verified / needs a person. */}
+            <ReceiptReadStatus status={(row as { read_status?: string | null }).read_status ?? null} details={(row as { read_details?: never }).read_details ?? null} />
 
             {/* Advisory, and it must read that way. A band that fires on ordinary receipts is one
                 people learn to scroll past — which is how the one real problem gets approved along

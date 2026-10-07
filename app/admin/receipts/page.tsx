@@ -35,13 +35,14 @@
 import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Receipt, CreditCard, ArrowLeftRight, Car, Camera } from 'lucide-react';
+import { Receipt, CreditCard, ArrowLeftRight, Car, Camera, PieChart } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import QueueTab from './_tabs/QueueTab';
 import CardsTab from './_tabs/CardsTab';
 import RebilledTab from './_tabs/RebilledTab';
 import MileageTab from './_tabs/MileageTab';
+import SpendingTab from './_tabs/SpendingTab';
 import './ReceiptsPortal.css';
 
 const PORTAL: PortalSpec = {
@@ -66,6 +67,14 @@ const PORTAL: PortalSpec = {
       roles: ['admin'],
     },
     { id: 'mileage', label: 'Mileage', icon: Car, hint: 'The other reimbursable — trips logged, and what they are owed.' },
+    {
+      id: 'spending',
+      label: 'Spending',
+      icon: PieChart,
+      hint: 'Where the money goes, by kind of item — daily to yearly, every receipt split line by line.',
+      // The books: admin only, like Cards and Rebilled.
+      roles: ['admin'],
+    },
   ],
   defaultTab: 'queue',
 };
@@ -136,6 +145,7 @@ export default function ReceiptsPortal() {
         {active === 'cards' && <CardsTab />}
         {active === 'rebilled' && <RebilledTab />}
         {active === 'mileage' && <MileageTab />}
+        {active === 'spending' && <SpendingTab />}
       </div>
     </div>
   );
