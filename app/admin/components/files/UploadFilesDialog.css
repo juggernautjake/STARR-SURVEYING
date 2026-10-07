@@ -264,3 +264,7 @@
   .ufd__drop--compact .ufd__pickers { justify-content: center; }
   .ufd__pickers .ufd__btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* Part length for a split (2026-10-06). */
+.ufd__split-len { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .4rem 0; font-size: .88rem; }
+.ufd__split-len select { min-height: 36px; font-size: 16px; padding: 0 .4rem; border-radius: 6px; }

@@ -73,3 +73,49 @@ export async function fitImageForFunction(file: File): Promise<File> {
   }
   throw new Error(`“${file.name}” is too large to send from this form even after shrinking. Take the photo again from this page.`);
 }
+
+/** Passes for an arbitrary limit, largest first: keep as much of the photo as the limit allows. */
+export const FIT_PASSES: ReadonlyArray<{ maxEdge: number; quality: number }> = [
+  { maxEdge: 8192, quality: 0.9 },
+  { maxEdge: 4096, quality: 0.88 },
+  ...SHRINK_PASSES,
+  { maxEdge: 1280, quality: 0.7 },
+  { maxEdge: 1024, quality: 0.65 },
+];
+
+/**
+ * Shrink a photo until it is under `capBytes` (owner, 2026-10-06: "If we have a MOV or HEIC file
+ * type that exceeds the limit, we need to be able to either reduce the quality or break it into
+ * parts until it will all upload nicely"). The first pass that fits wins, so the photo loses only
+ * as much as it has to. HEIC has already become JPEG by the time it gets here (heic-upload-guard).
+ */
+export async function fitImageToLimit(file: File, capBytes: number): Promise<File> {
+  if (file.size <= capBytes) return file;
+  if (!file.type.startsWith('image/')) throw new Error(`“${file.name}” is not a photo, so it cannot be shrunk.`);
+  let img: Awaited<ReturnType<typeof decode>>;
+  try {
+    img = await decode(file);
+  } catch {
+    throw new Error(`This browser could not open “${file.name}” to shrink it.`);
+  }
+  try {
+    for (const pass of FIT_PASSES) {
+      const size = shrinkPlan(img.width, img.height, pass.maxEdge);
+      const canvas = document.createElement('canvas');
+      canvas.width = size.width;
+      canvas.height = size.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) break;
+      ctx.drawImage(img.source, 0, 0, size.width, size.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', pass.quality));
+      canvas.width = 1; canvas.height = 1;
+      if (blob && blob.size <= capBytes) {
+        const name = file.name.replace(/\.[^.]*$/, '') + '.jpg';
+        return new File([blob], name, { type: 'image/jpeg', lastModified: file.lastModified });
+      }
+    }
+  } finally {
+    img.close();
+  }
+  throw new Error(`“${file.name}” is still over the limit at the smallest useful size.`);
+}

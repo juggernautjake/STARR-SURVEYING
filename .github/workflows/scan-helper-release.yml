@@ -1,0 +1,78 @@
+# .github/workflows/scan-helper-release.yml — build the Starr Scan helper for Windows, Mac and Linux.
+#
+# Owner, 2026-10-06: scanning must work "with all common scanning software for all kinds of OS
+# systems". The helper (scan-helper/) is plain Node; Node's single-executable support wraps it with
+# the runtime, so each OS gets one file that needs nothing else installed. It has to be built ON each
+# OS, which is what this matrix is for.
+#
+# Trigger: push a tag `scan-helper-vX.Y.Z` (keep lib/scan/downloads.ts SCAN_HELPER_VERSION in step),
+# or run it by hand. The binaries are attached to that tag's GitHub release, which is where the
+# /admin/scan-setup page links.
+
+name: Scan Helper Release
+
+on:
+  push:
+    tags:
+      - 'scan-helper-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows
+            runner: windows-latest
+            file: starr-scan-windows.exe
+          - os: mac
+            runner: macos-14
+            file: starr-scan-mac
+          - os: linux
+            runner: ubuntu-22.04
+            file: starr-scan-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+      - name: Install esbuild
+        run: npm install --no-save esbuild@0.25
+      - name: Build the executable
+        working-directory: scan-helper
+        run: node build.mjs
+      - name: Ad-hoc sign (macOS refuses unsigned arm64 binaries)
+        if: matrix.os == 'mac'
+        working-directory: scan-helper
+        run: codesign --sign - --force dist/${{ matrix.file }}
+      - name: Smoke test
+        working-directory: scan-helper
+        shell: bash
+        run: ./dist/${{ matrix.file }} --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.file }}
+          path: scan-helper/dist/${{ matrix.file }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/scan-helper-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --title "Starr Scan helper ${GITHUB_REF_NAME#scan-helper-v}" \
+            --notes "Lets the Starr Surveying website use the scanners and scanning apps on this computer. Download the file for your computer from /admin/scan-setup." \
+            out/*/* || gh release upload "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --clobber out/*/*

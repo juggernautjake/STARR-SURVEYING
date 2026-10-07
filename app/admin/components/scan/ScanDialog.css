@@ -1,0 +1,99 @@
+/* app/admin/components/scan/ScanDialog.css — the Scan pop-up.
+ *
+ * Phone (≤767px): a bottom sheet, header and buttons pinned. Desktop: a centred 640px dialog.
+ * One body scrolls; inputs are 16px (no iOS zoom) and buttons at least 44px (PWA conventions). */
+
+.scan__overlay {
+  position: fixed; inset: 0; z-index: 96;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: color-mix(in srgb, #0f172a 45%, transparent);
+}
+.scan__sheet {
+  display: flex; flex-direction: column;
+  width: min(640px, 100%); max-height: min(860px, calc(100dvh - 32px));
+  background: var(--theme-bg-surface, #fff); color: var(--theme-fg-primary, #0f172a);
+  border-radius: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, .22); overflow: hidden;
+}
+.scan__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--theme-border, #e5e7eb); }
+.scan__title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.1rem; font-weight: 700; }
+.scan__close { width: 40px; height: 40px; margin: -8px -10px -8px 0; border: none; border-radius: 10px; background: transparent; color: var(--theme-fg-secondary, #6b7280); cursor: pointer; display: grid; place-items: center; }
+.scan__close:hover { background: var(--theme-bg-elevated, #f3f4f6); }
+.scan__body { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; overflow-y: auto; overscroll-behavior: contain; }
+.scan__footer { display: flex; gap: 10px; justify-content: flex-end; padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--theme-border, #e5e7eb); }
+
+.scan__h3 { margin: 4px 0 0; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--theme-fg-muted, #6b7280); }
+.scan__group, .scan__always { display: flex; flex-direction: column; gap: 8px; }
+.scan__option {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px;
+  border: 1px solid var(--theme-border, #d1d5db); border-radius: 10px; background: var(--theme-bg-surface, #fff);
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.scan__option:hover { border-color: var(--color-brand-navy, #1D3095); background: color-mix(in srgb, var(--color-brand-navy, #1D3095) 5%, transparent); }
+.scan__option > svg { flex: 0 0 auto; color: var(--color-brand-navy, #1D3095); }
+.scan__option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.scan__option small { color: var(--theme-fg-muted, #6b7280); font-size: .82rem; }
+
+.scan__setup { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, var(--color-brand-navy, #1D3095) 6%, var(--theme-bg-surface, #fff)); border: 1px solid color-mix(in srgb, var(--color-brand-navy, #1D3095) 22%, transparent); }
+.scan__headline { margin: 0; font-weight: 700; }
+.scan__steps ol { margin: 6px 0 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 8px; }
+.scan__steps li { display: flex; flex-direction: column; gap: 2px; font-size: .9rem; line-height: 1.4; }
+.scan__steps li span { color: var(--theme-fg-secondary, #374151); }
+.scan__live { display: flex; align-items: center; gap: 6px; }
+
+.scan__muted { margin: 0; font-size: .85rem; color: var(--theme-fg-muted, #6b7280); line-height: 1.4; }
+.scan__error { margin: 0; padding: 10px 12px; border-radius: 8px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-size: .9rem; }
+.scan__spin { animation: spin 1s linear infinite; vertical-align: -3px; } /* `spin` lives in globals.css */
+
+.scan__settings { display: flex; flex-direction: column; gap: 12px; }
+.scan__device { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
+.scan__field { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); }
+.scan__field select, .scan__field input {
+  min-height: 44px; padding: 8px 12px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 8px;
+  background: var(--theme-bg-surface, #fff); color: var(--theme-fg-primary, #0f172a); font: inherit; font-size: 16px; font-weight: 400;
+}
+.scan__formats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.scan__format { min-height: 44px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 8px; background: var(--theme-bg-surface, #fff); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.scan__format[aria-checked="true"] { background: var(--color-brand-navy, #1D3095); border-color: var(--color-brand-navy, #1D3095); color: #fff; }
+
+.scan__progress { display: flex; flex-direction: column; gap: 10px; }
+.scan__progress p { margin: 0; }
+.scan__thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.scan__thumb { width: 72px; height: 94px; object-fit: contain; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 6px; background: #fff; }
+
+.scan__preview { display: flex; flex-direction: column; gap: 14px; }
+.scan__pages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.scan__page { display: flex; flex-direction: column; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; overflow: hidden; background: var(--theme-bg-elevated, #f8fafc); }
+.scan__pageimg { aspect-ratio: 8.5 / 11; display: grid; place-items: center; overflow: hidden; background: #fff; }
+.scan__pageimg img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform .15s; }
+.scan__pdf { display: grid; place-items: center; text-align: center; font-weight: 800; color: #b91c1c; width: 100%; height: 100%; }
+.scan__pagebar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; font-size: .8rem; }
+.scan__pagebar span { flex: 1; font-weight: 600; }
+.scan__pagebar button { width: 36px; height: 36px; display: grid; place-items: center; border: none; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.scan__pagebar button:hover:not(:disabled) { background: var(--theme-bg-surface, #fff); }
+.scan__pagebar button:disabled { opacity: .35; cursor: default; }
+.scan__more { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.scan__btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--theme-border, #d1d5db); border-radius: 10px; background: transparent; color: var(--theme-fg-secondary, #374151);
+  font: inherit; font-weight: 700; cursor: pointer; text-decoration: none;
+}
+.scan__btn--primary { background: var(--color-brand-navy, #1D3095); border-color: var(--color-brand-navy, #1D3095); color: #fff; }
+.scan__btn:disabled { opacity: .6; cursor: progress; }
+
+@media (max-width: 767px) {
+  .scan__overlay { align-items: flex-end; padding: 0; }
+  .scan__sheet { width: 100%; max-height: calc(100dvh - 24px); border-radius: 16px 16px 0 0; }
+  .scan__body { padding: 14px 16px; }
+  .scan__footer { padding-left: 16px; padding-right: 16px; }
+  .scan__footer .scan__btn--primary { flex: 1; }
+  .scan__pages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.scan__option--off { cursor: default; opacity: .7; border-style: dashed; }
+.scan__option--off:hover { border-color: var(--theme-border, #d1d5db); background: transparent; }
+.scan__option--off > svg { color: var(--theme-fg-muted, #6b7280); }
+.scan__pagebar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 420px) {
+  .scan__pagebar { padding: 2px 4px; }
+  .scan__pagebar button { width: 30px; height: 34px; }
+}

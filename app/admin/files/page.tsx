@@ -28,6 +28,7 @@ import FileExplorerDialog from '@/app/admin/components/files/FileExplorerDialog'
 // 2026-09-15 — uploads go through THE Upload files pop-up, the same one on every job and project:
 // drop or pick files, choose "Save into" and a folder for each one, watch each file go up.
 import UploadFilesDialog from '@/app/admin/components/files/UploadFilesDialog';
+import ScanDialog from '@/app/admin/components/scan/ScanDialog';
 import RecentBadge from '@/app/admin/components/files/RecentBadge';
 import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
 import { toggle as toggleInSelection } from '@/lib/files/selection';
@@ -55,7 +56,7 @@ import {
   Search,
   ExternalLink,
   History,
-  RotateCcw,
+  RotateCcw, ScanLine,
 } from 'lucide-react';
 
 type AccessLevel = 'none' | 'view' | 'download' | 'edit' | 'manage';
@@ -367,6 +368,10 @@ export default function FilesPage(): React.ReactElement {
     setUploadDrop(files && files.length ? files : null);
     setUploadOpen(true);
   }
+
+  // Scan a document into the folder being browsed (owner, 2026-10-06): the finished scan opens the
+  // same Upload files pop-up, with this folder pre-chosen.
+  const [scanOpen, setScanOpen] = useState(false);
 
   // ---- folder / node ops -------------------------------------------------
   async function createFolder() {
@@ -905,6 +910,9 @@ export default function FilesPage(): React.ReactElement {
           <button type="button" className="fx-btn fx-btn--ghost" onClick={createFolder} disabled={!canWriteHere || busy} data-testid="fx-new-folder">
             <FolderPlus size={16} /> New folder
           </button>
+          <button type="button" className="fx-btn fx-btn--ghost" onClick={() => setScanOpen(true)} disabled={busy} data-testid="fx-scan">
+            <ScanLine size={16} /> Scan
+          </button>
           <button type="button" className="fx-btn fx-btn--upload" onClick={() => openUpload()} disabled={busy} data-testid="fx-upload">
             <Upload size={18} /> Upload files
           </button>
@@ -1211,6 +1219,13 @@ export default function FilesPage(): React.ReactElement {
           onFileRemoved={() => { setViewer(null); load(parentId); }}
         />
       )}
+
+      <ScanDialog
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        destinationLabel={breadcrumb.length ? breadcrumb[breadcrumb.length - 1].name : null}
+        onConfirm={(files) => { setScanOpen(false); openUpload(files); }}
+      />
 
       <UploadFilesDialog
         open={uploadOpen}

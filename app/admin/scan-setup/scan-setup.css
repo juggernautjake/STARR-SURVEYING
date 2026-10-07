@@ -1,0 +1,26 @@
+/* app/admin/scan-setup/scan-setup.css */
+.ssu { max-width: 760px; margin: 0 auto; padding: 8px 0 40px; display: flex; flex-direction: column; gap: 16px; }
+.ssu__title { margin: 0; font-size: 1.5rem; }
+.ssu__sub, .ssu__muted { margin: 0; color: var(--theme-fg-secondary, #374151); line-height: 1.5; }
+.ssu__muted { font-size: .9rem; color: var(--theme-fg-muted, #6b7280); }
+.ssu__status { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--theme-border, #e5e7eb); background: var(--theme-bg-elevated, #f8fafc); display: flex; flex-direction: column; gap: 8px; }
+.ssu__status p { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ssu__status--ok { border-color: color-mix(in srgb, var(--theme-success, #059669) 40%, transparent); background: color-mix(in srgb, var(--theme-success, #059669) 8%, var(--theme-bg-surface, #fff)); }
+.ssu__status--ok > p:first-child svg { color: var(--theme-success, #059669); }
+.ssu__found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ssu__found li { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+.ssu__asleep { color: var(--theme-fg-muted, #6b7280); }
+.ssu__card { padding: 16px; border-radius: 12px; border: 1px solid var(--theme-border, #e5e7eb); display: flex; flex-direction: column; gap: 10px; }
+.ssu__card > summary { cursor: pointer; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
+.ssu__h2 { margin: 6px 0 0; font-size: 1rem; }
+.ssu__steps, .ssu__list { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
+.ssu__steps code, .ssu__list code { font-size: .85em; }
+.ssu__other { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.ssu__btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start;
+  min-height: 46px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--theme-border, #d1d5db);
+  color: inherit; font-weight: 700; text-decoration: none;
+}
+.ssu__btn--primary { background: var(--color-brand-navy, #1D3095); border-color: var(--color-brand-navy, #1D3095); color: #fff; }
+.ssu__spin { animation: spin 1s linear infinite; } /* `spin` lives in globals.css */
+@media (max-width: 600px) { .ssu__btn { align-self: stretch; } }

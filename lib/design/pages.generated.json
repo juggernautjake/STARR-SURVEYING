@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 287,
+  "count": 288,
   "byArea": {
     "public": 43,
-    "admin": 193,
+    "admin": 194,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -1096,6 +1096,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/roles/custom"
+    },
+    {
+      "route": "/admin/scan-setup",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/scan-setup"
     },
     {
       "route": "/admin/schedule",
