@@ -10,7 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import { judgeCall, roboFingerprint, callerWords, type VerdictInput } from '@/lib/receptionist/call-verdict';
 import { decideRoute, numberStatus, countVerdicts, type RouteInput } from '@/lib/receptionist/screening';
-import { regionOf, regionText } from '@/lib/receptionist/area-codes';
+import { regionOf, regionText, placeOf, originNote, TEXAS_AREA_CODES } from '@/lib/receptionist/area-codes';
+import { codesFor, lookupAreaCode, AREA_CODE_COUNT, DUPLICATE_CODES } from '@/lib/receptionist/area-code-map';
 import { isJunkCall, treatmentText } from '@/lib/receptionist/screening-labels';
 import type { CallTurn } from '@/lib/receptionist/calls';
 
@@ -147,7 +148,7 @@ describe('ring, voicemail or block', () => {
 describe('where a number is from', () => {
   it('reads Texas, out of state, toll-free and international', () => {
     expect(regionOf('+12543151123')).toBe('texas');
-    expect(regionText('+18722684567')).toBe('Out of state (872)');
+    expect(regionText('+18722684567')).toBe('Illinois (872)');
     expect(regionOf('+18778426971')).toBe('toll_free');
     expect(regionOf('+447700900123')).toBe('international');
     expect(regionOf('browser:starr')).toBe('unknown');
@@ -169,5 +170,43 @@ describe('the page words', () => {
   });
   it('callerWords ignores the machine\'s bracketed notes', () => {
     expect(callerWords({ transcript: [t('caller', '(Recorded message 1, 1 seconds.)')], voicemail_text: null })).toBe('');
+  });
+});
+
+describe('the area-code table (owner, 2026-10-06: "determine where the calls are from")', () => {
+  it('names the places the live log came from', () => {
+    expect(placeOf('+12242092725')).toBe('Illinois');
+    expect(placeOf('+12722041743')).toBe('Pennsylvania');
+    expect(placeOf('+12192051333')).toBe('Indiana');
+    expect(placeOf('+15732070826')).toBe('Missouri');
+    expect(placeOf('+13182091951')).toBe('Louisiana');
+    expect(placeOf('+14102080334')).toBe('Maryland');
+    expect(placeOf('+17208378305')).toBe('Colorado');
+    expect(placeOf('+12543151123')).toBe('Texas');
+  });
+
+  it('Texas in the table is exactly the Texas set the region check uses', () => {
+    expect(codesFor('Texas')).toEqual([...TEXAS_AREA_CODES].sort());
+  });
+
+  it('no area code is listed under two places (a later line would silently win)', () => {
+    expect(DUPLICATE_CODES).toEqual([]);
+    expect(AREA_CODE_COUNT).toBeGreaterThan(380);
+  });
+
+  it('toll-free, Caribbean and premium numbers carry a note; ordinary ones do not', () => {
+    expect(regionOf('+18775569255')).toBe('toll_free');
+    expect(originNote('+18775569255')).toMatch(/toll-free/i);
+    expect(regionOf('+18765551234')).toBe('international');
+    expect(regionText('+18765551234')).toBe('Jamaica (876) — international rates');
+    expect(originNote('+18095551234')).toMatch(/one-ring/);
+    expect(lookupAreaCode('900')?.kind).toBe('premium');
+    expect(originNote('+12543151123')).toBeNull();
+    expect(originNote('+12242092725')).toBeNull();
+  });
+
+  it('Canada is out of state, not international', () => {
+    expect(placeOf('+14165551234')).toBe('Ontario');
+    expect(regionOf('+14165551234')).toBe('out_of_state');
   });
 });

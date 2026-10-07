@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { getCall, updateCall } from '@/lib/receptionist/calls';
 import { lookupRegistry } from '@/lib/receptionist/registry';
-import { regionText } from '@/lib/receptionist/area-codes';
+import { originNote, regionText } from '@/lib/receptionist/area-codes';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +39,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .eq('from_number', call.from_number).eq('is_test', call.is_test).neq('id', call.id)
       .order('started_at', { ascending: false }).limit(25),
   ]);
-  return NextResponse.json({ call, number, otherCalls: others.data ?? [], region: regionText(call.from_number) });
+  return NextResponse.json({ call, number, otherCalls: others.data ?? [], region: regionText(call.from_number), originNote: originNote(call.from_number) });
 }, { routeName: 'admin/calls/[id]' });
 
 /** Admins can correct what the receptionist heard: caller name, callback number, kind, notes. */

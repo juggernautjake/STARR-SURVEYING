@@ -25,15 +25,17 @@ export default function CallPage(): React.ReactElement {
   const [number, setNumber] = useState<RegistryEntry | null>(null);
   const [otherCalls, setOtherCalls] = useState<OtherCall[]>([]);
   const [region, setRegion] = useState<string | null>(null);
+  const [originNoteText, setOriginNoteText] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/admin/calls/${id}`);
-    const j = (await r.json()) as { call?: PhoneCall; error?: string; number?: RegistryEntry | null; otherCalls?: OtherCall[]; region?: string };
+    const j = (await r.json()) as { call?: PhoneCall; error?: string; number?: RegistryEntry | null; otherCalls?: OtherCall[]; region?: string; originNote?: string | null };
     if (j.error) reportPageError(j.error);
     setCall(j.call ?? null);
     setNumber(j.number ?? null);
     setOtherCalls(j.otherCalls ?? []);
     setRegion(j.region ?? null);
+    setOriginNoteText(j.originNote ?? null);
   }, [id, reportPageError]);
 
   useEffect(() => { void load(); }, [load]);
@@ -125,7 +127,7 @@ export default function CallPage(): React.ReactElement {
       </div>
 
       <div>
-        <ThisNumberPanel call={call} number={number} region={region} otherCalls={otherCalls} onChanged={() => void load()} onError={(m) => reportPageError(m)} />
+        <ThisNumberPanel call={call} number={number} region={region} originNote={originNoteText} otherCalls={otherCalls} onChanged={() => void load()} onError={(m) => reportPageError(m)} />
         <VerdictPanel call={call} onChanged={() => void load()} onError={(m) => reportPageError(m)} />
         <section className="call-panel">
           <h2 className="call-panel__title">AI analysis</h2>

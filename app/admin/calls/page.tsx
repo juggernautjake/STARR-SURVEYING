@@ -31,6 +31,7 @@ import { usePageError } from '../hooks/usePageError';
 import { searchCalls, matchedFields, type MatchField } from '@/lib/receptionist/call-search';
 import type { PhoneCall } from '@/lib/receptionist/calls';
 import { VERDICT_LABEL, isJunkCall, wasScreened } from '@/lib/receptionist/screening-labels';
+import { placeOf } from '@/lib/receptionist/area-codes';
 
 type Filter = 'real' | 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none' | 'screened';
 type Week = { total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number };
@@ -269,7 +270,13 @@ export default function CallsPage(): React.ReactElement {
               <Link key={c.id} href={`/admin/calls/${c.id}`} className={`call-card${attention ? ' call-card--attention' : ''}`}>
                 <div className="call-card__when">{w.day}<br />{w.time}</div>
                 <div>
-                  <p className="call-card__title">{c.caller_name || fmtPhone(c.from_number)}{c.caller_name ? <span className="call-card__number"> · {fmtPhone(c.from_number)}</span> : null}</p>
+                  <p className="call-card__title">
+                    {c.caller_name || fmtPhone(c.from_number)}
+                    {c.caller_name ? <span className="call-card__number"> · {fmtPhone(c.from_number)}</span> : null}
+                    {/* Where the number is from — "Illinois", "Toll-free" — so a run of out-of-state
+                        silent calls is visible in the list without opening each one. */}
+                    {placeOf(c.from_number) !== 'Unknown' ? <span className="call-card__number"> · {placeOf(c.from_number)}</span> : null}
+                  </p>
                   <p className="call-card__summary">{c.analysis?.summary || c.summary || (c.transcript?.length ? c.transcript[0]?.text : 'No transcript yet.')}</p>
                   <div className="call-card__meta">
                     {c.is_test ? <span className="pill pill--test">Test</span> : null}

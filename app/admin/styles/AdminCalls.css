@@ -226,3 +226,5 @@
   .call-card { grid-template-columns: 64px minmax(0, 1fr); gap: .6rem; padding: .7rem .8rem; }
   .call-card__side { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; text-align: left; max-width: none; gap: .2rem .6rem; }
 }
+
+.cnum__note { margin: 0 0 .6rem; padding: .45rem .65rem; border-radius: 8px; font-size: .84rem; line-height: 1.4; background: rgba(183,121,31,.1); border: 1px solid rgba(183,121,31,.4); }

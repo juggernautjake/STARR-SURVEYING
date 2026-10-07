@@ -57,6 +57,9 @@ export interface RegistryEntry {
   status?: 'unknown' | 'person' | 'customer' | 'silent' | 'robocall' | 'spam';
   statusReason?: string | null;
   region?: string | null;
+  /** "Illinois", "Toll-free", "Jamaica" — from the area code (lib/receptionist/area-code-map.ts). */
+  place?: string | null;
+  areaCode?: string | null;
   counts?: { person: number; silent: number; robocall: number; spam: number; hangup: number; screened: number; blocked: number };
   links?: { customerId: string | null; leadId: string | null; jobId: string | null; contactId: string | null; label: string | null };
 }
@@ -86,6 +89,8 @@ interface Row {
   status?: string | null;
   status_reason?: string | null;
   region?: string | null;
+  place?: string | null;
+  area_code?: string | null;
   calls_person?: number; calls_silent?: number; calls_robocall?: number; calls_spam?: number;
   calls_hangup?: number; calls_screened?: number; calls_blocked?: number;
   customer_id?: string | null; lead_id?: string | null; job_id?: string | null; contact_id?: string | null;
@@ -129,6 +134,8 @@ function toEntry(r: Row): RegistryEntry {
     status: (['unknown', 'person', 'customer', 'silent', 'robocall', 'spam'].includes(r.status ?? '') ? r.status : 'unknown') as RegistryEntry['status'],
     statusReason: r.status_reason ?? null,
     region: r.region ?? null,
+    place: r.place ?? null,
+    areaCode: r.area_code ?? null,
     counts: {
       person: r.calls_person ?? 0, silent: r.calls_silent ?? 0, robocall: r.calls_robocall ?? 0, spam: r.calls_spam ?? 0,
       hangup: r.calls_hangup ?? 0, screened: r.calls_screened ?? 0, blocked: r.calls_blocked ?? 0,

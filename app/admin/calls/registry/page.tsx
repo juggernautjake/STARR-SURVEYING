@@ -34,6 +34,7 @@ import {
 } from '@/lib/receptionist/registry';
 import { SCREENING_HELP, SCREENING_LABEL, STATUS_LABEL, treatmentText } from '@/lib/receptionist/screening-labels';
 import { REGION_LABEL, type Region } from '@/lib/receptionist/area-codes';
+import { OriginSummary } from './OriginSummary';
 
 type Screening = 'auto' | 'always_ring' | 'voicemail' | 'block';
 const SCREENINGS: Screening[] = ['auto', 'always_ring', 'voicemail', 'block'];
@@ -463,6 +464,8 @@ export default function CallerRegistryPage(): React.ReactElement {
         {countText ? <span className="creg__count" data-testid="creg-count">{countText}</span> : null}
       </div>
 
+      {entries && !debounced ? <OriginSummary entries={entries} /> : null}
+
       <div className="creg__views" role="group" aria-label="Which numbers">
         {VIEWS.map(([v, label]) => (
           <button
@@ -573,8 +576,8 @@ export default function CallerRegistryPage(): React.ReactElement {
                     <span className={`creg__badge creg__badge--treat${treatmentText(e) === 'Rings normally' ? '' : ' creg__badge--screened'}`}>{treatmentText(e)}</span>
                   </div>
                   <p className="creg__idline">
-                    {e.region ? REGION_LABEL[e.region as Region] ?? e.region : ''}
-                    {e.id ? <span title={e.id}>{e.region ? ' · ' : ''}ID {e.id.slice(0, 8)}</span> : null}
+                    {e.place ?? (e.region ? REGION_LABEL[e.region as Region] ?? e.region : '')}
+                    {e.id ? <span title={e.id}>{e.place || e.region ? ' · ' : ''}ID {e.id.slice(0, 8)}</span> : null}
                   </p>
                 </div>
 

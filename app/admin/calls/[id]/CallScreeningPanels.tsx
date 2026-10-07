@@ -61,11 +61,13 @@ export function ThisNumberPanel(props: {
   call: PhoneCall;
   number: RegistryEntry | null;
   region: string | null;
+  /** Why the origin is worth a second look (toll-free, Caribbean), or null. */
+  originNote?: string | null;
   otherCalls: OtherCall[];
   onChanged: () => void;
   onError: (msg: string) => void;
 }): React.ReactElement {
-  const { call, number, region, otherCalls, onChanged, onError } = props;
+  const { call, number, region, originNote, otherCalls, onChanged, onError } = props;
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const current: ScreenChoice = (number?.screening ?? 'auto') as ScreenChoice;
@@ -113,6 +115,8 @@ export function ThisNumberPanel(props: {
           <span className={`pill pill--s-${number.status}`} title={number.statusReason ?? undefined}>{STATUS_LABEL[number.status]}</span>
         ) : null}
       </div>
+
+      {originNote ? <p className="cnum__note" role="note">{originNote}</p> : null}
 
       {number?.links?.label ? (
         <p className="cnum__links">

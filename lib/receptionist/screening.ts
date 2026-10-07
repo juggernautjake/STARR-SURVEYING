@@ -27,7 +27,7 @@
 //      can be put back in one click from the call page or the numbers page.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { judgeCall, type CallerVerdict } from './call-verdict';
-import { regionOf } from './area-codes';
+import { areaCodeOf, placeOf, regionOf } from './area-codes';
 import { registryKey } from './registry';
 import { isBlocked, type BlockRule } from './blocklist';
 import type { PhoneCall } from './calls';
@@ -276,6 +276,8 @@ export async function refreshNumber(db: Client, phone: string): Promise<void> {
   const patch = {
     status, status_reason: reason, status_at: now,
     region: regionOf(`+1${ten}`),
+    area_code: areaCodeOf(ten),
+    place: placeOf(`+1${ten}`),
     times_called: counts.total,
     calls_person: counts.person, calls_silent: counts.silent, calls_robocall: counts.robocall, calls_spam: counts.spam,
     calls_hangup: counts.hangup, calls_screened: counts.screened, calls_blocked: counts.blocked,
