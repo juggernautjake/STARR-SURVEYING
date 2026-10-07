@@ -22,7 +22,11 @@ import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/si
 import { dial, hangup, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
 import { RING_SECONDS, holdNotice, ownerPhone } from '@/lib/receptionist/brain';
 import { startCall, updateCall } from '@/lib/receptionist/calls';
-import { isBlocked, noteBlockHit } from '@/lib/receptionist/blocklist';
+import { noteBlockHit } from '@/lib/receptionist/blocklist';
+import { refreshNumber, screenIncoming } from '@/lib/receptionist/screening';
+import { machineStart } from '@/lib/receptionist/answering-machine';
+import { readLiveVersion } from '@/lib/receptionist/version-server';
+import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,25 +53,51 @@ export async function POST(request: Request): Promise<Response> {
   //
   // `isBlocked` fails open. A caller refused because a lookup timed out is a lost job; a robocall
   // that gets through once is an annoyance.
-  const verdict = await isBlocked(supabaseAdmin, from);
-  if (verdict.blocked) {
-    console.log(`[receptionist] blocked ${from} — ${verdict.why ?? 'on the block list'}`);
+  //
+  // Since 2026-10-06 the block list is one input to a wider decision (lib/receptionist/screening.ts):
+  // ring, voicemail, or refuse. Read that file's header for the fail-safes — the short version is
+  // that only a recording is ever refused automatically, anything else unwanted goes to voicemail,
+  // and a number tied to a customer or a job is never screened at all.
+  const door = await screenIncoming(supabaseAdmin, from);
+  if (door.route === 'block') {
+    console.log(`[receptionist] blocked ${from} — ${door.reason}`);
     if (callSid) {
+      const now = new Date().toISOString();
       await updateCall(supabaseAdmin, callSid, {
         status: 'completed',
         answered_by: 'blocked',
-        ended_at: new Date().toISOString(),
-        summary: `Blocked: ${verdict.why ?? 'on the block list'}.`,
+        ended_at: now,
+        summary: `Blocked: ${door.reason}`,
+        screened_as: 'blocked',
+        screen_reason: door.reason,
+        caller_verdict: 'blocked',
+        number_id: door.numberId,
         // Marked as notified so no later webhook — recording, transcript, status — can decide this
         // call still deserves an email. A blocked call tells nobody, at every stage.
-        notified_at: new Date().toISOString(),
+        notified_at: now,
+        emailed_at: now,
       });
+      defer(refreshNumber(supabaseAdmin, from), 'blocked call tally');
     }
-    if (verdict.rule?.id) await noteBlockHit(supabaseAdmin, verdict.rule.id);
+    if (door.ruleId) await noteBlockHit(supabaseAdmin, door.ruleId);
     // <Reject> rather than <Hangup>: Twilio never answers the leg, so the campaign's dialler reads
     // it as a dead line rather than a connected call, and we are not billed for the minute.
     return twimlResponse(twiml('<Reject reason="rejected"/>'));
   }
+
+  if (door.route === 'voicemail') {
+    // Screened: nobody's phone rings and Ellie is not used. The caller hears the voicemail greeting
+    // — thank you, the website, leave a message after the tone — so a real person loses nothing
+    // but the ring. A real message notifies like any voicemail and clears the mark (screening.ts).
+    console.log(`[receptionist] screened ${from} to voicemail — ${door.reason}`);
+    if (callSid) {
+      await updateCall(supabaseAdmin, callSid, { status: 'in-progress', screened_as: 'voicemail', screen_reason: door.reason, number_id: door.numberId });
+    }
+    const live = await readLiveVersion(supabaseAdmin);
+    return twimlResponse(machineStart(live.voice));
+  }
+  // Written in the background: the caller is waiting, and this is bookkeeping.
+  if (callSid) defer(updateCall(supabaseAdmin, callSid, { screened_as: 'rang', screen_reason: door.reason, number_id: door.numberId }), 'screening note');
 
   const owner = ownerPhone();
   if (!owner) {

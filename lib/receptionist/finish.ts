@@ -10,6 +10,7 @@ import { analyzeCall, contactColumns } from './analysis';
 import { factsToColumns, getCallBySid, updateCall } from './calls';
 import { notifyOwners } from './notify';
 import { rememberCaller } from './registry';
+import { settleCall } from './screening';
 import type { CallState } from './state';
 
 export async function finishCall(callSid: string, from: string, state: Pick<CallState, 'facts' | 'turns'> & { started?: number }, summary: string): Promise<void> {
@@ -41,9 +42,11 @@ export async function finishCall(callSid: string, from: string, state: Pick<Call
   }
 
   // Test calls are reviewed on /admin/calls like any other; they just never ring anyone's phone.
-  if (call && !call.notified_at && !call.is_test) {
+  // notifyOwners claims the one bell and the one email itself (seeds/672); it also holds the email
+  // until the transcript is in, so this placeholder no longer wins the inbox.
+  if (call && !call.is_test) {
+    await settleCall(supabaseAdmin, call);
     await notifyOwners({ from, facts: state.facts, summary: call.analysis?.summary || summary, callId: call.id, answeredBy: 'ai', call });
-    await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
   }
 }
 

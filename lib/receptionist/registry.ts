@@ -48,6 +48,20 @@ export interface RegistryEntry {
   lastAbout: string | null;
   updatedBy: string | null;
   updatedAt: string | null;
+  // ── The number catalogue (seeds/672, 2026-10-06) ──
+  /** Stable id for this number; every call from it carries it as phone_calls.number_id. */
+  id?: string | null;
+  screening?: 'auto' | 'always_ring' | 'voicemail' | 'block';
+  screeningNote?: string | null;
+  screeningSetBy?: string | null;
+  status?: 'unknown' | 'person' | 'customer' | 'silent' | 'robocall' | 'spam';
+  statusReason?: string | null;
+  region?: string | null;
+  /** "Illinois", "Toll-free", "Jamaica" — from the area code (lib/receptionist/area-code-map.ts). */
+  place?: string | null;
+  areaCode?: string | null;
+  counts?: { person: number; silent: number; robocall: number; spam: number; hangup: number; screened: number; blocked: number };
+  links?: { customerId: string | null; leadId: string | null; jobId: string | null; contactId: string | null; label: string | null };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +82,19 @@ interface Row {
   last_about: string | null;
   updated_by: string | null;
   updated_at: string | null;
+  id?: string | null;
+  screening?: string | null;
+  screening_note?: string | null;
+  screening_set_by?: string | null;
+  status?: string | null;
+  status_reason?: string | null;
+  region?: string | null;
+  place?: string | null;
+  area_code?: string | null;
+  calls_person?: number; calls_silent?: number; calls_robocall?: number; calls_spam?: number;
+  calls_hangup?: number; calls_screened?: number; calls_blocked?: number;
+  customer_id?: string | null; lead_id?: string | null; job_id?: string | null; contact_id?: string | null;
+  linked_label?: string | null;
 }
 
 /** The ten national digits — the only form Twilio's `+1254…`, a form's `(254) 315-1123` and a
@@ -100,6 +127,20 @@ function toEntry(r: Row): RegistryEntry {
     lastAbout: r.last_about,
     updatedBy: r.updated_by,
     updatedAt: r.updated_at,
+    id: r.id ?? null,
+    screening: (['auto', 'always_ring', 'voicemail', 'block'].includes(r.screening ?? '') ? r.screening : 'auto') as RegistryEntry['screening'],
+    screeningNote: r.screening_note ?? null,
+    screeningSetBy: r.screening_set_by ?? null,
+    status: (['unknown', 'person', 'customer', 'silent', 'robocall', 'spam'].includes(r.status ?? '') ? r.status : 'unknown') as RegistryEntry['status'],
+    statusReason: r.status_reason ?? null,
+    region: r.region ?? null,
+    place: r.place ?? null,
+    areaCode: r.area_code ?? null,
+    counts: {
+      person: r.calls_person ?? 0, silent: r.calls_silent ?? 0, robocall: r.calls_robocall ?? 0, spam: r.calls_spam ?? 0,
+      hangup: r.calls_hangup ?? 0, screened: r.calls_screened ?? 0, blocked: r.calls_blocked ?? 0,
+    },
+    links: { customerId: r.customer_id ?? null, leadId: r.lead_id ?? null, jobId: r.job_id ?? null, contactId: r.contact_id ?? null, label: r.linked_label ?? null },
   };
 }
 

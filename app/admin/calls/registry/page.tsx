@@ -1,5 +1,11 @@
 'use client';
-// /admin/calls/registry — the receptionist's caller ID memory: which number belongs to whom.
+// /admin/calls/registry — every number that has called, what it is, and how the line treats it.
+//
+// Owner, 2026-10-06: "catalogue all of the calls and numbers with IDs. Assign names and info to the
+// numbers that are actually people … numbers on projects should be linked." Since then this page is
+// the numbers catalogue as well as the caller-ID memory below: each row carries the number's id, its
+// status (customer, real person, robocaller, silent caller), where it is from, what it is tied to,
+// and the screening choice — which can be changed right here (lib/receptionist/screening.ts).
 //
 // Owner, 2026-09-16: "The voice agent needs to know that my number is (254)-315-1123 (Jacob
 // Maddux). it should not assume that anyone else's number is me."
@@ -26,6 +32,26 @@ import {
   RELATIONSHIPS, formatPhone, registryKey,
   type RegistryEntry, type Relationship,
 } from '@/lib/receptionist/registry';
+import { SCREENING_HELP, SCREENING_LABEL, STATUS_LABEL, treatmentText } from '@/lib/receptionist/screening-labels';
+import { REGION_LABEL, type Region } from '@/lib/receptionist/area-codes';
+import { OriginSummary } from './OriginSummary';
+
+type Screening = 'auto' | 'always_ring' | 'voicemail' | 'block';
+const SCREENINGS: Screening[] = ['auto', 'always_ring', 'voicemail', 'block'];
+
+/** The tabs: what a person reviewing the line wants to see, in the order they want to see it. */
+type View = 'all' | 'real' | 'screened' | 'blocked' | 'unsure';
+const VIEWS: Array<[View, string]> = [
+  ['all', 'All'], ['real', 'Real callers'], ['screened', 'Screened'], ['blocked', 'Blocked'], ['unsure', 'Not sure yet'],
+];
+function inView(e: RegistryEntry, v: View): boolean {
+  if (v === 'all') return true;
+  const t = treatmentText(e);
+  if (v === 'blocked') return t === 'Blocked' || t === 'Blocked automatically';
+  if (v === 'screened') return t === 'Screened to voicemail' || t === 'Straight to voicemail';
+  if (v === 'real') return e.status === 'person' || e.status === 'customer' || e.screening === 'always_ring';
+  return (e.status ?? 'unknown') === 'unknown' && t === 'Rings normally';
+}
 
 const API = '/api/admin/caller-registry';
 
@@ -51,6 +77,7 @@ interface Draft {
   relationship: Relationship;
   notes: string;
   neverAssume: boolean;
+  screening: Screening;
 }
 
 function draftFrom(entry: RegistryEntry): Draft {
@@ -62,11 +89,12 @@ function draftFrom(entry: RegistryEntry): Draft {
     relationship: entry.relationship,
     notes: entry.notes ?? '',
     neverAssume: entry.neverAssume,
+    screening: (entry.screening ?? 'auto') as Screening,
   };
 }
 
 const BLANK_DRAFT: Draft = {
-  phone: '', displayName: '', email: '', company: '', relationship: 'unknown', notes: '', neverAssume: false,
+  phone: '', displayName: '', email: '', company: '', relationship: 'unknown', notes: '', neverAssume: false, screening: 'auto',
 };
 
 /** When they last rang, written the way somebody would say it out loud. */
@@ -82,6 +110,20 @@ function lastHeard(iso: string | null): string {
   return d.getFullYear() === new Date().getFullYear()
     ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** " · 5 robocalls · 7 silent" — only the parts that are not ordinary. */
+function countsText(e: RegistryEntry): string {
+  const c = e.counts;
+  if (!c) return '';
+  const bits = [
+    c.robocall ? `${c.robocall} robocall${c.robocall === 1 ? '' : 's'}` : null,
+    c.silent ? `${c.silent} silent` : null,
+    c.spam ? `${c.spam} spam` : null,
+    c.blocked ? `${c.blocked} blocked` : null,
+    c.screened ? `${c.screened} screened` : null,
+  ].filter(Boolean);
+  return bits.length ? ` · ${bits.join(' · ')}` : '';
 }
 
 function timesCalledText(n: number): string {
@@ -100,6 +142,13 @@ export default function CallerRegistryPage(): React.ReactElement {
 
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [view, setView] = useState<View>('all');
+  // Opened from a call page ("Edit name, company and notes →"): open that number's editor.
+  const [wantPhone, setWantPhone] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('phone');
+    if (p && registryKey(p)) setWantPhone(registryKey(p));
+  }, []);
 
   // One row at a time: the phone being edited, or NEW_ENTRY, or null for "nothing open".
   const [editing, setEditing] = useState<string | null>(null);
@@ -134,6 +183,14 @@ export default function CallerRegistryPage(): React.ReactElement {
     setDraft(entry ? draftFrom(entry) : BLANK_DRAFT);
   }, []);
 
+  useEffect(() => {
+    if (!wantPhone || !entries) return;
+    const hit = entries.find((e) => e.phone === wantPhone);
+    if (hit) openEditor(hit);
+    else { openEditor(null); setDraft((d) => ({ ...d, phone: wantPhone })); }
+    setWantPhone(null);
+  }, [entries, openEditor, wantPhone]);
+
   const closeEditor = useCallback(() => {
     setEditing(null);
     setFormError(null);
@@ -165,6 +222,7 @@ export default function CallerRegistryPage(): React.ReactElement {
           relationship: draft.relationship,
           notes: draft.notes,
           neverAssume: draft.neverAssume,
+          screening: draft.screening,
         }),
       })
     ));
@@ -208,7 +266,9 @@ export default function CallerRegistryPage(): React.ReactElement {
     addToast(`Forgot ${formatPhone(phone)}. The receptionist will start over next time it rings.`, 'success');
   }, [addToast, closeEditor, editing, safeAction, safeFetch]);
 
-  const total = entries?.length ?? 0;
+  const shown = useMemo(() => (entries ?? []).filter((e) => inView(e, view)), [entries, view]);
+  const viewCount = useCallback((v: View) => (entries ?? []).filter((e) => inView(e, v)).length, [entries]);
+  const total = shown.length;
   const countText = useMemo(() => {
     if (entries === null) return '';
     if (debounced) return total === 1 ? '1 number matches' : `${total} numbers match`;
@@ -325,6 +385,20 @@ export default function CallerRegistryPage(): React.ReactElement {
         </div>
       </div>
 
+        <div className="creg__field creg__field--wide">
+          <label className="creg__label" htmlFor="creg-screening">When this number calls</label>
+          <select
+            id="creg-screening"
+            className="creg__select"
+            data-testid="creg-field-screening"
+            value={draft.screening}
+            onChange={(e) => set('screening', e.target.value as Screening)}
+          >
+            {SCREENINGS.map((s) => <option key={s} value={s}>{SCREENING_LABEL[s]}</option>)}
+          </select>
+          <p className="creg__hint">{SCREENING_HELP[draft.screening]}</p>
+        </div>
+
       {formError ? <p className="creg__formerror" data-testid="creg-form-error">{formError}</p> : null}
 
       <div className="creg__editoractions">
@@ -354,12 +428,12 @@ export default function CallerRegistryPage(): React.ReactElement {
     <div className="creg">
       <div className="creg__head">
         <div>
-          <h1 className="creg__title">Caller Registry</h1>
+          <h1 className="creg__title">Phone Numbers</h1>
           <p className="creg__sub">
-            Who the receptionist thinks each number belongs to, and how sure it is. A name you
-            <strong> confirm</strong> here is one it may greet by — &ldquo;Hi, is this Jacob?&rdquo;
-            A name it merely <strong>heard on a call</strong> is only a hint: it will ask who is
-            speaking rather than assume.
+            Every number that has called, what its calls turned out to be, and how the line treats it.
+            Robocallers are blocked and silent callers go to voicemail automatically; anyone tied to a
+            customer or a job always rings. A name you <strong>confirm</strong> here is one the
+            receptionist may greet by — &ldquo;Hi, is this Jacob?&rdquo;
           </p>
         </div>
         <div className="creg__headactions">
@@ -390,6 +464,23 @@ export default function CallerRegistryPage(): React.ReactElement {
         {countText ? <span className="creg__count" data-testid="creg-count">{countText}</span> : null}
       </div>
 
+      {entries && !debounced ? <OriginSummary entries={entries} /> : null}
+
+      <div className="creg__views" role="group" aria-label="Which numbers">
+        {VIEWS.map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            className="creg__view"
+            aria-pressed={view === v}
+            data-testid={`creg-view-${v}`}
+            onClick={() => setView(v)}
+          >
+            {label}{entries ? ` (${viewCount(v)})` : ''}
+          </button>
+        ))}
+      </div>
+
       {editing === NEW_ENTRY ? editor(true) : null}
 
       {loadFailed ? (
@@ -413,6 +504,11 @@ export default function CallerRegistryPage(): React.ReactElement {
         </div>
       ) : entries === null ? (
         <p className="creg__statebody" data-testid="creg-loading">Looking up what we know…</p>
+      ) : shown.length === 0 && view !== 'all' && !debounced ? (
+        <div className="creg__state" data-testid="creg-empty-view">
+          <p className="creg__statetitle">No numbers here</p>
+          <p className="creg__statebody">Nothing in this group right now.</p>
+        </div>
       ) : entries.length === 0 ? (
         <div className="creg__state" data-testid="creg-empty">
           <p className="creg__statetitle">
@@ -437,7 +533,7 @@ export default function CallerRegistryPage(): React.ReactElement {
         </div>
       ) : (
         <div className="creg__list">
-          {entries.map((e) => {
+          {shown.map((e) => {
             if (editing === e.phone) return <div key={e.phone}>{editor(false)}</div>;
             const confirmed = e.nameSource === 'verified' && !!e.displayName;
             return (
@@ -469,24 +565,40 @@ export default function CallerRegistryPage(): React.ReactElement {
                         No name, ever
                       </span>
                     ) : null}
-                    <span className="creg__badge creg__badge--rel">{RELATIONSHIP_LABEL[e.relationship] ?? e.relationship}</span>
+                    {/* "Not sure yet" next to "Robocaller" read as a contradiction; an unknown
+                        relationship says nothing the status badge does not. */}
+                    {e.relationship !== 'unknown' ? (
+                      <span className="creg__badge creg__badge--rel">{RELATIONSHIP_LABEL[e.relationship] ?? e.relationship}</span>
+                    ) : null}
+                    {e.status && e.status !== 'unknown' ? (
+                      <span className={`creg__badge creg__badge--s-${e.status}`} title={e.statusReason ?? undefined}>{STATUS_LABEL[e.status]}</span>
+                    ) : null}
+                    <span className={`creg__badge creg__badge--treat${treatmentText(e) === 'Rings normally' ? '' : ' creg__badge--screened'}`}>{treatmentText(e)}</span>
                   </div>
+                  <p className="creg__idline">
+                    {e.place ?? (e.region ? REGION_LABEL[e.region as Region] ?? e.region : '')}
+                    {e.id ? <span title={e.id}>{e.place || e.region ? ' · ' : ''}ID {e.id.slice(0, 8)}</span> : null}
+                  </p>
                 </div>
 
                 <div className="creg__about">
                   <span className="creg__aboutlabel">Last called about</span>
                   {e.lastAbout || 'Nothing recorded'}
                   {e.notes ? <p className="creg__notes">{e.notes}</p> : null}
+                  {e.links?.label ? (
+                    <p className="creg__notes">
+                      {e.links.label}
+                      {e.links.jobId ? <> · <Link href={`/admin/jobs/${e.links.jobId}`}>Job</Link></> : null}
+                      {e.links.leadId ? <> · <Link href={`/admin/leads/${e.links.leadId}`}>Lead</Link></> : null}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="creg__side">
                   <span className="creg__when">{lastHeard(e.lastSeenAt)}</span>
-                  <span>{timesCalledText(e.timesCalled)}</span>
+                  <span>{timesCalledText(e.timesCalled)}{countsText(e)}</span>
                   <div className="creg__rowactions">
-                    {/* TODO: /admin/calls has no `?search=` — it filters client-side by kind only.
-                        Linking at the list rather than inventing a parameter the page ignores;
-                        point this at `/admin/calls?search=${e.phone}` once that page reads one. */}
-                    <Link href="/admin/calls" className="creg__link" data-testid={`creg-calls-${e.phone}`}>
+                    <Link href={`/admin/calls?search=${e.phone}`} className="creg__link" data-testid={`creg-calls-${e.phone}`}>
                       Their calls →
                     </Link>
                     <button

@@ -97,7 +97,8 @@ describe('the call is refused before the phone rings', () => {
     path.join(process.cwd(), 'app/api/twilio/receptionist/route.ts'), 'utf8').replace(/\r\n/g, '\n');
 
   it('checks the block list before dialling the owner', () => {
-    const check = src.indexOf('await isBlocked(');
+    // Since 2026-10-06 the block list is read inside screenIncoming (lib/receptionist/screening.ts).
+    const check = src.indexOf('await screenIncoming(');
     const dialAt = src.indexOf('const owner = ownerPhone()');
     expect(check).toBeGreaterThan(-1);
     expect(dialAt).toBeGreaterThan(-1);
@@ -111,7 +112,7 @@ describe('the call is refused before the phone rings', () => {
     expect(src).toContain("answered_by: 'blocked'");
     expect(src).toContain('startCall(');
     const start = src.indexOf('startCall(');
-    expect(start).toBeLessThan(src.indexOf('await isBlocked('));
+    expect(start).toBeLessThan(src.indexOf('await screenIncoming('));
   });
 
   it('marks it notified, so no later webhook emails about a call we refused', () => {

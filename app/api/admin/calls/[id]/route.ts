@@ -4,6 +4,8 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { getCall, updateCall } from '@/lib/receptionist/calls';
+import { lookupRegistry } from '@/lib/receptionist/registry';
+import { originNote, regionText } from '@/lib/receptionist/area-codes';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +30,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!id) return NextResponse.json({ error: 'Missing call id' }, { status: 400 });
   const call = await getCall(supabaseAdmin, id);
   if (!call) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ call });
+  // The number behind the call — who it is, what its calls have been, how the line treats it — and
+  // its other calls, so the page can answer "has this happened before?" without a second trip.
+  const [number, others] = await Promise.all([
+    lookupRegistry(supabaseAdmin, call.from_number),
+    supabaseAdmin.from('phone_calls')
+      .select('id, started_at, answered_by, caller_verdict, screened_as, duration_seconds, summary')
+      .eq('from_number', call.from_number).eq('is_test', call.is_test).neq('id', call.id)
+      .order('started_at', { ascending: false }).limit(25),
+  ]);
+  return NextResponse.json({ call, number, otherCalls: others.data ?? [], region: regionText(call.from_number), originNote: originNote(call.from_number) });
 }, { routeName: 'admin/calls/[id]' });
 
 /** Admins can correct what the receptionist heard: caller name, callback number, kind, notes. */

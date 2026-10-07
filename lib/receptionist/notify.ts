@@ -23,7 +23,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { ASSISTANT_NAME, OWNER_NAME } from './knowledge';
 import type { CallFacts } from './state';
 import type { PhoneCall } from './calls';
-import { callTitle, factsFromCall, formatUsPhone } from './calls';
+import { CALL_COLUMNS, callTitle, factsFromCall, formatUsPhone } from './calls';
+import { judgeCall } from './call-verdict';
 
 export interface CallOutcome {
   from: string;
@@ -47,6 +48,8 @@ export interface CallOutcome {
    * 2020 survey for Lot 14". The bell still lights immediately either way.
    */
   provisional?: boolean;
+  /** The sweep's last word: judge the call on what is there, because nothing more is coming. */
+  final?: boolean;
 }
 
 export function personalRecipient(env: Record<string, string | undefined> = process.env): string | null {
@@ -178,19 +181,18 @@ export function outcomeText(o: CallOutcome): string {
  * Owner, 2026-09-23: "whenever someone calls, we get 2-3 emails and 2-3 app notifications... I want
  * it so that these notifications are all consolidated into one email and one notification."
  *
- * A single call fires several webhooks — the dial result, then the transcript minutes later — and
- * each used to insert its own row. Measured on the live table: exactly 12 rows per call, 2 for each
- * of the 6 people with an intake role, every time.
+ * A single call fires several webhooks — the dial result, then the transcript minutes later. The
+ * first one to arrive CLAIMS the bell (`belled_at`, a conditional update that only one request can
+ * win) and files one row per person, with one push. Every later one revises those rows in place.
  *
- * The two are not equals. The first says "Answered by Hank, 287 seconds. The recording and a
- * summary follow once it is transcribed"; the second says "Chrissy at Riverway Title called about
- * Starr's 2020 survey (job 20178) for Lot…". So this does not drop the later one — it REVISES the
- * row already there, and the bell ends up holding the good summary rather than both.
+ * Until 2026-10-06 the "is there a bell already?" check was a read followed by an insert, so two
+ * webhooks landing together could both see nothing and both insert. The claim closes that.
  *
- * Revising marks it unread again: the placeholder may well have been read, and the real summary is
- * the part actually worth reading. No second push — the phone already buzzed for this call.
+ * A revision marks the bell unread again only when it replaces a placeholder ("the summary follows
+ * once it is transcribed") — the one case where the new text is news. Otherwise a call that is
+ * revised three times would look like three new notifications.
  */
-export async function notifyInApp(o: CallOutcome): Promise<number> {
+export async function notifyInApp(o: CallOutcome, opts: { reviseOnly?: boolean } = {}): Promise<number> {
   try {
     // Who hears about a phone call is decided in one place now — lib/notifications/audience.ts —
     // rather than by a role list here. It used to include `employee`, which every person holds, so
@@ -200,28 +202,33 @@ export async function notifyInApp(o: CallOutcome): Promise<number> {
     const f = mergedFacts(o);
     const personal = f.kind === 'personal';
     const content = {
-      title: callTitle({ caller_name: f.name ?? null, from_number: o.from, kind: f.kind ?? null, answered_by: o.answeredBy ?? null }),
+      title: bellTitle(o, f),
       body: briefSummary(o.summary, 200),
       link: o.callId ? `/admin/calls/${o.callId}` : '/admin/calls',
       escalation_level: (f.kind === 'customer' ? 'high' : personal ? 'low' : 'normal') as 'high' | 'low' | 'normal',
     };
 
-    if (o.callId) {
+    const first = o.callId && !opts.reviseOnly ? await claim(o.callId, 'belled_at') : !o.callId;
+    if (!first) {
+      if (!o.callId) return 0;
       const { data: already } = await supabaseAdmin
         .from('notifications')
-        .select('id')
+        .select('id, body, is_read')
         .eq('source_type', 'phone_calls')
         .eq('source_id', o.callId)
         .limit(50);
-      if (already?.length) {
-        await supabaseAdmin
-          .from('notifications')
-          .update({ ...content, is_read: false, read_at: null })
-          .eq('source_type', 'phone_calls')
-          .eq('source_id', o.callId);
-        console.log(`[receptionist] revised ${already.length} existing bell rows for call ${o.callId}`);
-        return already.length;
-      }
+      const rows = (already ?? []) as Array<{ id: string; body: string | null; is_read: boolean | null }>;
+      if (!rows.length) return 0;
+      const wasPlaceholder = rows.some((r) => PLACEHOLDER.test(r.body ?? ''));
+      const unchanged = rows.every((r) => (r.body ?? '') === content.body);
+      if (unchanged) return rows.length;
+      await supabaseAdmin
+        .from('notifications')
+        .update(wasPlaceholder && !opts.reviseOnly ? { ...content, is_read: false, read_at: null } : content)
+        .eq('source_type', 'phone_calls')
+        .eq('source_id', o.callId);
+      console.log(`[receptionist] revised ${rows.length} existing bell rows for call ${o.callId}`);
+      return rows.length;
     }
 
     await notifyMany(recipients, {
@@ -231,6 +238,7 @@ export async function notifyInApp(o: CallOutcome): Promise<number> {
       source_type: 'phone_calls',
       source_id: o.callId,
     });
+    if (o.callId) await logNotice(o.callId, 'bell', true, `${recipients.length} people`);
     return recipients.length;
   } catch (err) {
     console.error('[receptionist] in-app notify failed:', err);
@@ -238,15 +246,33 @@ export async function notifyInApp(o: CallOutcome): Promise<number> {
   }
 }
 
+/** The text a placeholder summary carries; a revision away from it is worth a fresh "unread". */
+const PLACEHOLDER = /follows? once (?:it is )?transcribed|summary follow/i;
+
+/** The bell's title, which says plainly when a call was screened or turned out to be junk. */
+function bellTitle(o: CallOutcome, f: CallFacts): string {
+  const base = callTitle({ caller_name: f.name ?? null, from_number: o.from, kind: f.kind ?? null, answered_by: o.answeredBy ?? null });
+  const v = o.call?.caller_verdict;
+  if (v === 'robocall') return `Robocall from ${formatUsPhone(o.from)} — blocked from now on`;
+  if (v === 'silent') return `Silent call from ${formatUsPhone(o.from)} — goes to voicemail from now on`;
+  if (o.call?.screened_as === 'voicemail') return `${base} (screened number)`;
+  return base;
+}
+
 export async function notifyOwners(
   o: CallOutcome,
   deps: {
     send?: typeof sendSMSViaTwilio;
     email?: (subject: string, text: string) => Promise<boolean>;
-    inApp?: (o: CallOutcome) => Promise<number>;
+    inApp?: (o: CallOutcome, opts?: { reviseOnly?: boolean }) => Promise<number>;
     env?: Record<string, string | undefined>;
     /** Has an email already gone out about this call? Injected so the gate can be tested. */
     alreadyNotified?: (callId: string) => Promise<boolean>;
+    /** Take the one email for this call. True for exactly one caller, ever (unless released). */
+    claimEmail?: (callId: string) => Promise<boolean>;
+    /** Give the claim back after every channel failed, so the sweep can try again. */
+    releaseEmail?: (callId: string) => Promise<void>;
+    /** Record that the email/text went out. */
     stamp?: (callId: string) => Promise<void>;
   } = {},
 ): Promise<{ texted: number; emailed: boolean; belled: number }> {
@@ -259,26 +285,61 @@ export async function notifyOwners(
     console.log('[receptionist] test call — no text, no email, no bell');
     return { texted: 0, emailed: false, belled: 0 };
   }
-  const send = deps.send ?? sendSMSViaTwilio;
-  const text = outcomeText(o);
-  const belled = await (deps.inApp ?? notifyInApp)(o);
+  const none = { texted: 0, emailed: false, belled: 0 };
+  const claimFn = deps.claimEmail ?? (deps.alreadyNotified
+    ? async (id: string) => !(await deps.alreadyNotified!(id))
+    : claimEmailFor);
+  const releaseFn = deps.releaseEmail ?? (deps.claimEmail || deps.alreadyNotified ? async () => {} : releaseEmailFor);
+
+  // ── SCREENED AND UNWANTED CALLS (owner, 2026-10-06) ───────────────────────────────────────────
+  //
+  // What the call turned out to be (lib/receptionist/call-verdict.ts) decides who hears about it:
+  //   screened to voicemail, and no real message  → nobody. It is on /admin/calls under "Screened".
+  //   screened, and a real person left a message   → exactly like any voicemail (fail-safe 3).
+  //   a robocall or a silent call that rang through → the bell already filed is retitled to say so;
+  //                                                   no new bell, no email, no text.
+  const judged = o.callId && o.call ? judgeCall(o.call as never, { final: o.final }) : null;
+  const screened = o.call?.screened_as === 'voicemail' || o.call?.screened_as === 'blocked' || o.call?.answered_by === 'blocked';
+  if (o.callId && screened && judged?.verdict !== 'person') {
+    if (judged?.ready) {
+      // Taken so the sweep never mails about it later; nothing is sent.
+      if (await claimFn(o.callId)) await logNotice(o.callId, 'email', false, `not sent: screened (${judged.verdict})`);
+    }
+    console.log(`[receptionist] call ${o.callId}: screened, ${judged?.verdict ?? 'pending'} — nobody told`);
+    return none;
+  }
+  const verdictForTitle = judged?.ready ? judged.verdict : null;
+  const junk = verdictForTitle === 'robocall' || verdictForTitle === 'silent';
+  const titled: CallOutcome = junk && o.call ? { ...o, call: { ...o.call, caller_verdict: verdictForTitle } } : o;
+  const belled = await (deps.inApp ?? notifyInApp)(titled, junk ? { reviseOnly: true } : {});
+  if (o.callId && junk) {
+    if (await claimFn(o.callId)) await logNotice(o.callId, 'email', false, `not sent: ${verdictForTitle}`);
+    console.log(`[receptionist] call ${o.callId}: ${verdictForTitle} — bell retitled, no email`);
+    return { texted: 0, emailed: false, belled };
+  }
 
   // ── ONE EMAIL AND ONE TEXT PER CALL ───────────────────────────────────────────────────────────
   //
   // The bell above can be revised after the fact; a sent email cannot. So the email waits for a
-  // summary worth sending, and once it has gone out, later webhooks for the same call stay quiet.
-  //
-  // `notified_at` on the call row is the record of that. It is the same stamp a blocked call gets
-  // (app/api/twilio/receptionist/route.ts), for the same reason: it means "this call has been
-  // dealt with; no webhook that fires later should mail anybody about it".
+  // summary worth sending, and the first webhook with one CLAIMS it (`emailed_at`, a conditional
+  // update) before sending. A second webhook arriving in the same second finds it taken.
   if (o.callId) {
-    const gate = await emailGateFor(o, deps.alreadyNotified ?? hasBeenNotified);
-    if (gate !== 'send') {
-      console.log(`[receptionist] call ${o.callId}: bell only — ${gate}`);
+    if (o.provisional) {
+      console.log(`[receptionist] call ${o.callId}: bell only — summary is provisional; waiting for the transcript`);
+      return { texted: 0, emailed: false, belled };
+    }
+    if (judged && !judged.ready) {
+      console.log(`[receptionist] call ${o.callId}: bell only — ${judged.reason.toLowerCase()}`);
+      return { texted: 0, emailed: false, belled };
+    }
+    if (!(await claimFn(o.callId))) {
+      console.log(`[receptionist] call ${o.callId}: bell only — already emailed about this call`);
       return { texted: 0, emailed: false, belled };
     }
   }
 
+  const send = deps.send ?? sendSMSViaTwilio;
+  const text = outcomeText(o);
   let texted = 0;
   for (const to of recipientsFor(mergedFacts(o), deps.env)) {
     try {
@@ -289,42 +350,62 @@ export async function notifyOwners(
   }
   let emailed = false;
   try {
-    emailed = await (deps.email ?? emailOffice)(`Phone: ${briefSummary(o.summary, 80)}`, text);
+    emailed = await (deps.email ?? emailOffice)(emailSubject(o), text);
   } catch (err) {
     console.error('[receptionist] owner email threw:', err);
   }
 
-  // Stamped after the fact, so a send that threw leaves the call still owed an email and the sweep
-  // picks it up, rather than marking it done on the way in and losing it.
-  if (o.callId && (emailed || texted)) {
-    await (deps.stamp ?? stampNotified)(o.callId);
+  if (o.callId) {
+    if (emailed || texted) {
+      await (deps.stamp ?? stampNotified)(o.callId);
+      await logNotice(o.callId, 'email', emailed, emailed ? 'office inbox' : 'email failed');
+      if (texted) await logNotice(o.callId, 'text', true, `${texted} sent`);
+    } else {
+      // Every channel failed: give the claim back so the sweep tries again, rather than marking a
+      // call nobody heard about as dealt with.
+      await releaseFn(o.callId);
+    }
   }
   return { texted, emailed, belled };
 }
 
-/**
- * Should this outcome put an email and a text out, or has the call been dealt with already?
- *
- * Fails toward SENDING: a lookup that throws reads as "not yet notified", and the worst case is the
- * duplicate we started with rather than a customer nobody hears about.
- */
-async function emailGateFor(o: CallOutcome, notified: (id: string) => Promise<boolean>): Promise<'send' | string> {
-  if (await notified(o.callId as string)) return 'already emailed about this call';
-  // The placeholder from `after-dial` — "the recording and a summary follow once it is
-  // transcribed" — is not worth an email when the real summary is minutes away. If the transcript
-  // never arrives, the sweep in `mailUnnotifiedCalls` sends what we have rather than nothing.
-  if (o.provisional) return 'summary is provisional; waiting for the transcript';
-  return 'send';
+/** "Missed call — (254) 555-0100" / "Customer voicemail — Lindsey Rusler". */
+function emailSubject(o: CallOutcome): string {
+  const f = mergedFacts(o);
+  const who = f.name || formatUsPhone(o.from) || o.from;
+  const urgent = urgentPrefix(o);
+  return `${urgent ? `${urgent}: ` : ''}${headline(o, f)} — ${who}`;
 }
 
-async function hasBeenNotified(callId: string): Promise<boolean> {
+/**
+ * Claim a once-per-call notice: set the column only if it is still empty, and say whether this
+ * request was the one that set it. PostgREST runs it as one UPDATE … WHERE col IS NULL, so of two
+ * webhooks racing, exactly one gets the row back.
+ *
+ * Fails toward SENDING: if the claim itself errors, the caller is told it won. The worst case is the
+ * duplicate we started with, never a customer nobody hears about.
+ */
+async function claim(callId: string, column: 'belled_at' | 'emailed_at'): Promise<boolean> {
   try {
-    const { data } = await supabaseAdmin
-      .from('phone_calls').select('notified_at').eq('id', callId).maybeSingle();
-    return Boolean((data as { notified_at?: string | null } | null)?.notified_at);
+    const now = new Date().toISOString();
+    const patch: Record<string, string> = { [column]: now };
+    if (column === 'emailed_at') patch.notified_at = now;
+    const { data, error } = await supabaseAdmin.from('phone_calls').update(patch).eq('id', callId).is(column, null).select('id');
+    if (error) { console.error(`[receptionist] ${column} claim failed, sending anyway:`, error); return true; }
+    return (data ?? []).length > 0;
   } catch (err) {
-    console.error('[receptionist] notified_at lookup threw, sending anyway:', err);
-    return false;
+    console.error(`[receptionist] ${column} claim threw, sending anyway:`, err);
+    return true;
+  }
+}
+
+const claimEmailFor = (callId: string) => claim(callId, 'emailed_at');
+
+async function releaseEmailFor(callId: string): Promise<void> {
+  try {
+    await supabaseAdmin.from('phone_calls').update({ emailed_at: null, notified_at: null }).eq('id', callId);
+  } catch (err) {
+    console.error('[receptionist] could not release the email claim:', err);
   }
 }
 
@@ -334,6 +415,19 @@ async function stampNotified(callId: string): Promise<void> {
       .update({ notified_at: new Date().toISOString() }).eq('id', callId);
   } catch (err) {
     console.error('[receptionist] could not stamp notified_at:', err);
+  }
+}
+
+/** One line in the call's notice record — what the call page shows under "Who was told". */
+async function logNotice(callId: string, channel: string, ok: boolean, detail?: string): Promise<void> {
+  try {
+    const { data } = await supabaseAdmin.from('phone_calls').select('notify_log').eq('id', callId).maybeSingle();
+    const log = Array.isArray((data as { notify_log?: unknown } | null)?.notify_log) ? (data as { notify_log: unknown[] }).notify_log : [];
+    await supabaseAdmin.from('phone_calls')
+      .update({ notify_log: [...log, { at: new Date().toISOString(), channel, ok, ...(detail ? { detail } : {}) }].slice(-20) })
+      .eq('id', callId);
+  } catch {
+    // Bookkeeping; the notice itself already went (or did not) regardless.
   }
 }
 
@@ -356,8 +450,8 @@ export async function mailUnnotifiedCalls(
   try {
     const { data, error } = await supabaseAdmin
       .from('phone_calls')
-      .select('id, from_number, summary, answered_by, is_test, analysis, caller_name, caller_email, started_at')
-      .is('notified_at', null)
+      .select(CALL_COLUMNS)
+      .is('emailed_at', null)
       .not('ended_at', 'is', null)
       .lt('ended_at', cutoff)
       .order('ended_at', { ascending: false })
@@ -366,13 +460,13 @@ export async function mailUnnotifiedCalls(
 
     let mailed = 0;
     for (const row of data as unknown as PhoneCall[]) {
-      // A blocked call is stamped the moment it is refused, so it never reaches here. A test call
+      // A blocked call is claimed the moment it is refused, so it never reaches here. A test call
       // is refused by notifyOwners itself. Both checks are cheap and both are worth keeping local.
       if (row.is_test) continue;
       const summary = row.analysis?.summary || row.summary || 'Called. No transcript arrived, so there is no summary — the recording is on the call page.';
       const res = await notify({
         from: row.from_number, facts: {}, summary,
-        callId: row.id, answeredBy: row.answered_by, call: row,
+        callId: row.id, answeredBy: row.answered_by, call: row, final: true,
       });
       if (res.emailed || res.texted) mailed += 1;
     }

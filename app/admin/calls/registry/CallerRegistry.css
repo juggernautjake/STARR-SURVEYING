@@ -154,3 +154,34 @@
   .creg__rowactions { width: 100%; }
   .creg__rowactions .creg__btn, .creg__rowactions .creg__link { flex: 1 1 auto; text-align: center; }
 }
+
+/* ── The numbers catalogue (2026-10-06) ─────────────────────────────────────────────────────── */
+.creg__views { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+.creg__view {
+  min-height: 36px; padding: 0 .85rem; border-radius: 999px;
+  border: var(--border-light); background: transparent; color: inherit; font: inherit; font-size: .85rem; cursor: pointer;
+}
+.creg__view[aria-pressed="true"] { background: var(--color-brand-navy); border-color: var(--color-brand-navy); color: var(--color-text-on-brand); }
+.creg__idline { margin: .3rem 0 0; font-size: .78rem; color: var(--color-text-secondary); }
+.creg__badge--s-customer, .creg__badge--s-person { background: var(--color-success-surface, rgba(31,157,99,.14)); color: var(--color-success-text, inherit); }
+.creg__badge--s-robocall { background: var(--color-error-surface, rgba(189,18,24,.1)); color: var(--color-error-text, inherit); }
+.creg__badge--s-silent, .creg__badge--s-spam { background: var(--color-bg-subtle, rgba(127,127,127,.12)); }
+.creg__badge--treat { background: transparent; border: var(--border-light); }
+.creg__badge--screened { border-color: var(--color-warning-text, #b45309); color: var(--color-warning-text, #b45309); }
+
+/* ── Where calls come from ── */
+.creg__origin { margin: 0 0 1rem; border: var(--border-light); border-radius: var(--radius-md, 8px); background: var(--color-bg-subtle, rgba(127,127,127,.05)); }
+.creg__originhead { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; width: 100%; padding: .7rem .9rem; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.creg__origintitle { font-weight: 700; font-size: .9rem; }
+.creg__origintitle::after { content: ' ▾'; color: var(--color-text-secondary); }
+.creg__originhead[aria-expanded="true"] .creg__origintitle::after { content: ' ▴'; }
+.creg__originline { font-size: .84rem; color: var(--color-text-secondary); line-height: 1.4; }
+.creg__origintable { padding: 0 .9rem .8rem; }
+.creg__originrow { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(6, minmax(0, 1fr)); gap: .3rem; padding: .3rem 0; border-top: var(--border-light); font-size: .84rem; font-variant-numeric: tabular-nums; }
+.creg__originrow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.creg__originrow--head { font-weight: 700; font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; color: var(--color-text-secondary); border-top: 0; }
+.creg__originbad { color: var(--color-error-text, #b91c1c); font-weight: 700; }
+@media (max-width: 420px) {
+  .creg__originrow { grid-template-columns: minmax(0, 1.8fr) repeat(6, minmax(0, 1fr)); font-size: .78rem; }
+  .creg__originrow--head { font-size: .62rem; letter-spacing: 0; }
+}

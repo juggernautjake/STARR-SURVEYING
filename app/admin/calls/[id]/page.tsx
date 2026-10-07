@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import type { PhoneCall } from '@/lib/receptionist/calls';
+import type { RegistryEntry } from '@/lib/receptionist/registry';
+import { NoticesPanel, ThisNumberPanel, VerdictPanel, type OtherCall } from './CallScreeningPanels';
 
 function fmtPhone(e164: string | null): string {
   const d = (e164 ?? '').replace(/\D/g, '');
   return d.length === 11 ? `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : e164 ?? '';
 }
-const HOW: Record<string, string> = { owner: 'Hank answered', ai: 'Receptionist handled it', voicemail: 'Left a voicemail', none: 'Missed' };
+const HOW: Record<string, string> = { owner: 'Hank answered', ai: 'Receptionist handled it', voicemail: 'Left a voicemail', none: 'Missed', blocked: 'Blocked' };
 const WHO: Record<string, string> = { caller: 'Caller', assistant: 'Ellie', owner: 'Hank' };
 
 export default function CallPage(): React.ReactElement {
@@ -20,12 +22,20 @@ export default function CallPage(): React.ReactElement {
   const { reportPageError } = usePageError('CallDetailPage');
   const [call, setCall] = useState<PhoneCall | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [number, setNumber] = useState<RegistryEntry | null>(null);
+  const [otherCalls, setOtherCalls] = useState<OtherCall[]>([]);
+  const [region, setRegion] = useState<string | null>(null);
+  const [originNoteText, setOriginNoteText] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/admin/calls/${id}`);
-    const j = (await r.json()) as { call?: PhoneCall; error?: string };
+    const j = (await r.json()) as { call?: PhoneCall; error?: string; number?: RegistryEntry | null; otherCalls?: OtherCall[]; region?: string; originNote?: string | null };
     if (j.error) reportPageError(j.error);
     setCall(j.call ?? null);
+    setNumber(j.number ?? null);
+    setOtherCalls(j.otherCalls ?? []);
+    setRegion(j.region ?? null);
+    setOriginNoteText(j.originNote ?? null);
   }, [id, reportPageError]);
 
   useEffect(() => { void load(); }, [load]);
@@ -117,6 +127,8 @@ export default function CallPage(): React.ReactElement {
       </div>
 
       <div>
+        <ThisNumberPanel call={call} number={number} region={region} originNote={originNoteText} otherCalls={otherCalls} onChanged={() => void load()} onError={(m) => reportPageError(m)} />
+        <VerdictPanel call={call} onChanged={() => void load()} onError={(m) => reportPageError(m)} />
         <section className="call-panel">
           <h2 className="call-panel__title">AI analysis</h2>
           {a ? (
@@ -143,6 +155,7 @@ export default function CallPage(): React.ReactElement {
             <p className="call-panel__empty">{call.status === 'completed' ? 'No analysis for this call (nothing to analyze, or AI is not configured).' : 'The analysis runs when the call ends.'}</p>
           )}
         </section>
+        <NoticesPanel call={call} />
         {call.lead_id ? null : (
           <section className="call-panel">
             <h2 className="call-panel__title">Next step</h2>

@@ -104,7 +104,7 @@ export async function recordOutcome(client: Client, callSid: string, outcome: Ca
 // ── Is anybody actually talking to her? ─────────────────────────────────────────────────────────
 
 /** The columns the health check reads. All of them exist on every deployment. */
-export const HEALTH_COLUMNS = 'answered_by, duration_seconds, recording_duration, transcript, voicemail_text, started_at';
+export const HEALTH_COLUMNS = 'answered_by, duration_seconds, recording_duration, transcript, voicemail_text, started_at, from_number, caller_verdict';
 
 export interface HealthRow {
   answered_by: string | null;
@@ -113,6 +113,20 @@ export interface HealthRow {
   transcript: Array<{ role: string; text: string }> | null;
   voicemail_text: string | null;
   started_at: string | null;
+  from_number?: string | null;
+  caller_verdict?: string | null;
+}
+
+/**
+ * Calls that say nothing about the receptionist: robocalls, and numbers silent on more than one call
+ * (an autodialer that rings, waits, and hangs up). Found 2026-10-06 — two such dialers made 10 of the
+ * 16 "the caller said nothing" calls that had this banner telling the owner Ellie was failing. A
+ * single silent call from a number still counts: that could be her.
+ */
+export function nuisanceRows(rows: HealthRow[]): Set<HealthRow> {
+  const silentBy = new Map<string, number>();
+  for (const r of rows) if (r.caller_verdict === 'silent' && r.from_number) silentBy.set(r.from_number, (silentBy.get(r.from_number) ?? 0) + 1);
+  return new Set(rows.filter((r) => r.caller_verdict === 'robocall' || (r.caller_verdict === 'silent' && (silentBy.get(r.from_number ?? '') ?? 0) >= 2)));
 }
 
 export interface AgentHealth {
@@ -151,7 +165,9 @@ export const HEALTH_MIN_CALLS = 3;
 
 export function judgeAgentHealth(rows: HealthRow[]): AgentHealth {
   let labelled = 0; let neverReached = 0; let reached = 0; let talked = 0; let messagesLeft = 0;
+  const nuisance = nuisanceRows(rows);
   for (const r of rows) {
+    if (nuisance.has(r)) continue;
     if (r.answered_by === 'voicemail' && (r.voicemail_text ?? '').trim()) messagesLeft += 1;
     if (r.answered_by !== 'ai') continue;
     labelled += 1;

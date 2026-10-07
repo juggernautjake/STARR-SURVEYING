@@ -42,5 +42,27 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Whether callers are actually talking to the receptionist (2026-09-29). Only for the live log:
   // test calls are not evidence about the business line. Null when the read failed.
   const health = scope === 'live' ? await readAgentHealth(supabaseAdmin) : null;
-  return NextResponse.json({ calls, scope, health });
+  return NextResponse.json({ calls, scope, health, week: scope === 'live' ? await lastWeek() : null });
 }, { routeName: 'admin/calls' });
+
+/**
+ * The last seven days in one line: how many calls, how many were real, and how many the screening
+ * kept off the phone. The number the owner reviews at the end of the week (2026-10-06): "review how
+ * successful it is at the end of the week."
+ */
+async function lastWeek(): Promise<{ total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number } | null> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data, error } = await supabaseAdmin.from('phone_calls')
+    .select('caller_verdict, screened_as, answered_by')
+    .eq('is_test', false).gte('started_at', since).limit(2000);
+  if (error) return null;
+  const rows = (data ?? []) as Array<{ caller_verdict: string | null; screened_as: string | null; answered_by: string | null }>;
+  return {
+    total: rows.length,
+    real: rows.filter((r) => r.caller_verdict === 'person').length,
+    screened: rows.filter((r) => r.screened_as === 'voicemail').length,
+    blocked: rows.filter((r) => r.screened_as === 'blocked' || r.answered_by === 'blocked').length,
+    robocalls: rows.filter((r) => r.caller_verdict === 'robocall').length,
+    silent: rows.filter((r) => r.caller_verdict === 'silent').length,
+  };
+}

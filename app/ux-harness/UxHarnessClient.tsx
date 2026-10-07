@@ -113,6 +113,10 @@ const PAGES: Record<string, ComponentType> = {
   'receipts-new': nextDynamic(() => import('@/app/admin/receipts/new/page'), { ssr: false }),
   'hours-portal': nextDynamic(() => import('@/app/admin/hours/page'), { ssr: false }),
   'receipts-portal': nextDynamic(() => import('@/app/admin/receipts/page'), { ssr: false }),
+  // Calls and phone-number screening (2026-10-06).
+  calls: nextDynamic(() => import('@/app/admin/calls/page'), { ssr: false }),
+  'phone-numbers': nextDynamic(() => import('@/app/admin/calls/registry/page'), { ssr: false }),
+  'call-panels': nextDynamic(() => import('./CallPanelsHarnessMount'), { ssr: false }),
   announcements: nextDynamic(() => import('@/app/admin/announcements/page'), { ssr: false }),
   audit: nextDynamic(() => import('@/app/admin/support/_tabs/AuditTab'), { ssr: false }),
   'error-log': nextDynamic(() => import('@/app/admin/support/_tabs/ErrorLogTab'), { ssr: false }),

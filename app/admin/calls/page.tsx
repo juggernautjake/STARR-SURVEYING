@@ -30,8 +30,11 @@ import { Search, X } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import { searchCalls, matchedFields, type MatchField } from '@/lib/receptionist/call-search';
 import type { PhoneCall } from '@/lib/receptionist/calls';
+import { VERDICT_LABEL, isJunkCall, wasScreened } from '@/lib/receptionist/screening-labels';
+import { placeOf } from '@/lib/receptionist/area-codes';
 
-type Filter = 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none';
+type Filter = 'real' | 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none' | 'screened';
+type Week = { total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number };
 type Scope = 'live' | 'test';
 
 function when(iso: string): { day: string; time: string } {
@@ -49,7 +52,10 @@ function dur(s: number | null): string {
   if (!s) return '';
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 }
-const HOW: Record<string, string> = { owner: 'Hank answered', ai: 'Receptionist', voicemail: 'Voicemail', none: 'Missed' };
+const HOW: Record<string, string> = { owner: 'Hank answered', ai: 'Receptionist', voicemail: 'Voicemail', none: 'Missed', blocked: 'Blocked' };
+
+/** Verdicts worth a pill on the card; a real person or an unclear call needs no label. */
+const JUNK_PILL = new Set(['robocall', 'silent', 'spam']);
 
 /** What to call a match, so the list can say why a call is in it. */
 const WHERE: Record<MatchField, string> = {
@@ -66,7 +72,10 @@ const WHERE: Record<MatchField, string> = {
 export default function CallsPage(): React.ReactElement {
   const [calls, setCalls] = useState<PhoneCall[] | null>(null);
   const [health, setHealth] = useState<{ warn: boolean; statement: string } | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
+  // Real calls first (owner, 2026-10-06): robocalls, silent calls and screened calls with no message
+  // are one tap away under "Screened & blocked", not in the way.
+  const [filter, setFilter] = useState<Filter>('real');
+  const [week, setWeek] = useState<Week | null>(null);
   const [scope, setScope] = useState<Scope>('live');
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -104,11 +113,12 @@ export default function CallsPage(): React.ReactElement {
     if (debounced) params.set('search', debounced);
     fetch(`/api/admin/calls?${params.toString()}`)
       .then((r) => r.json())
-      .then((j: { calls?: PhoneCall[]; error?: string; health?: { warn: boolean; statement: string } | null }) => {
+      .then((j: { calls?: PhoneCall[]; error?: string; health?: { warn: boolean; statement: string } | null; week?: Week | null }) => {
         if (!alive) return;
         if (j.error) reportPageError(j.error);
         setCalls(j.calls ?? []);
         setHealth(j.health ?? null);
+        setWeek(j.week ?? null);
       })
       .catch((e: Error) => { if (alive) reportPageError(e); });
     return () => { alive = false; };
@@ -118,21 +128,29 @@ export default function CallsPage(): React.ReactElement {
     if (!calls) return [];
     // The answered-by chips narrow within whichever log is open. `is_test` is not consulted here at
     // all any more — the scope decided that, in the query.
-    const byFilter = filter === 'all'
+    // A test call has no verdict, so "Real calls" shows the whole test log.
+    const byFilter = filter === 'all' || (filter === 'real' && scope === 'test')
       ? calls
-      : filter === 'customer'
-        ? calls.filter((c) => c.kind === 'customer' || c.analysis?.caller_type === 'customer' || c.analysis?.caller_type === 'existing_client')
-        : calls.filter((c) => c.answered_by === filter);
+      : filter === 'real'
+        ? calls.filter((c) => !isJunkCall(c))
+        : filter === 'screened'
+          ? calls.filter((c) => wasScreened(c) || isJunkCall(c))
+          : filter === 'customer'
+            ? calls.filter((c) => c.kind === 'customer' || c.analysis?.caller_type === 'customer' || c.analysis?.caller_type === 'existing_client')
+            : calls.filter((c) => c.answered_by === filter && !isJunkCall(c));
     // Ranked in the browser: the server found the rows, this decides which one is most likely the
     // call somebody had in mind.
     return searchCalls(byFilter, debounced);
-  }, [calls, filter, debounced]);
+  }, [calls, filter, debounced, scope]);
 
   const clearSearch = useCallback(() => { setSearch(''); setDebounced(''); }, []);
 
+  const junkCount = useMemo(() => (calls ?? []).filter((c) => wasScreened(c) || isJunkCall(c)).length, [calls]);
   const filters: Array<[Filter, string]> = [
-    ['all', 'All'], ['customer', 'Customers'], ['ai', 'Receptionist'],
+    ['real', 'Real calls'], ['customer', 'Customers'], ['ai', 'Receptionist'],
     ['owner', 'Hank answered'], ['voicemail', 'Voicemail'], ['none', 'Missed'],
+    ...(scope === 'live' ? [['screened', `Screened & blocked${junkCount ? ` (${junkCount})` : ''}`] as [Filter, string]] : []),
+    ['all', 'Everything'],
   ];
 
   return (
@@ -147,7 +165,7 @@ export default function CallsPage(): React.ReactElement {
           </p>
         </div>
         <Link href="/admin/calls/registry" className="calls-page__testbtn" data-testid="calls-registry-link">
-          Who&rsquo;s calling →
+          Numbers →
         </Link>
         <Link href="/admin/calls/blocked" className="calls-page__testbtn" data-testid="calls-blocked-link">
           Blocked numbers →
@@ -164,6 +182,17 @@ export default function CallsPage(): React.ReactElement {
         <p className="calls-page__health" role="alert" data-testid="calls-agent-health">
           <b>Callers are not staying on the line with the receptionist.</b> {health.statement}{' '}
           <Link href="/admin/dev/receptionist">Receptionist settings →</Link>
+        </p>
+      ) : null}
+
+      {/* The week at a glance: is the screening keeping junk off the phone, and nothing else? */}
+      {scope === 'live' && week && week.total > 0 ? (
+        <p className="calls-page__week" data-testid="calls-week">
+          <b>Last 7 days:</b> {week.total} {week.total === 1 ? 'call' : 'calls'} · {week.real} real
+          {week.screened ? ` · ${week.screened} screened to voicemail` : ''}
+          {week.blocked ? ` · ${week.blocked} blocked` : ''}
+          {week.robocalls ? ` · ${week.robocalls} robocall${week.robocalls === 1 ? '' : 's'}` : ''}
+          {week.silent ? ` · ${week.silent} silent` : ''}
         </p>
       ) : null}
 
@@ -235,18 +264,28 @@ export default function CallsPage(): React.ReactElement {
         <div className="calls-list">
           {shown.map((c) => {
             const w = when(c.started_at);
-            const attention = (c.analysis?.urgency === 'high') || (c.answered_by === 'none');
+            const attention = !isJunkCall(c) && ((c.analysis?.urgency === 'high') || (c.answered_by === 'none'));
             const hits = debounced ? matchedFields(c, debounced) : [];
             return (
               <Link key={c.id} href={`/admin/calls/${c.id}`} className={`call-card${attention ? ' call-card--attention' : ''}`}>
                 <div className="call-card__when">{w.day}<br />{w.time}</div>
                 <div>
-                  <p className="call-card__title">{c.caller_name || fmtPhone(c.from_number)}{c.caller_name ? <span className="call-card__number"> · {fmtPhone(c.from_number)}</span> : null}</p>
+                  <p className="call-card__title">
+                    {c.caller_name || fmtPhone(c.from_number)}
+                    {c.caller_name ? <span className="call-card__number"> · {fmtPhone(c.from_number)}</span> : null}
+                    {/* Where the number is from — "Illinois", "Toll-free" — so a run of out-of-state
+                        silent calls is visible in the list without opening each one. */}
+                    {placeOf(c.from_number) !== 'Unknown' ? <span className="call-card__number"> · {placeOf(c.from_number)}</span> : null}
+                  </p>
                   <p className="call-card__summary">{c.analysis?.summary || c.summary || (c.transcript?.length ? c.transcript[0]?.text : 'No transcript yet.')}</p>
                   <div className="call-card__meta">
                     {c.is_test ? <span className="pill pill--test">Test</span> : null}
                     {c.kind ? <span className={`pill pill--${c.kind}`}>{c.kind}</span> : null}
                     {c.answered_by ? <span className={`pill pill--${c.answered_by}`}>{HOW[c.answered_by] ?? c.answered_by}</span> : null}
+                    {c.screened_as === 'voicemail' ? <span className="pill pill--screened" title={c.screen_reason ?? undefined}>Screened</span> : null}
+                    {c.caller_verdict && JUNK_PILL.has(c.caller_verdict) && c.answered_by !== 'blocked'
+                      ? <span className={`pill pill--v-${c.caller_verdict}`} title={c.verdict_reason ?? undefined}>{VERDICT_LABEL[c.caller_verdict]}</span>
+                      : null}
                     {c.analysis?.urgency === 'high' ? <span className="pill pill--high">urgent</span> : null}
                     {c.lead_id ? <span className="pill">lead</span> : null}
                     {c.recording_url ? <span className="pill">recording</span> : null}

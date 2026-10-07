@@ -14,6 +14,7 @@ import { hangup, say, twiml, twimlResponse } from '@/lib/twilio/twiml';
 import { readStateCookie, clearStateCookieHeader } from '@/lib/receptionist/state';
 import { OWNER_NAME as OWNER } from '@/lib/receptionist/knowledge';
 import { notifyOwners } from '@/lib/receptionist/notify';
+import { settleCall } from '@/lib/receptionist/screening';
 import { factsToColumns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { analyzeCall, contactColumns } from '@/lib/receptionist/analysis';
 import { defer } from '@/lib/server/defer';
@@ -47,19 +48,21 @@ export async function POST(request: Request): Promise<Response> {
         if (analysis) call = (await updateCall(supabaseAdmin, callSid, { ...contactColumns(call, analysis), analysis, summary: analysis.summary })) ?? call;
       }
       if (call?.is_test || state.test) { await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() }); return; }
+      if (call) await settleCall(supabaseAdmin, call);
       await notifyOwners({
         from,
         facts: { ...state.facts, kind: state.facts.kind ?? (call?.kind as never) ?? 'unknown' },
-        summary: part > 1
-          ? (transcript ? `Another message from the same call: ${transcript.slice(0, 160)}` : 'Left another message (no transcript).')
-          : call?.analysis?.summary || (transcript ? `voicemail: ${transcript.slice(0, 160)}` : 'left a voicemail (no transcript)'),
+        // The analysis is re-run over every message on the call, so its summary covers them all.
+        // (A second message used to REPLACE the bell's summary with "Another message from the same
+        // call: …", which threw away the first message's content.)
+        summary: call?.analysis?.summary
+          || (transcript ? `Voicemail: ${transcript.slice(0, 160)}` : part > 1 ? 'Left another message (no transcript).' : 'Left a voicemail (no transcript).'),
         recordingUrl: params.RecordingUrl ? `${params.RecordingUrl}.mp3` : undefined,
         transcript: transcript || undefined,
         callId: call?.id,
         answeredBy: 'voicemail',
         call,
       });
-      await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
     })(), 'voicemail wrap-up');
     return new Response(null, { status: 204 });
   }

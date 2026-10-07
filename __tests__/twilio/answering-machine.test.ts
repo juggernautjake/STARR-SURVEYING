@@ -60,8 +60,11 @@ beforeEach(() => {
 
 // ── the words ───────────────────────────────────────────────────────────────────────────────────
 describe('what the answering machine says', () => {
-  it('asks for a message with a name and number, and promises a call back as soon as possible', () => {
-    expect(MACHINE_LINES.greeting).toMatch(/leave a message with your name and phone number after the tone/);
+  it('thanks them, points them at the website, then asks for a message after the tone (owner, 2026-10-06)', () => {
+    expect(MACHINE_LINES.greeting).toMatch(/^Thank you for calling Starr Surveying\./);
+    expect(MACHINE_LINES.greeting).toMatch(/request a survey any time online at starr surveying dot com/);
+    expect(MACHINE_LINES.greeting).toMatch(/your name, your phone number and a short message after the tone/);
+    expectOrder(MACHINE_LINES.greeting, 'online', 'after the tone', 'the website comes before the tone');
     expect(MACHINE_LINES.greeting).toMatch(/get back to you as soon as possible/);
     expect(MACHINE_LINES.anythingElse).toBe('Thank you. Is there anything else?');
     expect(MACHINE_LINES.goodbye).toMatch(/Have a good day\. Goodbye\.$/);
