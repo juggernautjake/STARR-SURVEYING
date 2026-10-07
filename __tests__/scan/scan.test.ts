@@ -24,7 +24,7 @@ describe('setup guidance (owner: "tells the user what they need to do to set up 
   it('no helper → install it, connect the scanner, it appears on its own', () => {
     const a = adviseSetup(null, 'windows');
     expect(a.state).toBe('no-helper');
-    expect(a.steps.map((s) => s.title)).toEqual(['Install the Starr Scan helper', 'Connect your scanner', 'Come back here']);
+    expect(a.steps.map((s) => s.title)).toEqual(['Install the Starr Scan helper', 'Connect your scanner', 'Allow it when the browser asks', 'Come back here']);
   });
   it('an installed scanner that is switched off is named, with how to wake it', () => {
     const a = adviseSetup(status({ installed: [{ name: 'Brother DS-640', present: false }] }), 'windows');
@@ -228,5 +228,24 @@ describe('trimming the blank paper a sheet feeder scans past the page (2026-10-0
   });
   it('the helper saves colour pages as JPEG', () => {
     expect(readFileSync('scan-helper/src/drivers/wia.mjs', 'utf8')).toContain('{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}');
+  });
+});
+
+describe('a browser that blocked the site from the helper (2026-10-07)', () => {
+  it('says the browser blocked it, not "install the helper", and how to undo it', () => {
+    const a = adviseSetup(null, 'windows', { permission: 'denied', browser: 'edge' });
+    expect(a.state).toBe('browser-blocked');
+    expect(a.steps[0].detail).toContain('Edge');
+    expect(a.steps[1].title).toMatch(/Local network access/);
+  });
+  it('a first-time visitor is told to allow the browser prompt', () => {
+    expect(adviseSetup(null, 'windows', { permission: 'prompt' }).steps.map((s) => s.title)).toContain('Allow it when the browser asks');
+  });
+  it('the setup page is linked from Support', () => {
+    expect(readFileSync('app/admin/support/page.tsx', 'utf8')).toContain('href="/admin/scan-setup"');
+  });
+  it('the Mac download is a double-click app', () => {
+    expect(readFileSync('lib/scan/downloads.ts', 'utf8')).toContain('Starr-Scan-mac.zip');
+    expect(readFileSync('.github/workflows/scan-helper-release.yml', 'utf8')).toContain('LSUIElement');
   });
 });

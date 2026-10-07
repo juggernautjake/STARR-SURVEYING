@@ -28,7 +28,7 @@ import { listSane, scanSane } from './drivers/sane.mjs';
 import { discover, scanEscl } from './drivers/escl.mjs';
 import { listApps, launchApp, newFilesSince } from './apps.mjs';
 
-export const VERSION = '1.0.1';
+export const VERSION = '1.0.2';
 export const PORT = Number(process.env.STARR_SCAN_PORT || 47615);
 
 const ALLOWED_ORIGINS = new Set([

@@ -24,3 +24,26 @@
 .ssu__btn--primary { background: var(--color-brand-navy, #1D3095); border-color: var(--color-brand-navy, #1D3095); color: #fff; }
 .ssu__spin { animation: spin 1s linear infinite; } /* `spin` lives in globals.css */
 @media (max-width: 600px) { .ssu__btn { align-self: stretch; } }
+
+/* The browser-blocked state, and the picture of the Windows warning (2026-10-07). */
+.ssu__blocked { display: flex; flex-direction: column; gap: 8px; }
+.ssu__blocked p { margin: 0; }
+.ssu__ss { margin: 4px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.ssu__ss-box { max-width: 420px; padding: 16px 18px; border-radius: 6px; background: #0b57a4; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; }
+.ssu__ss-title { margin: 0 0 8px; font-size: 1.15rem; font-weight: 600; }
+.ssu__ss-text { margin: 0 0 10px; font-size: .85rem; opacity: .9; }
+.ssu__ss-link { margin: 0 0 14px; font-size: .9rem; text-decoration: underline; display: flex; align-items: center; gap: 6px; }
+.ssu__ss-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+.ssu__ss-run, .ssu__ss-dont { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid rgba(255,255,255,.7); font-size: .85rem; }
+.ssu__ss-run { background: rgba(255,255,255,.15); outline: 2px solid #facc15; outline-offset: 2px; }
+.ssu__ss-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #facc15; color: #111; font-size: .75rem; font-weight: 800; text-decoration: none; }
+
+/* Walkthrough fixes (2026-10-07): never wider than the screen; the picture's text keeps its own
+   colours whatever the page theme says about paragraphs; numbered steps keep their numbers. */
+.ssu { box-sizing: border-box; width: 100%; max-width: min(760px, 100%); padding-left: 16px; padding-right: 16px; overflow-wrap: anywhere; }
+.ssu * { box-sizing: border-box; min-width: 0; }
+.ssu__ss-box, .ssu__ss-box p, .ssu__ss-box span { color: #fff; }
+.ssu__ss-box .ssu__ss-mark { color: #111; }
+.ssu__steps, .ssu__list { list-style: decimal outside; }
+.ssu__list { list-style: disc outside; }
+.ssu__steps li, .ssu__list li { display: list-item; }

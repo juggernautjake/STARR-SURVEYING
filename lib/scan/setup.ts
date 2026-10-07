@@ -11,6 +11,8 @@ import type { HelperStatus } from './helper-client';
 export type SetupState =
   /** The helper is not running (or not installed) on this computer. */
   | 'no-helper'
+  /** The browser was told not to let this site reach the computer's own programs. */
+  | 'browser-blocked'
   /** The helper runs but sees no scanner and no scanning app. */
   | 'no-sources'
   /** A scanner is installed but switched off or asleep. */
@@ -53,12 +55,39 @@ const HELPER_STEP: Record<string, SetupStep> = {
   },
 };
 
-export function adviseSetup(status: HelperStatus | null, os: Os): SetupAdvice {
+/** How to undo a blocked local-network permission, in this browser's words. */
+export function unblockSteps(browser: 'edge' | 'chrome' | 'firefox' | 'safari' | 'other'): SetupStep[] {
+  const name = browser === 'edge' ? 'Edge' : browser === 'chrome' ? 'Chrome' : 'your browser';
+  return [
+    {
+      title: 'Open this site\'s settings',
+      detail: `In ${name}, click the icon just left of the web address at the top of the window (it looks like a padlock or two sliders), then choose "Site settings".`,
+    },
+    {
+      title: 'Allow "Local network access"',
+      detail: 'Find "Local network access" (on some versions "Local devices" or "Apps on device") and set it to Allow.',
+    },
+    { title: 'Come back to this window', detail: 'Your scanners appear within a few seconds — there is nothing to refresh.' },
+  ];
+}
+
+export function adviseSetup(
+  status: HelperStatus | null,
+  os: Os,
+  opts: { permission?: 'granted' | 'denied' | 'prompt' | 'unsupported'; browser?: 'edge' | 'chrome' | 'firefox' | 'safari' | 'other' } = {},
+): SetupAdvice {
   if (os === 'ios' || os === 'android') {
     return {
       state: 'mobile',
       headline: 'On a phone, the camera is your scanner.',
       steps: [{ title: 'Scan with the camera', detail: 'Take a photo of each page. You will see every page before anything is saved.' }],
+    };
+  }
+  if (!status && opts.permission === 'denied') {
+    return {
+      state: 'browser-blocked',
+      headline: 'Your browser is blocking this site from reaching the scanner helper.',
+      steps: unblockSteps(opts.browser ?? 'other'),
     };
   }
   if (!status) {
@@ -68,6 +97,7 @@ export function adviseSetup(status: HelperStatus | null, os: Os): SetupAdvice {
       steps: [
         HELPER_STEP[os] ?? HELPER_STEP.other,
         { title: 'Connect your scanner', detail: 'Plug it in with its USB cable (or connect it to the same Wi-Fi), and turn it on. If it works with your computer\'s own scan app, it will work here.' },
+        { title: 'Allow it when the browser asks', detail: 'The first time, your browser may ask to let this site "access devices on your local network" (or "apps on this device"). Choose Allow — that is how the website reaches the helper.' },
         { title: 'Come back here', detail: 'This window checks every few seconds. Your scanner appears as soon as it is ready — there is nothing to refresh.' },
       ],
     };

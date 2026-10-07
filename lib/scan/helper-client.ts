@@ -110,3 +110,34 @@ export function clientOs(ua: string = typeof navigator !== 'undefined' ? navigat
   if (/Linux/i.test(ua)) return 'linux';
   return 'other';
 }
+
+/**
+ * Has the browser been told it may talk to this computer's own programs?
+ *
+ * Chrome and Edge (2025+) ask "Allow this site to access devices on your local network?" the first
+ * time a website contacts the helper. A person who clicks Block gets a Scan button that looks
+ * exactly like "the helper is not installed" — the request simply fails. This reads the permission
+ * so the pop-up can say "your browser blocked it" and how to undo that, instead of sending them to
+ * install a program they already have. Browsers that have no such permission report 'unsupported'.
+ */
+export async function localNetworkPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
+  if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'unsupported';
+  for (const name of ['local-network-access', 'loopback-network']) {
+    try {
+      const s = await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+      return s.state;
+    } catch {
+      // This browser does not know that permission name; try the next.
+    }
+  }
+  return 'unsupported';
+}
+
+/** Which browser, for the "how to unblock it" steps. */
+export function clientBrowser(ua: string = typeof navigator !== 'undefined' ? navigator.userAgent : ''): 'edge' | 'chrome' | 'firefox' | 'safari' | 'other' {
+  if (/Edg\//.test(ua)) return 'edge';
+  if (/Firefox\//.test(ua)) return 'firefox';
+  if (/Chrome\//.test(ua)) return 'chrome';
+  if (/Safari\//.test(ua)) return 'safari';
+  return 'other';
+}
