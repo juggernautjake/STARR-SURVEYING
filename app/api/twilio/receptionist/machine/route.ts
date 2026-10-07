@@ -22,6 +22,7 @@ import { afterAnythingElse, afterRecording, MACHINE_LINES } from '@/lib/receptio
 import { appendTurns, getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { finishCall } from '@/lib/receptionist/finish';
 import { notifyOwners } from '@/lib/receptionist/notify';
+import { settleCall } from '@/lib/receptionist/screening';
 import { defer } from '@/lib/server/defer';
 
 export const dynamic = 'force-dynamic';
@@ -87,10 +88,10 @@ export async function POST(request: Request): Promise<Response> {
           await finishCall(callSid, from, { facts: {}, turns: (call.transcript ?? []).filter((t): t is { role: 'caller' | 'assistant'; text: string } => t.role !== 'owner') }, said.slice(0, 300));
           return;
         }
-        await updateCall(supabaseAdmin, callSid, { answered_by: 'none' });
+        const closed = (await updateCall(supabaseAdmin, callSid, { answered_by: 'none' })) ?? call;
         if (call.is_test || call.notified_at) return;
-        await notifyOwners({ from, facts: {}, summary: "Called, but didn't leave a message.", callId: call.id, answeredBy: 'none', call });
-        await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
+        await settleCall(supabaseAdmin, closed);
+        await notifyOwners({ from, facts: {}, summary: "Called, but didn't leave a message.", callId: call.id, answeredBy: 'none', call: closed });
       })(), 'answering machine goodbye');
     }
     return twimlResponse(outcome.twiml);

@@ -82,7 +82,6 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // Re-export files reached by directory path rather than filename. Harmless, and listed so the
   // count means something.
   'ai-engine/index.ts': 'barrel — re-export file, reached by directory path rather than filename',
-  'codes/index.ts': 'barrel — re-export file, reached by directory path rather than filename',
   'platform/index.ts': 'barrel — re-export file, reached by directory path rather than filename',
 };
 

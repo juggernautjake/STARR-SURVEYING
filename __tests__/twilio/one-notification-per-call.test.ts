@@ -117,7 +117,7 @@ describe('a held email is not a lost call', () => {
 
   it('it only looks at calls that have ended and were never mailed about', () => {
     const src = read('lib/receptionist/notify.ts');
-    expect(src).toContain(".is('notified_at', null)");
+    expect(src).toContain(".is('emailed_at', null)");
     expect(src).toContain(".not('ended_at', 'is', null)");
   });
 
@@ -131,8 +131,19 @@ describe('the bell revises its row instead of adding one', () => {
   const src = read('lib/receptionist/notify.ts');
 
   it('updates the rows already filed against this call', () => {
-    expect(src).toMatch(/\.update\(\{ \.\.\.content, is_read: false, read_at: null \}\)/);
+    expect(src).toMatch(/\{ \.\.\.content, is_read: false, read_at: null \}/);
     expect(src).toContain(".eq('source_type', 'phone_calls')");
+  });
+
+  it('the first bell is CLAIMED, so two webhooks at once cannot both file one (2026-10-06)', () => {
+    // The old check was a read followed by an insert — two webhooks arriving together both saw
+    // nothing and both inserted. The claim is one conditional UPDATE only one request can win.
+    expect(src).toContain("claim(o.callId, 'belled_at')");
+    expect(src).toMatch(/\.is\(column, null\)\.select\('id'\)/);
+  });
+
+  it('a revision only re-marks unread when it replaces a placeholder', () => {
+    expect(src).toContain('wasPlaceholder');
   });
 
   it('marks it unread again, because the revision is the part worth reading', () => {
@@ -140,7 +151,7 @@ describe('the bell revises its row instead of adding one', () => {
   });
 
   it('returns before notifyMany, so no second row and no second push', () => {
-    expectOrder(src, 'revised ${already.length} existing bell rows', 'await notifyMany(recipients', 'revise path precedes the insert');
+    expectOrder(src, 'revised ${rows.length} existing bell rows', 'await notifyMany(recipients', 'revise path precedes the insert');
   });
 });
 
@@ -168,5 +179,75 @@ describe('a blocked call is still told to nobody', () => {
     // The sweep looks for calls with no stamp. A blocked call is completed and never emailed —
     // exactly the shape the sweep hunts for — so the stamp is what keeps it out.
     expect(read('app/api/twilio/receptionist/route.ts')).toContain('notified_at');
+  });
+});
+
+// ── Screening and junk (owner, 2026-10-06) ──────────────────────────────────────────────────────
+// "make sure there is only one email and one notification sent for each call … spam callers and
+// robo callers and people who don't answer at all." Junk tells nobody; a screened number that
+// leaves a real message is told like anyone else.
+describe('who hears about screened and junk calls', () => {
+  function gate() {
+    const sent: string[] = [];
+    const claims: string[] = [];
+    return {
+      sent,
+      claims,
+      deps: {
+        send: async () => { sent.push('sms'); return true; },
+        email: async () => { sent.push('email'); return true; },
+        inApp: async (_o: unknown, opts?: { reviseOnly?: boolean }) => { sent.push(opts?.reviseOnly ? 'bell-revise' : 'bell'); return 6; },
+        claimEmail: async (id: string) => { claims.push(id); return true; },
+        releaseEmail: async () => {},
+        stamp: async () => {},
+        env: { LEAD_SMS_RECIPIENTS: '+12545550111' },
+      },
+    };
+  }
+  const row = (p: Record<string, unknown>) => ({ is_test: false, transcript: [], transcript_status: 'completed', recording_duration: 30, duration_seconds: 40, ...p });
+
+  it('a screened call with no message tells nobody, and is claimed so the sweep never mails it', async () => {
+    const g = gate();
+    const out = await notifyOwners({ ...CALL, answeredBy: 'none', call: row({ screened_as: 'voicemail', answered_by: 'none' }) as never }, g.deps);
+    expect(g.sent).toEqual([]);
+    expect(out).toEqual({ texted: 0, emailed: false, belled: 0 });
+    expect(g.claims).toEqual(['c1']);
+  });
+
+  it('a screened number that leaves a real message is told exactly like any voicemail (fail-safe)', async () => {
+    const g = gate();
+    await notifyOwners({ ...CALL, answeredBy: 'voicemail', call: row({ screened_as: 'voicemail', answered_by: 'voicemail', voicemail_text: 'Hi this is Terry Glover about my survey on Elm Street' }) as never }, g.deps);
+    expect(g.sent).toEqual(['bell', 'sms', 'email']);
+  });
+
+  it('a robocall that rang through retitles the existing bell and sends no email or text', async () => {
+    const g = gate();
+    await notifyOwners({ ...CALL, call: row({ answered_by: 'owner', transcript: [{ role: 'caller', text: 'Press 9 to opt out' }] }) as never }, g.deps);
+    expect(g.sent).toEqual(['bell-revise']);
+  });
+
+  it('a call still waiting on its transcript rings the bell and holds the email', async () => {
+    const g = gate();
+    await notifyOwners({ ...CALL, call: row({ answered_by: 'owner', transcript: [], transcript_status: 'queued' }) as never }, g.deps);
+    expect(g.sent).toEqual(['bell']);
+    expect(g.claims).toEqual([]);
+  });
+
+  it('the sweep has the last word: on `final` the same call is mailed', async () => {
+    const g = gate();
+    await notifyOwners({ ...CALL, final: true, call: row({ answered_by: 'owner', transcript: [], transcript_status: 'queued' }) as never }, g.deps);
+    expect(g.sent).toContain('email');
+  });
+
+  it('a lost claim means somebody else already sent it', async () => {
+    const g = gate();
+    await notifyOwners(CALL, { ...g.deps, claimEmail: async () => false });
+    expect(g.sent).toEqual(['bell']);
+  });
+
+  it('no webhook stamps notified_at behind notifyOwners any more — the claim is the only stamp', () => {
+    for (const f of ['lib/receptionist/finish.ts', 'app/api/twilio/status/route.ts', 'app/api/twilio/receptionist/machine/route.ts', 'app/api/twilio/receptionist/agent-ended/route.ts']) {
+      expect(read(f), f).not.toMatch(/updateCall\([^)]*notified_at/);
+    }
   });
 });

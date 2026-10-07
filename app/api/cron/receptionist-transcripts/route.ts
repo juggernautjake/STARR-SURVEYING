@@ -21,6 +21,8 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { agentsConfigured } from '@/lib/receptionist/elevenlabs-agents';
 import { importAgentConversations } from '@/lib/receptionist/import-conversations';
 import { mailUnnotifiedCalls } from '@/lib/receptionist/notify';
+import { settleUnsettled } from '@/lib/receptionist/screening';
+import { supabaseAdmin } from '@/lib/supabase';
 
 /** A quarter-hour of conversations is a handful; 30 is headroom, not a target. */
 const PAGE_SIZE = 30;
@@ -51,7 +53,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // transcript that never arrives must not turn into a call nobody hears about. It runs AFTER the
   // import above, so a transcript that landed this tick has already been written and the sweep
   // sends the good summary rather than the fallback.
+  //
+  // Calls are judged first (robocall, silent, a real person — lib/receptionist/screening.ts) so the
+  // sweep knows which of them are junk that should tell nobody.
+  const settled = await settleUnsettled(supabaseAdmin);
   const sweep = await mailUnnotifiedCalls();
 
-  return NextResponse.json({ configured, ...result, sweep });
+  return NextResponse.json({ configured, ...result, settled, sweep });
 }, { routeName: 'cron/receptionist-transcripts' });

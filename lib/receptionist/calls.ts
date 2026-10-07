@@ -80,10 +80,26 @@ export interface PhoneCall {
   started_at: string;
   ended_at: string | null;
   notified_at: string | null;
+  // ── Screening and notices (seeds/672, 2026-10-06) ──
+  /** What happened at the door: rang through, screened to voicemail, or refused. */
+  screened_as?: 'rang' | 'voicemail' | 'blocked' | null;
+  screen_reason?: string | null;
+  /** What the call turned out to be (lib/receptionist/call-verdict.ts). */
+  caller_verdict?: 'person' | 'silent' | 'robocall' | 'spam' | 'hangup' | 'blocked' | 'unknown' | null;
+  verdict_reason?: string | null;
+  /** caller_registry.id — the number's catalogue entry. */
+  number_id?: string | null;
+  customer_id?: string | null;
+  job_id?: string | null;
+  /** When the bell went out, and when the one email did. Claimed before sending, so each happens once. */
+  belled_at?: string | null;
+  emailed_at?: string | null;
+  notify_log?: Array<{ at: string; channel: string; ok: boolean; detail?: string }>;
+  outcome?: string | null;
 }
 
 export const CALL_COLUMNS =
-  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, acres, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at';
+  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, acres, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at, screened_as, screen_reason, caller_verdict, verdict_reason, number_id, customer_id, job_id, belled_at, emailed_at, notify_log, outcome';
 
 type Client = Pick<SupabaseClient, 'from'>;
 

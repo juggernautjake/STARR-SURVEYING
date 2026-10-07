@@ -20,6 +20,7 @@ import { getCallByRecordingSid, updateCall, type CallTurn } from '@/lib/receptio
 import { analyzeCall, contactColumns } from '@/lib/receptionist/analysis';
 import { notifyOwners } from '@/lib/receptionist/notify';
 import { rememberCaller } from '@/lib/receptionist/registry';
+import { settleCall } from '@/lib/receptionist/screening';
 import { OWNER_NAME } from '@/lib/receptionist/knowledge';
 
 export const dynamic = 'force-dynamic';
@@ -84,6 +85,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     // A test call is transcribed and analysed like any other; it just tells nobody (notifyOwners
     // refuses a test row anyway — this keeps the intent visible at the call site).
+    if (!call.is_test && updated) await settleCall(supabaseAdmin, updated);
     if (!call.is_test) {
       await notifyOwners({
         from: call.from_number,

@@ -35,6 +35,8 @@ export interface BlockRule {
   pattern: string | null;
   reason: string | null;
   notes: string | null;
+  /** Made by lib/receptionist/screening.ts rather than a person. Never applied to a known caller. */
+  auto_blocked?: boolean;
 }
 
 export interface BlockVerdict {
@@ -48,6 +50,8 @@ export interface BlockVerdict {
 export interface BlocklistDb {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from: (t: string) => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpc?: (fn: string, args: Record<string, unknown>) => any;
 }
 
 /**
@@ -64,7 +68,7 @@ export async function isBlocked(db: BlocklistDb | null, from: string | null | un
   try {
     const { data, error } = await db
       .from('blocked_numbers')
-      .select('id, number, pattern, reason, notes')
+      .select('id, number, pattern, reason, notes, auto_blocked')
       .eq('active', true)
       .limit(500);
     if (error) return { blocked: false };
@@ -92,8 +96,9 @@ export async function isBlocked(db: BlocklistDb | null, from: string | null | un
 export async function noteBlockHit(db: BlocklistDb | null, ruleId: string): Promise<void> {
   if (!db || !ruleId) return;
   try {
-    // Read-then-write rather than an RPC: this is one row, once per blocked call, and adding a
-    // database function for it would be more moving parts than the count is worth.
+    // One statement (seeds/672 bump_block_hit), so two blocked calls in the same second both count.
+    const { error } = db.rpc ? await db.rpc('bump_block_hit', { rule_id: ruleId }) : { error: 'no rpc' };
+    if (!error) return;
     const { data } = await db.from('blocked_numbers').select('hit_count').eq('id', ruleId).maybeSingle();
     const next = Number((data as { hit_count?: number } | null)?.hit_count ?? 0) + 1;
     await db.from('blocked_numbers')

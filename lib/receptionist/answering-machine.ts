@@ -31,9 +31,15 @@ export const MACHINE_MESSAGE_SECONDS = 120;
 
 export const MACHINE_PATH = '/api/twilio/receptionist/machine';
 
+/** www.starr-surveying.com, as it should be read aloud. */
+export const SPOKEN_SITE = 'starr surveying dot com';
+
 // ── What it says ────────────────────────────────────────────────────────────────────────────────
 export const MACHINE_LINES = {
-  greeting: `Hi, thanks for calling ${BUSINESS_NAME}. We can't get to the phone right now. Please leave a message with your name and phone number after the tone, and we'll get back to you as soon as possible.`,
+  // Owner, 2026-10-06: "thank them for calling, inform them that they can make a request online,
+  // then leave a message after the tone." The address is spelled the way it is said, so the voice
+  // reads it as words and not as "starr-hyphen-surveying".
+  greeting: `Thank you for calling ${BUSINESS_NAME}. You can request a survey any time online at ${SPOKEN_SITE}. Or please leave your name, your phone number and a short message after the tone, and we'll get back to you as soon as possible.`,
   anythingElse: 'Thank you. Is there anything else?',
   noMessageHeard: "I didn't hear a message. Would you like to leave one?",
   goAhead: 'Okay, go ahead after the tone.',

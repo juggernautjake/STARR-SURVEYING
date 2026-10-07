@@ -74,7 +74,6 @@ export async function POST(request: Request): Promise<Response> {
     if (row && !row.notified_at && !row.is_test) {
       defer((async () => {
         await notifyOwners({ from, facts: {}, summary: 'Hung up before anyone answered.', callId: row.id, answeredBy: 'none', call: row });
-        await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
       })(), 'agent-ended missed notice');
     }
     return twimlResponse(twiml(hangup()));

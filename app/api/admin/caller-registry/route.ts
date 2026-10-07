@@ -20,6 +20,7 @@ import {
   listRegistry, saveRegistryEntry, deleteRegistryEntry, lookupRegistry, registryKey,
   RELATIONSHIPS, type Relationship,
 } from '@/lib/receptionist/registry';
+import { SCREENINGS, refreshNumber, setScreening, type Screening } from '@/lib/receptionist/screening';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,9 +53,24 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   const body = (await req.json().catch(() => ({}))) as {
     phone?: string; displayName?: string | null; email?: string | null; company?: string | null;
     relationship?: string; notes?: string | null; neverAssume?: boolean;
+    /** How the line treats the number (lib/receptionist/screening.ts). */
+    screening?: string; screeningNote?: string | null;
   };
   if (!registryKey(body.phone)) {
     return NextResponse.json({ error: 'A ten-digit US phone number is required.' }, { status: 400 });
+  }
+  if (body.screening !== undefined && !(SCREENINGS as readonly string[]).includes(body.screening)) {
+    return NextResponse.json({ error: `screening must be one of: ${SCREENINGS.join(', ')}.` }, { status: 400 });
+  }
+  // Screening first, so a number added and blocked in one save has its row before the edit lands.
+  if (body.screening !== undefined) {
+    await setScreening(supabaseAdmin, body.phone as string, body.screening as Screening, g.email as string, body.screeningNote ?? null);
+    console.log(`[caller-registry] ${g.email} set ${registryKey(body.phone)} to ${body.screening}`);
+  }
+  const editsDetails = ['displayName', 'email', 'company', 'relationship', 'notes', 'neverAssume'].some((k) => (body as Record<string, unknown>)[k] !== undefined);
+  if (!editsDetails) {
+    await refreshNumber(supabaseAdmin, body.phone as string);
+    return NextResponse.json({ entry: await lookupRegistry(supabaseAdmin, body.phone as string) });
   }
   if (body.relationship !== undefined && !(RELATIONSHIPS as readonly string[]).includes(body.relationship)) {
     return NextResponse.json({ error: `relationship must be one of: ${RELATIONSHIPS.join(', ')}.` }, { status: 400 });
@@ -68,7 +84,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     ...(body.neverAssume !== undefined ? { neverAssume: body.neverAssume } : {}),
   }, g.email as string);
   console.log(`[caller-registry] ${g.email} saved ${entry.phone} (${entry.displayName ?? 'no name'}, ${entry.relationship})`);
-  return NextResponse.json({ entry });
+  // A relationship change can change the status (staff and customers are known callers).
+  await refreshNumber(supabaseAdmin, entry.phone);
+  return NextResponse.json({ entry: (await lookupRegistry(supabaseAdmin, entry.phone)) ?? entry });
 }, { routeName: 'admin/caller-registry' });
 
 export const DELETE = withErrorHandler(async (req: NextRequest) => {

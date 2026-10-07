@@ -14,6 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { validTwilioSignature, publicUrlOf, twilioParams } from '@/lib/twilio/signature';
 import { getCallBySid, updateCall } from '@/lib/receptionist/calls';
 import { notifyOwners } from '@/lib/receptionist/notify';
+import { settleCall } from '@/lib/receptionist/screening';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,15 +33,16 @@ export async function POST(request: Request): Promise<Response> {
 
   const duration = Number(params.CallDuration) || call.duration_seconds;
   const unhandled = !call.answered_by;
-  await updateCall(supabaseAdmin, callSid, {
+  const closed = await updateCall(supabaseAdmin, callSid, {
     status: status === 'completed' ? 'completed' : 'failed',
     duration_seconds: duration,
     ended_at: call.ended_at ?? new Date().toISOString(),
     answered_by: unhandled ? 'none' : call.answered_by,
   });
+  // Judge what we can now (a hang-up needs no transcript); the rest is judged when its words arrive.
+  if (closed && !closed.is_test) await settleCall(supabaseAdmin, closed);
   if (unhandled && !call.notified_at && !call.is_test) {
-    await notifyOwners({ from: call.from_number, facts: {}, summary: `Hung up after ${duration ?? '?'} seconds, before anyone answered.`, callId: call.id, answeredBy: 'none', call });
-    await updateCall(supabaseAdmin, callSid, { notified_at: new Date().toISOString() });
+    await notifyOwners({ from: call.from_number, facts: {}, summary: `Hung up after ${duration ?? '?'} seconds, before anyone answered.`, callId: call.id, answeredBy: 'none', call: closed ?? call });
   }
   return new Response(null, { status: 204 });
 }

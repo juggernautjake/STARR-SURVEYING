@@ -154,3 +154,17 @@
   .creg__rowactions { width: 100%; }
   .creg__rowactions .creg__btn, .creg__rowactions .creg__link { flex: 1 1 auto; text-align: center; }
 }
+
+/* ── The numbers catalogue (2026-10-06) ─────────────────────────────────────────────────────── */
+.creg__views { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+.creg__view {
+  min-height: 36px; padding: 0 .85rem; border-radius: 999px;
+  border: var(--border-light); background: transparent; color: inherit; font: inherit; font-size: .85rem; cursor: pointer;
+}
+.creg__view[aria-pressed="true"] { background: var(--color-brand-navy); border-color: var(--color-brand-navy); color: var(--color-text-on-brand); }
+.creg__idline { margin: .3rem 0 0; font-size: .78rem; color: var(--color-text-secondary); }
+.creg__badge--s-customer, .creg__badge--s-person { background: var(--color-success-surface, rgba(31,157,99,.14)); color: var(--color-success-text, inherit); }
+.creg__badge--s-robocall { background: var(--color-error-surface, rgba(189,18,24,.1)); color: var(--color-error-text, inherit); }
+.creg__badge--s-silent, .creg__badge--s-spam { background: var(--color-bg-subtle, rgba(127,127,127,.12)); }
+.creg__badge--treat { background: transparent; border: var(--border-light); }
+.creg__badge--screened { border-color: var(--color-warning-text, #b45309); color: var(--color-warning-text, #b45309); }
