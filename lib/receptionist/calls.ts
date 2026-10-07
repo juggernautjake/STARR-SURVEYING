@@ -96,10 +96,14 @@ export interface PhoneCall {
   emailed_at?: string | null;
   notify_log?: Array<{ at: string; channel: string; ok: boolean; detail?: string }>;
   outcome?: string | null;
+  /** The website tap this call was matched to, and what it says about where the call came from. */
+  tap_id?: string | null;
+  source?: 'google_ads' | 'website' | 'unknown' | null;
+  source_detail?: string | null;
 }
 
 export const CALL_COLUMNS =
-  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, acres, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at, screened_as, screen_reason, caller_verdict, verdict_reason, number_id, customer_id, job_id, belled_at, emailed_at, notify_log, outcome';
+  'id, org_id, call_sid, from_number, to_number, status, answered_by, kind, caller_name, callback_number, caller_email, property_address, property_id, acres, service, details, transcript, voicemail_text, recording_sid, recording_url, recording_duration, recording_source, transcript_sid, transcript_status, summary, analysis, lead_id, project_id, duration_seconds, is_test, started_at, ended_at, notified_at, screened_as, screen_reason, caller_verdict, verdict_reason, number_id, customer_id, job_id, belled_at, emailed_at, notify_log, outcome, tap_id, source, source_detail';
 
 type Client = Pick<SupabaseClient, 'from'>;
 

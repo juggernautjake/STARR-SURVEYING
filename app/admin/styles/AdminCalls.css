@@ -228,3 +228,5 @@
 }
 
 .cnum__note { margin: 0 0 .6rem; padding: .45rem .65rem; border-radius: 8px; font-size: .84rem; line-height: 1.4; background: rgba(183,121,31,.1); border: 1px solid rgba(183,121,31,.4); }
+
+.pill--ad { background: rgba(29,48,149,.12); border-color: rgba(29,48,149,.5); }

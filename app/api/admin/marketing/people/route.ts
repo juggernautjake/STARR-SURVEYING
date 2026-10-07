@@ -68,9 +68,41 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({
     range: { from, to },
     summary: summariseIdentities(people),
+    calls: await callAttribution(from, to),
     people,
     // Surfaced rather than silently truncating: a list that stops at 500 and does not say so reads
     // as "that is everybody".
     truncated: rows.length === MAX_ROWS,
   });
 }, { routeName: 'admin/marketing/people' });
+
+/**
+ * Phone calls in the same period, and how many can be tied to the website or an ad.
+ *
+ * Owner, 2026-10-06: one business number, no call-tracking numbers. A call is tied to a visit when the
+ * visitor tapped the number on the site shortly before it rang (lib/receptionist/call-source.ts), so
+ * this counts the taps, the calls matched to one, and the matched calls that began with a Google ad
+ * click. Robocalls and blocked calls are left out of "calls" — they are not enquiries.
+ */
+async function callAttribution(from: string, to: string): Promise<{
+  calls: number; taps: number; matched: number; fromAds: number; likely: number;
+}> {
+  const lo = `${from}T00:00:00.000Z`;
+  const hi = `${to}T23:59:59.999Z`;
+  const [calls, taps] = await Promise.all([
+    supabaseAdmin.from('phone_calls').select('caller_verdict, answered_by, source, tap_id')
+      .eq('is_test', false).gte('started_at', lo).lte('started_at', hi).limit(5000),
+    supabaseAdmin.from('phone_taps').select('match_confidence, call_id')
+      .gte('tapped_at', lo).lte('tapped_at', hi).limit(5000),
+  ]);
+  const real = ((calls.data ?? []) as Array<{ caller_verdict: string | null; answered_by: string | null; source: string | null; tap_id: string | null }>)
+    .filter((c) => c.answered_by !== 'blocked' && c.caller_verdict !== 'robocall' && c.caller_verdict !== 'blocked');
+  const tapRows = (taps.data ?? []) as Array<{ match_confidence: string | null; call_id: string | null }>;
+  return {
+    calls: real.length,
+    taps: tapRows.length,
+    matched: real.filter((c) => c.tap_id).length,
+    fromAds: real.filter((c) => c.source === 'google_ads').length,
+    likely: tapRows.filter((t) => t.call_id && t.match_confidence === 'likely').length,
+  };
+}
