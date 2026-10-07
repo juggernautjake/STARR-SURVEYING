@@ -27,6 +27,7 @@ import {
 } from '@/lib/scan/helper-client';
 import { adviseSetup } from '@/lib/scan/setup';
 import { buildScanFiles, defaultScanName, SCAN_FORMATS, type PreviewPage, type ScanFormat } from '@/lib/scan/build-output';
+import { trimScannedPage } from '@/lib/scan/trim';
 
 export interface ScanDialogProps {
   open: boolean;
@@ -100,7 +101,10 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm,
           const k = `${j.id}:${p.n}`;
           if (fetched.current.has(k)) continue;
           fetched.current.add(k);
-          const blob = await fetchPage(j.id, p.n);
+          // Device scans: cut off the blank paper a sheet feeder scans past the end of the page
+          // (lib/scan/trim.ts). App scans are the app's own output and are left as saved.
+          const raw = await fetchPage(j.id, p.n);
+          const blob = j.kind === 'device' ? await trimScannedPage(raw) : raw;
           setPages((cur) => [...cur, { key: `p${++keySeq}`, blob, url: URL.createObjectURL(blob), rotate: 0, dpi }]);
         }
         if (j.state === 'error') { setError(j.error ?? 'The scan failed.'); setStep(pagesRef.current.length ? 'preview' : 'settings'); }

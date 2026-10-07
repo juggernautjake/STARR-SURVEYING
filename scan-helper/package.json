@@ -1,6 +1,6 @@
 {
   "name": "starr-scan-helper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Lets the Starr Surveying website use the scanners and scanning apps on this computer.",
   "type": "module",
