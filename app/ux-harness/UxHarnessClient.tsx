@@ -119,6 +119,7 @@ const PAGES: Record<string, ComponentType> = {
   'call-panels': nextDynamic(() => import('./CallPanelsHarnessMount'), { ssr: false }),
   scan: nextDynamic(() => import('./ScanHarnessMount'), { ssr: false }),
   split: nextDynamic(() => import('./SplitHarnessMount'), { ssr: false }),
+  'scan-setup': nextDynamic(() => import('@/app/admin/scan-setup/page'), { ssr: false }),
   announcements: nextDynamic(() => import('@/app/admin/announcements/page'), { ssr: false }),
   audit: nextDynamic(() => import('@/app/admin/support/_tabs/AuditTab'), { ssr: false }),
   'error-log': nextDynamic(() => import('@/app/admin/support/_tabs/ErrorLogTab'), { ssr: false }),

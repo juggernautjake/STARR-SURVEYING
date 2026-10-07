@@ -22,7 +22,7 @@ import {
   X, ScanLine, Printer, AppWindow, Camera, Upload, RotateCw, Trash2, ChevronLeft, ChevronRight, Loader2, Wifi, Plus, Download, Check,
 } from 'lucide-react';
 import {
-  helperStatus, startScan, launchApp, getJob, finishJob, discardJob, fetchPage, clientOs,
+  helperStatus, startScan, launchApp, getJob, finishJob, discardJob, fetchPage, clientOs, localNetworkPermission, clientBrowser,
   type HelperStatus, type ScanSource, type PaperSource, type ScanColor, type ScanJob,
 } from '@/lib/scan/helper-client';
 import { adviseSetup } from '@/lib/scan/setup';
@@ -54,6 +54,7 @@ let keySeq = 0;
 export default function ScanDialog({ open, onClose, destinationLabel, onConfirm, mode = 'document' }: ScanDialogProps): React.ReactElement | null {
   const [status, setStatus] = useState<HelperStatus | null>(null);
   const [checked, setChecked] = useState(false);
+  const [permission, setPermission] = useState<'granted' | 'denied' | 'prompt' | 'unsupported'>('unsupported');
   const [step, setStep] = useState<Step>('pick');
   const [source, setSource] = useState<ScanSource | null>(null);
   const [paper, setPaper] = useState<PaperSource>('feeder');
@@ -78,9 +79,10 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm,
     if (!open || mobile || step !== 'pick') return;
     let alive = true;
     const tick = async () => {
-      const s = await helperStatus();
+      const [s, perm] = await Promise.all([helperStatus(), localNetworkPermission()]);
       if (!alive) return;
       setStatus(s);
+      setPermission(perm);
       setChecked(true);
     };
     void tick();
@@ -135,7 +137,7 @@ export default function ScanDialog({ open, onClose, destinationLabel, onConfirm,
 
   if (!open) return null;
 
-  const advice = adviseSetup(status, os);
+  const advice = adviseSetup(status, os, { permission, browser: clientBrowser() });
   const devices = (status?.sources ?? []).filter((s) => s.kind === 'device');
   const apps = (status?.sources ?? []).filter((s) => s.kind === 'app');
   // Installed but switched off, and not reachable another way: shown greyed out with how to wake it,

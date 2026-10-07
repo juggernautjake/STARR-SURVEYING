@@ -33,7 +33,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { LifeBuoy, TriangleAlert, ScrollText, MessageSquarePlus } from 'lucide-react';
+import { LifeBuoy, TriangleAlert, ScrollText, MessageSquarePlus, ScanLine } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import TicketsTab from './_tabs/TicketsTab';
@@ -115,6 +115,11 @@ export default function SupportPortal() {
               <MessageSquarePlus size={14} aria-hidden /> New ticket
             </Link>
           )}
+          {/* Getting a computer ready to scan (2026-10-07): the setup page is otherwise only
+              reached from the Scan pop-up, and Support is where people look for "how do I…". */}
+          <Link className="sys-portal__action" href="/admin/scan-setup" data-testid="support-scan-setup">
+            <ScanLine size={14} aria-hidden /> Set up scanning
+          </Link>
         </div>
       )}
 

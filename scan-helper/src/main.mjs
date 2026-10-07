@@ -20,6 +20,11 @@ async function main() {
     console.log('Setting up Starr Scan…');
     console.log(await installAutostart());
     console.log('Starr Scan is installed and running in the background. You can close this window.');
+    // Opened from Finder there is no terminal to read that line in, so say it in a dialog.
+    if (process.platform === 'darwin') {
+      const { execFile } = await import('node:child_process');
+      execFile('osascript', ['-e', 'display dialog "Starr Scan is installed and running. It will start by itself whenever you log in. You can now press Scan on the Starr Surveying website." with title "Starr Scan" buttons {"OK"} default button 1 with icon note']);
+    }
     await new Promise((r) => setTimeout(r, 6000));
     return;
   }

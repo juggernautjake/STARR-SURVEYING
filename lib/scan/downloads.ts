@@ -3,7 +3,7 @@
 // Built by .github/workflows/scan-helper-release.yml on a `scan-helper-v*` tag and attached to that
 // GitHub release. The version here is the one the setup page offers; bump it with the tag.
 
-export const SCAN_HELPER_VERSION = '1.0.1';
+export const SCAN_HELPER_VERSION = '1.0.2';
 const BASE = `https://github.com/juggernautjake/STARR-SURVEYING/releases/download/scan-helper-v${SCAN_HELPER_VERSION}`;
 
 export interface HelperDownload {
@@ -27,11 +27,11 @@ export const SCAN_HELPER_DOWNLOADS: HelperDownload[] = [
   {
     os: 'mac',
     label: 'Mac',
-    url: `${BASE}/starr-scan-mac`,
+    url: `${BASE}/Starr-Scan-mac.zip`,
     steps: [
-      'Open Terminal, then run:  chmod +x ~/Downloads/starr-scan-mac && ~/Downloads/starr-scan-mac',
-      'If macOS says it cannot be opened, open System Settings › Privacy & Security and choose "Open Anyway", then run the command again.',
-      'It starts when you log in from now on.',
+      'Open the downloaded Starr-Scan-mac.zip (Safari usually opens it for you) and drag "Starr Scan" into your Applications folder.',
+      'Double-click "Starr Scan". macOS will say it cannot check the app — click Done, open System Settings › Privacy & Security, scroll down and click "Open Anyway", then open it again.',
+      'A message says Starr Scan is installed and running. It starts when you log in from now on, with no window.',
     ],
   },
   {

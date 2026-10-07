@@ -11,7 +11,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Download, Loader2, Printer, Wifi, AppWindow } from 'lucide-react';
-import { helperStatus, clientOs, type HelperStatus } from '@/lib/scan/helper-client';
+import { helperStatus, clientOs, clientBrowser, localNetworkPermission, type HelperStatus } from '@/lib/scan/helper-client';
+import { unblockSteps } from '@/lib/scan/setup';
 import { SCAN_HELPER_DOWNLOADS } from '@/lib/scan/downloads';
 import './scan-setup.css';
 
@@ -19,10 +20,15 @@ export default function ScanSetupPage(): React.ReactElement {
   const os = useMemo(() => clientOs(), []);
   const [status, setStatus] = useState<HelperStatus | null>(null);
   const [checked, setChecked] = useState(false);
+  const [permission, setPermission] = useState<'granted' | 'denied' | 'prompt' | 'unsupported'>('unsupported');
+  const browser = useMemo(() => clientBrowser(), []);
 
   useEffect(() => {
     let alive = true;
-    const tick = async () => { const s = await helperStatus(); if (alive) { setStatus(s); setChecked(true); } };
+    const tick = async () => {
+      const [s, perm] = await Promise.all([helperStatus(), localNetworkPermission()]);
+      if (alive) { setStatus(s); setPermission(perm); setChecked(true); }
+    };
     void tick();
     const t = window.setInterval(() => { void tick(); }, 3000);
     return () => { alive = false; window.clearInterval(t); };
@@ -57,6 +63,11 @@ export default function ScanSetupPage(): React.ReactElement {
             {!devices.length && !apps.length ? <p className="ssu__muted">No scanner is switched on yet. Turn it on (or feed it a page) and it appears here.</p> : null}
             <p className="ssu__muted">You are ready. Go to any job&rsquo;s Files tab, or <Link href="/admin/files">Files</Link>, and press <b>Scan</b>.</p>
           </>
+        ) : permission === 'denied' ? (
+          <div className="ssu__blocked" data-testid="ssu-blocked">
+            <p><b>Your browser is blocking this site from reaching the helper.</b> If you already installed it, this is why nothing shows:</p>
+            <ol className="ssu__steps">{unblockSteps(browser).map((s) => <li key={s.title}><b>{s.title}.</b> {s.detail}</li>)}</ol>
+          </div>
         ) : (
           <p><Loader2 size={18} className="ssu__spin" aria-hidden="true" /> Not running on this computer yet — this turns green on its own once it is.</p>
         )}
@@ -80,8 +91,15 @@ export default function ScanSetupPage(): React.ReactElement {
               <a className="ssu__btn ssu__btn--primary" href={mine.url} data-testid="ssu-download"><Download size={18} aria-hidden="true" /> Download Starr Scan for {mine.label}</a>
               <h2 className="ssu__h2">2. Install it</h2>
               <ol className="ssu__steps">{mine.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+              {mine.os === 'windows' ? <SmartScreenPicture /> : null}
               <h2 className="ssu__h2">3. Connect your scanner</h2>
               <p>Plug it in with USB or put it on the same Wi-Fi, and switch it on. If your computer&rsquo;s own scan app can use it, so can this website. Network scanners from Brother, Canon, Epson, HP and most others are found automatically with no driver.</p>
+              <h2 className="ssu__h2">4. Allow it in your browser</h2>
+              <p>
+                The first time you press Scan, your browser may ask to let this site <b>&ldquo;access devices on your local
+                network&rdquo;</b> (or &ldquo;apps on this device&rdquo;). Choose <b>Allow</b> — that is how the website reaches the
+                helper on your own computer. Nothing outside your computer is shared.
+              </p>
             </section>
           ) : null}
           <details className="ssu__card">
@@ -105,5 +123,30 @@ export default function ScanSetupPage(): React.ReactElement {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * What the Windows warning looks like, so it is expected rather than alarming. Drawn in markup, not a
+ * screenshot, so it stays sharp at every size and needs no image to keep current.
+ */
+function SmartScreenPicture(): React.ReactElement {
+  return (
+    <figure className="ssu__ss" aria-label="What the Windows warning looks like">
+      <div className="ssu__ss-box" aria-hidden="true">
+        <p className="ssu__ss-title">Windows protected your PC</p>
+        <p className="ssu__ss-text">Microsoft Defender SmartScreen prevented an unrecognized app from starting…</p>
+        <p className="ssu__ss-link"><span className="ssu__ss-mark">1</span> More info</p>
+        <div className="ssu__ss-buttons">
+          <span className="ssu__ss-run"><span className="ssu__ss-mark">2</span> Run anyway</span>
+          <span className="ssu__ss-dont">Don&rsquo;t run</span>
+        </div>
+      </div>
+      <figcaption className="ssu__muted">
+        If you see this blue box, click <b>More info</b>, then <b>Run anyway</b>. Windows shows it for any program
+        it has not seen many times before; it is expected for the Starr Scan helper. Your browser may also say the
+        file &ldquo;isn&rsquo;t commonly downloaded&rdquo; — choose <b>Keep</b>.
+      </figcaption>
+    </figure>
   );
 }
