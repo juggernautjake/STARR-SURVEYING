@@ -26,6 +26,10 @@ import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import {
   summariseLineItems, describeLineItemReview, type LineItem, type LineItemTotals,
 } from '@/lib/receipts/line-items';
+import { CATEGORY_LABEL } from '@/lib/receipts/spending';
+
+/** The kinds a line can be, in the order a person thinks of them (lib/receipts/spending.ts labels). */
+const LINE_CATEGORIES = ['meals', 'supplies', 'fuel', 'equipment', 'office_supplies', 'tolls', 'parking', 'lodging', 'professional_services', 'client_entertainment', 'other'];
 
 const money = (c: number | null | undefined) => (c === null || c === undefined ? '—' : `$${(c / 100).toFixed(2)}`);
 
@@ -184,6 +188,20 @@ export function ReceiptLineItems({
                 </div>
 
                 <div className="rli__meta">
+                  {/* What kind of item this is, for the Spending report (2026-10-07). */}
+                  {!removed && (
+                    <select
+                      className="rli__cat"
+                      value={li.category ?? ''}
+                      disabled={busy}
+                      aria-label="Kind of item"
+                      title={li.category_source === 'user' ? 'Set by a person' : li.category ? 'Set by the receipt reader' : 'Not categorised'}
+                      onChange={(e) => void saveField(li, { category: e.target.value || null } as never)}
+                    >
+                      <option value="">Kind…</option>
+                      {LINE_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c] ?? c}</option>)}
+                    </select>
+                  )}
                   {/* Three positions. "Follow receipt" is the default and stays visible so nobody has
                       to guess what an unmarked line counts as. */}
                   {!removed && (

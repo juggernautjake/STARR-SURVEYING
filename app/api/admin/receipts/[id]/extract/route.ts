@@ -24,9 +24,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { extractReceipt } from '@/lib/receipts/extract';
 
-/** Vision on a photo takes ~5–15 s. The platform default (10 s on some plans) would kill a
- *  legitimate extraction mid-call and record it as a failure, which is worse than slow. */
-export const maxDuration = 60;
+/** Since 2026-10-07 every receipt is read twice on zoomed sections and checked (lib/receipts/
+ *  zoom-read.ts): 30–90 s, longer for a long receipt. 300 s leaves room; cutting a careful read off
+ *  mid-call would record a failure, which is worse than slow. */
+export const maxDuration = 300;
 
 const BOOKKEEPER_ROLES = new Set(['admin', 'developer', 'tech_support']);
 
