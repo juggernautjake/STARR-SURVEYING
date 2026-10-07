@@ -30,6 +30,8 @@ const ADMIN_DIR = join(REPO, 'app', 'admin');
 const INTENTIONALLY_OPEN: Record<string, string> = {
   // ── Personal surfaces: the user's own data, by definition ──
   'me': "the user's own profile hub",
+  // Instructions for installing the scanner helper on your own computer; no firm data (2026-10-06).
+  'scan-setup': 'how to set up scanning on this computer — instructions only, no data',
   // Restored as a real route 2026-08-04: your own profile form, Hub theme, density and font scale.
   // Open for the same reason `me` is — it is your data and your appearance settings, and its API
   // (`/api/admin/me/*`) resolves the row from the session rather than from anything typed.

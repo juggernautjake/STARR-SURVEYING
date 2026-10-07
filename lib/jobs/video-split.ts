@@ -75,14 +75,24 @@ export function planSplit(input: {
   durationSec?: number | null;
   capBytes: number;
   name: string;
+  /**
+   * No part longer than this, even when a longer one would fit (owner, 2026-10-06: "If we have a 30
+   * minute long video, we need to be able to split it up into 10 3 minute long videos"). Null keeps
+   * the old behaviour — parts as long as the size limit allows.
+   */
+  maxPartSeconds?: number | null;
+  /** Split even when the file is under the cap — the person asked for parts of a given length. */
+  force?: boolean;
 }): SplitPlan {
   const { sizeBytes, capBytes, name } = input;
   const duration = input.durationSec;
+  const maxPart = input.maxPartSeconds && input.maxPartSeconds > 0 ? input.maxPartSeconds : null;
 
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
     return { needed: false, parts: [], approxPartBytes: 0, reason: 'Unknown file size.' };
   }
-  if (sizeBytes <= capBytes) {
+  const longerThanAsked = maxPart != null && duration != null && Number.isFinite(duration) && duration > maxPart + 1;
+  if (sizeBytes <= capBytes && !(input.force && longerThanAsked)) {
     return { needed: false, parts: [], approxPartBytes: sizeBytes };
   }
   if (duration == null || !Number.isFinite(duration) || duration <= 0) {
@@ -97,7 +107,10 @@ export function planSplit(input: {
 
   // Aim under the cap so keyframe overshoot still fits.
   const target = Math.max(1, Math.floor(capBytes * SPLIT_TARGET_RATIO));
-  const parts = Math.ceil(sizeBytes / target);
+  // As many parts as the size needs, or as the requested length needs — whichever is more.
+  const bySize = Math.ceil(sizeBytes / target);
+  const byLength = maxPart != null ? Math.ceil(duration / maxPart) : 1;
+  const parts = Math.max(bySize, byLength);
   const partSeconds = duration / parts;
 
   if (partSeconds < MIN_PART_SECONDS) {
@@ -128,9 +141,34 @@ export function describePlan(plan: SplitPlan, sizeBytes: number, capBytes: numbe
   const mb = (n: number) => `${Math.round(n / 1024 / 1024)} MB`;
   if (!plan.needed) return '';
   if (plan.parts.length === 0) return plan.reason ?? 'This video cannot be stored.';
+  const minutes = (sec: number) => (sec >= 90 ? `${Math.round(sec / 60)} minutes` : `${Math.round(sec)} seconds`);
+  if (sizeBytes <= capBytes) {
+    return `It will be saved as ${plan.parts.length} parts of about ${minutes(plan.parts[0].durationSec)} each, `
+      + 'labelled "part 1 of …". Nothing is re-encoded, so the quality is unchanged.';
+  }
   return (
-    `This video is ${mb(sizeBytes)}, and the limit for one file is ${mb(capBytes)}. `
-    + `It will be saved as ${plan.parts.length} videos of about ${mb(plan.approxPartBytes)} each, `
+    `This file is ${mb(sizeBytes)}, and the limit for one file is ${mb(capBytes)}. `
+    + `It will be saved as ${plan.parts.length} parts of about ${minutes(plan.parts[0].durationSec)} (${mb(plan.approxPartBytes)}) each, `
     + 'cut at the nearest keyframe. Nothing is re-encoded, so the quality is unchanged.'
   );
 }
+
+// ── What can be cut by time (owner, 2026-10-06: "this to work for all kinds of image and video and
+// audio files") ─────────────────────────────────────────────────────────────────────────────────
+const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|mpe?g|hevc)$/i;
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|wma|aiff?|caf|amr)$/i;
+
+/** Video or audio: anything a remuxer can cut into time ranges. */
+export function isSplittableMedia(name: string, mime?: string | null): boolean {
+  const m = (mime ?? '').toLowerCase();
+  if (m.startsWith('video/') || m.startsWith('audio/')) return true;
+  return VIDEO_EXT.test(name) || AUDIO_EXT.test(name);
+}
+
+export function isAudioName(name: string, mime?: string | null): boolean {
+  return (mime ?? '').toLowerCase().startsWith('audio/') || AUDIO_EXT.test(name);
+}
+
+/** The part lengths offered, in minutes. Three is the default the owner asked for. */
+export const PART_MINUTE_CHOICES: readonly number[] = [1, 2, 3, 5, 10, 15];
+export const DEFAULT_PART_MINUTES = 3;

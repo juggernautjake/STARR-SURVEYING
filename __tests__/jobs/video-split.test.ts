@@ -109,7 +109,7 @@ describe('what the person is told before it happens', () => {
     const msg = describePlan(plan, 780 * MB, CAP);
     expect(msg).toContain('780 MB');
     expect(msg).toContain('500 MB');
-    expect(msg).toContain('2 videos');
+    expect(msg).toContain('2 parts');
     expect(msg).toMatch(/quality is unchanged/i);
   });
 

@@ -1,0 +1,14 @@
+{
+  "name": "starr-scan-helper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lets the Starr Surveying website use the scanners and scanning apps on this computer.",
+  "type": "module",
+  "main": "src/server.mjs",
+  "bin": { "starr-scan": "src/server.mjs" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "install-autostart": "node src/server.mjs --install"
+  },
+  "engines": { "node": ">=20" }
+}

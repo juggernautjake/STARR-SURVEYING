@@ -51,7 +51,8 @@ import { HEIC_ACCEPT } from '@/lib/images/heic-detect';
 import { maxBytesFor, isVideoUpload } from '@/lib/jobs/file-storage';
 import { contentTypeFor, megabytes, uploadCapBytes } from '@/lib/storage/uploads';
 import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
-import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
+import { planSplit, describePlan, isSplittableMedia, PART_MINUTE_CHOICES, DEFAULT_PART_MINUTES, type SplitPlan } from '@/lib/jobs/video-split';
+import { fitImageToLimit } from '@/lib/images/shrink-for-upload';
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
 import { formatBytes } from './format';
 import './UploadFilesDialog.css';
@@ -87,7 +88,9 @@ interface Item {
   pct: number;
   loaded: number;
   error?: string;
-  split?: { phase: 'measuring' | 'confirm' | 'splitting'; message: string; plan?: SplitPlan };
+  split?: { phase: 'measuring' | 'confirm' | 'splitting'; message: string; plan?: SplitPlan; minutes?: number };
+  /** Shrinking an over-limit photo to fit (2026-10-06). */
+  shrinking?: boolean;
   /** Being copied into memory (see `snapshotFile` — the TDC600 "network error" fix). */
   reading?: boolean;
   /** Copied into memory: the upload no longer depends on the file on the device. */
@@ -470,30 +473,49 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
   }
 
   // ── an over-cap video: measure → confirm → cut into parts that each fit ──
-  async function measureSplit(item: Item) {
+  // Owner, 2026-10-06: "If we have a 30 minute long video, we need to be able to split it up into
+  // 10 3 minute long videos, and we need to be able to do it quickly." Any video or audio file can be
+  // cut into parts of a chosen length; an over-limit one is offered the same, with parts short
+  // enough to fit. Default three minutes.
+  async function measureSplit(item: Item, minutes = DEFAULT_PART_MINUTES) {
     const cap = maxBytesFor(item.file.name, item.file.type);
-    update(item.key, { split: { phase: 'measuring', message: 'Checking how long this video is…' } });
+    update(item.key, { split: { phase: 'measuring', message: 'Checking how long this file is…', minutes } });
     const durationSec = await readVideoDuration(item.file);
-    const plan = planSplit({ sizeBytes: item.file.size, durationSec, capBytes: cap, name: item.file.name });
+    const plan = planSplit({ sizeBytes: item.file.size, durationSec, capBytes: cap, name: item.file.name, maxPartSeconds: minutes * 60, force: true });
     if (!plan.needed || plan.parts.length === 0) {
-      update(item.key, { split: undefined, error: describePlan(plan, item.file.size, cap) || 'That video cannot be stored.' });
+      update(item.key, {
+        split: undefined,
+        error: plan.needed ? (describePlan(plan, item.file.size, cap) || 'That file cannot be stored.') : `It is already shorter than ${minutes} minute${minutes === 1 ? '' : 's'} and under the limit — no need to cut it.`,
+      });
       return;
     }
-    update(item.key, { split: { phase: 'confirm', plan, message: describePlan(plan, item.file.size, cap) } });
+    update(item.key, { error: undefined, split: { phase: 'confirm', plan, minutes, message: describePlan(plan, item.file.size, cap) } });
+  }
+
+  // An over-limit photo: shrink it (resize + JPEG) until it fits, rather than refusing it.
+  async function shrinkToFit(item: Item) {
+    const cap = maxBytesFor(item.file.name, item.file.type);
+    update(item.key, { shrinking: true, error: undefined });
+    try {
+      const smaller = await fitImageToLimit(item.file, cap);
+      setItems((cur) => cur.map((i) => (i.key === item.key ? { ...i, file: smaller, shrinking: false } : i)));
+    } catch (e) {
+      update(item.key, { shrinking: false, error: e instanceof Error ? e.message : 'The photo could not be shrunk.' });
+    }
   }
 
   async function runSplit(item: Item) {
     const plan = item.split?.plan;
     if (!plan) return;
-    update(item.key, { split: { phase: 'splitting', plan, message: 'Preparing to cut the video…' } });
+    update(item.key, { split: { phase: 'splitting', plan, minutes: item.split?.minutes, message: 'Preparing to cut it… (the first time loads the cutter, about 30 MB)' } });
     const { splitVideo } = await import('@/lib/jobs/video-split-run');
     const outcome = await splitVideo(item.file, plan.parts, (pr) =>
-      update(item.key, { split: { phase: 'splitting', plan, message: `Cutting part ${pr.part} of ${pr.total}… ${pr.pct}%` } }));
+      update(item.key, { split: { phase: 'splitting', plan, minutes: item.split?.minutes, message: `Cutting part ${pr.part} of ${pr.total}… ${pr.pct}%` } }));
     if (!outcome.ok || !outcome.files) { update(item.key, { split: undefined, error: outcome.error ?? 'The video could not be cut.' }); return; }
     const cap = maxBytesFor(item.file.name, item.file.type);
     const over = outcome.files.find((f) => f.size > cap);
     if (over) {
-      update(item.key, { split: undefined, error: `"${over.name}" is still ${megabytes(over.size)} MB after cutting — over the ${megabytes(cap)} MB limit. Record at a lower resolution or in shorter clips.` });
+      update(item.key, { split: undefined, error: `"${over.name}" is still ${megabytes(over.size)} MB after cutting — over the ${megabytes(cap)} MB limit. Choose shorter parts.` });
       return;
     }
     setItems((cur) => {
@@ -1070,21 +1092,46 @@ export default function UploadFilesDialog({ open, onClose, rootId, allowScopeCha
                       {big && !item.split && (
                         <p className="ufd__note ufd__note--warn">
                           Larger than {megabytes(maxBytesFor(item.file.name, item.file.type))} MB, the limit for one file.
-                          {isVideoUpload(item.file.name, item.file.type) && (
-                            <button type="button" className="ufd__btn ufd__btn--small" onClick={() => void measureSplit(item)} disabled={uploading}>
+                          {isSplittableMedia(item.file.name, item.file.type) ? (
+                            <button type="button" className="ufd__btn ufd__btn--small" onClick={() => void measureSplit(item)} disabled={uploading} data-testid="ufd-split-big">
                               <Scissors size={13} aria-hidden="true" /> Cut it into parts
                             </button>
-                          )}
+                          ) : item.file.type.startsWith('image/') ? (
+                            <button type="button" className="ufd__btn ufd__btn--small" onClick={() => void shrinkToFit(item)} disabled={uploading || item.shrinking} data-testid="ufd-shrink">
+                              {item.shrinking ? 'Shrinking…' : 'Shrink it to fit'}
+                            </button>
+                          ) : null}
+                        </p>
+                      )}
+                      {/* Any video or audio can be cut into parts of a chosen length, not only an
+                          over-limit one (owner, 2026-10-06). */}
+                      {!big && !item.split && !locked && isSplittableMedia(item.file.name, item.file.type) && (
+                        <p className="ufd__note">
+                          <button type="button" className="ufd__btn ufd__btn--small" onClick={() => void measureSplit(item)} disabled={uploading} data-testid="ufd-split">
+                            <Scissors size={13} aria-hidden="true" /> Split into {DEFAULT_PART_MINUTES}-minute parts
+                          </button>
                         </p>
                       )}
                       {item.split && (
                         <div className="ufd__split">
                           <p>{item.split.message}</p>
                           {item.split.phase === 'confirm' ? (
-                            <div className="ufd__newfolder-actions">
-                              <button type="button" className="ufd__btn ufd__btn--primary ufd__btn--small" onClick={() => void runSplit(item)}>Cut it into parts</button>
-                              <button type="button" className="ufd__btn ufd__btn--small" onClick={() => update(item.key, { split: undefined })}>Cancel</button>
-                            </div>
+                            <>
+                              <label className="ufd__split-len">
+                                Each part at most{' '}
+                                <select
+                                  value={item.split.minutes ?? DEFAULT_PART_MINUTES}
+                                  onChange={(e) => void measureSplit(item, Number(e.target.value))}
+                                  data-testid="ufd-split-minutes"
+                                >
+                                  {PART_MINUTE_CHOICES.map((m) => <option key={m} value={m}>{m} minute{m === 1 ? '' : 's'}</option>)}
+                                </select>
+                              </label>
+                              <div className="ufd__newfolder-actions">
+                                <button type="button" className="ufd__btn ufd__btn--primary ufd__btn--small" onClick={() => void runSplit(item)} data-testid="ufd-split-run">Cut it into {item.split.plan?.parts.length ?? ''} parts</button>
+                                <button type="button" className="ufd__btn ufd__btn--small" onClick={() => update(item.key, { split: undefined })}>Cancel</button>
+                              </div>
+                            </>
                           ) : <Loader2 size={16} className="ufd__spin motion-essential" aria-hidden="true" />}
                         </div>
                       )}

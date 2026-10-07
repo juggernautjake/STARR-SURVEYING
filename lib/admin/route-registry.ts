@@ -313,6 +313,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // 2026-09-23 — the block list, after four robocalls in one day from one spoofed campaign. Like
   // the Caller Registry it is a settings surface for the Calls log rather than a second phone row
   // on the rail, so it is palette-only and reached from the Calls header.
+  // Getting a computer ready to scan into Starr Surveying (owner, 2026-10-06). The Scan button on any
+  // job, project or folder links here when the Starr Scan helper is not running.
+  { href: '/admin/scan-setup', label: 'Set Up Scanning', workspace: 'work', iconName: 'ScanLine', description: 'Install the Starr Scan helper so the Scan button can use the scanners and scanning apps on this computer. Checks live and turns green when it is ready.', roles: ['admin', 'employee'], showInRail: false, keywords: ['scan', 'scanner', 'scanning', 'document', 'twain', 'wia', 'brother', 'epson', 'printer', 'helper', 'install', 'setup'] },
   { href: '/admin/calls/blocked', label: 'Blocked Numbers', workspace: 'work', iconName: 'ShieldBan', description: 'The numbers the business line refuses, how many calls each has turned away, and what the caller said before it was blocked. Unblock one and it keeps its history.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['block', 'blocked', 'blocklist', 'block list', 'unblock', 'spam', 'robocall', 'robocalls', 'telemarketer', 'telemarketing', 'nuisance', 'junk call', 'area code', 'reject', 'ban', 'banned', 'caller', 'phone', 'call'] },
   // 2026-09-16 — the caller ID memory behind the Calls log: which number belongs to whom, and
   // whether a person said so (`verified`, and the receptionist may greet by name) or it was merely

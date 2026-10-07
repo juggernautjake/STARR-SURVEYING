@@ -31,13 +31,14 @@ import Link from 'next/link';
 import {
   ChevronRight, Folder, FolderOpen, Layers, Search, Upload, Link2, Eye, Download, ExternalLink, Loader2,
   FileText, Image as ImageIcon, Film, Music, Archive, DraftingCompass, Receipt, BookOpenText, Camera, Video, X, RefreshCw,
-  FolderPlus, Pencil, Trash2, LayoutGrid, Grid2x2, Rows3, List as ListIcon,
+  FolderPlus, Pencil, Trash2, LayoutGrid, Grid2x2, Rows3, List as ListIcon, ScanLine,
 } from 'lucide-react';
 import SharedFileViewer from './FileViewer';
 import DownloadAllButton from './DownloadAllButton';
 import FileComments from './FileComments';
 import FileExplorerDialog from './FileExplorerDialog';
 import UploadFilesDialog from './UploadFilesDialog';
+import ScanDialog from '../scan/ScanDialog';
 import InlineRename from './InlineRename';
 import RecentBadge from './RecentBadge';
 import { formatBytes, formatWhen } from './format';
@@ -215,6 +216,8 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const [dragOver, setDragOver] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Scan a document straight into the folder being viewed (owner, 2026-10-06).
+  const [scanOpen, setScanOpen] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[] | null>(null);
   const [folderForm, setFolderForm] = useState<{ mode: 'new' | 'rename'; name: string; busy: boolean; error: string | null } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -807,6 +810,9 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
               <button type="button" className="fe__btn fe__btn--primary fe__btn--big" onClick={() => openUpload()} disabled={busy !== null} data-testid="fe-upload">
                 <Upload size={16} aria-hidden="true" /> Upload files
               </button>
+              <button type="button" className="fe__btn fe__btn--big" onClick={() => setScanOpen(true)} disabled={busy !== null} data-testid="fe-scan">
+                <ScanLine size={16} aria-hidden="true" /> Scan
+              </button>
               {newFolderPlace && (
                 <button type="button" className="fe__btn fe__btn--big" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} data-testid="fe-new-folder">
                   <FolderPlus size={16} aria-hidden="true" /> New folder
@@ -939,6 +945,17 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       </div>
 
       {extra ? <div className="fe__extra">{extra}</div> : null}
+
+      {uploadRoot && (
+        <ScanDialog
+          open={scanOpen}
+          onClose={() => setScanOpen(false)}
+          destinationLabel={target?.label ?? null}
+          // The finished scan goes through the same pop-up as any upload, opened on this folder, so
+          // it lands here unless the person picks somewhere else.
+          onConfirm={(files) => { setScanOpen(false); openUpload(files); }}
+        />
+      )}
 
       {uploadRoot && (
         <UploadFilesDialog
