@@ -70,6 +70,8 @@ export default function CallPage(): React.ReactElement {
           <dl className="call-detail__facts">
             <dt>When</dt><dd>{started.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{call.duration_seconds ? ` · ${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s` : ''}</dd>
             <dt>From</dt><dd><a href={`tel:${call.from_number}`}>{fmtPhone(call.from_number)}</a></dd>
+            {/* Where the call came from, when it followed a tap on the website's phone number. */}
+            {call.source_detail ? <><dt>Came from</dt><dd>{call.source === 'google_ads' ? <b>Google ad · </b> : null}{call.source_detail}</dd></> : null}
             {call.callback_number && call.callback_number !== call.from_number ? <><dt>Callback</dt><dd><a href={`tel:${call.callback_number}`}>{fmtPhone(call.callback_number)}</a></dd></> : null}
             {call.caller_email ? <><dt>Email</dt><dd><a href={`mailto:${call.caller_email}`}>{call.caller_email}</a></dd></> : null}
             {call.property_address ? <><dt>Property</dt><dd>{call.property_address}</dd></> : null}

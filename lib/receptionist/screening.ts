@@ -31,6 +31,7 @@ import { areaCodeOf, placeOf, regionOf } from './area-codes';
 import { registryKey } from './registry';
 import { isBlocked, type BlockRule } from './blocklist';
 import type { PhoneCall } from './calls';
+import { matchCallToTap } from './call-source';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = Pick<SupabaseClient<any, any, any>, 'from' | 'rpc'>;
@@ -222,9 +223,9 @@ export async function screenIncoming(db: Client | null, from: string, env: Recor
 
 // ── After the call: judge it, and update what we know about the number ─────────────────────────
 type SettleRow = Pick<PhoneCall, 'id' | 'from_number' | 'is_test' | 'answered_by' | 'transcript' | 'voicemail_text' | 'analysis' | 'duration_seconds' | 'recording_duration' | 'transcript_status' | 'summary' | 'started_at' | 'caller_name'>
-  & { screened_as?: string | null; caller_verdict?: string | null; verdict_reason?: string | null; outcome?: string | null };
+  & { screened_as?: string | null; caller_verdict?: string | null; verdict_reason?: string | null; outcome?: string | null; tap_id?: string | null };
 
-export const SETTLE_COLUMNS = 'id, from_number, is_test, answered_by, transcript, voicemail_text, analysis, duration_seconds, recording_duration, transcript_status, summary, started_at, caller_name, screened_as, caller_verdict, verdict_reason, outcome';
+export const SETTLE_COLUMNS = 'id, from_number, is_test, answered_by, transcript, voicemail_text, analysis, duration_seconds, recording_duration, transcript_status, summary, started_at, caller_name, screened_as, caller_verdict, verdict_reason, outcome, tap_id';
 
 /**
  * Judge one call and refresh its number. Returns the verdict written, or null when the evidence is
@@ -244,6 +245,9 @@ export async function settleCall(db: Client, call: SettleRow, opts: { final?: bo
       await db.from('phone_calls').update({ caller_verdict: v.verdict, verdict_reason: v.reason, verdict_at: new Date().toISOString() }).eq('id', call.id);
     }
     await refreshNumber(db, call.from_number);
+    // Which website visit (and ad) led to it — once the verdict is known, so a robocall that happens
+    // to follow somebody's tap is never credited to an ad (lib/receptionist/call-source.ts).
+    await matchCallToTap(db, { ...call, caller_verdict: v.verdict });
     return v.verdict;
   } catch (err) {
     console.error('[screening] settle failed:', err);

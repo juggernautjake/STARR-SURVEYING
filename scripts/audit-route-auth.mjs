@@ -80,6 +80,7 @@ const INTENTIONALLY_PUBLIC = new Map([
   ['app/llms.txt/route.ts', 'static business summary for AI assistants (llmstxt.org); built from lib/seo/business.ts'],
   // ── the public forms and portal ────────────────────────────────────────────────────────────────
   ['app/api/contact/route.ts', 'the public quote form — throttled (A1-2), honeypotted (A1-3), storage-capped (A1-5)'],
+  ['app/api/phone-tap/route.ts', 'website tel: tap beacon (2026-10-06) — insert-only, per-IP throttled, fields capped, no IP or number stored; feeds call-to-ad matching'],
   // ── Twilio webhooks: the X-Twilio-Signature (HMAC of the exact URL + params with the auth token) is
   // the credential, checked before a byte of TwiML is produced. See lib/twilio/signature.ts.
   ['app/api/twilio/receptionist/route.ts', 'Twilio voice webhook — signature-verified; rings the owner, then hands off'],

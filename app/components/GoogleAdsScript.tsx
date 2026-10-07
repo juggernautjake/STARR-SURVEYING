@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
 import { GA_ADS_ID, CONVERSION_LABEL, GA4_MEASUREMENT_ID, trackPhoneClick } from '../utils/gtag';
+import { reportPhoneTap } from '@/lib/leads/phone-tap-beacon';
 
 /**
  * The only hosts allowed to talk to the live Google Ads account.
@@ -103,6 +104,9 @@ export default function GoogleAdsScript(): React.ReactElement | null {
       }
       const digits = (link.getAttribute('href') ?? '').replace(/\D/g, '');
       trackPhoneClick(`tel-${digits}-${session}`);
+      // Our own record of the tap, so the call that follows can be matched to the visit and the ad
+      // (owner, 2026-10-06: one business number, no call-tracking numbers — lib/receptionist/call-source.ts).
+      reportPhoneTap();
     }
 
     // Capture phase: a `tel:` tap can begin navigating away, and a bubbling listener sometimes never

@@ -11,6 +11,14 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { insertLeadFromForm, notifyIntakeRecipients, type LeadIntakeInput } from '@/lib/leads/intake';
 import { getCall, updateCall, formatUsPhone } from '@/lib/receptionist/calls';
+import { TAP_COLUMNS, tapAttribution, type TapRow } from '@/lib/receptionist/call-source';
+import type { Attribution } from '@/lib/leads/attribution';
+
+async function attributionFor(tapId: string | null): Promise<Attribution | null> {
+  if (!tapId) return null;
+  const { data } = await supabaseAdmin.from('phone_taps').select(TAP_COLUMNS).eq('id', tapId).maybeSingle();
+  return tapAttribution((data as TapRow | null) ?? null) as Attribution | null;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +58,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     source: 'Phone (call record)',
     howHeard: 'Phone call',
     isRush: a?.urgency === 'high',
+    // The ad behind the call, when the call was matched to a website tap (lib/receptionist/call-source.ts).
+    // Carried on the lead, it reaches the existing offline-conversion upload like a form's gclid does.
+    attribution: await attributionFor(call.tap_id ?? null),
   };
   const lead = await insertLeadFromForm(supabaseAdmin, input);
   if (!lead) return NextResponse.json({ error: 'Could not create the lead' }, { status: 500 });

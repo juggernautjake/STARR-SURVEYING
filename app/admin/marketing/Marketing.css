@@ -1137,3 +1137,7 @@
   .mk__detail { grid-template-columns: 1fr; gap: 2px; }
   .mk__detail dt { margin-top: 8px; }
 }
+
+/* Phone calls tied to the site by a tap on the number (2026-10-06). */
+.mk__calls { margin: 1rem 0; padding: .8rem 1rem; border: 1px solid var(--theme-border, rgba(127,127,127,.3)); border-radius: 10px; }
+.mk__h3 { margin: 0 0 .5rem; font-size: .95rem; font-weight: 700; }

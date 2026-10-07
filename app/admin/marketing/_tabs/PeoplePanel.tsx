@@ -43,6 +43,8 @@ interface Payload {
     total: number; click: number; inferred: number; declared: number; anonymous: number;
     clickShare: number | null;
   };
+  /** Phone calls in the period, tied to the site by a tap on the number (lib/receptionist/call-source.ts). */
+  calls?: { calls: number; taps: number; matched: number; fromAds: number; likely: number };
   people: Person[];
   truncated: boolean;
 }
@@ -98,12 +100,25 @@ export default function PeoplePanel({ range }: { range: DateRange }): React.Reac
       </ul>
 
       {/* Said once, plainly, rather than implied by an absence. */}
-      <p className="mk__warn">
-        <strong>Phone calls are not counted here at all.</strong> A call carries no click id, so an
-        enquiry that arrives by phone can only appear above if the customer filled in a form too.
-        Tying calls to ads needs a call-tracking number — a paid service and a decision for the
-        owner, not something this page can infer.
-      </p>
+      {/* Phone calls (2026-10-06). One business number and no call-tracking numbers, so a call is tied
+          to an ad only when the caller tapped the number on the website first and the call followed
+          within minutes. Said plainly, so the gap is understood rather than assumed away. */}
+      <div className="mk__calls" data-testid="mk-calls">
+        <h3 className="mk__h3">Phone calls</h3>
+        {data.calls ? (
+          <ul className="mk__stats">
+            <li><span>{data.calls.calls}</span> real calls to the business line</li>
+            <li><span>{data.calls.taps}</span> taps on the phone number on the website</li>
+            <li><span>{data.calls.matched}</span> calls matched to a website visit <em>({data.calls.likely} near-certain)</em></li>
+            <li><span>{data.calls.fromAds}</span> of those began with a Google ad click</li>
+          </ul>
+        ) : null}
+        <p className="mk__muted">
+          A call is matched when someone taps the number on the website and the call arrives within a few
+          minutes. Callers who saw an ad but dialled without visiting the site cannot be traced with one
+          business number. A matched call that becomes a lead carries the ad click to Google Ads.
+        </p>
+      </div>
 
       {people.length === 0 ? (
         <p className="mk__muted">No enquiries in this period.</p>

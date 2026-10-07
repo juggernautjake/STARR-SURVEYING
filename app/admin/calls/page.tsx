@@ -34,7 +34,7 @@ import { VERDICT_LABEL, isJunkCall, wasScreened } from '@/lib/receptionist/scree
 import { placeOf } from '@/lib/receptionist/area-codes';
 
 type Filter = 'real' | 'all' | 'customer' | 'ai' | 'owner' | 'voicemail' | 'none' | 'screened';
-type Week = { total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number };
+type Week = { total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number; fromAds?: number; fromSite?: number };
 type Scope = 'live' | 'test';
 
 function when(iso: string): { day: string; time: string } {
@@ -193,6 +193,8 @@ export default function CallsPage(): React.ReactElement {
           {week.blocked ? ` · ${week.blocked} blocked` : ''}
           {week.robocalls ? ` · ${week.robocalls} robocall${week.robocalls === 1 ? '' : 's'}` : ''}
           {week.silent ? ` · ${week.silent} silent` : ''}
+          {week.fromAds ? ` · ${week.fromAds} from Google ads` : ''}
+          {week.fromSite ? ` · ${week.fromSite} from the website` : ''}
         </p>
       ) : null}
 
@@ -282,6 +284,8 @@ export default function CallsPage(): React.ReactElement {
                     {c.is_test ? <span className="pill pill--test">Test</span> : null}
                     {c.kind ? <span className={`pill pill--${c.kind}`}>{c.kind}</span> : null}
                     {c.answered_by ? <span className={`pill pill--${c.answered_by}`}>{HOW[c.answered_by] ?? c.answered_by}</span> : null}
+                    {c.source === 'google_ads' ? <span className="pill pill--ad" title={c.source_detail ?? undefined}>Google ad</span>
+                      : c.source === 'website' ? <span className="pill" title={c.source_detail ?? undefined}>From website</span> : null}
                     {c.screened_as === 'voicemail' ? <span className="pill pill--screened" title={c.screen_reason ?? undefined}>Screened</span> : null}
                     {c.caller_verdict && JUNK_PILL.has(c.caller_verdict) && c.answered_by !== 'blocked'
                       ? <span className={`pill pill--v-${c.caller_verdict}`} title={c.verdict_reason ?? undefined}>{VERDICT_LABEL[c.caller_verdict]}</span>

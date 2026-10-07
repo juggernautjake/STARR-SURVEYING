@@ -50,13 +50,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
  * kept off the phone. The number the owner reviews at the end of the week (2026-10-06): "review how
  * successful it is at the end of the week."
  */
-async function lastWeek(): Promise<{ total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number } | null> {
+async function lastWeek(): Promise<{ total: number; real: number; screened: number; blocked: number; robocalls: number; silent: number; fromAds: number; fromSite: number } | null> {
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const { data, error } = await supabaseAdmin.from('phone_calls')
-    .select('caller_verdict, screened_as, answered_by')
+    .select('caller_verdict, screened_as, answered_by, source')
     .eq('is_test', false).gte('started_at', since).limit(2000);
   if (error) return null;
-  const rows = (data ?? []) as Array<{ caller_verdict: string | null; screened_as: string | null; answered_by: string | null }>;
+  const rows = (data ?? []) as Array<{ caller_verdict: string | null; screened_as: string | null; answered_by: string | null; source: string | null }>;
   return {
     total: rows.length,
     real: rows.filter((r) => r.caller_verdict === 'person').length,
@@ -64,5 +64,7 @@ async function lastWeek(): Promise<{ total: number; real: number; screened: numb
     blocked: rows.filter((r) => r.screened_as === 'blocked' || r.answered_by === 'blocked').length,
     robocalls: rows.filter((r) => r.caller_verdict === 'robocall').length,
     silent: rows.filter((r) => r.caller_verdict === 'silent').length,
+    fromAds: rows.filter((r) => r.source === 'google_ads').length,
+    fromSite: rows.filter((r) => r.source === 'website').length,
   };
 }
