@@ -149,6 +149,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       upload_state: 'done',
       uploaded_by: session.user.email,
       created_by: session.user.email,
+      change_actor: session.user.email,
       description: [
         raw.recording_info,
         raw.county_fips ? `${raw.county_fips} County records` : null,

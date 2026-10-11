@@ -182,6 +182,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       file_name, file_type: file_type || 'other', file_size,
       mime_type, section: section || 'general', description,
       uploaded_by: session.user.email,
+      // Who, for the change log (seeds/676) — read by the trigger, never stored.
+      change_actor: session.user.email,
       file_node_id: file_node_id ?? null,
       // Only written when set, so an upload with no named folder is the same insert it always was.
       ...(folder.folderId ? { folder_id: folder.folderId } : {}),

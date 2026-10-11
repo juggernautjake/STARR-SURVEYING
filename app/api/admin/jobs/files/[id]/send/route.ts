@@ -66,7 +66,7 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
   if (mode === 'move') {
     const { data: moved, error } = await supabaseAdmin
       .from('job_files')
-      .update({ job_id: jobId, project_id: projectId, folder_id: folder.folderId, ...(section ? { section } : {}), ...(fileType ? { file_type: fileType } : {}) })
+      .update({ job_id: jobId, project_id: projectId, folder_id: folder.folderId, ...(section ? { section } : {}), ...(fileType ? { file_type: fileType } : {}), change_actor: actor })
       .eq('id', row.id)
       .select()
       .single();
@@ -102,6 +102,7 @@ export const POST = withErrorHandler(async (req: NextRequest, ctx: { params: { i
     .from('job_files')
     .insert({
       id: newId,
+      change_actor: actor,
       job_id: jobId,
       project_id: projectId,
       file_name: row.file_name ?? row.name ?? 'file',

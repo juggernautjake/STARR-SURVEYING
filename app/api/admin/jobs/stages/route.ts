@@ -74,7 +74,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { error: updateError } = await supabaseAdmin
     .from('jobs')
-    .update(updateFields)
+    .update({ ...updateFields, change_actor: session.user.email })
     .eq('id', job_id);
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });

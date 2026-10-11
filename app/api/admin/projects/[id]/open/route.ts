@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fireAndForget } from '@/lib/apiErrorHandler';
+import { markProjectViewed } from '@/lib/activity/record-activity-server';
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -42,6 +43,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       { onConflict: 'project_id,user_email' },
     ),
   );
+
+  // 2026-10-11 — a view also moves the project up the list (seeds/676, `project_activity`).
+  await markProjectViewed(params.id, session.user.email);
 
   return NextResponse.json({ ok: true });
 }

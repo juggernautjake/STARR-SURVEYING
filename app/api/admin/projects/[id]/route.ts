@@ -9,6 +9,8 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
 import { rollUp, isProjectStatus, INHERITED_FIELDS, type JobMoney } from '@/lib/projects/model';
+import { activityInstant, sortByActivity } from '@/lib/activity/record-activity';
+import { jobActivityFor, projectActivityFor } from '@/lib/activity/record-activity-server';
 
 const COLS =
   'id, project_number, name, description, status, customer_id, client_name, client_email,'
@@ -45,9 +47,26 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: false });
   if (jobErr) return dbErrorResponse(jobErr, 'load the project’s jobs');
 
+  // The project's jobs in the same order as the jobs list: last worked on or viewed first.
+  const jobRows = (jobs ?? []) as unknown as Array<Record<string, unknown> & { id: string; updated_at?: string | null; created_at?: string | null }>;
+  const [jobStamps, projectStamps] = await Promise.all([
+    jobActivityFor(jobRows.map((j) => j.id)),
+    projectActivityFor([params.id]),
+  ]);
+  const ordered = sortByActivity(jobRows.map((j) => {
+    const s = jobStamps.get(j.id);
+    return {
+      ...j,
+      last_activity_at: activityInstant(s, j),
+      last_modified_at: s?.last_modified_at ?? null,
+      last_modified_by: s?.last_modified_by ?? null,
+      last_viewed_at: s?.last_viewed_at ?? null,
+    };
+  }));
+
   return NextResponse.json({
-    project,
-    jobs: jobs ?? [],
+    project: { ...project, activity: projectStamps.get(params.id) ?? null },
+    jobs: ordered,
     rollup: rollUp((jobs ?? []) as JobMoney[]),
   });
 }
@@ -72,6 +91,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
   }
   updates.updated_at = new Date().toISOString();
+  // Who, for the change log (seeds/676) — the trigger reads and blanks it.
+  updates.change_actor = session.user.email;
 
   const { data: project, error } = await supabaseAdmin
     .from('projects').update(updates).eq('id', params.id).select(COLS).single();
@@ -88,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     action_type: 'project_updated',
     entity_type: 'project',
     entity_id: params.id,
-    metadata: { fields: Object.keys(updates).filter((k) => k !== 'updated_at') },
+    metadata: { fields: Object.keys(updates).filter((k) => k !== 'updated_at' && k !== 'change_actor') },
   }));
 
   return NextResponse.json({ project });
@@ -119,7 +140,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const { error } = await supabaseAdmin
     .from('projects')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: new Date().toISOString(), change_actor: session.user.email })
     .eq('id', params.id);
   if (error) return dbErrorResponse(error, 'delete the project');
 

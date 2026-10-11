@@ -120,6 +120,8 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
   }
 
   patch.updated_at = new Date().toISOString();
+  // Who, for the change log (seeds/676) — the trigger reads and blanks it.
+  patch.change_actor = session.user.email;
 
   const { data: updated, error } = await supabaseAdmin
     .from('job_files')

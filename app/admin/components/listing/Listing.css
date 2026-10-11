@@ -358,6 +358,8 @@
 .lst-card__stat strong { color: var(--theme-fg-primary, #0F172A); font-variant-numeric: tabular-nums; }
 .lst-card__stat--good strong { color: var(--theme-success-fg, #047857); }
 .lst-card__stat--owed strong { color: var(--theme-warning-fg, #92400E); }
+/* "Edited 5 min ago" — why the card sits where it does (default order, 2026-10-11). */
+.lst-card__stat--activity { font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); }
 .lst-card__id { margin-left: auto; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; color: var(--theme-fg-muted, #64748B); font-variant-numeric: tabular-nums; }
 .lst-card__link { margin-left: auto; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; font-weight: 600; color: var(--lst-accent); }
 .lst-card__link--none { color: var(--theme-fg-muted, #64748B); font-weight: 500; }
@@ -425,7 +427,8 @@
 .lst--projects .lst-card__foot,
 .lst--projects .lst-card__address-sub { color: color-mix(in srgb, var(--lst-on) 88%, transparent); }
 .lst--projects .lst-card__k,
-.lst--projects .lst-card__id { color: color-mix(in srgb, var(--lst-on) 72%, transparent); }
+.lst--projects .lst-card__id,
+.lst--projects .lst-card__stat--activity { color: color-mix(in srgb, var(--lst-on) 72%, transparent); }
 .lst--projects .lst-card__v--overdue { color: var(--lst-on); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lst-on) 60%, transparent); }
 .lst--projects .lst-card__foot { border-top-color: color-mix(in srgb, var(--lst-on) 35%, transparent); }
 /* Chips sit on the gradient as white tags; their tone lives in the text. */

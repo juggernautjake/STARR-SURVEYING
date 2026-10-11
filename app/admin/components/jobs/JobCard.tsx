@@ -3,6 +3,7 @@
 
 import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 import { dueBubble } from '@/lib/admin/listing';
+import { activityLine } from '@/lib/activity/record-activity';
 // The bubbles (.lst-bubble) live with the listing frame; a card can render on a page that never mounted it.
 import '@/app/admin/components/listing/Listing.css';
 
@@ -28,6 +29,9 @@ interface Job {
   job_team?: JobTeamMember[];
   job_tags?: { tag: string }[];
   total_hours?: number;
+  /** Last edited / viewed (seeds/676) — the jobs list's order, shown so the order explains itself. */
+  last_modified_at?: string | null;
+  last_viewed_at?: string | null;
 }
 
 const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
@@ -106,6 +110,12 @@ export default function JobCard({ job, onClick, isNew = false }: { job: Job; onC
           <span className="job-card__detail">
             <span className="job-card__detail-icon">👥</span>
             {teamCount} member{teamCount !== 1 ? 's' : ''}
+          </span>
+        )}
+        {activityLine(job) && (
+          <span className="job-card__detail" data-testid="job-activity">
+            <span className="job-card__detail-icon">🕓</span>
+            {activityLine(job)}
           </span>
         )}
         {job.total_hours !== undefined && job.total_hours > 0 && (

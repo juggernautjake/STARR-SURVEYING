@@ -6,6 +6,8 @@ import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiError
 import { notifyJobCreated } from '@/lib/notifications';
 import { recordMilestone, toCents } from '@/lib/pipeline/events';
 import { inheritFromProject, INHERITED_FIELDS } from '@/lib/projects/model';
+import { activityInstant, sortByActivity } from '@/lib/activity/record-activity';
+import { jobActivityFor } from '@/lib/activity/record-activity-server';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -58,10 +60,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // List jobs
+  // ── ORDER: WHAT WAS WORKED ON OR LOOKED AT LAST (2026-10-11) ─────────────────────────────────
+  //
+  // Owner: *"whatever project was last modified should show up first … It is more helpful to see
+  // jobs that are being actively viewed and modified."* That instant lives in `job_activity`
+  // (seeds/676), which PostgREST cannot order the parent rows by, so the live list is read whole
+  // (the firm has dozens of jobs, not thousands), ordered here, then paged. The trash keeps its
+  // own order — most recently deleted first — and pages in SQL as before.
+  const ACTIVITY_WINDOW = 1000;
   let query = supabaseAdmin
     .from('jobs')
     .select('*, job_team(user_email, user_name, role), job_tags(tag)', { count: 'exact' })
-    .range(offset, offset + limit - 1);
+    .range(deleted ? offset : 0, deleted ? offset + limit - 1 : ACTIVITY_WINDOW - 1);
 
   // job-soft-delete Slice 1 — the trash view lists soft-deleted jobs
   // (newest-deleted first); every other view excludes them. Archive
@@ -69,6 +79,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (deleted) {
     query = query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
   } else {
+    // created_at keeps the pre-activity order as the tie-break for jobs nobody has touched.
     query = query.is('deleted_at', null).eq('is_archived', archived).order('created_at', { ascending: false });
   }
 
@@ -91,7 +102,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ jobs: data || [], total: count || 0 });
+  if (deleted) return NextResponse.json({ jobs: data || [], total: count || 0 });
+
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown> & { id: string; updated_at?: string | null; created_at?: string | null }>;
+  const stamps = await jobActivityFor(rows.map((j) => j.id));
+  const withActivity = sortByActivity(rows.map((j) => {
+    const s = stamps.get(j.id);
+    return {
+      ...j,
+      last_activity_at: activityInstant(s, j),
+      last_modified_at: s?.last_modified_at ?? null,
+      last_modified_by: s?.last_modified_by ?? null,
+      last_viewed_at: s?.last_viewed_at ?? null,
+      last_viewed_by: s?.last_viewed_by ?? null,
+    };
+  }));
+
+  return NextResponse.json({ jobs: withActivity.slice(offset, offset + limit), total: count || 0 });
 }, { routeName: 'jobs' });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -208,6 +235,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       date_received, date_quoted, date_accepted, date_started,
       stage: stage || 'quote',
       created_by: session.user.email,
+      // Who, for the change log (seeds/676) — read by the trigger, never stored.
+      change_actor: session.user.email,
       // A6 — the forward links. `origin_lead_id` turns "where did this job come from" into a key lookup
       // instead of the unindexed reverse scan over `leads.converted_job_id` that origin-lead was doing.
       origin_lead_id: origin_lead_id || null,
@@ -280,6 +309,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       job_id: job.id,
       user_email: lead_rpls_email,
       role: 'lead_rpls',
+      change_actor: session.user.email,
     });
     if (teamErr) warnings.push(`Lead RPLS not added to team: ${teamErr.message}`);
   }
@@ -343,6 +373,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     directUpdates.result_set_at = directUpdates.result_set_at ?? new Date().toISOString();
   }
 
+  // `change_actor` names the editor for the change log (seeds/676); the trigger reads and blanks it.
+  directUpdates.change_actor = session.user.email;
+
   const { data, error } = await supabaseAdmin
     .from('jobs')
     .update(directUpdates)
@@ -401,7 +434,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // which leaves the job live.
   const { data, error } = await supabaseAdmin
     .from('jobs')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: new Date().toISOString(), change_actor: session.user.email })
     .eq('id', id)
     .select('id, name, job_number, deleted_at')
     .maybeSingle();

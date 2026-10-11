@@ -24,6 +24,7 @@ import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import FolderExplorer from '../../components/files/FolderExplorer';
 import UploadFilesDialog from '../../components/files/UploadFilesDialog';
+import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import ProjectMoneyPanel from '../../components/projects/ProjectMoneyPanel';
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, projectLabel, type ProjectStatus,
@@ -356,6 +357,12 @@ export default function ProjectDetailPage() {
             title={projectLabel(project)}
             onUploaded={() => setFilesRefresh((n) => n + 1)}
           />
+        </section>
+
+        {/* ── History (owner, 2026-10-11): every file added or changed and every edit, on the
+            project and all of its jobs. Re-reads after an upload from this page. */}
+        <section className="pd__main pd__history" data-testid="project-history">
+          <JobActivityFeed projectId={project.id} key={filesRefresh} />
         </section>
       </div>
     </div>

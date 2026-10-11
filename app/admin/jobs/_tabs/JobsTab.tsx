@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { List, LayoutGrid, Trash2, Briefcase } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
+import { activityLine } from '@/lib/activity/record-activity';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import { useNewJobs } from '@/lib/admin/use-new-jobs';
 import Tooltip from '../../research/components/Tooltip';
@@ -35,6 +36,8 @@ interface Job {
   deadline?: string;
   lead_rpls_email?: string;
   created_at: string;
+  last_modified_at?: string | null;
+  last_viewed_at?: string | null;
   job_team?: { user_email: string; user_name?: string; role: string }[];
   job_tags?: { tag: string }[];
 }
@@ -353,7 +356,9 @@ export default function AllJobsPage() {
                     >
                       {STAGE_CONFIG[job.stage]?.icon} {STAGE_CONFIG[job.stage]?.label}
                     </span>
-                    <span className="jobs-page__list-date">{new Date(job.created_at).toLocaleDateString()}</span>
+                    <span className="jobs-page__list-date" title={`Created ${new Date(job.created_at).toLocaleDateString()}`}>
+                      {activityLine(job) ?? new Date(job.created_at).toLocaleDateString()}
+                    </span>
                   </button>
                 )}
                 {showDeleted ? (

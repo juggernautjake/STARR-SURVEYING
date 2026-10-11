@@ -71,7 +71,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: folder, error } = await supabaseAdmin
     .from('job_file_folders')
-    .insert({ job_id: jobId, name: check.value, parent_key: parentKey, parent_id: parentId, created_by: session.user.email })
+    .insert({ job_id: jobId, name: check.value, parent_key: parentKey, parent_id: parentId, created_by: session.user.email, change_actor: session.user.email })
     .select('id, name, parent_key, parent_id, created_at')
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
