@@ -337,8 +337,12 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     deleter.request(items);
   }, [deleter]);
 
+  // Read through a ref: a capability awaits a reload and then looks the file up, and the map it
+  // closed over is the one from BEFORE that reload (the first-rename-reverts bug, 2026-10-11).
+  const fileByIdRef = useRef(fileById);
+  fileByIdRef.current = fileById;
   const viewerCapabilities = useMemo(() => mountCapabilities({
-    nodeFor: (id) => fileById.get(id),
+    nodeFor: (id) => fileByIdRef.current.get(id),
     onChanged: load,
     url: (id) => urls[id] ?? null,
   }), [fileById, load, urls]);
@@ -351,16 +355,29 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   // phone. This is the SAME capability, called from the row, so there is one rename and not two:
   // whatever `mountCapabilities` decides (job file → `label`, research doc → `document_label`,
   // anything else → a refusal that says where it IS renamed) holds here as well.
+  //
+  // 2026-10-11 — the new name shows the moment Enter is pressed, rather than after the save AND a
+  // re-list of the whole folder (seconds on a big job); a refusal puts the old name back.
+  const renameLocally = useCallback((id: string, name: string) => {
+    setTree((t) => (t ? {
+      ...t,
+      folders: t.folders.map((f) => (f.files.some((x) => x.id === id)
+        ? { ...f, files: f.files.map((x) => (x.id === id ? { ...x, name } : x)) }
+        : f)),
+    } : t));
+  }, []);
   const renameRow = useCallback(async (n: MountNode, next: string) => {
     const rename = viewerCapabilities.rename;
     if (!rename) return;
+    renameLocally(n.id, next);
     try {
       await rename(mountNodeToViewerFile(n, urls[n.id] ?? null, folderNameOf(n)), next);
     } catch (err) {
+      renameLocally(n.id, n.name);
       setNotice(err instanceof Error ? err.message : `Could not rename ${n.name}.`);
       throw err;
     }
-  }, [viewerCapabilities, urls, folderNameOf]);
+  }, [viewerCapabilities, urls, folderNameOf, renameLocally]);
 
   // ── open a file: fetch its viewing URL first, the rest of the collection in the background ──
   const openFile = useCallback(async (n: MountNode) => {
@@ -673,6 +690,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       <InlineRename
         name={n.name}
         onRename={(next) => renameRow(n, next)}
+        optimistic
         canRename={Boolean(viewerCapabilities.rename) && !n.open_href}
         className="fe__row-namewrap"
         inputClassName="fe__row-rename"

@@ -102,10 +102,18 @@ async function sendJobFile(id: string, mode: 'move' | 'copy', target: ReturnType
 
 export function mountCapabilities(hooks: MountCapabilityHooks): ViewerCapabilities {
   const src = (id: string) => hooks.nodeFor(id)?.source;
-  const refreshed = async (id: string): Promise<ViewerFile> => {
+  // ── THE FIRST RENAME USED TO REVERT (owner, 2026-10-11) ───────────────────────────────────
+  // *"whenever I click on the file name and type something and hit enter … it reverts back to the
+  // original. If I do the exact same thing a second time, the name change does take effect."*
+  // `hooks` belongs to the render that opened the viewer, so after the reload `nodeFor` could still
+  // answer from the list as it was BEFORE the edit — the old name — and the viewer showed it. The
+  // second try "worked" because its hooks came from the first reload. The edit the server just
+  // accepted is now applied on top of whatever the list says, so it can never be read back stale.
+  const refreshed = async (id: string, applied: Partial<ViewerFile>): Promise<ViewerFile> => {
     await hooks.onChanged();
     const n = hooks.nodeFor(id);
-    return n ? mountNodeToViewerFile(n, hooks.url(id)) : ({ id, name: '', mime: null, size: null, url: null } as ViewerFile);
+    const base = n ? mountNodeToViewerFile(n, hooks.url(id)) : ({ id, name: '', mime: null, size: null, url: null } as ViewerFile);
+    return { ...base, ...applied };
   };
 
   return {
@@ -120,21 +128,21 @@ export function mountCapabilities(hooks: MountCapabilityHooks): ViewerCapabiliti
       } else {
         throw new Error('This file is renamed where it lives (a drawing in CAD, a receipt in Receipts).');
       }
-      return refreshed(file.id);
+      return refreshed(file.id, { name: newName });
     },
     updateNotes: async (file, notes) => {
       const s = src(file.id);
       if (s?.table === 'job_files') await patchJson(`/api/admin/jobs/files/${s.id}`, { description: notes.trim() || null });
       else if (s?.table === 'research_documents' && s.research_project_id) await patchJson(`/api/admin/research/${s.research_project_id}/documents/${s.id}`, { notes });
       else throw new Error('Notes are kept on job files and research documents.');
-      return refreshed(file.id);
+      return refreshed(file.id, { notes: notes.trim() || null });
     },
     updateTags: async (file, tags) => {
       const s = src(file.id);
       if (s?.table === 'job_files') await patchJson(`/api/admin/jobs/files/${s.id}`, { tags });
       else if (s?.table === 'research_documents' && s.research_project_id) await patchJson(`/api/admin/research/${s.research_project_id}/documents/${s.id}`, { tags });
       else throw new Error('Tags are kept on job files and research documents.');
-      return refreshed(file.id);
+      return refreshed(file.id, { tags });
     },
     canSendTo: canReceiveJobFile,
     sendHint: "a job's Research / CAD / Photos / Videos / Documents folder (or a folder inside one), or a project's documents",

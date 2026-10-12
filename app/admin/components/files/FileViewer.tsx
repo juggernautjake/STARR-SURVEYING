@@ -136,7 +136,18 @@ function TagsEditor({ tags, onChange, disabled }: { tags: string[]; onChange: (t
 
 export default function FileViewer({ collection, fileId, capabilities = {}, onClose, onFileChanged, onFileRemoved, onCurrentChange, extra }: FileViewerProps) {
   const [files, setFiles] = useState<ViewerFile[]>(collection.files);
-  useEffect(() => { setFiles(collection.files); }, [collection.files]);
+  // Names typed here and accepted (or still on their way to the server). A collection the surface
+  // re-sends before its reload has landed still carries the OLD name; without this it would put the
+  // old name back on screen for a moment — or for good — after a rename (owner, 2026-10-11).
+  const pendingNames = useRef(new Map<string, string>());
+  useEffect(() => {
+    setFiles(collection.files.map((f) => {
+      const pending = pendingNames.current.get(f.id);
+      if (pending === undefined) return f;
+      if (f.name === pending) { pendingNames.current.delete(f.id); return f; }
+      return { ...f, name: pending };
+    }));
+  }, [collection.files]);
   const [currentId, setCurrentId] = useState(fileId);
   useEffect(() => { setCurrentId(fileId); }, [fileId]);
   useEffect(() => { onCurrentChange?.(currentId); }, [currentId, onCurrentChange]);
@@ -408,13 +419,39 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     setBusy(label); setError(null);
     try { await fn(); } catch (err) { setError(`${label} failed: ${err instanceof Error ? err.message : String(err)}`); } finally { setBusy(null); }
   };
-  const commitRename = () => {
+  // Enter commits, and the input then unmounts — which can fire its blur too. One commit per edit.
+  const renameCommitted = useRef(false);
+  const startRename = () => {
     if (!file || !capabilities.rename) return;
-    const next = applyRename(file.name, nameDraft);
-    setRenaming(false);
-    if (next === file.name) return;
-    void run('Rename', async () => patchLocal(await capabilities.rename!(file, next)));
+    renameCommitted.current = false;
+    setNameDraft(file.name);
+    setRenaming(true);
   };
+  /** Rename takes effect on screen at once (owner, 2026-10-11: "I need it to take effect on the
+   *  first attempt"); the server's answer then replaces it, and a refusal puts the old name back
+   *  with the reason. */
+  const commitRename = () => {
+    if (renameCommitted.current) return;
+    renameCommitted.current = true;
+    setRenaming(false);
+    if (!file || !capabilities.rename) return;
+    const before = file;
+    const next = applyRename(before.name, nameDraft);
+    if (!nameDraft.trim() || next === before.name) return;
+    pendingNames.current.set(before.id, next);
+    patchLocal({ ...before, name: next });
+    void run('Rename', async () => {
+      try {
+        const saved = await capabilities.rename!(before, next);
+        patchLocal({ ...saved, name: saved.name || next });
+      } catch (err) {
+        pendingNames.current.delete(before.id);
+        patchLocal(before);
+        throw err;
+      }
+    });
+  };
+  const cancelRename = () => { renameCommitted.current = true; setRenaming(false); };
   useEffect(() => { setSendOpen(false); }, [file?.id]);
 
   const canEdit = Boolean(capabilities.rename || capabilities.updateNotes || capabilities.updateTags || capabilities.move || capabilities.copy || capabilities.delete);
@@ -467,7 +504,18 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
                   onBlur={commitRename}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false); }}
+                  onKeyDown={(e) => {
+                    // Escape cancels the rename only — it must not also close the viewer.
+                    if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelRename(); }
+                  }}
+                  onFocus={(e) => {
+                    // Select the name without its extension, the way a desktop rename does, so typing
+                    // replaces "IMG_5932" and keeps ".jpg".
+                    const v = e.currentTarget.value;
+                    const dot = v.lastIndexOf('.');
+                    e.currentTarget.setSelectionRange(0, dot > 0 ? dot : v.length);
+                  }}
                   aria-label="File name"
                   autoFocus
                 />
@@ -475,7 +523,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                 <button
                   type="button"
                   className={`fv-head__title${capabilities.rename ? ' fv-head__title--editable' : ''}`}
-                  onClick={() => { if (capabilities.rename) { setNameDraft(file.name); setRenaming(true); } }}
+                  onClick={startRename}
                   title={capabilities.rename ? 'Click to rename' : file.name}
                 >
                   {file.name}
