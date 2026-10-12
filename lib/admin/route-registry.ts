@@ -752,6 +752,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // page forwards there. What it exists for is being the parent of a record.
   { href: '/admin/payouts/runs', label: 'Payout Runs', workspace: 'money', section: 'Money out', iconName: 'ListChecks', description: 'A payout batch and what came back from the bank.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['batch', 'run'] },
   { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
+  // Payout autopilot (2026-10-11): how the firm pays people, and every check number ever used.
+  { href: '/admin/payouts/settings',      label: 'Payout Settings',  workspace: 'money', section: 'Money out', iconName: 'Settings',     description: 'Which ways people are paid, defaults, fallbacks, fees, and bank / Venmo / check set-up.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['payroll', 'direct deposit', 'venmo', 'checks', 'fees', 'ach', 'nacha'] },
+  { href: '/admin/payouts/checks',        label: 'Check Register',   workspace: 'money', section: 'Money out', iconName: 'FileText',     description: 'Every payroll check number — printed, issued, voided, reissued.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['checks', 'void', 'reissue', 'payroll'] },
   { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['create', 'bill', 'customer'] },
   // ── C1: three billing links became one ──────────────────────────────────────────────────────
   //

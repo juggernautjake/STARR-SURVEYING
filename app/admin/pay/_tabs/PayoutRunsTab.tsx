@@ -181,11 +181,17 @@ export default function PayoutRunsPage(): React.ReactElement {
         <div>
           <h1 className="payouts-page__title">Weekly payouts</h1>
           <p className="payouts-page__lede">
-            Build the weekly batch, review the totals, send it to the payout admin for approval.
+            Build the batch, review it, then Commit payout — everyone is paid their own way.
           </p>
         </div>
         {!wizardOpen && (
           <div className="payouts-page__cta-group">
+            <Link href="/admin/payouts/settings" className="payouts-page__ad-hoc" data-testid="payouts-settings-link">
+              Payout settings
+            </Link>
+            <Link href="/admin/payouts/checks" className="payouts-page__ad-hoc" data-testid="payouts-checks-link">
+              Check register
+            </Link>
             <Link
               href="/admin/payouts/tax-report"
               className="payouts-page__ad-hoc"

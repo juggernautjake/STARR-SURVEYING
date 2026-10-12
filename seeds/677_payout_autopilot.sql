@@ -100,7 +100,7 @@ BEGIN
       AND (fallback_method IS NULL OR fallback_method = ANY (enabled_methods)));
   END IF;
 END $$;
-INSERT INTO public.payout_settings (org_id) VALUES ('00000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING;
+INSERT INTO public.payout_settings (org_id) VALUES ('00000000-0000-0000-0000-000000000001') ON CONFLICT (org_id) DO NOTHING;
 
 -- ── 3b. Written consent to a payment-method fee ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.payout_fee_consents (
@@ -161,7 +161,7 @@ BEGIN
   SELECT COALESCE((checks->>'next_number')::integer, 1001) INTO cur
     FROM public.payout_settings WHERE org_id = p_org FOR UPDATE;
   IF cur IS NULL THEN
-    INSERT INTO public.payout_settings (org_id) VALUES (p_org) ON CONFLICT DO NOTHING;
+    INSERT INTO public.payout_settings (org_id) VALUES (p_org) ON CONFLICT (org_id) DO NOTHING;
     cur := 1001;
   END IF;
   -- Never below a number already used, whatever the setting says.
