@@ -1,0 +1,91 @@
+/* app/admin/components/payouts/Payouts.css — payout autopilot screens (2026-10-11): the Commit panel,
+   payout settings, "How I get paid", the check register and the cash sheet. Theme tokens only, so the
+   screens follow light and dark mode. Imported by each component, so it loads on any route. */
+
+.po { --po-gap: 0.75rem; color: var(--theme-fg-primary, #0f172a); }
+.po h2 { font-size: 1.15rem; margin: 0 0 0.25rem; }
+.po h3 { font-size: 1rem; margin: 0 0 0.35rem; }
+.po p { margin: 0.25rem 0; }
+.po-muted { color: var(--theme-fg-secondary, #475569); font-size: 0.88rem; }
+.po-small { font-size: 0.8rem; color: var(--theme-fg-muted, #64748b); }
+.po-card { background: var(--theme-bg-surface, #fff); border: 1px solid var(--theme-border, #e2e8f0); border-radius: 12px; padding: 1rem 1.1rem; margin: 0 0 var(--po-gap); }
+.po-card--accent { border-color: var(--theme-accent, #2563eb); }
+.po-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.po-row--between { justify-content: space-between; }
+.po-stack { display: grid; gap: 0.6rem; }
+.po-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.po-btn { font: inherit; font-size: 0.88rem; font-weight: 600; padding: 0.5rem 0.95rem; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--theme-border, #d6d9e3); background: var(--theme-bg-surface, #fff); color: var(--theme-fg-primary, #0f172a); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; }
+.po-btn:hover:not(:disabled) { background: var(--theme-bg-elevated, #f8fafc); }
+.po-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.po-btn:focus-visible, .po input:focus-visible, .po select:focus-visible { outline: 2px solid var(--theme-accent, #2563eb); outline-offset: 2px; }
+.po-btn--primary { background: var(--theme-accent, #2563eb); border-color: var(--theme-accent, #2563eb); color: var(--theme-accent-fg, #fff); }
+.po-btn--primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--theme-accent, #2563eb); }
+.po-btn--go { background: var(--theme-success, #15803d); border-color: var(--theme-success, #15803d); color: #fff; font-size: 0.98rem; padding: 0.7rem 1.2rem; }
+.po-btn--go:hover:not(:disabled) { filter: brightness(1.08); background: var(--theme-success, #15803d); }
+.po-btn--danger { color: var(--theme-danger-fg, #b91c1c); }
+.po-btn--small { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+
+.po-totals { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
+.po-totals div { display: grid; }
+.po-totals b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.po-totals span { font-size: 0.78rem; color: var(--theme-fg-muted, #64748b); }
+
+.po-group { border: 1px solid var(--theme-border, #e2e8f0); border-radius: 10px; padding: 0.8rem 0.9rem; margin: 0.6rem 0 0; background: var(--theme-bg-surface, #fff); }
+.po-group--held { border-color: var(--theme-warning-fg, #b45309); }
+.po-group__head { display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; align-items: baseline; }
+.po-group__title { font-weight: 700; }
+.po-group__sum { font-weight: 700; font-variant-numeric: tabular-nums; }
+.po-group__lines { list-style: none; margin: 0.55rem 0 0; padding: 0; }
+.po-line { display: grid; grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 2fr) auto; gap: 0.6rem; align-items: center; padding: 0.5rem 0; border-top: 1px solid var(--theme-border-subtle, #eef2f6); }
+.po-line__who b { display: block; }
+.po-line__who span { font-size: 0.8rem; color: var(--theme-fg-muted, #64748b); overflow-wrap: anywhere; }
+.po-line__amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.po-line__amt small { display: block; font-weight: 500; font-size: 0.75rem; color: var(--theme-fg-muted, #64748b); }
+.po-line__what { font-size: 0.85rem; color: var(--theme-fg-secondary, #475569); }
+.po-line__act { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+
+.po-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.po-tag--auto { color: var(--theme-success-fg, #047857); }
+.po-tag--one { color: var(--theme-accent, #1d4ed8); }
+.po-tag--hand { color: var(--theme-fg-secondary, #475569); }
+.po-tag--warn { color: var(--theme-warning-fg, #b45309); }
+.po-tag--paid { color: var(--theme-success-fg, #047857); }
+.po-tag--failed { color: var(--theme-danger-fg, #b91c1c); }
+
+.po-note { border-left: 3px solid var(--theme-accent, #2563eb); background: var(--theme-bg-elevated, #f8fafc); padding: 0.55rem 0.75rem; border-radius: 6px; font-size: 0.87rem; }
+.po-note--warn { border-left-color: var(--theme-warning-fg, #b45309); }
+.po-note--bad { border-left-color: var(--theme-danger-fg, #b91c1c); }
+.po-note--good { border-left-color: var(--theme-success-fg, #047857); }
+
+.po-field { display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.po-field > span { font-weight: 600; color: var(--theme-fg-secondary, #475569); }
+.po input[type="text"], .po input[type="number"], .po input[type="password"], .po select, .po textarea {
+  font: inherit; font-size: 0.9rem; padding: 0.45rem 0.6rem; border: 1px solid var(--theme-border, #d6d9e3); border-radius: 8px;
+  background: var(--theme-bg-surface, #fff); color: var(--theme-fg-primary, #0f172a); width: 100%; min-width: 0; }
+.po-check { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.9rem; }
+.po-check input { margin-top: 0.2rem; accent-color: var(--theme-accent, #2563eb); }
+
+.po-options { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.po-option { display: grid; gap: 0.2rem; border: 1px solid var(--theme-border, #e2e8f0); border-radius: 10px; padding: 0.7rem 0.8rem; cursor: pointer; background: var(--theme-bg-surface, #fff); }
+.po-option--on { border-color: var(--theme-accent, #2563eb); box-shadow: 0 0 0 1px var(--theme-accent, #2563eb) inset; }
+.po-option b { font-size: 0.95rem; }
+
+.po-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.po-table th, .po-table td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--theme-border-subtle, #eef2f6); vertical-align: top; }
+.po-table th { font-weight: 600; color: var(--theme-fg-secondary, #475569); white-space: nowrap; }
+.po-table td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.po-wrap { overflow-x: auto; }
+
+@media (max-width: 720px) {
+  .po-line { grid-template-columns: 1fr auto; }
+  .po-line__what, .po-line__act { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* The cash sheet prints on plain paper. */
+@media print {
+  .po-noprint { display: none !important; }
+  .po-card, .po-group { border-color: #999; break-inside: avoid; }
+  .po-sheet td { height: 2.2rem; }
+}

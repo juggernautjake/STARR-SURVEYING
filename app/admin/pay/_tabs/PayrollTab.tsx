@@ -29,11 +29,22 @@ interface Employee {
 }
 
 interface PayOwedPreview {
-  lines: Array<{ user_email: string; user_name: string | null; total_cents: number; method: string | null }>;
+  lines: Array<{
+    user_email: string; user_name: string | null; total_cents: number; method: string | null; method_handle?: string | null;
+    disbursed_cents?: number; fee_cents?: number; fee_note?: string | null; recovered_cents?: number;
+    source?: 'preferred' | 'default' | 'fallback' | 'none'; problems?: string[]; notes?: string[];
+    rail?: { automatic: boolean; summary: string };
+  }>;
   skipped: Array<{ user_email: string; reason: string }>;
   totalCents: number;
+  disbursedCents?: number;
+  feeCents?: number;
+  policy?: string;
+  blocked?: Array<{ user_email: string; problems: string[] }>;
   missingMethod: string[];
 }
+
+const METHOD_LABEL: Record<string, string> = { ach: 'Direct deposit', venmo: 'Venmo', cashapp: 'Cash App', zelle: 'Zelle', check: 'Check', cash: 'Cash', account: 'Pay account', other: 'Other' };
 
 export default function PayrollPage() {
   const { data: session } = useSession();
@@ -59,6 +70,8 @@ export default function PayrollPage() {
   const [payingOwed, setPayingOwed] = useState(false);
   const [payOwedError, setPayOwedError] = useState<string | null>(null);
   const [payOwedResult, setPayOwedResult] = useState<string | null>(null);
+  // The batch just prepared — linked so the boss can go straight to Commit payout.
+  const [preparedBatchId, setPreparedBatchId] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({
     user_email: '',
     user_name: '',
@@ -173,9 +186,10 @@ export default function PayrollPage() {
       // somebody dispatches it. Saying "paid" here is a promise the platform cannot keep.
       setPayOwedResult(
         `Payout prepared: ${body.lines} ${body.lines === 1 ? 'person' : 'people'}, ` +
-        `${(body.totalCents / 100).toFixed(2)}. It is a draft until somebody sends it.` +
-        (body.missingMethod?.length ? ` ${body.missingMethod.length} need a payment method assigned.` : ''),
+        `$${(body.totalCents / 100).toFixed(2)}. Nothing has been sent — open it and press Commit payout.` +
+        (body.blocked?.length ? ` ${body.blocked.length} can't be paid until their details are fixed; the rest can.` : ''),
       );
+      setPreparedBatchId(body.batch?.id ?? null);
       setOwedPreview(null);
       await loadEmployees();
     } finally {
@@ -207,7 +221,12 @@ export default function PayrollPage() {
         </div>
 
         {payOwedError && <div className="payroll-payowed__error">{payOwedError}</div>}
-        {payOwedResult && <div className="payroll-payowed__done">{payOwedResult}</div>}
+        {payOwedResult && (
+          <div className="payroll-payowed__done">
+            {payOwedResult}{' '}
+            {preparedBatchId && <a href={`/admin/payouts/runs/${preparedBatchId}`}><strong>Review &amp; commit →</strong></a>}
+          </div>
+        )}
 
         {owedPreview && (
           <div className="payroll-payowed__preview">
@@ -217,11 +236,20 @@ export default function PayrollPage() {
               <ul>
                 {owedPreview.lines.map((l) => (
                   <li key={l.user_email}>
-                    <strong>{l.user_name || l.user_email}</strong> — {formatCurrency(l.total_cents / 100)}
-                    {!l.method && <span className="payroll-payowed__warn"> · no payment method on file</span>}
+                    <strong>{l.user_name || l.user_email}</strong> — {formatCurrency((l.disbursed_cents ?? l.total_cents) / 100)}
+                    {l.method ? <> · {METHOD_LABEL[l.method] ?? l.method}{l.rail?.automatic ? ' (automatic)' : ''}</> : null}
+                    {l.fee_cents ? <> · fee {formatCurrency(l.fee_cents / 100)}</> : null}
+                    {l.recovered_cents ? <> · {formatCurrency(l.recovered_cents / 100)} to their advance</> : null}
+                    {(l.problems ?? []).map((p) => <span key={p} className="payroll-payowed__warn"> · {p}</span>)}
+                    {(l.notes ?? []).map((n) => <div key={n} style={{ fontSize: '0.8rem', opacity: 0.8 }}>{n}</div>)}
                   </li>
                 ))}
               </ul>
+            )}
+            {owedPreview.policy && (
+              <p style={{ fontSize: '0.85rem', opacity: 0.85 }}>
+                {owedPreview.policy} <a href="/admin/payouts/settings">Payout settings</a>
+              </p>
             )}
             {/* Why somebody is NOT in the batch is as important as who is. */}
             {owedPreview.skipped.length > 0 && (
