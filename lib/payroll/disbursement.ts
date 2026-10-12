@@ -32,6 +32,9 @@ export interface DisbursableItem {
   total_cents?: number | null;
   /** Of that, how much was withheld against an outstanding advance. */
   recovered_cents?: number | null;
+  /** Of that, the payment-method fee withheld (cash / check — lib/payouts/fees.ts, seed 677). Same
+   *  shape as a recovery: withheld from what is SENT, never from what is settled. */
+  fee_cents?: number | null;
 }
 
 const int = (v: number | null | undefined): number => {
@@ -53,7 +56,13 @@ export function disbursedCents(item: DisbursableItem): number {
   // `Math.max` cannot catch that, because the result is larger than the total rather than smaller.
   // Caught by a test that asserted the outcome rather than the clamp.
   const recovered = Math.max(0, int(item.recovered_cents));
-  return Math.max(0, int(item.total_cents) - recovered);
+  const fee = Math.max(0, int(item.fee_cents));
+  return Math.max(0, int(item.total_cents) - recovered - fee);
+}
+
+/** How much of a batch stayed with the firm as payment-method fees. */
+export function totalFeeCents(items: readonly DisbursableItem[]): number {
+  return items.reduce((sum, i) => sum + Math.max(0, int(i.fee_cents)), 0);
 }
 
 /** The disbursement across a whole batch — what the run costs the bank account. */
