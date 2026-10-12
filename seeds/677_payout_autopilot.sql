@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS public.payout_settings (
   -- routing, account_last4, next_number, void_after_days, signature_lines
   checks jsonb NOT NULL DEFAULT '{}'::jsonb,
   check_account_number_enc bytea,
+  -- Separation of duties: when true, whoever built a batch cannot also approve/commit it. Off by
+  -- default — in a small firm one boss runs payroll (owner, 2026-10-11: "the boss confirms the hours
+  -- … he can commit the payout"). The PAYOUT_ADMIN_SELF_APPROVE env override still works either way.
+  two_person_approval boolean NOT NULL DEFAULT false,
   updated_by text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -184,6 +188,74 @@ CREATE TABLE IF NOT EXISTS public.payout_dispatch_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS payout_dispatch_events_batch_idx ON public.payout_dispatch_events (batch_id, created_at DESC);
+
+-- ── Bank details: encrypted and decrypted INSIDE the database ──────────────────────────────────
+-- The app passes the key (PAYMENT_ENCRYPTION_KEY) and the plaintext once; the row only ever holds
+-- pgp_sym_encrypt ciphertext (seed 324's columns). Server-only: EXECUTE is revoked from the public
+-- roles below, so the anon key in a browser cannot call these.
+CREATE OR REPLACE FUNCTION public.save_payout_bank(p_email text, p_routing text, p_account text, p_type text, p_key text)
+RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  new_id uuid;
+  other_primary boolean;
+BEGIN
+  IF p_routing !~ '^\d{9}$' THEN RAISE EXCEPTION 'Routing number must be 9 digits'; END IF;
+  IF p_account !~ '^[0-9-]{3,17}$' THEN RAISE EXCEPTION 'Account number must be 3-17 digits'; END IF;
+  IF p_type NOT IN ('checking', 'savings') THEN RAISE EXCEPTION 'Account type must be checking or savings'; END IF;
+  IF p_key IS NULL OR length(p_key) < 16 THEN RAISE EXCEPTION 'Encryption key is not configured'; END IF;
+  DELETE FROM public.employee_payment_methods WHERE lower(user_email) = lower(p_email) AND kind = 'ach';
+  SELECT EXISTS (SELECT 1 FROM public.employee_payment_methods WHERE lower(user_email) = lower(p_email) AND is_primary) INTO other_primary;
+  INSERT INTO public.employee_payment_methods
+    (user_email, kind, display_name, ach_account_number_enc, ach_routing_number_enc, ach_account_type, is_primary)
+  VALUES
+    (lower(p_email), 'ach', initcap(p_type) || ' ••' || right(regexp_replace(p_account, '\D', '', 'g'), 4),
+     public.encrypt_ach_secret(p_account, p_key), public.encrypt_ach_secret(p_routing, p_key), p_type, NOT other_primary)
+  RETURNING id INTO new_id;
+  RETURN new_id;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.read_payout_banks(p_emails text[], p_key text)
+RETURNS TABLE (user_email text, routing text, account text, account_type text, method_id uuid)
+LANGUAGE sql
+AS $$
+  SELECT m.user_email, public.decrypt_ach_secret(m.ach_routing_number_enc, p_key),
+         public.decrypt_ach_secret(m.ach_account_number_enc, p_key), m.ach_account_type, m.id
+    FROM public.employee_payment_methods m
+   WHERE m.kind = 'ach' AND lower(m.user_email) = ANY (SELECT lower(e) FROM unnest(p_emails) e);
+$$;
+
+CREATE OR REPLACE FUNCTION public.save_check_account(p_org uuid, p_account text, p_key text)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_account !~ '^[0-9-]{4,17}$' THEN RAISE EXCEPTION 'Account number must be 4-17 digits'; END IF;
+  IF p_key IS NULL OR length(p_key) < 16 THEN RAISE EXCEPTION 'Encryption key is not configured'; END IF;
+  UPDATE public.payout_settings
+     SET check_account_number_enc = public.encrypt_ach_secret(p_account, p_key),
+         checks = jsonb_set(checks, '{account_last4}', to_jsonb(right(regexp_replace(p_account, '\D', '', 'g'), 4)), true)
+   WHERE org_id = p_org;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.read_check_account(p_org uuid, p_key text)
+RETURNS text
+LANGUAGE sql
+AS $$
+  SELECT public.decrypt_ach_secret(check_account_number_enc, p_key) FROM public.payout_settings
+   WHERE org_id = p_org AND check_account_number_enc IS NOT NULL;
+$$;
+
+DO $$
+DECLARE f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY['public.save_payout_bank(text,text,text,text,text)', 'public.read_payout_banks(text[],text)',
+                           'public.save_check_account(uuid,text,text)', 'public.read_check_account(uuid,text)'] LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', f);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', f);
+  END LOOP;
+END $$;
 
 -- ── RLS: server only (service role), like seed 667 ─────────────────────────────────────────────
 DO $$

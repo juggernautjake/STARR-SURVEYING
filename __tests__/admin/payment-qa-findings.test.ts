@@ -33,7 +33,8 @@ describe('Bug #1 fix — zero-amount invoice no longer claims "Paid in full"', (
 });
 
 describe('Bug #2 fix — paid_at preserved on re-mark', () => {
-  const SRC = read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts');
+  // The state machine moved to lib/payouts/mark-item.ts (2026-10-11), shared with Commit; the route is a thin caller.
+  const SRC = read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts') + '\n' + read('lib/payouts/mark-item.ts');
 
   it("fetches the current paid_at alongside attempted_at", () => {
     expect(SRC).toMatch(/\.select\('attempted_at, paid_at, status'\)/);

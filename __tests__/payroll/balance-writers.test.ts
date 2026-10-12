@@ -48,7 +48,8 @@ const code = (rel: string): string =>
  */
 const SANCTIONED: Array<{ file: string; why: string }> = [
   {
-    file: 'app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts',
+    // Moved from the mark route on 2026-10-11 so Commit credits through the same code.
+    file: 'lib/payouts/mark-item.ts',
     why: 'an `account`-method payout marked paid — the moment the obligation becomes "we hold this for you"',
   },
   {
@@ -135,7 +136,8 @@ describe('the writer set stays small', () => {
       return false;
     };
 
-    const writers = walk(path.join(ROOT, 'app', 'api'))
+    // lib/payouts too: since 2026-10-11 the payout state machine lives there (mark-item.ts).
+    const writers = [...walk(path.join(ROOT, 'app', 'api')), ...walk(path.join(ROOT, 'lib', 'payouts'))]
       .map((abs) => path.relative(ROOT, abs).replace(/\\/g, '/'))
       .filter((rel) => writesBalance(code(rel)));
 

@@ -15,6 +15,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { canApprovePayoutBatch, extractRequestIp } from '@/lib/payouts/approval';
+import { loadPayoutSettings } from '@/lib/payouts/server';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -46,10 +47,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const approver = session?.user?.email ?? null;
-  // Light separation-of-duties — the same person who built the
-  // batch shouldn't approve it. The office can override via the
-  // env allowlist if the same admin handles both roles in dev.
-  if (approver && batch.created_by === approver && !process.env.PAYOUT_ADMIN_SELF_APPROVE) {
+  // Separation of duties — when the firm turns on two-person approval (Payout settings, seed 677),
+  // the person who built the batch cannot approve it. Off by default since 2026-10-11: one boss runs
+  // payroll. PAYOUT_ADMIN_SELF_APPROVE still overrides for development.
+  const { two_person_approval } = await loadPayoutSettings();
+  if (two_person_approval && approver && batch.created_by === approver && !process.env.PAYOUT_ADMIN_SELF_APPROVE) {
     return NextResponse.json(
       { error: 'A payout batch must be approved by a different admin than the one who created it.' },
       { status: 409 },

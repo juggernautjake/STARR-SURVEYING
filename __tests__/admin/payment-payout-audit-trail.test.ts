@@ -30,7 +30,8 @@ describe('seed 326 — attempted_at + per-user index', () => {
 });
 
 describe('mark route — attempted_at stamping', () => {
-  const SRC = read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts');
+  // The state machine moved to lib/payouts/mark-item.ts (2026-10-11), shared with Commit; the route is a thin caller.
+  const SRC = read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts') + '\n' + read('lib/payouts/mark-item.ts');
 
   it("only stamps attempted_at on the FIRST non-pending transition", () => {
     expect(SRC).toMatch(/if \(!currentItem\?\.attempted_at\)/);
