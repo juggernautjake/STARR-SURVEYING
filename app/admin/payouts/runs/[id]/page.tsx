@@ -124,7 +124,7 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
     load();
   }
 
-  if (loading) {
+  if (loading && !batch) {
     return (
       <main className="batch-page" data-payments-admin>
         <p role="status" aria-busy="true" aria-live="polite">Loading…</p>

@@ -15,7 +15,7 @@ import './Payouts.css';
 
 interface Line {
   id: string; user_email: string; user_name: string | null; method: string | null; handle: string | null;
-  send_cents: number; fee_cents: number; status: string; rail: string; outcome: string; link?: string | null;
+  send_cents: number; fee_cents: number; status: string; rail: string; outcome: string; committed: boolean; link?: string | null;
 }
 interface Group {
   method: string; label: string; rail: string; automatic: boolean; summary: string; setup: string | null;
@@ -75,7 +75,11 @@ export default function PayoutCommitPanel({ batchId, batchStatus, onChanged }: {
   if (!data) return message ? <section className="po po-card"><div className="po-note po-note--bad">{message.text}</div></section> : null;
 
   const pendingLines = data.groups.filter((g) => g.method !== 'unassigned').flatMap((g) => g.lines).filter((l) => l.status === 'pending' || l.status === 'failed');
-  const toSend = pendingLines.reduce((s, l) => s + l.send_cents, 0);
+  // What pressing Commit (again) would actually act on: lines it has not taken yet, failed sends to
+  // retry, and held lines that may have been fixed. Lines waiting on a person (cash, links, printed
+  // checks) are NOT more work for Commit, so they don't bring the button back.
+  const commitWork = pendingLines.filter((l) => !l.committed || l.status === 'failed');
+  const toSend = (batchStatus === 'draft' ? pendingLines : commitWork).reduce((s, l) => s + l.send_cents, 0);
   const all = data.groups.flatMap((g) => g.lines);
   const paid = all.filter((l) => l.status === 'paid').length;
   const committed = batchStatus !== 'draft';
@@ -158,11 +162,13 @@ export default function PayoutCommitPanel({ batchId, batchStatus, onChanged }: {
         );
       })}
 
-      {batchStatus !== 'completed' && (pendingLines.length > 0 || !committed) && (
+      {batchStatus !== 'completed' && (!committed ? pendingLines.length > 0 : commitWork.length > 0 || data.held.length > 0) && (
         <div className="po-row po-noprint" style={{ marginTop: '0.9rem' }}>
           {!confirming ? (
-            <button type="button" className="po-btn po-btn--go" disabled={!!busy || pendingLines.length === 0} onClick={() => setConfirming(true)} data-testid="commit-payout">
-              {committed ? `Send the rest — ${money(toSend)}` : `Commit payout — ${money(toSend)} to ${pendingLines.length} ${pendingLines.length === 1 ? 'person' : 'people'}`}
+            <button type="button" className="po-btn po-btn--go" disabled={!!busy || (!committed && pendingLines.length === 0)} onClick={() => setConfirming(true)} data-testid="commit-payout">
+              {committed
+                ? (commitWork.length > 0 ? `Commit the remaining ${commitWork.length} — ${money(toSend)}` : 'Retry held payments')
+                : `Commit payout — ${money(toSend)} to ${pendingLines.length} ${pendingLines.length === 1 ? 'person' : 'people'}`}
             </button>
           ) : (
             <>

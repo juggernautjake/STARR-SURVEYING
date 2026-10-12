@@ -15,7 +15,7 @@
 //
 // Pure. No I/O.
 
-import { PAYOUT_METHODS, PAYOUT_METHOD_INFO, isPayoutMethod, type PayoutMethod } from './methods';
+import { PAYOUT_METHOD_INFO, isPayoutMethod, type PayoutMethod } from './methods';
 import { computePayoutFee, DEFAULT_FEE_SETTINGS, type FeeSettings, normalizeFeeSettings } from './fees';
 import { railFor, venmoRecipient, type Rail, type RailConfig } from './rails';
 import type { WorkerClassification } from './worker-classification';
@@ -52,7 +52,8 @@ export function normalizePolicy(row: {
     : [...ALL_OFFERABLE];
   const pick = (v: unknown) => (isPayoutMethod(v) && enabled.includes(v) ? v : null);
   return {
-    enabled: enabled.length ? PAYOUT_METHODS.filter((m) => enabled.includes(m)) : [...ALL_OFFERABLE],
+    // Digital first: the order people see their choices in is part of the incentive.
+    enabled: enabled.length ? ALL_OFFERABLE.filter((m) => enabled.includes(m)) : [...ALL_OFFERABLE],
     defaultMethod: pick(row.default_method),
     fallbackMethod: pick(row.fallback_method),
     fees: normalizeFeeSettings(row),

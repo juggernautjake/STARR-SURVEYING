@@ -1,6 +1,33 @@
 # Payout autopilot — commit once, everyone paid their way
 
-**Status:** in progress, branch `claude/payout-autopilot-2026-10-11`.
+**Status:** BUILT on branch `claude/payout-autopilot-2026-10-11` (2026-10-12); seed 677 APPLIED live. Not merged.
+
+**Verified end to end in a browser (2026-10-12)** on a throwaway batch with six test people, one per method:
+- settings saved;
+- Commit approved and sent;
+- the account line was credited once;
+- the bank file was correct (94-character records);
+- checks were numbered and printed (live / copy / alignment test);
+- the cash sheet worked;
+- void and reissue worked (#1001 → #1003);
+- two extra Commits created nothing new;
+- the employee chooser worked (handle checks, fee consent, encrypted bank → "Savings ••6677").
+
+All test data was removed afterwards and settings were reset.
+
+**Also fixed along the way:**
+- (a) `payout_batches` refused kind 'hours', so "Pay what is owed" and the Friday cron could NEVER create a batch;
+- (b) batch lines refused check/account/other;
+- (c) the dispatch page had no section for check/account/other;
+- (d) pdfkit routes failed with ENOENT on Helvetica.afm (pdfkit is now an external server package);
+- (e) the employee "bank account" tab stored only the last four digits.
+
+**Org controls:**
+- which methods are offered (one or many);
+- the default method for people who haven't chosen;
+- the fallback when a choice can't be used;
+- a fee per method (flat / percent / cap), who it applies to, consent, and a max percent;
+- two-person approval.
 **Owner, 2026-10-11:**
 > *"I want it so that the system uses whatever preferred payment method is available to do the payout. … whenever the boss confirms the hours and is ready to payout for the confirmed hours, then he can commit the payout and it will automatically pay out everyone according to their preferred payment methods. Whether that is to their bank, through venmo or cashapp, or via printing checks, or cash payments which will have to be paid manually with real cash. We will make it so that digital payments can be incentivized. The org will have the option to attach a fee to cash and check payments that is automatically taken out."*
 

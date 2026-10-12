@@ -43,6 +43,8 @@ export interface CommitLine {
   rail: RailKind;
   /** What happened / what to do next for this line. */
   outcome: string;
+  /** Commit has already taken this line (it has its once-only key). */
+  committed: boolean;
   link?: string | null;
   check_number?: number | null;
 }
@@ -72,6 +74,8 @@ interface ItemRow {
   id: string; batch_id: string; user_email: string; user_name: string | null; total_cents: number; recovered_cents: number | null;
   fee_cents: number | null; fee_note: string | null; method: string | null; method_handle: string | null; status: 'pending' | 'sent' | 'paid' | 'failed';
   rail: string | null; idempotency_key: string | null; provider_batch_id: string | null; check_id: string | null; external_ref: string | null; failure_reason: string | null;
+  /** Why this line is paid the way it is (fallback used, fee waived …) — from routing, for the screen. */
+  notes?: string[];
 }
 
 const ITEM_COLS = 'id, batch_id, user_email, user_name, total_cents, recovered_cents, fee_cents, fee_note, method, method_handle, status, rail, idempotency_key, provider_batch_id, check_id, external_ref, failure_reason';
@@ -109,7 +113,7 @@ async function preflight(items: ItemRow[], write: boolean) {
       if (error) { held.push({ id: it.id, user_email: it.user_email, reason: `Could not update the line: ${error.message}` }); continue; }
       await logDispatch(it.batch_id, 'system', 'line_re_resolved', { from: { method: it.method, fee: it.fee_cents }, to: { method: r.method, fee: r.feeCents }, notes: r.notes }, it.id);
     }
-    ready.push({ ...it, method: r.method, method_handle: r.handle, fee_cents: r.feeCents, fee_note: r.feeNote });
+    ready.push({ ...it, method: r.method, method_handle: r.handle, fee_cents: r.feeCents, fee_note: r.feeNote, notes: r.notes });
   }
   return { ready, held, policy, settings };
 }
@@ -132,7 +136,7 @@ function groupLines(items: ItemRow[], held: CommitResult['held'], policy: Awaite
       artefacts: artefactsFor(m),
       lines: rows.map((r) => ({
         id: r.id, user_email: r.user_email, user_name: r.user_name, method: isPayoutMethod(r.method) ? r.method : null, handle: r.method_handle,
-        send_cents: disbursedCents(r), fee_cents: r.fee_cents ?? 0, status: r.status, rail: rail.kind,
+        send_cents: disbursedCents(r), fee_cents: r.fee_cents ?? 0, status: r.status, rail: rail.kind, committed: !!r.idempotency_key,
         outcome: heldIds.has(r.id) ? held.find((h) => h.id === r.id)!.reason : outcomeFor(r),
         link: (r.method === 'venmo' || r.method === 'cashapp' || r.method === 'zelle') && r.status !== 'paid'
           ? buildPayoutDeepLink({ ...(r as unknown as DispatchItem), method: r.method as PayoutMethod, method_handle: r.method_handle }, batchLabel)
@@ -182,7 +186,11 @@ export async function previewCommit(batchId: string): Promise<CommitResult & { b
   const view = items.map((i) => readyById.get(i.id) ?? i);
   return {
     ok: true, batch_status: batch.status, batch_label: batch.label, held, errors: [],
-    groups: groupLines(view, held, policy, batchId, batch.label, artefacts(batchId, policy.rails), (i) => (i.status === 'pending' ? `Will be: ${railFor(i.method as PayoutMethod, policy.rails).summary}` : plainOutcome(i))),
+    // Before Commit: what WILL happen. After: the next step for each line (or what already happened).
+    groups: groupLines(view, held, policy, batchId, batch.label, artefacts(batchId, policy.rails),
+      (i) => (batch.status === 'draft'
+        ? [`Will be: ${railFor(i.method as PayoutMethod, policy.rails).summary}`, ...(i.notes ?? [])].join(' ')
+        : [plainOutcome(i), ...(i.status === 'pending' ? i.notes ?? [] : [])].join(' '))),
   };
 }
 
