@@ -46,8 +46,12 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string 
   on_hold: { label: 'On Hold', color: '#F97316', icon: '⏸️' },
 };
 
+// The job's survey type: the keys are what is stored in jobs.survey_type, the labels what the
+// new-job / import forms offer and every job card and project page shows. Keep in step with
+// SURVEY_TYPE_RULES in lib/calendar/lead-to-job.ts, which turns a lead's free text into one of these.
 const SURVEY_TYPES: Record<string, string> = {
   boundary: 'Boundary',
+  boundary_improvements: 'Boundary & Improvements',
   topographic: 'Topographic',
   construction: 'Construction',
   subdivision: 'Subdivision',
