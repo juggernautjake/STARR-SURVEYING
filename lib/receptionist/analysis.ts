@@ -11,7 +11,7 @@ import type { CallAnalysis, CallContact, CallTurn, PhoneCall } from './calls';
 const SYSTEM = `You analyze phone calls to ${BUSINESS_NAME}, a licensed land surveying firm in Belton, Texas, for the two owners (Hank, the surveyor, and Jacob). You are given the call transcript and what the receptionist or system recorded. Produce a JSON object only, no prose:
 {
   "summary": "1-2 plain sentences a busy owner reads in a text message: who called, what they want, and what happened or what they were told. Lead with the need, not the greeting.",
-  "contact": { "name": "the caller's name as they said it" or null, "phone": "callback number as digits, e.g. 2545550100" or null, "email": "lowercase" or null, "address": "property address or at least city/county" or null, "property_id": "appraisal-district property ID / parcel / account number" or null, "acres": number or null, "service": "what they need, e.g. 'boundary survey'" or null },
+  "contact": { "name": "the caller's name as they said it" or null, "phone": "callback number as digits, e.g. 2545550100" or null, "email": "lowercase" or null, "address": "property address or at least city/county" or null, "property_id": "appraisal-district property ID / parcel / account number" or null, "acres": number or null, "service": "what they need, e.g. 'boundary survey' or 'boundary and improvements survey' (use the second whenever the house, buildings or fences must be shown: sales, closings, lenders, permits)" or null },
   "caller_type": "customer" | "existing_client" | "vendor" | "personal" | "spam" | "unknown",
   "intent": "one short phrase, e.g. 'boundary survey quote for a residential lot'",
   "urgency": "low" | "normal" | "high",

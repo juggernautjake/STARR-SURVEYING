@@ -91,29 +91,34 @@ export const EMPTY_JOB_DRAFT: JobDraft = {
   stage: 'quote',
 };
 
-/** Map the schema's free-text `survey_type` ("Boundary Survey",
- *  "ALTA / NSPS", "Topographic", …) onto the new-job form's enum
- *  values (boundary, alta, topo, …). Falls back to 'boundary' for
- *  unknown inputs so the form still renders. Conservative — adding
- *  a new survey type means extending both this table AND the new-job
- *  form's `<select>`. */
-const SURVEY_TYPE_MAP: Record<string, string> = {
-  boundary: 'boundary',
-  alta: 'alta',
-  'alta/nsps': 'alta',
-  topographic: 'topo',
-  topo: 'topo',
-  topo_survey: 'topo',
-  construction: 'construction',
-  subdivision: 'subdivision',
-  asbuilt: 'asbuilt',
-  'as-built': 'asbuilt',
-};
+/** Map a lead's free-text `survey_type` onto the job's survey type — the keys of SURVEY_TYPES in
+ *  app/admin/components/jobs/JobCard.tsx, which the new-job form offers and every job card shows.
+ *
+ *  The text comes from three places and reads three ways: the website's own pickers
+ *  ("Boundary & Improvements Survey", "ALTA/NSPS Survey"), the calculator's ids
+ *  ("boundary_improvements", "asbuilt"), and what the phone receptionist wrote down
+ *  ("boundary and improvements survey for a closing"). So it is matched on the words, most specific
+ *  first: "boundary and improvements" before "boundary", ALTA (which also shows improvements)
+ *  before either. Falls back to 'boundary' for anything unrecognised so the form still renders. */
+const SURVEY_TYPE_RULES: Array<[RegExp, string]> = [
+  [/\balta\b|\bnsps\b|land title/, 'alta'],
+  [/improvement|mortgage|\bloan\b|\blender\b/, 'boundary_improvements'],
+  [/boundary|retracement|property line|corner/, 'boundary'],
+  [/\btopo/, 'topographic'],
+  [/elevation|\bfema\b|flood/, 'elevation_cert'],
+  [/as.?built/, 'as_built'],
+  [/construction|staking|layout/, 'construction'],
+  [/subdivi|replat|\bplat/, 'subdivision'],
+  [/route|easement|right.of.way/, 'route'],
+  [/control|geodetic/, 'control'],
+];
 
-function mapSurveyType(raw: string | null | undefined): string {
+/** The job survey type for a lead's text (exported for the tests). */
+export function mapSurveyType(raw: string | null | undefined): string {
   if (!raw) return 'boundary';
-  const key = raw.toLowerCase().trim().replace(/\s+/g, '_');
-  return SURVEY_TYPE_MAP[key] ?? SURVEY_TYPE_MAP[raw.toLowerCase().trim()] ?? 'boundary';
+  const text = raw.toLowerCase().replace(/&/g, ' and ').replace(/[_-]+/g, ' ');
+  for (const [re, type] of SURVEY_TYPE_RULES) if (re.test(text)) return type;
+  return 'boundary';
 }
 
 function cleanString(v: string | null | undefined): string {
