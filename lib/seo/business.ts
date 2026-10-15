@@ -37,6 +37,20 @@ export const PHONE_DISPLAY = '(833) 842-6971';
 export const PHONE_E164 = '+1-833-842-6971';
 export const EMAIL = 'info@starr-surveying.com';
 
+// ── SPOKEN FORMS ────────────────────────────────────────────────────────────────────────────────
+// How the voice receptionist says the website and the email. The domain has two r's in "starr" AND
+// a hyphen, and both are what callers get wrong: starsurveying.com accepts no mail at all and
+// starrsurveying.com is a different company. On 2026-10-15 a caller whose email had bounced was told
+// "info at star surveying dot com, no hyphen in there" — an address that cannot receive mail. The
+// old spoken form ("starr surveying dot com") had dropped the dash, and the model filled the gap
+// with an invented rule. So the dash is spoken, and the spelling is written out for when it is asked.
+/** www.starr-surveying.com, read aloud. */
+export const SPOKEN_SITE = 'starr dash surveying dot com';
+/** info@starr-surveying.com, read aloud. */
+export const SPOKEN_EMAIL = 'info at starr dash surveying dot com';
+/** The domain spelled out, for a caller who needs it letter by letter. */
+export const SPELLED_DOMAIN = 's, t, a, r, r — starr with two r\'s — then a dash, then surveying, dot com';
+
 // ── OFFICE ──────────────────────────────────────────────────────────────────────────────────────
 export const OFFICE_STREET = '3779 W FM 436';
 export const OFFICE_CITY = 'Belton';

@@ -18,7 +18,7 @@
 // `n` = messages recorded so far, `ask` = how many times "anything else?" has been asked. Recordings
 // are transcribed and the owners told through the existing voicemail route (`?part=`), exactly as a
 // voicemail always was.
-import { BUSINESS_NAME } from '@/lib/seo/business';
+import { BUSINESS_NAME, SPOKEN_SITE } from '@/lib/seo/business';
 import { gather, hangup, record, say, twiml } from '@/lib/twilio/twiml';
 import { sayVoiceFor } from './voices';
 
@@ -31,14 +31,14 @@ export const MACHINE_MESSAGE_SECONDS = 120;
 
 export const MACHINE_PATH = '/api/twilio/receptionist/machine';
 
-/** www.starr-surveying.com, as it should be read aloud. */
-export const SPOKEN_SITE = 'starr surveying dot com';
+/** www.starr-surveying.com, as it should be read aloud (defined with the other spoken forms). */
+export { SPOKEN_SITE };
 
 // ── What it says ────────────────────────────────────────────────────────────────────────────────
 export const MACHINE_LINES = {
   // Owner, 2026-10-06: "thank them for calling, inform them that they can make a request online,
-  // then leave a message after the tone." The address is spelled the way it is said, so the voice
-  // reads it as words and not as "starr-hyphen-surveying".
+  // then leave a message after the tone." The address is spelled the way it is said, dash included,
+  // so the voice reads it as words — and a caller who writes it down gets the hyphen.
   greeting: `Thank you for calling ${BUSINESS_NAME}. You can request a survey any time online at ${SPOKEN_SITE}. Or please leave your name, your phone number and a short message after the tone, and we'll get back to you as soon as possible.`,
   anythingElse: 'Thank you. Is there anything else?',
   noMessageHeard: "I didn't hear a message. Would you like to leave one?",

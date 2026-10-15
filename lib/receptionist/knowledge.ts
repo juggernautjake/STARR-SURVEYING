@@ -5,7 +5,7 @@
 // changes, change this; a receptionist that contradicts the site is worse than one that says
 // "I'm not sure". Facts only here — how to *use* them (soft answers, no commitments) lives in the
 // system prompt in ./brain.ts.
-import { BUSINESS_NAME, SITE_URL, PHONE_DISPLAY, EMAIL, OFFICE_STREET, OFFICE_CITY, OFFICE_REGION, OPENING_HOURS, RPLS_LICENSE_NUMBER, SERVICE_RADIUS_MILES } from '@/lib/seo/business';
+import { BUSINESS_NAME, SITE_URL, PHONE_DISPLAY, EMAIL, SPOKEN_SITE, SPOKEN_EMAIL, SPELLED_DOMAIN, OFFICE_STREET, OFFICE_CITY, OFFICE_REGION, OPENING_HOURS, RPLS_LICENSE_NUMBER, SERVICE_RADIUS_MILES } from '@/lib/seo/business';
 
 const SITE_HOST = SITE_URL.replace(/^https?:\/\/(www\.)?/, '');
 
@@ -279,12 +279,12 @@ export const LAW_RESOURCES: Array<{ name: string; spoken: string; for: string }>
   { name: 'FEMA Flood Map Service Center', spoken: 'm s c dot fema dot gov', for: 'flood zones by address' },
   { name: 'County clerk and appraisal district', spoken: 'your county clerk’s website and your county appraisal district’s website', for: 'deeds, plats, easements, parcel maps' },
   { name: 'Texas Society of Professional Surveyors', spoken: 't s p s dot org', for: 'surveying standards and finding surveyors' },
-  { name: 'Our resources page', spoken: 'starr surveying dot com, resources', for: 'survey types, how to find an old survey, common questions' },
+  { name: 'Our resources page', spoken: `${SPOKEN_SITE}, resources`, for: 'survey types, how to find an old survey, common questions' },
 ];
 
 /** What's on the website, so the receptionist can send people to the right page. */
 export const WEBSITE = {
-  home: 'starr surveying dot com',
+  home: SPOKEN_SITE,
   requestForm: 'the request form on the contact page: name, property, what you need, attachments; it goes straight to Hank and Jacob',
   calculator: 'the instant estimate calculator on the pricing page, free and no signup',
   resources: 'the resources page: what each survey type is, how to find an old survey, and common questions',
@@ -311,7 +311,7 @@ export interface KnowledgeOptions {
 export function knowledgeText(opts: KnowledgeOptions = {}): string {
   const { prices = true, law = true } = opts;
   return [
-    `FIRM: ${BUSINESS_NAME} (legal name Starr Technical Services, Inc.), ${OFFICE_STREET}, ${OFFICE_CITY}, ${OFFICE_REGION}. Phone ${PHONE_DISPLAY}. Email ${EMAIL}. Website ${SITE_HOST}${prices ? ' (request form and instant estimate calculator)' : ' (request form)'}. Office hours ${hoursSentence()}; field crews work outside those hours.`,
+    `FIRM: ${BUSINESS_NAME} (legal name Starr Technical Services, Inc.), ${OFFICE_STREET}, ${OFFICE_CITY}, ${OFFICE_REGION}. Phone ${PHONE_DISPLAY}. Email ${EMAIL} (said "${SPOKEN_EMAIL}"; the domain spelled: ${SPELLED_DOMAIN}). Website ${SITE_HOST} (said "${SPOKEN_SITE}")${prices ? ' (request form and instant estimate calculator)' : ' (request form)'}. Office hours ${hoursSentence()}; field crews work outside those hours.`,
     ABOUT.founded + ' ' + ABOUT.team + ' ' + ABOUT.equipment,
     `SERVICES (for each: what the work is; when someone needs it; what they receive; how long the field work runs${prices ? '; the typical price range on the website' : ''}):\n` +
       SERVICES.map((s) => `- ${s.name}: ${s.what} When: ${s.when} You receive: ${s.deliverable} Field time: ${s.field}${prices ? ` Typically ${s.typical}.` : ''}`).join('\n'),

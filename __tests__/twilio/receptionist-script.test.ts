@@ -105,7 +105,7 @@ describe('website pointers, the callback promise, and the hours', () => {
   it('sends callers to the request form, resources, and invoice payment — but never to a price', () => {
     for (const s of ['request form', 'resources page', 'invoice']) expect(p).toContain(s);
     expect(p).not.toContain('calculator');
-    expect(p).toMatch(/starr surveying dot com/);
+    expect(p).toMatch(/starr dash surveying dot com/);
   });
   it('promises Hank will get back as soon as possible, never a specific time', () => {
     expect(p).toMatch(/try to get back to them as soon as possible/);
