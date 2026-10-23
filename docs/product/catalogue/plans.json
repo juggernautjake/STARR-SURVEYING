@@ -1,0 +1,986 @@
+[
+  {
+    "id": "plan.platform-ia-navigation",
+    "title": "One information architecture: real workspace landings, one Money home, one People home",
+    "source": "docs/planning/completed/PLATFORM_AUDIT_AND_LAUNCH_QUESTIONS_2026-07-29.md §2.1-2.6, §4, §8 items 6-8; completed/ADMIN_NAVIGATION_REDESIGN.md (unchecked: RailExpandedPanel, hub widgets still placeholder); completed/PAGE_CONSOLIDATION_2026-08-24.md",
+    "area": "platform",
+    "summary": "The audit found the site organised by the order features were built: ~30 money surfaces, ~10 people routes, 10 time/schedule surfaces, 12 communication surfaces. /admin/dashboard is gone and /admin/money and /admin/people exist, but most old routes still sit beside them, and the Work / Office / Research-CAD landings are 12-line pages that just list every route as a card. The nav redesign's 'Phase 4 widgets' never landed.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision: names for the Money tabs (Money In / Money Out / Profitability / Company Account) and whether Work Mode is a mode or a view"
+    ],
+    "value": "High. First thing a new firm sees; every other feature is reached through it. Cheapest big win for 'easy to use'.",
+    "effort": "L",
+    "nationwide": "Yes. A new firm has no tribal knowledge of where things are. Navigation must be driven by the route registry plus per-firm bundles, not hand-curated for Starr.",
+    "evidence": [
+      "app/admin has 86 top-level route folders and 197 page.tsx files (listing 2026-10-23)",
+      "app/admin/work/page.tsx, app/admin/office/page.tsx, app/admin/research-cad/page.tsx are 12 lines each; work/page.tsx:4 comment 'Phase 4 adds...'",
+      "app/admin still has money-related folders payouts, payroll, payout-log, pay-rates, pay-progression, my-pay, pass-through, invoices, invoicing, receivables, finances, payments next to app/admin/money",
+      "People-related folders employees, users, team, personnel, contacts still exist next to app/admin/people"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.platform-help-coverage",
+    "title": "Page-level help for every page (help drawer content and curation)",
+    "source": "completed/PLATFORM_AUDIT §4, §5 (8 of 158 pages had help); completed/ADMIN_NAVIGATION_REDESIGN.md §13.7 'who curates help content?'",
+    "area": "platform",
+    "summary": "Help drawer exists with an AI-fallback generator, but hand-written entries cover only a handful of pages and nobody owns curation. This is the text layer the 'How To' videos should hang off.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision: who curates help content",
+      "page layouts must stop moving first (see IA entry)"
+    ],
+    "value": "High for adoption by other firms; low risk.",
+    "effort": "M",
+    "nationwide": "Yes. Other firms' staff have no one to ask.",
+    "evidence": [
+      "lib/admin/help-catalog.ts holds 7 entries",
+      "app/api/admin/help/generate/route.ts exists (AI fallback)"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.platform-tenant-hardcode-debt",
+    "title": "Finish removing Starr / Belton / Bell County hard-coding",
+    "source": "completed/PLATFORM_AUDIT §3c.3 and §8 item 8h (marked DONE 2026-08-01); scripts/audit-starr-assumptions.mjs",
+    "area": "platform",
+    "summary": "Item 8h was recorded as done, but the repo's own audit still lists a tenant-surface backlog. The firm name, email domain and a single assumed county are still written into code on CAD menus, PDFs, jobs forms, hours approvals, install page, research prompts and mobile screens.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "High for anyone who is not Starr; zero visible change for Starr.",
+    "effort": "M",
+    "nationwide": "Core. This is the nationwide blocker at the string level.",
+    "evidence": [
+      "node scripts/audit-starr-assumptions.mjs: tenant 67 files / 119 references (backlog); adapter 8 files / 45 refs; own-site 22 files",
+      "lib/research/prompts.ts: 7 'single county assumed' references",
+      "lib/saas/tenant-profile.ts reads org row (name, state, phone, logo, brand colour) and exists, so the mechanism is built",
+      "lib/auth.ts:47 ADMIN_EMAILS list still drives admin role"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.platform-state-config",
+    "title": "State and jurisdiction configuration (law, units, licensing registry, closure tolerance, forms, tax)",
+    "source": "No plan owns this. Touched by: docs/platform/CLOSURE_TOLERANCE.md (cites TBPELS ch. 663), completed/STARR_RECON/PHASE_11_EXPANSION.md (Texas statewide only), completed/MULTI_TENANCY_FOUNDATION.md (organizations.state exists, unused)",
+    "area": "platform",
+    "summary": "Every plan so far assumes Texas. The owner's goal (firms nationwide) needs a per-state config layer: state-plane zones and survey-foot rules, minimum standards and closure tolerances, licensing board and register source, record-keeping and sales-tax rules, plat/recording conventions, and the county-source profiles. The tenant profile carries a state field, but nothing reads it for behaviour.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner decision: which second state to design against (a real customer, not a guess)"
+    ],
+    "value": "Very high. Without it the product is a Texas product with a logo field.",
+    "effort": "XL",
+    "nationwide": "This is the nationwide feature.",
+    "evidence": [
+      "lib/compliance/register.ts, lib/research/county-support.ts (SUPPORTED_COUNTIES = ['bell'] at line 32), lib/research/white-label.config.ts hard-code Texas / Bell",
+      "grep: 'TBPELS' appears in 15 app/lib files; 'Texas' in 187",
+      "no 'state' keyed config module under lib/"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.platform-external-signin-accept-invite",
+    "title": "External sign-in, invite acceptance page, and the ADMIN_EMAILS/ALLOWED_DOMAIN removal (A-9c, A-10)",
+    "source": "completed/MULTI_TENANCY_FOUNDATION.md §8 A-9c, A-10, A-15; completed/STARR_SAAS_MASTER_PLAN.md §13 deferred table (/accept-invite/[token])",
+    "area": "platform",
+    "summary": "Invites are sent but there is no acceptance page, Google sign-in from outside the Starr domain is rejected, and operator/admin rights still partly come from a hard-coded email list. Components still read legacy role flags instead of useOrgContext().",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "High. A second firm cannot onboard its own people without it.",
+    "effort": "M",
+    "nationwide": "Required for any other firm.",
+    "evidence": [
+      "no accept-invite route or page found under app/ (find returned nothing)",
+      "lib/auth.ts:47 ADMIN_EMAILS, :61, :121, :188, :246",
+      "app/api/admin/invites/route.ts and app/admin/people/_tabs/InvitesTab.tsx exist (sending side is built)"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.platform-staging-and-isolation-tests",
+    "title": "Staging database, test tenant, RLS isolation tests, and a runner for verify:org-scope",
+    "source": "completed/PLATFORM_AUDIT §8 Phase 0 item 2; completed/MULTI_TENANCY_FOUNDATION.md A-13, A-14; planning/BLOCKERS.md §A0b",
+    "area": "platform",
+    "summary": "Tooling exists (npm run db:bootstrap:staging) but the staging Supabase project was never created, so there is no second tenant to test isolation against. org-scope drift is checked only by a hand-run script that once sat red for weeks; ten tables drifted and 1,371 rows went unowned before it was caught. Nothing runs it automatically.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner account: a staging Supabase project on the owner's org",
+      "owner decision: run verify:org-scope in CI (puts a DB credential in CI) or as a cron route (first direct pg connection from serverless)"
+    ],
+    "value": "High. This is how you find out a second firm can see Starr's jobs before the second firm does.",
+    "effort": "M",
+    "nationwide": "Required before any outside firm is onboarded.",
+    "evidence": [
+      "BLOCKERS.md A0b lines ~381-413",
+      "npm script verify:org-scope reads live DB, not part of vitest",
+      "lib/saas/org-scope.ts lists 168 scoped tables after the 2026-08-29 repair"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.platform-billing-stripe-writes",
+    "title": "Subscription billing: plan change with proration, refunds, dunning, reconciliation, usage tab, bundle price ids",
+    "source": "completed/SUBSCRIPTION_BILLING_SYSTEM.md §8 (B-3, B-5, B-7, B-8, usage tab); completed/STARR_SAAS_MASTER_PLAN.md §13; completed/MARKETING_SIGNUP_FLOW.md D-1e, D-1f",
+    "area": "platform",
+    "summary": "Signup, trial, billing overview, invoices and plan history exist. Stripe-side writes (change plan, refund, dunning retry, reconciliation cron), the operator plan catalogue, wildcard subdomain DNS and custom domains are deferred until Stripe products and price ids exist.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner account: Stripe products and per-bundle price ids in BUNDLES",
+      "owner decision: pricing (Firm Suite $499 / 5 seats was a plan default, not a confirmed price)",
+      "Vercel wildcard DNS for *.starrsoftware.com"
+    ],
+    "value": "High at the moment the first outside firm pays; zero before.",
+    "effort": "L",
+    "nationwide": "Yes. Needed to sell to anyone. Tax: plan relies on Stripe Tax for US states.",
+    "evidence": [
+      "lib/saas/bundles.ts defines six bundles with empty price-id slots",
+      "app/signup/page.tsx and app/platform/ exist (customers, releases, support, team, audit)"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.platform-operator-and-portal-leftovers",
+    "title": "Operator console and customer-portal leftovers (impersonation, knowledge base, SLA, logo upload, data export/delete)",
+    "source": "completed/OPERATOR_CONSOLE.md; completed/CUSTOMER_PORTAL.md; completed/SUPPORT_DESK.md; STARR_SAAS_MASTER_PLAN.md §13 deferred table",
+    "area": "platform",
+    "summary": "Core operator and customer flows shipped. Deferred: impersonation, Slack alerts, two-person rule, the knowledge base UI (plan wants 30 articles before public launch), SLA tracking, per-event email templates, ticket attachments, logo upload, data export and delete (needed for customer offboarding).",
+    "status": "partial",
+    "blockedBy": [
+      "first concrete operational need (plan's own gate)"
+    ],
+    "value": "Medium now, high once several firms exist.",
+    "effort": "L",
+    "nationwide": "Yes.",
+    "evidence": [
+      "app/platform has audit, customers, releases, support, team; no knowledge-base route found"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.platform-mobile-multi-tenant",
+    "title": "Starr Field phone app: org picker, org switcher, bundle gating, EAS store release",
+    "source": "completed/MOBILE_MULTI_TENANT.md (M-11a-d, f, g, i); docs/GO_LIVE_GUIDE.md",
+    "area": "platform",
+    "summary": "Mobile still signs in as a single-firm app. Org-aware session, org picker, tab gating, offline-queue org tagging and the store submission are all deferred, gated on the web auth refactor and Apple / Google developer accounts.",
+    "status": "blocked",
+    "blockedBy": [
+      "web A-9c auth refactor",
+      "owner accounts: Apple Developer, Play Console, EXPO_TOKEN"
+    ],
+    "value": "High: field crews are the highest-stakes users.",
+    "effort": "L",
+    "nationwide": "Yes; as built it cannot serve a second firm.",
+    "evidence": [
+      "mobile/eas.json has placeholder credentials per plan text"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.platform-owner-setup-checklist",
+    "title": "Owner-only deployment and secrets chores",
+    "source": "planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md; docs/VERCEL_ENV_CHECKLIST.md; BLOCKERS.md §D; completed/PLATFORM_AUDIT §1.5",
+    "area": "platform",
+    "summary": "A short list nobody can do for the owner: finish the Doppler consolidation, revoke the old Voyage key, set PAYMENTS_LIVE and Stripe publishable key, CRON_SECRET, install the worker auto-updater on the netcup box, confirm cancellations (Browserbase paid four months with zero sessions; iDocket, Mapbox, ElevenLabs, managed Redis to check).",
+    "status": "blocked",
+    "blockedBy": [
+      "owner dashboard logins and one command on the server"
+    ],
+    "value": "Medium: stops money leaks and closes security loose ends.",
+    "effort": "S",
+    "nationwide": "No (Starr's own ops), but a cleaner base for the multi-firm version.",
+    "evidence": [
+      "OWNER_ACTIONS doc lists S2-S5, E4"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.platform-unmerged-work",
+    "title": "Finished work that is not on main",
+    "source": "planning/BLOCKERS.md §A0000, §A000, §A00; completed/RESEARCH_WORKER_REBUILD (Complete means on a branch)",
+    "area": "platform",
+    "summary": "Several finished bodies of work sit on branches or in a worktree: Texas sales tax + deadlines + records catalogue (2,591 lines, zero merge conflicts), the job-lifecycle branch (job briefings, receipt slideshow and batch re-run, one job-event notifier, plus the phone half), retire-legacy-payroll helper, receipt-reading-v2 (2026-10-07). Needs a merge / cherry-pick / delete decision each, otherwise drift grows.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision per branch"
+    ],
+    "value": "Medium to high: work already paid for.",
+    "effort": "M",
+    "nationwide": "Texas sales tax is Texas-only; it should land as the first entry of state config, not as a Starr feature.",
+    "evidence": [
+      "git branch -r --no-merged origin/main: 14 branches (6+ are the D&D chain, which is out of scope)",
+      "origin/claude/job-lifecycle-2026-08-14, origin/claude/receipt-reading-v2-2026-10-07, origin/claude/retire-legacy-payroll-engine-2026-08-18",
+      "no sales-tax or deadlines module under lib/ on this branch"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.platform-research-page-state-store",
+    "title": "Give the research project page its own state store (3,600-line single component)",
+    "source": "completed/PLATFORM_AUDIT §8 item 18 (deferred with measurement)",
+    "area": "platform",
+    "summary": "Extraction was tried and reverted: one stage needs a 95-prop interface. The honest fix is a redesign with a store. Will matter for any rebuild of the research UI.",
+    "status": "not-started",
+    "blockedBy": [
+      "fold into the research UI rebuild decision"
+    ],
+    "value": "Medium (maintainability, speed of every later research change).",
+    "effort": "L",
+    "nationwide": "Indirect.",
+    "evidence": [
+      "app/admin/research/[projectId]/page.tsx (3,616 lines per audit)"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.platform-design-catalogue-coverage",
+    "title": "Page Designer catalogue covers 46% of rendered elements",
+    "source": "planning/design-coverage.md",
+    "area": "platform",
+    "summary": "Generated report: 133 routes, 11,036 elements, 5,926 unmatched. Lists the next catalogue entries to curate by route count (landing stats, jobs-page pipeline, calendar cells, buttons).",
+    "status": "partial",
+    "blockedBy": [
+      "IA rework changes these classes; do after"
+    ],
+    "value": "Low to medium (per-firm look and feel).",
+    "effort": "M",
+    "nationwide": "Yes (portal themes per firm).",
+    "evidence": [
+      "design-coverage.md header numbers"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.research-county-curation-rollout",
+    "title": "Curate counties in the owner's order (Williamson, Austin ring, Waco ring, Conroe/Huntsville/College Station)",
+    "source": "planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md §3 slice 6, §6; docs/research/williamson-county-discovery-2026-09-21.md",
+    "area": "research",
+    "summary": "Three tiers exist (curated / vendor-default / fallback) and resolve for all 254 Texas counties. Curated: Bell, Milam, Williamson (profile only, no dedicated module). Next in the owner's order: Travis, Hays, Bastrop, Caldwell, Burnet, Blanco, Lee; then McLennan, Coryell, Falls, Limestone, Hill, Bosque; then Montgomery, Walker, Brazos, Grimes. About 39 counties are vendor-default and 233 fall back to TexasFile.",
+    "status": "partial",
+    "blockedBy": [
+      "owner supplies 2-3 golden parcels per county (ideally surveyed jobs)"
+    ],
+    "value": "Very high: research coverage is the product's differentiator.",
+    "effort": "XL",
+    "nationwide": "Pattern generalises (profile per county) but each state needs its own recorders, vendors and bridge identifiers; a Texas-only list does not.",
+    "evidence": [
+      "worker/src/counties has bell, milam, williamson, profile.ts, router.ts",
+      "worker/src/counties/williamson/profile.ts header: curated without dedicated module until a golden parcel exists"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-drill-canary-regression",
+    "title": "County drills, canaries and regression harness (slices 2, 3, 5)",
+    "source": "planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md §2.3, §3",
+    "area": "research",
+    "summary": "A weekly live drill per curated county (cheapest path per source, no purchases, writes health and canary rows) so site drift is caught in days instead of weeks. The canary framework exists but research_adapter_canaries held zero rows when the plan was written; regression runner is a scaffold with one synthetic fixture.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner decision: drill cadence (weekly proposed) and whether it may open the clerk's free viewer",
+      "golden parcels"
+    ],
+    "value": "High: otherwise a county can fail silently for weeks (Bell was reported down for a week for a bad probe URL).",
+    "effort": "L",
+    "nationwide": "Yes, the mechanism is state-independent; it is what keeps a large county list trustworthy.",
+    "evidence": [
+      "no 'drill' script in package.json or worker/package.json",
+      "worker/src/infra/canary.ts and lib/research/canary-diff.ts exist",
+      "lib/research/health-check-scheduler.ts exists"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-registry-consolidation",
+    "title": "Collapse nine overlapping county registries into profile-derived ones (slice 4)",
+    "source": "planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md §1, §3 slice 4",
+    "area": "research",
+    "summary": "BIS_CONFIGS, KOFILE_CONFIGS, the Kofile adapter table, clerk-registry, the app's CAD tables and others each name counties; three held three wrong answers for Milam. Today they are only asserted equal in a test.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "Medium to high (stops a class of wrong-host bugs).",
+    "effort": "M",
+    "nationwide": "Yes: required before adding states or the list becomes unmanageable.",
+    "evidence": [
+      "worker/src/counties/profile.ts resolveCountyProfile covers all 254",
+      "plan §5 'duplicate registries are still there'"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-bell-cad-geoblock",
+    "title": "Bell CAD data missing from every run (geo-blocked from the server)",
+    "source": "planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md item 1",
+    "area": "research",
+    "summary": "esearch.bellcad.org refuses the netcup box. One env var pair (BROWSER_BACKEND=browserbase, BROWSERBASE_ENABLED_ADAPTERS=cad) would fix it for the CAD adapter only; credentials are proven. The same plan says to cancel Browserbase if unused, so it is one decision.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner decision: is Bell CAD worth Browserbase session cost",
+      "alternatively a residential egress"
+    ],
+    "value": "High for Starr's home county.",
+    "effort": "S",
+    "nationwide": "Pattern recurs in other counties (per-portal geo-blocks).",
+    "evidence": [
+      "OWNER_ACTIONS doc; worker/src/infra/run-budget.ts"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.research-first-paid-run",
+    "title": "Prove the document-purchase path and decide on captcha solving",
+    "source": "planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md items 2-3",
+    "area": "research",
+    "summary": "TexasFile is funded but research_document_purchases had zero rows: no run has bought a document. CapSolver key is rejected and no adapter calls the solver. Needs one authorised paid run, a working key and a per-county captcha policy.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner authorises one paid run",
+      "owner decision: which counties may be captcha-solved",
+      "working CapSolver key"
+    ],
+    "value": "High: paid plat sets are the core deliverable.",
+    "effort": "S",
+    "nationwide": "Yes: purchase rails are per-vendor not per-state.",
+    "evidence": [
+      "worker/src/infra/run-budget.ts per-run $2.00 / 20 paid pages / 25 min"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-aggregate-spend-cap",
+    "title": "Aggregate daily/weekly spend cap before the research queue poller is switched on",
+    "source": "planning/BLOCKERS.md §A0",
+    "area": "research",
+    "summary": "Per-run ceilings exist; nothing caps total spend across runs. Safe today only because a human starts every run. The trigger is the day RESEARCH_QUEUE_POLLER=1 is set.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner decision: cap amount and window, or accept the vendor balance as the backstop"
+    ],
+    "value": "High as a safeguard; needed for any multi-firm metering too.",
+    "effort": "S",
+    "nationwide": "Yes (becomes per-tenant usage metering).",
+    "evidence": [
+      "worker/src/infra/queue-poller.ts has no cost or budget reference (checked 2026-08-29)"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-plat-catalogue",
+    "title": "Finish cataloguing the Bell plat library (7,839 left) and repair 188 dead storage paths",
+    "source": "docs/plat-catalogue-resume.md",
+    "area": "research",
+    "summary": "239 of 8,084 Bell documents catalogued (surveyor, lots, recording refs, acreage, with four-witness identity checks). About $345 and 16 hours remain. 188 research_documents rows point to a folder, not a file; 11 rows have no file.",
+    "status": "partial",
+    "blockedBy": [
+      "money: Anthropic credit balance ran out mid-run"
+    ],
+    "value": "High: makes the library searchable by content and feeds identity keys.",
+    "effort": "M",
+    "nationwide": "Method yes; surveyor verification is wired to the Texas board register.",
+    "evidence": [
+      "scripts/catalogue-library.mjs",
+      "plat-catalogue-resume.md table"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-verify-lot-multicounty",
+    "title": "Lot verification beyond Bell County",
+    "source": "completed/PLATFORM_AUDIT §3c.3; planning/pending/COUNTY_CURATION_SYSTEM §5",
+    "area": "research",
+    "summary": "verify-lot reads Bell CAD's ArcGIS from the app and rejects other counties. Milam and Williamson have profiles but no equivalent parcel lookup in the app route.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "Medium.",
+    "effort": "M",
+    "nationwide": "Needed for any county; should read the county profile's parcel layer.",
+    "evidence": [
+      "lib/research/county-support.ts:32 SUPPORTED_COUNTIES = ['bell']",
+      "lib/research/bell-cad-arcgis.service.ts"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.research-starr-archive",
+    "title": "Starr Archive: intake for the firm's filing cabinets, PCs and flash drives",
+    "source": "docs/product/starr-archive.md (sketch; build sequence Archive-0 to 7); docs/platform/STARR_SOFTWARE_SUITE.md",
+    "area": "research",
+    "summary": "A sketched product: bulk import, scan station, mobile capture, triage queue, job-folder-as-unit, dedupe by hash, link back into research (and harvest of real fixtures for regression). Nothing built. Open questions: worker queue topology, bulk-import UX, duplicate UX, permission model.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner go-ahead",
+      "scanner hardware and OCR choice",
+      "storage and cost projection"
+    ],
+    "value": "High for any established firm: decades of paper is the real switching cost.",
+    "effort": "XL",
+    "nationwide": "Yes: the strongest 'bring your firm over' feature. Must be tenant-scoped from day one.",
+    "evidence": [
+      "no archive module under app/ or lib/ (only app/admin/me/_archive, unrelated)",
+      "no seeds named archive"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.research-probe-confirm",
+    "title": "Research site probe: side-by-side screenshot confirm",
+    "source": "completed/PLATFORM_AUDIT §10 'Genuinely remaining' item 3",
+    "area": "research",
+    "summary": "Small UI for confirming a new county's parsed values beside a live screenshot; only worth building once the probe is switched on.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner decision to enable the probe"
+    ],
+    "value": "Low to medium.",
+    "effort": "S",
+    "nationwide": "Yes (onboarding counties in new states).",
+    "evidence": [
+      "/admin/research/sites exists"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.cad-rebuild-plan",
+    "title": "A current CAD rebuild plan (the master plan is from April and 150+ slices old)",
+    "source": "completed/STARR_CAD_MASTER_PLAN.md §17 (Phase 0 prep incl. drafter-standards interview; Phase 6.1-6.13; Phase 7 deltas; Phase 8 deltas); completed/cad-domain-audit-2026-06-11.md; completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md",
+    "area": "cad",
+    "summary": "The canonical CAD plan lists work that is only partly built: tool dispatcher and calculation-method registry, document ingestion plus review UI, calculated points with lineage and RPLS gate, the conversational basis-selection workspace, stake-out export, sealed-project bundle with audit log in PDF metadata, per-firm policy editor, DXF round-trip QA against AutoCAD / Carlson / Civil 3D / Traverse PC, consistency test suite. Since then the CAD was reworked slice by slice (click-order contract, unified visibility, fonts, calculators, TRV import). No single document says what a rebuild would keep.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision: rebuild versus continue slices",
+      "drafter (Hank) standards interview, which the plan calls not optional"
+    ],
+    "value": "Very high: CAD is a pillar and the likely reason a firm would adopt or reject the suite.",
+    "effort": "XL",
+    "nationwide": "Drafting standards, title block, seal and symbols differ by state and firm; must be policy, not code.",
+    "evidence": [
+      "lib/cad/calculators/registry.ts, lib/cad/ai-engine stage-1..6, lib/cad/delivery/seal-engine.ts, rpls-workflow.ts, deliverable-bundle.ts exist",
+      "stake-out appears only in lib/cad/calculators/registry.ts, derivation.ts, geometry/partition.ts (no stake-out export found)",
+      "no basis-selection workspace found in app/admin/cad (118 tsx files)",
+      "docs/cad-click-order-contract.md and docs/cad-integration-points.md describe current state"
+    ],
+    "orderStep": 3
+  },
+  {
+    "id": "plan.cad-desktop-tauri",
+    "title": "Starr CAD as a Windows/Mac desktop app: remaining slices and signing",
+    "source": "completed/cad-desktop-tauri-and-perf-2026-06-14.md (T4c drop zone, T5b MenuBar, T7b recent files, T7c, P2 store integration)",
+    "area": "cad",
+    "summary": "Wrapper shipped with a perf pass; several wiring slices deferred. Release needs Apple team id and a Windows signing certificate.",
+    "status": "partial",
+    "blockedBy": [
+      "owner accounts: Apple Developer, Windows code-signing certificate"
+    ],
+    "value": "Medium: big files and offline work are the draw for drafters.",
+    "effort": "M",
+    "nationwide": "Yes if licensed per seat.",
+    "evidence": [
+      "plan text lines 139, 172, 229, 337, 383, 439-441"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.cad-trimble-live-streaming",
+    "title": "Live point streaming from the collector (Trimble Connect polling, or a controller plug-in)",
+    "source": "completed/STARR_CAD/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md; in-progress/jobs-map-research-consolidation-2026-09-20.md Part 9-10; completed/PLATFORM_AUDIT §3d",
+    "area": "cad",
+    "summary": "A poller, parsers, an arrival feed and a bridge to the map layer model are built; no credentials exist. The decision that gates it is buying Trimble Connect Business and getting OAuth credentials (minutes of latency), versus a Trimble partner plug-in for true per-point.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner decision and account: Trimble Connect Business subscription + TID OAuth client",
+      "a controller for device testing"
+    ],
+    "value": "Medium to high for Trimble shops; marketable.",
+    "effort": "L",
+    "nationwide": "Yes (each vendor is a separate integration).",
+    "evidence": [
+      "lib/field-ingest/ingest.ts, lib/field-ingest/to-map.ts, app/admin/jobs/_tabs/LiveFieldFeed.tsx, app/api/admin/field-ingest/route.ts exist"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.cad-vendor-partnerships",
+    "title": "Topcon / Leica / Hexagon partnership conversations and cloud APIs",
+    "source": "completed/PLATFORM_AUDIT §8 item 8q; §3c.2",
+    "area": "cad",
+    "summary": "File-level readers are done (LandXML, JobXML, RW5 family, GSI8/16). Cloud APIs (Trimble Connect, Leica Exchange) are account and credential products. The audit said to open the talks early because they are slow.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner conversations and vendor credentials"
+    ],
+    "value": "Medium.",
+    "effort": "L",
+    "nationwide": "Yes.",
+    "evidence": [
+      "lib/cad/import has jobxml-parser, landxml-parser, format-detect; lib/cad/delivery/landxml-writer.ts"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.jobs-map-open-decisions",
+    "title": "Jobs to map to research: the twelve unanswered design questions",
+    "source": "planning/in-progress/jobs-map-research-consolidation-2026-09-20.md Phase 2 questions",
+    "area": "jobs",
+    "summary": "The review (phase 1 of 4) is written; the Q&A, step plan and build never followed in the docs. Open: layers versus point types for photos/videos/notes, CSV coordinates (projection zone), whether Field Captures' CSV manifest and ZIP export move onto the map or die, delete or bridge field_data_points/field_media, research prefill of documents and parcel id, one label for the map button, whether to restore the hidden field-data nav entry.",
+    "status": "partial",
+    "blockedBy": [
+      "owner Q&A (12 questions)"
+    ],
+    "value": "High: it settles the jobs data model for capture.",
+    "effort": "L",
+    "nationwide": "Yes (job media model is every firm's daily work). Projection zone must be a per-firm/state setting.",
+    "evidence": [
+      "'Research this Property' button now exists: app/admin/jobs/[id]/page.tsx:603",
+      "lib/jobs/point-file.ts, exif-capture.ts, capture-track.ts, seeds/653_job_file_captures.sql, lib/field-ingest/to-map.ts exist",
+      "no map PDF export route found under app/api/admin/jobs"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.jobs-gps-capture",
+    "title": "GPS-tagged photo and video capture from the phone, with the moving node on the video path",
+    "source": "planning/in-progress/gps-capture-2026-09-19.md",
+    "area": "jobs",
+    "summary": "Designed: GPS stored against the file (so it survives moving between jobs), photo becomes a map point, video becomes a path, playback node driven by currentTime, accuracy-aware sampling, a capture dialog with consent when off the clock. Server pieces (captures table, EXIF reader, track sampler) exist; the device runtime and dialog are not verified.",
+    "status": "partial",
+    "blockedBy": [
+      "real-device verification by the owner",
+      "owner answers: recreate point on move, what happens to an empty point, sampling interval"
+    ],
+    "value": "High for crews.",
+    "effort": "L",
+    "nationwide": "Yes.",
+    "evidence": [
+      "seeds/653_job_file_captures.sql, lib/jobs/capture-track.ts, lib/jobs/exif-capture.ts",
+      "mobile/lib/locationTracker.ts per plan"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.jobs-interactive-map-phases",
+    "title": "Interactive property map: unticked phases 2b through 8",
+    "source": "planning/in-progress/interactive-property-map-2026-09-16.md",
+    "area": "jobs",
+    "summary": "Phases with open checkboxes: shape editor (cones, paths, areas), file panel with drag-to-assign, previews for non-photo files, hover/zoom polish, performance budget (map plus 20 points under 2 s), reorder points, multiple maps per job, activity feed writes, georeference and distance, PDF export with legend. The code already has shapes, georeferencing helpers and media; the checkboxes are stale, so each needs a code check before work.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "High: owner's favourite feature and a visible differentiator.",
+    "effort": "L",
+    "nationwide": "Yes.",
+    "evidence": [
+      "lib/jobs/property-map.ts, property-map-shapes.ts, map-shapes-world.ts, property-map-server.ts",
+      "no PDF export of the map found"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.jobs-agentic-intake-and-quote",
+    "title": "Agentic intake: inbound request to job, suggested quote, approval, then research",
+    "source": "completed/PLATFORM_AUDIT §8b D4 and Q-D4a..f; completed/PLATFORM_AUDIT §10 remaining item 4",
+    "area": "jobs",
+    "summary": "Owner's target flow: AI scrubs the request, creates the job (unconfirmed, reversible), notifies Jacob and Hank with a suggested quote, and runs research only after approval. Blocked on the pricing logic: nothing in the code computes a quote and it must not be invented. Boundary and Improvements survey type and lead/call mapping were added in October; the intake loop itself has no named module.",
+    "status": "partial",
+    "blockedBy": [
+      "owner supplies pricing logic (rate table by survey type x acreage x county, or past jobs)",
+      "notification channel, auto-reply policy, monthly AI budget, reject behaviour (Q-D4b..f)"
+    ],
+    "value": "Very high: lead-to-job speed is the firm's revenue front door.",
+    "effort": "L",
+    "nationwide": "Pricing and survey types must be per-firm configuration.",
+    "evidence": [
+      "grep for suggested_quote / quote-suggest / ai-intake found no module",
+      "git log: 1af38fbf0 Boundary & Improvements job survey type, mapped from leads and calls",
+      "lib/receptionist (voice receptionist, call analysis) exists"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.jobs-model-configurable",
+    "title": "Jobs model: survey types, stages and templates as per-firm configuration",
+    "source": "No single plan. Evidence from completed/PROJECTS_ABOVE_JOBS_2026-08-19.md, JOB_WORKSPACE_BUILDOUT.md, jobs-map-consolidation (job panel action row), PLATFORM_AUDIT §3",
+    "area": "jobs",
+    "summary": "Projects above jobs shipped. What a second firm needs is configurable survey types (with required deliverables, checklists, default research and stages) instead of Starr's. Survey type is only now being added as a field. Not a planned item anywhere.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner decision on the canonical lead-to-cash pipeline stages"
+    ],
+    "value": "High: it is the spine every other part hangs on.",
+    "effort": "L",
+    "nationwide": "Core: firms in different states do different survey types (ALTA, boundary, topo, construction staking, subdivision, floodplain).",
+    "evidence": [
+      "app/admin/components/jobs/JobStageTimeline.tsx has hard-coded stages",
+      "lib/jobs/ has no survey-type config module"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.jobs-costing-estimate-vs-actual",
+    "title": "Estimate versus actual job costing",
+    "source": "completed/PLATFORM_AUDIT §3 (job costing is one-directional)",
+    "area": "jobs",
+    "summary": "Hours, mileage, receipts and equipment attach to jobs, but no budget-versus-actual view tells the firm whether it is pricing correctly. Not marked as shipped in the audit's sequencing.",
+    "status": "not-started",
+    "blockedBy": [
+      "quote model (see agentic intake)"
+    ],
+    "value": "High for profitability.",
+    "effort": "M",
+    "nationwide": "Yes.",
+    "evidence": [
+      "grep for estimate-vs-actual / budget_hours / variance in lib/finances, lib/jobs, app/admin/finances: no hits"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.jobs-weather-scheduling",
+    "title": "Weather as a scheduling input (flag rain days, suggest reschedules)",
+    "source": "completed/PLATFORM_AUDIT §3 (weather page orphaned)",
+    "area": "jobs",
+    "summary": "Weather page exists; scheduling and availability do not read it.",
+    "status": "not-started",
+    "blockedBy": [],
+    "value": "Medium for field dispatch.",
+    "effort": "S",
+    "nationwide": "Yes.",
+    "evidence": [
+      "no 'weather' reference in app/admin/schedule, app/admin/availability, lib/scheduling, lib/schedule",
+      "app/admin/weather and lib/weather exist"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.jobs-mobile-background-upload",
+    "title": "Mobile background upload runtime",
+    "source": "planning/BLOCKERS.md §C; completed/SURVEYING_WORKMODE_MOBILE_UPLOADS_2026-07-16.md Area C",
+    "area": "jobs",
+    "summary": "Decision logic is tested; the Expo background task, media-library and notifications need a real iOS/Android build. Foreground-resume drain ships.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner's device build and test"
+    ],
+    "value": "High for crews working without signal.",
+    "effort": "M",
+    "nationwide": "Yes.",
+    "evidence": [
+      "BLOCKERS.md §C 'Mobile upload runtime'"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.people-single-record",
+    "title": "One person record (profile with tabs) and one directory",
+    "source": "completed/PLATFORM_AUDIT §2.3, §8 item 7",
+    "area": "people",
+    "summary": "A /admin/people directory with tabs exists, but employees, users, team, personnel and contacts routes still stand. The audit counted ten routes for one noun.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "High: the office manager's daily screen.",
+    "effort": "M",
+    "nationwide": "Yes, plus per-firm roles and permissions.",
+    "evidence": [
+      "app/admin/people has _tabs, [email], PeopleDirectory.tsx",
+      "app/admin/employees, users, team, personnel, contacts still exist"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.people-hours-time-model",
+    "title": "Hours: one time model (clock, approval, correction, pay link) and fewer calendars",
+    "source": "completed/PLATFORM_AUDIT §2.4; pending/PAYROLL_HOURS_AND_EMPLOYEE_MONEY_2026-08-12.md (S5 rest, S7, S8); completed/01_HOURS_TIME_CORRECTION, 02_CLOCK_IN, HOURS_TO_PAYOUT_2026-08-05",
+    "area": "people",
+    "summary": "Hours feed pay, jobs, mileage and availability. Ten time/schedule surfaces were found (four calendars); an availability page now answers 'who can go Thursday'. Payroll plan: slices S0-S4, S6 shipped, S7 shipped; S8 auto-transfer is owner-gated; overtime, state pay rules and pay periods are firm- and state-specific and are not yet configurable.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision on S8 auto-transfer",
+      "state overtime and pay-period rules (see state config)"
+    ],
+    "value": "Very high: hours are the daily action for every crew member and the source of payroll.",
+    "effort": "L",
+    "nationwide": "Overtime, meal breaks, pay-frequency laws and holidays vary by state; must be configuration.",
+    "evidence": [
+      "app/admin/hours, hours-approval, my-hours, time-off, availability, timeline, calendar, schedule all exist",
+      "lib/hours and lib/payroll exist"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.people-pay-progression",
+    "title": "Graduated pay (role tiers, seniority, credential and XP bonuses)",
+    "source": "pending/PAYROLL_HOURS_AND_EMPLOYEE_MONEY_2026-08-12.md §3; completed/PAY_PROGRESSION_OVERHAUL.md",
+    "area": "people",
+    "summary": "Built and tested (effective-rate.ts) but parked by the owner; restoring is wiring. The audit also asked whether it is a real compensation policy or an experiment.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner decision: is this the compensation policy"
+    ],
+    "value": "Low to medium; firm-specific.",
+    "effort": "S",
+    "nationwide": "Optional module per firm.",
+    "evidence": [
+      "lib/payroll/effective-rate.ts (211 lines per plan)",
+      "app/admin/pay-progression exists"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.money-withholding-and-stubs",
+    "title": "Employees versus contractors, withholding, and pay statements (S9b/S9c)",
+    "source": "planning/BLOCKERS.md 'Payroll S9c'; pending/PAYROLL_HOURS_AND_EMPLOYEE_MONEY S9; in-progress/payouts-and-holding-money-2026-09-19.md Open questions",
+    "area": "money",
+    "summary": "The legacy payroll route is the only producer of pay stubs and uses estimated tax rates; the batch path withholds nothing. Blocked on one accountant answer: does the firm withhold. If yes it is a real build (federal and state tables, YTD) or a partner; if no, move stub generation to the batch path and close the old route.",
+    "status": "blocked",
+    "blockedBy": [
+      "accountant answer",
+      "owner: employees or contractors"
+    ],
+    "value": "High for compliance.",
+    "effort": "XL",
+    "nationwide": "State withholding differs; almost certainly a payroll-partner integration, not a build.",
+    "evidence": [
+      "POST /api/admin/payroll/runs is the only pay_stubs insert (route.ts:404)",
+      "lib/payroll/pay-stub.ts:125",
+      "lib/payroll/payment-statement.ts"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.money-payouts-owner-setup",
+    "title": "Payout autopilot go-live: PayPal Business, PNC ACH origination, check stock, fee policy",
+    "source": "planning/in-progress/PAYOUT_AUTOPILOT_2026-10-11.md 'Owner set-up'; in-progress/payouts-and-holding-money-2026-09-19.md",
+    "area": "money",
+    "summary": "Commit-once payout is built and browser-verified (ACH file, checks with numbers, cash sheet, void/reissue, fees with consent, two-person approval). The remaining work is outside code: PayPal Business keys with Payouts enabled, bank ACH company id, PAYMENT_ENCRYPTION_KEY, check stock, and a CPA/lawyer check on fees for W-2 staff. Doc still says 'Not merged' although commits are in main history.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner accounts and CPA confirmation"
+    ],
+    "value": "High for the office manager on payday.",
+    "effort": "S",
+    "nationwide": "Rails (ACH file, PayPal, checks) are US-wide; bank company id and fee rules are per firm/state.",
+    "evidence": [
+      "lib/payouts/ (nacha.ts, paypal.ts, commit.ts, fees.ts, checks-server.ts)",
+      "lib/checks/",
+      "seed 677 applied live per plan"
+    ],
+    "orderStep": 4
+  },
+  {
+    "id": "plan.money-payments-go-live",
+    "title": "Take real customer payments: cards, Stripe live, PNC reconcile, PAYMENTS_LIVE",
+    "source": "planning/pending/MONEY_RAILS_AND_CARDS_2026-08-17.md ledger M1-M7",
+    "area": "money",
+    "summary": "Readiness panel at /admin/cards shrinks as items are done. Owner steps: log every business card, verify Venmo/CashApp/Zelle handles are real, confirm Stripe live keys and webhook, import a PNC CSV and reconcile, set PAYMENTS_LIVE and take a real $1 payment.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner dashboards: Vercel, Stripe, PNC, Venmo app"
+    ],
+    "value": "High: lead to cash cannot close online without it.",
+    "effort": "S",
+    "nationwide": "Per-firm Stripe account needed (Connect or own keys).",
+    "evidence": [
+      "lib/payments/live.ts",
+      "app/admin/cards"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.money-payment-handles-per-org",
+    "title": "Payment handles (Venmo, Cash App, Zelle) and payments settings per firm in org_settings",
+    "source": "pending/MONEY_RAILS_AND_CARDS_2026-08-17.md §2 'Considered and NOT built'",
+    "area": "money",
+    "summary": "Handles are constants in code, read by client components; env vars would split-brain. Putting them in org_settings is the right fix and was declined as 'a real slice'. A second firm cannot use the pay portal without it.",
+    "status": "not-started",
+    "blockedBy": [],
+    "value": "Medium now, required for any other firm.",
+    "effort": "M",
+    "nationwide": "Required.",
+    "evidence": [
+      "lib/payments/live.ts imported by 'use client' components per plan"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.money-sales-tax-and-deadlines",
+    "title": "Texas sales tax, deadlines and records catalogue (unmerged branch)",
+    "source": "planning/BLOCKERS.md §A0000 (worktree-surveying-payments)",
+    "area": "money",
+    "summary": "2,591 lines of tax and compliance code with 570 lines of tests, zero merge conflicts, but its modules had no importer when probed (adds orphans). Needs wiring, not just merging.",
+    "status": "partial",
+    "blockedBy": [
+      "owner decision: merge, cherry-pick, or delete"
+    ],
+    "value": "Medium.",
+    "effort": "M",
+    "nationwide": "Texas rules; should become the first state-config module.",
+    "evidence": [
+      "no lib/**/sales-tax* on this branch",
+      "BLOCKERS.md probe table"
+    ],
+    "orderStep": 2
+  },
+  {
+    "id": "plan.money-holding-balances-investing",
+    "title": "Employees keeping money on the site, interest or investment options",
+    "source": "in-progress/payouts-and-holding-money-2026-09-19.md phases 3-5; pending/PAYROLL D1",
+    "area": "money",
+    "summary": "Owner called this 'way in the future'. Plan stays on the ledger side (a record of what is owed, not custody). Holding for others or investing needs a partner and legal opinion and is state-by-state licensed.",
+    "status": "not-started",
+    "blockedBy": [
+      "owner: savings versus investment, who bears loss",
+      "legal opinion and a banking/brokerage partner"
+    ],
+    "value": "Low for a firm today.",
+    "effort": "XL",
+    "nationwide": "Poor fit: money-transmitter licensing is state by state. Avoid in the multi-firm product.",
+    "evidence": [
+      "lib/payroll/owed.ts derived balance exists; no custody code by design"
+    ],
+    "orderStep": 6
+  },
+  {
+    "id": "plan.money-maps-key-mileage",
+    "title": "Address-to-address mileage (server maps key)",
+    "source": "planning/BLOCKERS.md 'Two decisions left by CAD_EXCELLENCE' item 1",
+    "area": "money",
+    "summary": "Adapter, route, UI and 15 tests shipped; the only missing step is creating an unrestricted-by-referrer Routes API key in GOOGLE_MAPS_SERVER_KEY.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner creates the Google Cloud key"
+    ],
+    "value": "Medium (mileage reimbursement).",
+    "effort": "S",
+    "nationwide": "Yes (per-firm billing project).",
+    "evidence": [
+      "lib/maps/server-key.ts, lib/mileage exist"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.office-how-to-videos",
+    "title": "How To guide videos for every role",
+    "source": "Owner's words (this request). No planning document covers it. Related: help drawer, onboarding, docs/NEW_EMPLOYEE_HANDOUT.md, docs/testing-lab/*",
+    "area": "office",
+    "summary": "Short task videos (clock in, create a job, run research, draft a plat, approve hours, pay people) linked from help drawers and first-run onboarding. Greenfield: no plan, no storage design, no video component. They go stale whenever the UI moves, so they come after the IA rework.",
+    "status": "not-started",
+    "blockedBy": [
+      "stable IA",
+      "owner decision on production method (screen recordings versus generated narration)"
+    ],
+    "value": "High for adoption by non-Starr firms.",
+    "effort": "L",
+    "nationwide": "Yes; must show the firm's own configured terms where possible.",
+    "evidence": [
+      "grep of docs/, app/, lib/ for how-to video / tutorial video / screencast: no hits",
+      "lib/admin/help-catalog.ts has 7 entries"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.office-marketing-seo",
+    "title": "Local SEO, Search Console, Google Ads conversions, Business Profile",
+    "source": "planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md (M1-M4, G1-G4)",
+    "area": "office",
+    "summary": "Site work is live. Remaining: create four offline-conversion actions and set env vars, resubmit sitemap and request indexing, provide real sameAs URLs, county landing pages (correctly gated on search data), and the firm's photos and reviews for the profile.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner dashboard logins and the firm's own content"
+    ],
+    "value": "Medium for Starr; low for the product itself.",
+    "effort": "S",
+    "nationwide": "Per-tenant marketing site is a separate question; not a product feature yet.",
+    "evidence": [
+      "lib/seo/business.ts is the NAP source"
+    ],
+    "orderStep": 5
+  },
+  {
+    "id": "plan.office-phone-calls-merge-plan",
+    "title": "Phone calls: the 'parked, do not merge' plan",
+    "source": "planning/BLOCKERS.md 'Phone calls - built, never merged, and DELIBERATELY PARKED (2026-08-17)'",
+    "area": "office",
+    "summary": "The plan said no code in main touches calls and the owner wanted calls left alone. A voice receptionist with call screening, analysis, transcripts and lead/job mapping is now in lib/receptionist and recent commits, so the parked plan is superseded by a different build.",
+    "status": "obsolete",
+    "blockedBy": [],
+    "value": "n/a (see receptionist feature)",
+    "effort": "S",
+    "nationwide": "Receptionist knowledge, voices and area-code maps need per-firm config.",
+    "evidence": [
+      "lib/receptionist/* (calls.ts, screening.ts, call-outcome.ts, knowledge.ts)",
+      "app/admin/calls",
+      "git log 13d1dadc0 Voice receptionist"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.office-google-integration",
+    "title": "Google integration plan",
+    "source": "planning/obsolete/GOOGLE_INTEGRATION_2026-07-31.md",
+    "area": "office",
+    "summary": "Already filed as obsolete.",
+    "status": "obsolete",
+    "blockedBy": [],
+    "value": "n/a",
+    "effort": "S",
+    "nationwide": "n/a",
+    "evidence": [
+      "file in planning/obsolete"
+    ],
+    "orderStep": 0
+  },
+  {
+    "id": "plan.office-comms-consolidation",
+    "title": "Twelve communication surfaces: merge discussions into messages, notes into files",
+    "source": "completed/PLATFORM_AUDIT §2.5; §8 item 21 (only labelled, not merged)",
+    "area": "office",
+    "summary": "The audit's fix was to label what each surface is NOT. Actual merging (Discussions into Messages as channels, Notes into Files) was not done.",
+    "status": "partial",
+    "blockedBy": [],
+    "value": "Medium.",
+    "effort": "M",
+    "nationwide": "Yes.",
+    "evidence": [
+      "app/admin/discussions, messages, email, notes, announcements, notifications, support all exist"
+    ],
+    "orderStep": 1
+  },
+  {
+    "id": "plan.office-supporting-dnd-andrewash",
+    "title": "Side projects: D&D platform and AndrewAsh (excluded from this review)",
+    "source": "pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md; pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md; planning/DND_OWNER_DECISIONS_2026-07-27.md; planning/ANDREW_ASH_HOSTING_COSTS_2026-08-02.md; completed/DND_*, ANDREW_ASH_*",
+    "area": "platform",
+    "summary": "Exist, parked by owner direction (research software first). Not reviewed. Branches carrying D&D work are unmerged; BLOCKERS section D has deploy-time security settings to do before /dnd is public.",
+    "status": "blocked",
+    "blockedBy": [
+      "owner direction"
+    ],
+    "value": "n/a to the surveying product.",
+    "effort": "S",
+    "nationwide": "No.",
+    "evidence": [
+      "app/dnd, app/AndrewAsh exist"
+    ],
+    "orderStep": 7
+  },
+  {
+    "id": "plan.money-check-printing",
+    "title": "Printed paychecks with register and PNC Positive Pay",
+    "source": "C:UsersJacob MadduxdevSTARR-SURVEYINGdocsplanningpendingCHECK_PRINTING_2026-10-11.md (section 8 slices C0-C6, section 10 decisions D1-D2)",
+    "branch": "unmerged",
+    "area": "money",
+    "summary": "Plan (status line says nothing built) for check printing: layout, PDF renderer with MICR line, check register and numbering, void/reissue, Positive Pay export. The payout autopilot work has since built the layout, renderer, numbering, register, alignment test and void/reissue. Still open: PNC Positive Pay export (needs PNC file spec), a real-stock MICR test, and the W-2 withholding decision (D1) that the stub depends on.",
+    "status": "partial",
+    "blockedBy": [
+      "owner: order blank check stock and MICR toner; PNC Positive Pay file layout",
+      "owner/accountant: W-2 withholding decision (same as plan.money-withholding-and-stubs)"
+    ],
+    "value": "Medium: only for staff who choose a check.",
+    "effort": "S",
+    "nationwide": "Layout is US-wide; bank name, routing and Positive Pay formats are per bank and per firm settings.",
+    "evidence": [
+      "lib/checks/layout.ts, render.ts, words.ts exist in this worktree",
+      "lib/payouts/checks-server.ts exists",
+      "no Positive Pay code found by grep",
+      "doc exists only in the main checkout, branch claude/job-property-id-2026-10-14, untracked"
+    ],
+    "orderStep": 4
+  }
+]
