@@ -6,7 +6,7 @@ broken. Diagnose each one separately.
 
 | Pathway | What it is | Who controls it |
 |---------|-----------|-----------------|
-| **Outbound from the website** | Quote / contact form submissions sent via Resend, addressed to `info@starr-surveying.com` (and `starrsurveying@yahoo.com`) | This codebase + the Resend dashboard |
+| **Outbound from the website** | Quote / contact form submissions sent via Resend, addressed to `info@starr-surveying.com` (a Google Workspace group that delivers to every team inbox) | This codebase + the Resend dashboard |
 | **Inbound to the mailbox** | A customer typing `info@starr-surveying.com` into their email client and hitting send | The DNS provider (registrar) + the inbox host (Google Workspace, Zoho, Yahoo, etc.) |
 
 ## Pathway 1: outbound from the website
@@ -18,8 +18,7 @@ Customer browser
   → POST /api/contact            (Next.js route)
   → fetch('https://api.resend.com/emails')
   → Resend delivers to:
-      info@starr-surveying.com
-      starrsurveying@yahoo.com
+      info@starr-surveying.com  (group → every member's inbox)
 ```
 
 ### Checklist
@@ -46,9 +45,9 @@ Customer browser
    click into one — the bounce reason is usually clear (mailbox
    doesn't exist, spam-blocked, rate-limited).
 5. **Is the recipient list right?** `EMAIL_RECIPIENTS` in
-   `app/api/contact/route.ts:8-11` is the source of truth. Today it's
-   `info@starr-surveying.com` + `starrsurveying@yahoo.com`. If a team
-   member should also be notified, add their address there.
+   `app/api/contact/route.ts:8-11` is the source of truth. Today it is only `info@starr-surveying.com`: a Google Workspace group
+   ("Customer Inquiries") that delivers to every member. To notify someone
+   else, add them to the group in Google Admin, not to this list.
 6. **Are emails landing in spam?** Check the actual inbox: junk
    folder, then verify SPF/DKIM/DMARC (next section).
 
