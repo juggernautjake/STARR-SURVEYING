@@ -1,4 +1,4 @@
--- seeds/676_job_property_id.sql — every job records the appraisal district's Property ID.
+-- seeds/678_job_property_id.sql — every job records the appraisal district's Property ID.
 --
 -- Owner, 2026-10-14, building out the Jack Folsom project (P-2026-0018): "it doesn't seem like we
 -- have a property ID field in the job creation menu. We need to have that field so we can include
