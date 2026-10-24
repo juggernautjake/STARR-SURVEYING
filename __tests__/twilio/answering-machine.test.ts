@@ -62,7 +62,7 @@ beforeEach(() => {
 describe('what the answering machine says', () => {
   it('thanks them, points them at the website, then asks for a message after the tone (owner, 2026-10-06)', () => {
     expect(MACHINE_LINES.greeting).toMatch(/^Thank you for calling Starr Surveying\./);
-    expect(MACHINE_LINES.greeting).toMatch(/request a survey any time online at starr surveying dot com/);
+    expect(MACHINE_LINES.greeting).toMatch(/request a survey any time online at starr dash surveying dot com/);
     expect(MACHINE_LINES.greeting).toMatch(/your name, your phone number and a short message after the tone/);
     expectOrder(MACHINE_LINES.greeting, 'online', 'after the tone', 'the website comes before the tone');
     expect(MACHINE_LINES.greeting).toMatch(/get back to you as soon as possible/);
