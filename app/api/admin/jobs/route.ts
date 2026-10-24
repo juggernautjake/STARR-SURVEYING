@@ -99,7 +99,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { name, job_number, description, address, city, state, zip, county, owner_name, survey_type,
+  const { name, job_number, description, address, city, state, zip, county, owner_name, property_id, survey_type,
     acreage, client_name, client_email, client_phone, client_company, client_address,
     lead_rpls_email, deadline, quote_amount, notes, tags, is_legacy, is_priority,
     lot_number, subdivision, abstract_number, latitude, longitude,
@@ -200,6 +200,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         lead_rpls_email, customer_id: customer_id || null,
       }),
       project_id,
+      // The appraisal district's Property ID (seed 676). Per job and never inherited: one project can
+      // hold sixteen parcels, each with its own.
+      property_id: typeof property_id === 'string' && property_id.trim() ? property_id.trim() : null,
       name, job_number: finalJobNumber, description,
       state: state || 'TX', survey_type: survey_type || 'boundary',
       deadline, quote_amount, notes,

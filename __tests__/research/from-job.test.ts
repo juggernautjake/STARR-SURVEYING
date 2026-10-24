@@ -106,7 +106,19 @@ describe('a job has no owner, only a client — and the briefing says so', () =>
   });
 });
 
-describe('a job has no parcel id, and one is never invented', () => {
+describe("the parcel id is the job's Property ID, and one is never invented", () => {
+  it("passes the job's property_id through, and drops it from missing", () => {
+    const p = researchPrefillFromJob(job({ property_id: ' 101002 ' }));
+    expect(p.parcelId).toBe('101002');
+    expect(p.missing.join(' ')).not.toMatch(/parcel/i);
+    expect(researchCreateBody(p).parcel_id).toBe('101002');
+  });
+
+  it('a property id alone is enough to start without a street address', () => {
+    const p = researchPrefillFromJob(job({ property_id: '46857', address: null }));
+    expect(p.missing.join(' ')).not.toMatch(/street address/i);
+  });
+
   it('parcelId is null even when the job has an abstract number', () => {
     // An abstract number is a legal-description part. A parcel id is the appraisal district's own
     // key. Putting one in the other's field queries the wrong namespace and can return somebody
@@ -115,7 +127,7 @@ describe('a job has no parcel id, and one is never invented', () => {
     expect(p.parcelId).toBeNull();
   });
 
-  it('says so in `missing`, ALWAYS, so a blank field is explained', () => {
+  it('says so in `missing` whenever it is blank, so a blank field is explained', () => {
     for (const over of [{}, { abstract_number: null }, { lot_number: null, subdivision: null }]) {
       const p = researchPrefillFromJob(job(over));
       expect(p.missing.join(' '), JSON.stringify(over)).toMatch(/parcel \/ property id/i);

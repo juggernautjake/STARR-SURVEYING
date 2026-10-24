@@ -42,6 +42,7 @@ interface Job {
   id: string; job_number: string; name: string; survey_type: string; stage: string;
   address: string | null; city: string | null; state: string | null; zip: string | null; county: string | null;
   subdivision: string | null; lot_number: string | null; abstract_number: string | null; acreage: number | null;
+  property_id: string | null;
   deadline: string | null; created_at: string;
   quote_amount: number | null; final_amount: number | null; amount_paid: number | null;
   payment_status: string | null; is_priority: boolean; is_archived: boolean;
@@ -230,7 +231,7 @@ export default function ProjectDetailPage() {
                   const stage = STAGE_CONFIG[j.stage] ?? { label: j.stage, color: 'var(--theme-fg-secondary, #6B7280)' };
                   const street = [j.address, j.city].filter(Boolean).join(', ');
                   const locale = [j.state, j.zip].filter(Boolean).join(' ');
-                  const legal = [j.subdivision, j.lot_number ? `Lot ${j.lot_number}` : null, j.abstract_number ? `Abstract ${j.abstract_number}` : null].filter(Boolean).join(' · ');
+                  const legal = [j.property_id ? `Property ID ${j.property_id}` : null, j.subdivision, j.lot_number ? `Lot ${j.lot_number}` : null, j.abstract_number ? `Abstract ${j.abstract_number}` : null].filter(Boolean).join(' · ');
                   const due = dueBubble(j.deadline);
                   const quoted = j.final_amount ?? j.quote_amount;
                   const paid = j.amount_paid ?? 0;
