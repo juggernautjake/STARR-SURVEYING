@@ -49,7 +49,7 @@ interface PriorProject {
 // made that field do nothing at all, silently, which is the failure it was added to prevent.
 const JOB_COLUMNS = [
   'id', 'job_number', 'name', 'address', 'city', 'state', 'zip', 'county',
-  'owner_name',
+  'owner_name', 'property_id',
   'survey_type', 'acreage', 'lot_number', 'subdivision', 'abstract_number',
   'client_name', 'client_company', 'client_email', 'client_phone',
   'project_id', 'notes', 'instructions',

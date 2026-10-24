@@ -45,6 +45,8 @@ export interface PropertyFields {
   lot_number: string | null;
   subdivision: string | null;
   abstract_number: string | null;
+  /** The appraisal district's Property ID (seed 676). */
+  property_id?: string | null;
   acreage: number | string | null;
   latitude: number | string | null;
   longitude: number | string | null;
@@ -61,6 +63,7 @@ interface Props {
 
 /** The fields that are plain text, in the order somebody reads them. */
 const DETAIL_FIELDS: Array<{ key: keyof PropertyFields; label: string; hint?: string; wide?: boolean }> = [
+  { key: 'property_id', label: 'Property ID', hint: 'e.g. 101002' },
   { key: 'lot_number', label: 'Lot' },
   { key: 'subdivision', label: 'Subdivision', wide: true },
   { key: 'abstract_number', label: 'Abstract' },
@@ -122,6 +125,7 @@ export default function PropertyPanel({ jobId, job, onSave, mapsUrl }: Props) {
       address: str(job.address), city: str(job.city), state: str(job.state) || 'TX',
       zip: str(job.zip), county: str(job.county), lot_number: str(job.lot_number),
       subdivision: str(job.subdivision), abstract_number: str(job.abstract_number),
+      property_id: str(job.property_id),
       acreage: str(job.acreage), latitude: str(job.latitude), longitude: str(job.longitude),
     });
     setError(null);
@@ -145,6 +149,7 @@ export default function PropertyPanel({ jobId, job, onSave, mapsUrl }: Props) {
       put('lot_number', form.lot_number ?? '');
       put('subdivision', form.subdivision ?? '');
       put('abstract_number', form.abstract_number ?? '');
+      put('property_id', form.property_id ?? '');
 
       const acres = (form.acreage ?? '').trim();
       if (acres === '') patch.acreage = null;
