@@ -32,6 +32,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   let q = supabaseAdmin.from('receipts')
     .select('id, transaction_at, total_cents, category, status, superseded_by_receipt_id, vendor_name, user_id')
     .is('deleted_at', null)
+    .is('superseded_by_receipt_id', null)
+    .or('expense_nature.is.null,expense_nature.eq.business')
     .gte('transaction_at', `${from}T00:00:00-06:00`)
     .lte('transaction_at', `${to}T23:59:59-05:00`)
     .limit(10000);

@@ -48,6 +48,8 @@ export async function auditBlockers(fromIso: string, toIso: string): Promise<Aud
   const { data, error } = await supabaseAdmin.from('receipts')
     .select('id, vendor_name, transaction_at, total_cents, status, read_status, read_at, user_reviewed_at, approved_at, ai_extras')
     .is('deleted_at', null)
+    .is('superseded_by_receipt_id', null)
+    .or('expense_nature.is.null,expense_nature.eq.business')
     .neq('status', 'rejected')
     .gte('created_at', fromIso)
     .lte('created_at', toIso)
