@@ -237,59 +237,6 @@ function matchesRoute(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(prefix + '/');
 }
 
-// ── /dnd (hidden D&D platform) gate — Phase B, B6 ──
-// The /dnd area has its OWN cookie-based auth (lib/dnd/auth.ts), separate from
-// staff next-auth. Middleware runs on the Edge runtime, where the node:crypto
-// HMAC verify used by the session lib isn't available — so here we only do a
-// cheap PRESENCE check on the `dnd_session` cookie for a fast redirect. Full
-// signature verification still happens server-side in every /dnd page/route
-// via getDndUser() (a forged/expired cookie passes this gate but resolves to
-// null there and bounces to login), so this layer is UX, not the security
-// boundary.
-function dndGate(req: Parameters<Parameters<typeof auth>[0]>[0]): NextResponse | null {
-  const { pathname } = req.nextUrl;
-  if (!pathname.startsWith('/dnd')) return null;
-
-  // Access model (user decision 2026-07-06): /dnd is PUBLIC by default — reachable by
-  // direct link only (noindex + no marketing links in). Let every /dnd route through;
-  // pages that still need an identity redirect themselves (the visitor enters via a
-  // roster card first). The invite/login flow (B1–B7) is retained and re-enabled by
-  // setting DND_REQUIRE_LOGIN=1, which falls through to the cookie gate below.
-  if (process.env.DND_REQUIRE_LOGIN !== '1') return NextResponse.next();
-
-  // Public within /dnd: the sign-in + invite-acceptance pages, and the Lazzuh_Gun
-  // sheet — both the legacy iframe bridge and the C2 native preview at
-  // /dnd/Lazzuh_Gun/native (this sheet has always been hidden-by-URL, not
-  // auth-gated; C6 consolidates it and retires the iframe).
-  const isPublic =
-    pathname === '/dnd/login' ||
-    // Account recovery (P2-4). MUST be public: everyone who needs it is locked out by definition, so
-    // gating it behind a session would redirect them to the sign-in page they cannot get past — a
-    // recovery route that only works for people who do not need it.
-    pathname === '/dnd/recover' ||
-    pathname.startsWith('/dnd/join') ||
-    // The RULES LIBRARY is readable by anyone with the link, even when login is enforced
-    // (owner 2026-07-20): the owner shares library URLs with people who have no account.
-    // Reading rules is open; building a character or campaign still needs a session.
-    pathname.startsWith('/dnd/library') ||
-    pathname === '/dnd/Lazzuh_Gun' ||
-    pathname.startsWith('/dnd/Lazzuh_Gun/');
-
-  const hasSession = Boolean(req.cookies.get('dnd_session')?.value);
-
-  // Signed-in user hitting login/join → send them into the app.
-  if (hasSession && (pathname === '/dnd/login' || pathname.startsWith('/dnd/join'))) {
-    return NextResponse.redirect(new URL('/dnd', req.url));
-  }
-  if (isPublic) return NextResponse.next();
-  if (!hasSession) {
-    const loginUrl = new URL('/dnd/login', req.url);
-    loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  return NextResponse.next();
-}
-
 /** Bundle enforcement for `/api/admin/*` (§3c.1, item 8f).
  *
  *  Three properties, each deliberate:
@@ -353,10 +300,6 @@ function apiBundleGate(
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
-
-  // /dnd runs its own auth; handle it before the staff /admin logic.
-  const dnd = dndGate(req);
-  if (dnd) return dnd;
 
   // ── SaaS bundle gate for the API (8f) ──
   // The page gate below has always worked; the matcher simply never included `/api`, so all 351
@@ -445,4 +388,4 @@ export default auth((req) => {
 // '/api/admin/:path*' added 2026-08-01 (audit 8f). Its absence was the entire reason 351 admin API
 // handlers had never been bundle-gated: '/api/...' does not start with '/admin', so the gate below
 // — which has worked correctly for pages since M-9b — was never consulted for the data path.
-export const config = { matcher: ['/admin/:path*', '/api/admin/:path*', '/dnd/:path*'] };
+export const config = { matcher: ['/admin/:path*', '/api/admin/:path*'] };

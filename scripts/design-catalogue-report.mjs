@@ -59,7 +59,7 @@ const isUtility = (c) => UTILITY.test(c.name) && !c.styled;
  */
 const SCOPE = new Set(['admin', 'marketing', 'customer', 'auth', 'shared']);
 const ALL = process.argv.includes('--all');
-const OUT_OF_SCOPE_FILE = /^app\/(admin\/(cad|research)|dnd|AndrewAsh)\b/;
+const OUT_OF_SCOPE_FILE = /^app\/admin\/(cad|research)\b/;
 const fileInScope = (f) => ALL || !OUT_OF_SCOPE_FILE.test(f);
 
 function inScope(c) {

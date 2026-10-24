@@ -59,8 +59,6 @@ export type AreaId =
   | 'shared'
   | 'cad'
   | 'research'
-  | 'dnd'
-  | 'andrew-ash'
   | 'harness';
 
 /** The surfaces the palette offers by default. The rest are catalogued but filtered out. */

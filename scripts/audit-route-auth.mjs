@@ -110,16 +110,6 @@ const INTENTIONALLY_PUBLIC = new Map([
   ['app/api/signup/precheck/route.ts', 'validates an org name before creating it — no write'],
   ['app/api/signup/complete/route.ts', 'creates the org and its first admin. Its DELETE is a ROLLBACK of the org it just made two statements earlier, not a destructive surface'],
 
-  // ── /dnd, which is a hidden hub reachable by direct link (owner decision, 2026-07-06) ──────────
-  ['app/api/dnd/auth/login/route.ts', 'sign-in'],
-  ['app/api/dnd/auth/logout/route.ts', 'sign-out — clears a cookie and nothing else'],
-  ['app/api/dnd/auth/quick/route.ts', 'the pseudo-login the hub is built on'],
-  ['app/api/dnd/auth/register/route.ts', 'account creation'],
-  ['app/api/dnd/auth/signup/route.ts', 'account creation'],
-  ['app/api/dnd/auth/recover/route.ts', 'account recovery'],
-  ['app/api/dnd/library/search/route.ts', 'reads the shared rules library — published reference content, no campaign data'],
-  ['app/api/dnd/systems/route.ts', 'lists the game systems the app supports — a static catalogue'],
-
   // ── bearer-token access ────────────────────────────────────────────────────────────────────────
   ['app/api/share/[token]/route.ts', 'the TOKEN is the credential — checked against `is_revoked` and an expiry, and optionally a password'],
 
@@ -140,19 +130,6 @@ const INTENTIONALLY_PUBLIC = new Map([
   // website — and returns a BLANK profile rather than guessing when the firm is ambiguous.
   ['app/api/public/tenant/route.ts', 'branding for an unauthenticated pay/portal page — public fields only, and blank rather than a guess when the tenant cannot be resolved'],
 
-  // ── /AndrewAsh, added 2026-08-02. Everything else under /api/voice gates on getVoiceSession. ────
-  ['app/api/voice/auth/login/route.ts', 'sign-in'],
-  ['app/api/voice/auth/logout/route.ts', 'sign-out — clears a cookie and nothing else'],
-  ['app/api/voice/auth/setup/route.ts', 'account creation, and the narrowest one here: capped at MAX_SELF_SETUP_ACCOUNTS, 409 forever after, and additionally gated on a setup key'],
-  ['app/api/voice/inquiries/route.ts', 'POST is the public quote form — honeypotted and length-capped. Its GET gates on getVoiceSession independently, which the per-handler sweep confirms'],
-
-  // Same token model as share/[token] and the proposal/portal routes above: 256 bits, addressed BY
-  // the token, and a 404 for both "no such token" and "revoked" so probing learns nothing. A voice
-  // client interacts twice — once to sign, once to pay — and an account for that is a password-reset
-  // flow nobody would complete.
-  ['app/api/voice/uploads/route.ts', 'a stranger attaching a script to a quote request — a short type allow-list checked on BOTH extension and MIME, 15 MB × 5 per request, a private bucket, and throttled per IP on contact-form + contact-storage-daily. This sweep is what found it unthrottled'],
-  ['app/api/voice/sign/[token]/route.ts', 'a client signs their own contract — refuses a second signature rather than overwriting the first, and captures the evidence bundle'],
-  ['app/api/voice/pay/[token]/route.ts', 'a client paying is not signed in — the AMOUNT is read from the invoice server-side and never from the request, and the declare path writes a PENDING payment that moves no money'],
 ]);
 
 function walk(dir) {
@@ -195,7 +172,6 @@ for (const file of files) {
       route: rel,
       verb,
       area: rel.startsWith('app/api/admin/') ? 'admin'
-        : rel.startsWith('app/api/dnd/') ? 'dnd'
         : rel.startsWith('app/api/webhooks/') ? 'webhooks'
         : rel.startsWith('app/api/public/') ? 'public'
         : rel.startsWith('app/api/cron/') ? 'cron'
@@ -210,7 +186,7 @@ for (const file of files) {
 }
 
 const ungated = rows.filter((r) => !r.gate && !r.publicByDesign);
-const business = rows.filter((r) => r.area !== 'dnd');
+const business = rows;
 
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify({ rows, ungated }, null, 2));
@@ -232,7 +208,7 @@ if (process.argv.includes('--json')) {
   for (const [area, a] of [...byArea].sort()) {
     console.log(`  ${area.padEnd(10)} total ${String(a.total).padStart(4)}  gated ${String(a.gated).padStart(4)}  public-by-design ${a.publicByDesign}  UNGATED ${a.ungated}`);
   }
-  console.log(`\nTotal handlers: ${rows.length}  ·  business (non-D&D): ${business.length}`);
+  console.log(`\nTotal handlers: ${rows.length}  ·  business: ${business.length}`);
   console.log(`Destructive handlers: ${rows.filter((r) => r.destructive).length}  ·  ungated destructive: ${rows.filter((r) => r.destructive && !r.gate && !r.publicByDesign).length}`);
   console.log(`Service-role handlers: ${rows.filter((r) => r.serviceRole).length}  ·  ungated service-role: ${rows.filter((r) => r.serviceRole && !r.gate && !r.publicByDesign).length}`);
 

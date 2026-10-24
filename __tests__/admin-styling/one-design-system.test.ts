@@ -51,11 +51,6 @@ const DELIBERATE: Record<string, string> = {
   'admin-empty__icon': 'part of the learn empty state above',
   'admin-empty__title': 'part of the learn empty state above',
   'admin-empty__desc': 'part of the learn empty state above',
-
-  // AndrewAsh is a separate app in this repo. Its layouts nest, so the deeper sheet wins on the
-  // deeper route — stated in comments at both declaration sites.
-  vaGuideSources: 'AndrewAsh: guide.css wins on /studio/guide, studio.css on other studio routes',
-  vaInvoiceTotals: 'AndrewAsh: studio.css 340px wins under /studio, voice.css 320px outside it',
 };
 
 const { declarations, duplicateProps } = collectDeclarations([path.join(ROOT, 'app')], ROOT);

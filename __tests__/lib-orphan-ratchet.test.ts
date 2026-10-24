@@ -80,16 +80,9 @@ const KNOWN_ORPHANS: readonly string[] = [
   // 'cad/geometry/spline-to-arc.ts' removed by C29 — FeatureContextMenu imports it.
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',
-  'dnd/ai-scope.ts',
-  'dnd/backgrounds/index.ts',
-  'dnd/bestiary/ig-curation.ts',
-  'dnd/bestiary/import-open5e.ts',
-  'dnd/bestiary/import-pf2.ts',
-  'dnd/stream-names-ai.ts',
-  'dnd/systems/intuitive-games/creature-mechanics.ts',
-  'dnd/theme-contrast.ts',
   'field-ingest/trimble-connect.ts',
   'hub/bundle-gating.ts',
+  'i18n/index.ts', // the passthrough's only caller was the D&D footer, which left with the D&D extraction
   'hub/grid-resize.ts',
   'hub/performance-budget.ts',
   'hub/quick-actions-validator.ts',

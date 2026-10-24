@@ -1,6 +1,4 @@
 
-# Built SPA bundle for the hidden /dnd/Lazzuh_Gun route — never normalize line endings
-public/dnd-sheet/** -text
 
 # Shell scripts and systemd units run on Linux and MUST have LF endings. A CRLF `.sh` fails on the
 # box with `bad interpreter: /usr/bin/env bash^M`, and a CRLF unit file is rejected by systemd —

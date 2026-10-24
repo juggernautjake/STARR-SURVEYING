@@ -36,32 +36,4 @@ describe('DROP VIEW IF EXISTS is not a way to ask "whatever kind of view this is
     expect(offenders, 'these always fail on the second run — ask pg_class.relkind instead').toEqual([]);
   });
 
-  it('468 still asks relkind rather than guessing', () => {
-    const sql = read('468_dnd_creatures_canonical.sql');
-    expect(sql).toMatch(/relkind/);
-  });
-});
-
-describe('a migration must not clobber a later one', () => {
-  // 450 narrowed `dnd_sheet_edits_source_chk` to ai|manual|revert; 463 later widened it to include
-  // library-grant and friends. 450's unconditional DROP-then-ADD reached forward, undid 463, and was
-  // then refused by Postgres because real `library-grant` rows existed. On an empty database the chain is
-  // fine — which is exactly why nobody saw it.
-  it('450 adds its constraint only if none exists', () => {
-    const sql = read('450_dnd_sheet_edit_batches.sql');
-    expect(sql).not.toMatch(/DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+dnd_sheet_edits_source_chk/i);
-    expect(sql).toMatch(/IF\s+NOT\s+EXISTS\s*\(\s*\n?\s*SELECT\s+1\s+FROM\s+pg_constraint/i);
-  });
-
-  it('463 remains the authority on which sources are legal', () => {
-    // The fix must not have been to widen 450 to match — that would be two files owning one rule, and
-    // the next source added would go into whichever one the author happened to open.
-    const sql = read('463_dnd_sheet_edits_sources.sql');
-    for (const src of ['library-grant', 'homebrew-adopt', 'ig-edit']) expect(sql).toContain(src);
-    // Comments stripped: 450 EXPLAINS why 463 owns the list, and must not also encode it. The explanation
-    // is the point of the file; the duplicate rule would be the bug.
-    const statements450 = read('450_dnd_sheet_edit_batches.sql')
-      .split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n');
-    expect(statements450).not.toContain('library-grant');
-  });
 });

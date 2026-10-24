@@ -99,17 +99,6 @@ const nextConfig = {
         source: '/admin/sw.js',
         headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
       },
-      {
-        // Same reasoning for the other two scoped workers — they are separate apps with the same
-        // update path, and a fix that reaches only one of three is the kind of half-measure that
-        // gets remembered as "the update thing does not work".
-        source: '/dnd/sw.js',
-        headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
-      },
-      {
-        source: '/AndrewAsh/sw.js',
-        headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
-      },
     ];
   },
 }
