@@ -217,7 +217,7 @@ export const CORPORA: Corpus[] = [
     // never by job number, which is the one field a job-number-only search would cover.
     bodyColumns: [
       'description', 'address', 'city', 'county', 'subdivision', 'lot_number',
-      'abstract_number', 'client_name', 'client_company', 'notes',
+      'abstract_number', 'property_id', 'client_name', 'client_company', 'notes',
     ],
     dates: [
       { column: 'created_at', role: 'created', label: 'Created' },

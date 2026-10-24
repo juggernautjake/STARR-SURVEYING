@@ -21,14 +21,15 @@
 //      So the name travels, because it is the best signal available and usually right — and the
 //      briefing says where it came from, in words, every time.
 //
-//   2. A JOB HAS NO PARCEL ID. `jobs` carries `abstract_number`, `lot_number` and `subdivision`.
-//      Those are LEGAL DESCRIPTION parts. A parcel/property id is the county appraisal district's
-//      own key and it is a different thing entirely. Writing an abstract number into `parcel_id`
-//      would send the CAD lookup a number in the wrong namespace, and it would return nothing or,
-//      worse, somebody else's parcel.
+//   2. THE PARCEL ID IS ONLY EVER THE JOB'S `property_id`. `jobs` also carries `abstract_number`,
+//      `lot_number` and `subdivision`, but those are LEGAL DESCRIPTION parts. A parcel/property id
+//      is the county appraisal district's own key and it is a different thing entirely. Writing an
+//      abstract number into `parcel_id` would send the CAD lookup a number in the wrong namespace,
+//      and it would return nothing or, worse, somebody else's parcel.
 //
-//      So `parcelId` comes back null and the legal parts are composed into a description summary
-//      instead. The run asks for a parcel id; it does not get given a fake one.
+//      Since seed 676 (2026-10-14) a job has a `property_id` the office types in — the number on
+//      the client's list. That is passed through as-is. Without one, `parcelId` is null and the
+//      legal parts are composed into a description summary instead; a fake one is never derived.
 //
 // Everything in here is a pure function over a plain object, so both of those can be asserted in a
 // test rather than discovered on a county website.
@@ -59,6 +60,8 @@ export interface JobForResearch {
    * candidate inference below does the work.
    */
   owner_name?: string | null;
+  /** The appraisal district's Property ID, when the office has it (seed 676). */
+  property_id?: string | null;
   client_name?: string | null;
   client_company?: string | null;
   client_email?: string | null;
@@ -75,8 +78,8 @@ export interface ResearchPrefill {
   state: string;
   zip: string | null;
   county: string | null;
-  /** Always null — see the header. A job does not carry one. */
-  parcelId: null;
+  /** The job's `property_id`, or null — never derived from the legal parts. See the header. */
+  parcelId: string | null;
   /** The client, which is a best guess at the owner. `ownerIsAssumed` says so. */
   ownerName: string | null;
   /** True whenever `ownerName` came from the job's client field rather than a verified owner. */
@@ -141,6 +144,7 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   const county = text(job.county);
   const city = text(job.city);
   const zip = text(job.zip);
+  const parcelId = text(job.property_id);
 
   // ── WHO TO SEARCH FOR (rewritten 2026-09-21, after job 26144) ────────────────────────────────
   //
@@ -166,11 +170,9 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
   const legal = composeLegalSummary(job);
 
   const missing: string[] = [];
-  if (!address) missing.push('a street address — the run needs one, or a parcel id, to start');
+  if (!address && !parcelId) missing.push('a street address — the run needs one, or a parcel id, to start');
   if (!county) missing.push('a county — without it the run cannot pick a clerk or an appraisal district');
-  // Always named, because a job never has one and the operator should be told rather than left to
-  // wonder why the field is blank.
-  missing.push('a parcel / property id — a job does not record one, so add it if you have it');
+  if (!parcelId) missing.push('a parcel / property id — add it to the job (Property ID) if you have it');
   if (!ownerName) missing.push('an owner or client name for the grantor/grantee search');
 
   const lines: string[] = [];
@@ -208,7 +210,7 @@ export function researchPrefillFromJob(job: JobForResearch): ResearchPrefill {
     state: text(job.state) ?? 'TX',
     zip,
     county,
-    parcelId: null,
+    parcelId,
     ownerName,
     // Only a name we INFERRED is an assumption. One the office stated is not, and labelling it
     // as one would train the reader to ignore the flag that matters.
@@ -236,7 +238,7 @@ export function researchCreateBody(p: ResearchPrefill): Record<string, unknown> 
     state: p.state,
     zip: p.zip,
     county: p.county,
-    parcel_id: null,
+    parcel_id: p.parcelId,
     owner_name: p.ownerName,
     intake_notes: p.intakeNotes,
     project_id: p.projectId,

@@ -33,6 +33,7 @@ export default function NewJobPage() {
     zip: '',
     county: '',
     owner_name: '',
+    property_id: '',
     /** Filled from the address picker, so the property map knows where to fly. Null until then. */
     latitude: null as number | null,
     longitude: null as number | null,
@@ -492,6 +493,19 @@ export default function NewJobPage() {
                   </span>
                 </label>
                 <input className="job-form__input" value={form.county} onChange={e => updateField('county', e.target.value)} />
+              </div>
+              {/* The appraisal district's Property ID (seed 676). Per job — a project can hold many
+                  parcels — and handed to research as the parcel id. */}
+              <div className="job-form__field">
+                <label className="job-form__label">
+                  <span className="job-form__label-row">
+                    Property ID
+                    <Tooltip text="The county appraisal district's Property ID for this parcel (for Bell CAD, a number like 101002). It is on the client's list, the tax statement, or the CAD website. Research uses it to pull the parcel straight from the appraisal district." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input className="job-form__input" value={form.property_id} onChange={e => updateField('property_id', e.target.value)} placeholder="e.g., 101002" inputMode="text" autoComplete="off" />
               </div>
               {/* The OWNER, which is not the client (seed 655). Job 26144 had only a client field,
                   so research searched the county clerk for "EBBY GREEN" — the person at the housing

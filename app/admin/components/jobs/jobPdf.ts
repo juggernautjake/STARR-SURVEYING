@@ -22,6 +22,7 @@ export interface JobPdfInput {
   lot_number?: string;
   subdivision?: string;
   abstract_number?: string;
+  property_id?: string | null;
   acreage?: number;
   client_name?: string;
   client_email?: string;
@@ -86,6 +87,7 @@ export function exportJobPdf(job: JobPdfInput): void {
   heading('Property');
   const addr = [job.address, job.city, job.state, job.zip].filter(Boolean).join(', ');
   row('Address', addr || undefined);
+  row('Property ID', job.property_id ?? undefined);
   row('County', job.county);
   row('Lot', job.lot_number);
   row('Subdivision', job.subdivision);

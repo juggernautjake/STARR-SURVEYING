@@ -63,6 +63,7 @@ interface Job {
   lot_number?: string;
   subdivision?: string;
   abstract_number?: string;
+  property_id?: string | null;
   client_name?: string;
   client_email?: string;
   client_phone?: string;
