@@ -1,0 +1,4269 @@
+[
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "CADLayout.tsx is 1,946 lines and owns the state for every dialog (a useState per dialog); adding a panel means editing this file.",
+      "The 2026-08 alignment audit still reports 2 accepted layout findings on /admin/cad at both 1440 and 390 px.",
+      "Menu bar groups are by implementation history, not by task: the same Calc Point and Close Drawing items live in both Survey and AI menus; Draw menu mixes draw and modify tools.",
+      "No way to choose a layout or to hide the parts a given role never uses."
+    ],
+    "overlaps": [
+      "cad.menu-bar",
+      "cad.toolbar"
+    ],
+    "add": [
+      "Saved workspaces per user and per firm",
+      "Dockable and floating panels, multi-monitor",
+      "Role-aware default workspace (drafter, party chief, RPLS, office)",
+      "Multiple open drawings (tabs)"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_8_UX_CONTROLS.md",
+      "docs/planning/completed/CAD_UX_2026_05/00_META_PLAN.md",
+      "docs/planning/completed/cad-ux-cleanup-pass-2026-06-11.md (open: further consolidation of controls)"
+    ],
+    "elements": [
+      {
+        "name": "MenuBar (top)",
+        "does": "File, Edit, View, Survey, Draw, AI, Help menus; also Exit, Shortcuts and Settings icons."
+      },
+      {
+        "name": "ToolOptionsBar",
+        "does": "Per-tool parameters (radius, distance, count, side, etc.)."
+      },
+      {
+        "name": "ToolBar (left)",
+        "does": "Grouped tool buttons with right-click variant flyouts."
+      },
+      {
+        "name": "LayerPanel (left)",
+        "does": "Layer list, resizable via usePanelSize."
+      },
+      {
+        "name": "CanvasViewport (centre)",
+        "does": "The drawing canvas."
+      },
+      {
+        "name": "PropertyPanel (right)",
+        "does": "Properties of the selection; also hosts TraversePanel and ImagePanel."
+      },
+      {
+        "name": "CommandBar + StatusBar (bottom)",
+        "does": "Command line with prompt; snap/ortho/polar toggles and hidden count."
+      }
+    ],
+    "behaviours": [
+      "One fixed layout. There is no workspace, ribbon or saved-layout concept: panels are toggled individually (show layer panel, show properties) and sizes are remembered per panel.",
+      "Dialogs are opened by dispatching window CustomEvents (cad:openSettings, cad:openCalcPointDialog and so on), so any component can open any dialog without a registry.",
+      "Wrapped in CADErrorBoundary; a render crash triggers an emergency save to IndexedDB.",
+      "Every signed-in user can reach the editor (middleware lists all roles including student and guest)."
+    ],
+    "data": [
+      "useDrawingStore, useUIStore, useSelectionStore, useUndoStore and about 20 other zustand stores in lib/cad/store"
+    ],
+    "id": "cad.shell-layout",
+    "kind": "page",
+    "name": "CAD editor shell (CADLayout)",
+    "where": [
+      "app/admin/cad/page.tsx",
+      "app/admin/cad/CADLayout.tsx",
+      "app/admin/cad/components/CADErrorBoundary.tsx"
+    ],
+    "purpose": "The single full-screen editor page. Mounts the menu bar, tool options bar, left toolbar, layer panel, canvas, right-hand property/traverse/image panels, command bar and status bar, and about 40 dialogs that open by window events.",
+    "verdict": "rebuild",
+    "rebuild": "Build the shell as a workspace host: a registry of panels, ribbons/menus and command sets that a Workspace definition (JSON) arranges. STARR CAD, AutoCAD, Civil 3D, Carlson, MicroStation and TBC become workspace presets over the same commands. Dialog opening goes through one typed overlay manager instead of window events and a useState per dialog.",
+    "priority": "P1",
+    "nationwide": "Branding strings (Starr CAD, About box text) and the page title are hard-coded to Starr; no per-firm white-label or tenant concept.",
+    "evidence": [
+      "app/admin/cad/CADLayout.tsx:1415",
+      "app/admin/cad/CADLayout.tsx:1495",
+      "app/admin/cad/CADLayout.tsx:1627",
+      "middleware.ts:215",
+      "app/admin/cad/components/MenuBar.tsx:1796",
+      "app/admin/cad/CADLayout.tsx:273"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Deep links to a specific drawing or job are only via a pending-open parameter, not a stable /admin/cad/<id> route, so a drawing cannot be bookmarked or shared by URL."
+    ],
+    "overlaps": [],
+    "add": [
+      "Shareable drawing URLs",
+      "Open-in-CAD buttons from job and research pages with a stable contract"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-standalone-and-ux-audit.md",
+      "docs/planning/completed/hub-cad-roles-polish-2026-06-18.md"
+    ],
+    "elements": [
+      {
+        "name": "/admin/cad",
+        "does": "Renders CADLayout inside CADErrorBoundary. Metadata title Starr CAD - Drawing Editor."
+      },
+      {
+        "name": "/admin/research-cad",
+        "does": "WorkspaceLanding widget page (12 lines); no CAD logic."
+      },
+      {
+        "name": "/cad-harness",
+        "does": "404s unless NEXT_PUBLIC_E2E_HARNESS=1; mounts CADLayout plus CadTestHooks seed/select hooks."
+      }
+    ],
+    "behaviours": [
+      "Drawings open from the editor via File menu, Compass hand-off in localStorage, or a pending-open query parameter (consumePendingCadOpen)."
+    ],
+    "data": [],
+    "id": "cad.entry-routes",
+    "kind": "page",
+    "name": "Entry routes: /admin/cad, /admin/research-cad, /cad-harness",
+    "where": [
+      "app/admin/cad/page.tsx",
+      "app/admin/research-cad/page.tsx",
+      "app/cad-harness/page.tsx",
+      "app/admin/cad/components/CadTestHooks.tsx"
+    ],
+    "purpose": "Three ways in: the editor itself, a Research + CAD workspace landing page, and an env-gated unauthenticated copy of the editor for Playwright tests.",
+    "verdict": "improve",
+    "rebuild": "Route per drawing (/cad/<drawingId>) and per job (/jobs/<id>/cad) so links, back button and role redirects work; keep an env-gated harness route for tests.",
+    "priority": "P2",
+    "nationwide": "None beyond the Starr title string.",
+    "evidence": [
+      "app/cad-harness/page.tsx:6",
+      "app/admin/research-cad/page.tsx:8",
+      "app/admin/cad/page.tsx:2",
+      "app/admin/cad/CADLayout.tsx:113"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad/ (inside the Tauri window)",
+    "status": "partial",
+    "problems": [
+      "Desktop is effectively an offline subset: everything that calls /api (cloud open/save, file manager, branches, all AI, point-file library, images) cannot work in the packaged app, and nothing in the UI says so.",
+      "No auto-updater is configured (no updater plugin in Cargo.toml or tauri.conf.json); signing is optional so releases are unsigned unless secrets exist.",
+      "Menu is a thin File/Edit/View/Help; none of the tool or survey commands are native menu items.",
+      "The build works by renaming source directories on disk, which is fragile (an interrupted build leaves the repo stashed)."
+    ],
+    "overlaps": [
+      "cad.native-file-persistence"
+    ],
+    "add": [
+      "Offline-first sync with conflict handling",
+      "Auto-update with signed releases",
+      "Local AI/API key settings or firm proxy",
+      "Open files by double click (.starr, .trv, .dxf) and file associations"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-desktop-tauri-and-perf-2026-06-14.md (open: Phase 3 native Rust/wgpu renderer, deliberately profiling-gated and deferred)",
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md"
+    ],
+    "elements": [
+      {
+        "name": "Window",
+        "does": "1440x900, min 1024x720, opens straight to /admin/cad/."
+      },
+      {
+        "name": "Native menu (menu.rs)",
+        "does": "File with dynamic Recent Files submenu, Edit, View, Help; events bridged to the web app by lib/cad/platform/menu-bridge.ts."
+      },
+      {
+        "name": "Capabilities",
+        "does": "dialog open/save, fs read/write/mkdir/remove/read-dir, event listen."
+      },
+      {
+        "name": "prepare-desktop-build.mjs",
+        "does": "Renames every app/ directory except admin/cad, components and styles (and all /api) into .desktop-stash, runs next build as a static export, restores on exit."
+      },
+      {
+        "name": "desktop-release.yml",
+        "does": "On v* tags builds dmg/msi/exe/AppImage/deb with tauri-action; unsigned when secrets are absent."
+      }
+    ],
+    "behaviours": [
+      "Platform detection in lib/cad/platform/runtime.ts routes native vs web file I/O (native-file, native-save, native-autosave, native-drop).",
+      "Because /api is stashed from the static export, the desktop build has no cloud save, no drawing/folder list, no AI, no image upload, no Compass/Forge/Orbit sync."
+    ],
+    "data": [],
+    "id": "cad.desktop-tauri",
+    "kind": "integration",
+    "name": "Starr CAD desktop app (Tauri 2)",
+    "where": [
+      "src-tauri/tauri.conf.json",
+      "src-tauri/src/lib.rs",
+      "src-tauri/src/menu.rs",
+      "src-tauri/Cargo.toml",
+      "src-tauri/capabilities/default.json",
+      "scripts/prepare-desktop-build.mjs",
+      ".github/workflows/desktop-release.yml",
+      "lib/cad/platform/",
+      "lib/cad/persistence/native-*.ts"
+    ],
+    "purpose": "A Windows/macOS/Linux installable wrapper around the same Next.js CAD page, with native Open/Save dialogs, filesystem autosave, a native File/Edit/View/Help menu with Recent Files, and a tagged-release CI matrix.",
+    "verdict": "rebuild",
+    "rebuild": "Make the CAD engine a standalone package with a storage-adapter interface (local filesystem, cloud API, firm server) so the same app runs on web and desktop. Desktop ships with a local project folder, offline-first sync to the firm account when online, an updater channel, and the same workspaces and commands as web.",
+    "priority": "P1",
+    "nationwide": "productName, identifier com.starrsurveying.starr-cad, copyright and bundle text are Starr-branded; a multi-firm product needs white-label builds or a firm-account login.",
+    "evidence": [
+      "src-tauri/tauri.conf.json:12",
+      "src-tauri/tauri.conf.json:5",
+      "scripts/prepare-desktop-build.mjs:36",
+      "src-tauri/src/menu.rs:60",
+      ".github/workflows/desktop-release.yml:8",
+      "src-tauri/capabilities/default.json:4"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "The file is 15,441 lines. Four extractions have been done and the plan records the split as ongoing with no finish line. It cannot be unit tested where it sits, which has repeatedly hidden defects (duplicate corner rules, zoom-insensitive radius).",
+      "Tool logic is embedded in the component instead of a command/operation layer, so the AI, command bar, hotkeys and canvas each reimplement dispatch.",
+      "Tied to Pixi/WebGL: no SVG/PDF vector path shared with print, so print and screen can disagree."
+    ],
+    "overlaps": [
+      "cad.performance-lod"
+    ],
+    "add": [
+      "Command stack with transparent commands (zoom/pan inside another command)",
+      "Object snap tracking and temporary overrides",
+      "Dynamic input at the cursor",
+      "Paper-space viewports sharing a vector draw path"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S19a-d extractions; S4 incremental spatial index deferred; open: ongoing CanvasViewport split)",
+      "docs/planning/qa-evidence/cad-frame-budget-2026-08-15.md",
+      "docs/planning/completed/cad-desktop-tauri-and-perf-2026-06-14.md"
+    ],
+    "elements": [
+      {
+        "name": "Pixi.js 7 renderer",
+        "does": "WebGL canvas; renderAll with phases renderFeatures, renderLabels, renderImageFeatures, renderSelection."
+      },
+      {
+        "name": "Tool state machines",
+        "does": "Per-tool click sequences for 50+ tools implemented inline."
+      },
+      {
+        "name": "Grips / drag / box select",
+        "does": "Selection handles, window vs crossing box, group-aware drag."
+      },
+      {
+        "name": "Overlays",
+        "does": "Title block, north arrow, scale bar, legend, notes, seal drawn paper-fixed on the SURVEY-INFO layer."
+      }
+    ],
+    "behaviours": [
+      "Viewport culling via a spatial index plus a viewport-cull cache; LOD decimation for very dense drawings.",
+      "WebGL context loss triggers an emergency save.",
+      "Measured 2026-08-15: 50k features pans at p95 11 ms; 200k was 67 ms before fixes C2-C4, which brought it inside budget."
+    ],
+    "data": [],
+    "id": "cad.canvas-viewport",
+    "kind": "panel",
+    "name": "Canvas viewport (Pixi renderer + all pointer interaction)",
+    "where": [
+      "app/admin/cad/components/CanvasViewport.tsx",
+      "lib/cad/render/",
+      "lib/cad/cursors/",
+      "lib/cad/spatial/",
+      "lib/cad/geometry/lod.ts",
+      "lib/cad/geometry/spatial-index.ts",
+      "lib/cad/geometry/curve-render.ts"
+    ],
+    "purpose": "Draws the drawing and handles every pointer and tool interaction: pan/zoom, selection, grips, all draw/modify tools, previews, snap markers, labels, images, title-block overlays.",
+    "verdict": "rebuild",
+    "rebuild": "Split into: a pure geometry/document engine (no UI), a command system (each command a state machine with prompts, options, preview, undo), a renderer module behind an interface (Pixi/Canvas now, wgpu later), and a thin input layer that turns pointer events into command input. One command definition then serves toolbar, ribbon, command line, hotkey, context menu and AI.",
+    "priority": "P1",
+    "nationwide": "None in the renderer itself; default colours follow AutoCAD-like white background but are not firm-configurable except through settings.",
+    "evidence": [
+      "app/admin/cad/components/CanvasViewport.tsx:2",
+      "app/admin/cad/components/CanvasViewport.tsx:1162",
+      "app/admin/cad/components/CanvasViewport.tsx:891",
+      "docs/planning/qa-evidence/cad-frame-budget-2026-08-15.md:30",
+      "lib/cad/geometry/lod.ts:19"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "File menu has about 15 entries (three of them submenus); Open has two forms (this computer, Cloud) plus File Manager, which is a third door.",
+      "Draw menu lists only 7 draw tools but 6 modify tools; Edit hides 4 modify tools; most of the 51 tools exist only on the toolbar. Menus are not generated from the command set so they drift.",
+      "Shortcut hints are hard-coded strings that do not follow the user hotkey bindings and in places disagree with the registry (for example IV on Insert Node and Invert, MenuBar SC vs registry shift+s).",
+      "Calc Point and Close Drawing appear under both Survey and AI by design.",
+      "Emoji glyphs used as icons in labels."
+    ],
+    "overlaps": [
+      "cad.toolbar",
+      "cad.command-palette-hotkeys"
+    ],
+    "add": [
+      "Ribbon with tabs and panels (AutoCAD/Civil 3D style) as a workspace option",
+      "Recent files list in File menu",
+      "Search-the-menus box",
+      "Customisable quick-access toolbar"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S1a menu catalogue, S5a/S5b label clarity)"
+    ],
+    "elements": [
+      {
+        "name": "File",
+        "does": "New; Open from this computer; Open from Cloud; File Manager; Drawing notes; Branches and Reviews; Point File Library; Recover unsaved; Save; Save to Cloud; Save a copy (.starr); Export submenu; Import submenu; Review and Delivery submenu."
+      },
+      {
+        "name": "Export submenu",
+        "does": "CSV simplified/full, Traverse PC PNEZD, TRV, TRV bundle zip, DXF, LandXML, PDF (sealed), GeoJSON, field reference cards, deliverable bundle, selection as CSV/DXF/LandXML, export layers."
+      },
+      {
+        "name": "Import submenu",
+        "does": "Survey data (CSV/RW5/JobXML), shared point library, DXF, GeoJSON, research reading, TRV."
+      },
+      {
+        "name": "Edit",
+        "does": "Undo/Redo with action names, Delete, Select All, Deselect, Send to Layer, Intersect Lines, Reverse, Explode, Smooth to spline, Simplify."
+      },
+      {
+        "name": "View",
+        "does": "Zoom extents, fit drawing to page, move page, grid/snap toggles, hidden items, layer/property panel toggles, point data viewer, traverse viewer, project images, title block."
+      },
+      {
+        "name": "Survey",
+        "does": "Adjust orientation, rotate view, title block and north arrow, code-to-style, connect points into linework, curve calculator, all calculators, arc/spline/curb return/offset, inverse, forward point, compare surveys, reconcile records, Calc Point, Close Drawing."
+      },
+      {
+        "name": "Draw",
+        "does": "Point, line, polyline, polygon, rectangle, circle, regular polygon, move, copy, rotate, mirror, scale, erase (modify tools sit under Draw)."
+      },
+      {
+        "name": "AI",
+        "does": "Mode submenu, run drawing engine, review queue, clarifying questions, drawing chat, AI sidebar, Calc Point, Close Drawing, Reconcile Hand Sketch."
+      }
+    ],
+    "behaviours": [
+      "Menu items dispatch window events or set the tool; labels carry shortcut hints written by hand in each item, separate from the hotkey registry.",
+      "Unsaved-changes guard wraps open/new/import-TRV via requestDiscard."
+    ],
+    "data": [],
+    "id": "cad.menu-bar",
+    "kind": "panel",
+    "name": "Menu bar",
+    "where": [
+      "app/admin/cad/components/MenuBar.tsx"
+    ],
+    "purpose": "Top menus: File (open/save/export/import/review), Edit, View, Survey, Draw, AI, Help.",
+    "verdict": "rebuild",
+    "rebuild": "Generate menus/ribbons from one command registry plus a workspace definition. Users and firms can reorder, hide and add their own panels. Shortcut hints read live bindings.",
+    "priority": "P1",
+    "nationwide": "About box text hard-coded to Starr and version 1.0.",
+    "evidence": [
+      "app/admin/cad/components/MenuBar.tsx:1391",
+      "app/admin/cad/components/MenuBar.tsx:1615",
+      "app/admin/cad/components/MenuBar.tsx:1692",
+      "app/admin/cad/components/MenuBar.tsx:1711",
+      "app/admin/cad/components/MenuBar.tsx:1404",
+      "app/admin/cad/components/MenuBar.tsx:1687",
+      "app/admin/cad/components/MenuBar.tsx:1431"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Grouping is inconsistent: Offset and Curb Return share a group; Inverse group holds Forward Point, Measure Area and Dimension; the Split group is a grab bag.",
+      "Line variants (dashed, dotted, center) are tools but should be a linetype property; Construction Line is identical to Line (same action).",
+      "Shortcut hints on buttons are hand-written and not live (IV appears twice).",
+      "No keyboard-only navigation of the toolbar and no customisation."
+    ],
+    "overlaps": [
+      "cad.menu-bar",
+      "cad.command-palette-hotkeys"
+    ],
+    "add": [
+      "Customisable palettes and quick-access bar",
+      "Tool search",
+      "Per-workspace tool sets"
+    ],
+    "plans": [
+      "docs/cad-click-order-contract.md",
+      "docs/planning/completed/CAD_UX_2026_05/00_META_PLAN.md",
+      "docs/planning/completed/cad-ux-cleanup-pass-2026-06-11.md"
+    ],
+    "elements": [
+      {
+        "name": "Groups",
+        "does": "Select, Pan (+zoom in/out/extents), Point, Line (solid/dashed/dotted/dash-dot/center/construction, polyline, curved line, fit and NURBS spline), Freehand, Polygon (+rectangle, circles, ellipses, regular polygon), Move (+duplicate), Copy (+array), Rotate, Mirror (+flip, invert), Scale, Erase, Split (17 edit tools incl. trim, extend, join, fillet, chamfer, divide, explode, reverse, match properties, point at distance, perpendicular, smooth, simplify, insert/remove node, list), Arc, Curb Return (+offset), Inverse (+forward point, measure area, dimension), Text, Image."
+      },
+      {
+        "name": "ToolOptionsBar",
+        "does": "2,159 lines of per-tool inputs (offset distance/side/corner, fillet radius, chamfer distances, array rows/cols or polar, flip axis, divide count, simplify tolerance, regular-polygon sides)."
+      }
+    ],
+    "behaviours": [
+      "Variant flyouts are reachable only by right-click (a small triangle hint was added).",
+      "The Split group is a catch-all holding 17 unrelated tools.",
+      "Each tool carries a description and shortcut text, and C13-C15 added a prompt for 51 of 51 tools."
+    ],
+    "data": [],
+    "id": "cad.toolbar",
+    "kind": "panel",
+    "name": "Left tool bar with variant flyouts",
+    "where": [
+      "app/admin/cad/components/ToolBar.tsx",
+      "app/admin/cad/components/ToolOptionsBar.tsx",
+      "app/admin/cad/components/Tooltip.tsx",
+      "app/admin/cad/components/TooltipProvider.tsx"
+    ],
+    "purpose": "Vertical icon bar of tool groups; right-click a group opens variants. ToolOptionsBar above the canvas holds the active tool parameters.",
+    "verdict": "rebuild",
+    "rebuild": "Group by AutoCAD-familiar categories (Draw, Modify, Annotate, Survey, Inquiry) generated from command metadata; style choices (linetype, weight, colour) become property-bar fields, not tools. User-editable palettes (like AutoCAD tool palettes).",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "app/admin/cad/components/ToolBar.tsx:173",
+      "app/admin/cad/components/ToolBar.tsx:381",
+      "app/admin/cad/components/ToolBar.tsx:327",
+      "app/admin/cad/components/ToolBar.tsx:103",
+      "lib/cad/types.ts:779"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Command aliases are split across three places (CommandBar switch, hotkey registry chords, toolbar shortcut labels) and do not agree.",
+      "No dynamic input at the cursor; no option sub-prompts; typed distance entry only for some tools.",
+      "No AutoCAD-style PGP alias file, so drafters cannot import their own aliases."
+    ],
+    "overlaps": [
+      "cad.command-palette-hotkeys"
+    ],
+    "add": [
+      "Alias import from acad.pgp / Carlson / Civil 3D",
+      "Command history and autocomplete",
+      "Option keywords and transparent commands",
+      "Survey input modes (azimuth, deflection angle, station-offset, point-number reference)"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C15 consistent command prompt)",
+      "docs/cad-click-order-contract.md"
+    ],
+    "elements": [
+      {
+        "name": "Prompt line",
+        "does": "State-aware instruction per tool (51 of 51 tools covered after C15)."
+      },
+      {
+        "name": "Coordinate input",
+        "does": "x,y; @dx,dy; @dist<angle; @6in,12in units; @50<N 45-30 E quadrant-bearing polar."
+      },
+      {
+        "name": "Forward point input",
+        "does": "Type bearing then distance (N45-30-15E 150.00) to place a point."
+      },
+      {
+        "name": "Named commands",
+        "does": "About 30 distinct typed commands: line l, polyline pl, polygon pg, point p, move m, copy co, rotate ro, mirror mi, scale sc, erase e, select s, pan h, rect re, circle ci, regpoly rp, ze/zs/zi/zo, sa, print, snap/grid/ortho/polar on/off, f2f, fit page, delete, escape."
+      }
+    ],
+    "behaviours": [
+      "Typed names cover only about 30 commands against 51 tool types; trim, extend, offset, fillet, chamfer, split, join, divide, array, flip, invert, dimension, inverse, forward, perpendicular and others cannot be typed even though their hotkey chords exist.",
+      "No command history recall (up arrow) or autocomplete list; Escape sets the tool to Select and clears selection.",
+      "No option keywords inside a command (for example Undo/Close/Width during polyline)."
+    ],
+    "data": [],
+    "id": "cad.command-bar",
+    "kind": "panel",
+    "name": "Command bar (command line, coordinate and bearing entry)",
+    "where": [
+      "app/admin/cad/components/CommandBar.tsx",
+      "lib/cad/units/parse-length.ts",
+      "lib/cad/units/parse-angle.ts",
+      "lib/cad/geometry/bearing.ts"
+    ],
+    "purpose": "AutoCAD-style command line: shows what the active tool wants next, accepts typed coordinates, relative offsets, polar distance-angle, and typed command names.",
+    "verdict": "rebuild",
+    "rebuild": "One command registry with full name, aliases, and option keywords. The command line parses any registered command or alias (user-editable alias table, importable from acad.pgp), shows autocomplete, history, transparent commands and option prompts, and supports survey entry modes (bearing/distance, azimuth, deflection, station/offset, point number).",
+    "priority": "P1",
+    "nationwide": "Bearing input is quadrant/azimuth in decimal feet; no metric default or grad angles.",
+    "evidence": [
+      "app/admin/cad/components/CommandBar.tsx:29",
+      "app/admin/cad/components/CommandBar.tsx:619",
+      "app/admin/cad/components/CommandBar.tsx:535",
+      "app/admin/cad/components/CommandBar.tsx:39",
+      "app/admin/cad/components/CommandBar.tsx:466",
+      "app/admin/cad/components/CommandBar.tsx:705"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "tool.leader (l d) is a bound action with no tool and no handler in useHotkeys: a dead shortcut that also delays plain l (line).",
+      "AUTOCAD preset binds tool.select to escape, which collides with edit.deselect (escape, same CANVAS context); it also binds tool.text to d t while d is the dimension tool.",
+      "The preset only renames 20 tool keys; it does not change snap defaults, selection behaviour, mouse buttons, colours, units or layout, so it does not make the product feel like AutoCAD.",
+      "Plain f3/f7/f8 toggles match AutoCAD, but F9 (grid snap), F10 (polar), F11 (object-snap tracking) are not bound; polar has no key.",
+      "Dozens of tools have no default key (chamfer, split, join, divide, explode and others), so only chord-less menus reach them."
+    ],
+    "overlaps": [
+      "cad.command-bar",
+      "cad.toolbar",
+      "cad.menu-bar"
+    ],
+    "add": [
+      "Import acad.pgp aliases and Carlson/Civil 3D keyboard maps",
+      "Mouse button maps (MicroStation data point / reset)",
+      "F9-F12 equivalents",
+      "Per-firm shared key maps"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_8_UX_CONTROLS.md (hotkey engine, presets; open: additional presets beyond AUTOCAD)"
+    ],
+    "elements": [
+      {
+        "name": "Registry (registry.ts)",
+        "does": "89 BindableActions (42 of them tool.*) across FILE, EDIT, SELECTION, TOOLS, SURVEY_MATH, ANNOTATIONS, ZOOM_PAN, SNAP, LAYERS, AI, APP; contexts GLOBAL or CANVAS."
+      },
+      {
+        "name": "Engine",
+        "does": "Prefix tree, chord timeout (default 1000 ms), fires a buffered single-key action when the chord is not continued."
+      },
+      {
+        "name": "Presets",
+        "does": "AUTOCAD preset rewrites about 20 tool aliases; DEFAULT clears user bindings."
+      },
+      {
+        "name": "Conflict finder",
+        "does": "findHotkeyConflicts flags the same key claimed twice in overlapping contexts."
+      },
+      {
+        "name": "Settings > Hotkeys tab and shortcut overlay (shift+/)",
+        "does": "Edit bindings; cheat sheet with red conflict badges."
+      }
+    ],
+    "behaviours": [
+      "Single-letter tools that also prefix chords (l for line vs l d leader, p vs p l/p g, m vs m i, e vs e x, t vs t r, f vs f p) wait for the chord timeout before firing.",
+      "Two parallel keyboard layers: useHotkeys (registry-driven) and useKeyboard (hard-coded PHASE_1_SHORTCUTS table, mounted inside CanvasViewport); the second skips events already handled.",
+      "Undo/redo, save and delete exist in both layers."
+    ],
+    "data": [],
+    "id": "cad.command-palette-hotkeys",
+    "kind": "mechanic",
+    "name": "Hotkeys, chords, presets and command palette",
+    "where": [
+      "lib/cad/hotkeys/",
+      "app/admin/cad/hooks/useHotkeys.ts",
+      "app/admin/cad/hooks/useKeyboard.ts",
+      "lib/cad/store/hotkeys-store.ts",
+      "app/admin/cad/components/CommandPalette.tsx",
+      "app/admin/cad/components/KeyboardShortcutOverlay.tsx",
+      "app/admin/cad/components/ChordHUD.tsx"
+    ],
+    "purpose": "Rebindable keyboard shortcuts with multi-key chords, an AutoCAD-alias preset, a searchable Ctrl+K palette, and a cheat sheet overlay.",
+    "verdict": "rebuild",
+    "rebuild": "One keyboard layer driven by the command registry. Presets become full Modes (see cad.shell-layout): each mode ships an alias table, key map, mouse map, snap defaults, selection model and colours for AutoCAD, Civil 3D, Carlson, MicroStation, TBC and STARR default. Conflict checking runs at edit time and blocks collisions.",
+    "priority": "P1",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/hotkeys/registry.ts:78",
+      "lib/cad/hotkeys/presets.ts:53",
+      "lib/cad/hotkeys/presets.ts:38",
+      "lib/cad/hotkeys/registry.ts:30",
+      "lib/cad/hotkeys/engine.ts:23",
+      "app/admin/cad/hooks/useKeyboard.ts:25",
+      "app/admin/cad/hooks/useHotkeys.ts:90",
+      "lib/cad/hotkeys/registry.ts:95",
+      "lib/cad/hotkeys/conflicts.ts:49"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Only seven snap types are offered (no tangent, quadrant, node, insertion, extension, parallel, apparent intersection, from, mid-between-2-points).",
+      "No units/precision/scale/zone readout in the bar; the drawing scale and State Plane zone are buried in dialogs.",
+      "No model/paper switch because there is no paper space."
+    ],
+    "overlaps": [
+      "cad.snap-engine"
+    ],
+    "add": [
+      "Annotation scale selector",
+      "Zone/datum and combined factor readout",
+      "Dynamic input toggle",
+      "Quick properties"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C17 snap feedback, C25 hidden count)"
+    ],
+    "elements": [
+      {
+        "name": "Snap popover",
+        "does": "Check Endpoint, Midpoint, Intersection, Center, Perpendicular, Nearest, Grid."
+      },
+      {
+        "name": "Hidden count pill",
+        "does": "Persistent clickable count opening Hidden Items."
+      },
+      {
+        "name": "Cursor pill",
+        "does": "World coordinates in the chosen display format."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.status-bar",
+    "kind": "panel",
+    "name": "Status bar and display toggles",
+    "where": [
+      "app/admin/cad/components/StatusBar.tsx",
+      "app/admin/cad/components/StatusBarCursorPill.tsx",
+      "app/admin/cad/components/CanvasCoordsPill.tsx",
+      "app/admin/cad/components/DisplayPreferencesPanel.tsx",
+      "app/admin/cad/components/FullscreenToggle.tsx",
+      "app/admin/cad/components/ErrorReportStatusButton.tsx"
+    ],
+    "purpose": "Bottom strip: snap on/off with a popover of the 7 snap types, grid, ortho, polar, cursor coordinates, hidden-items count, selection count, recovery access, error-report button, fullscreen.",
+    "verdict": "improve",
+    "rebuild": "Keep as a customisable status strip: toggles for osnap, osnap tracking, polar, ortho, grid, dynamic input, lineweight; current layer, scale, units, zone, selection; each item togglable per workspace.",
+    "priority": "P2",
+    "nationwide": "Display in feet and acres; unit options are limited elsewhere (see cad.geo-units).",
+    "evidence": [
+      "app/admin/cad/components/StatusBar.tsx:20",
+      "app/admin/cad/components/StatusBar.tsx:440",
+      "lib/cad/types.ts:754"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Mixes user preferences (zoom speed, hover glow, colours) with drawing standards (scale, paper, zone) in one document-embedded object, so opening a colleague drawing changes your cursor and colours.",
+      "Units field is typed as the single literal FEET.",
+      "No profiles, no export/import of settings, no firm defaults.",
+      "Three separate preference panels (display, layer labels, feature labels) beside the dialog."
+    ],
+    "overlaps": [
+      "cad.style-systems",
+      "cad.annotation-labels"
+    ],
+    "add": [
+      "User profiles",
+      "Firm standards package (like a Civil 3D template/DWT or Carlson settings)",
+      "Settings search",
+      "Metric and international units, other angle formats"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_8_UX_CONTROLS.md"
+    ],
+    "elements": [
+      {
+        "name": "Display",
+        "does": "Code display alpha/numeric, label scale mode screen vs world, area display sq ft/acres, bearing/angle/linear formats."
+      },
+      {
+        "name": "Grid",
+        "does": "Major spacing, minor divisions, style dots/lines/crosshairs, colours."
+      },
+      {
+        "name": "Appearance",
+        "does": "Background, selection/hover colours, grips, glow, crosshair size."
+      },
+      {
+        "name": "Interaction",
+        "does": "Zoom speed, zoom toward cursor, invert scroll, pan speed, drag threshold, group-select mode, box-select mode."
+      },
+      {
+        "name": "Snap",
+        "does": "Enable, types, radius px."
+      },
+      {
+        "name": "Auto-Save",
+        "does": "Enabled, interval 30-600 s."
+      },
+      {
+        "name": "Document",
+        "does": "Paper size and orientation, drawing scale, zone, units."
+      }
+    ],
+    "behaviours": [
+      "Settings live inside the drawing document (DrawingSettings, about 50 fields), so display preferences travel with the file instead of being a user profile.",
+      "Hotkeys persist separately in a zustand persist store."
+    ],
+    "data": [],
+    "id": "cad.settings-dialog",
+    "kind": "panel",
+    "name": "Settings dialog and display/label preference panels",
+    "where": [
+      "app/admin/cad/components/SettingsDialog.tsx",
+      "app/admin/cad/components/DisplayPreferencesPanel.tsx",
+      "app/admin/cad/components/LayerPreferencesPanel.tsx",
+      "app/admin/cad/components/FeatureLabelPreferencesPanel.tsx",
+      "lib/cad/constants.ts",
+      "lib/cad/types.ts"
+    ],
+    "purpose": "Nine settings tabs (Display, Grid, Appearance, Interaction, Snap, Labels, Auto-Save, Document, Hotkeys) plus side panels for display units, per-layer label preferences and per-feature label preferences.",
+    "verdict": "rebuild",
+    "rebuild": "Three layers: user preferences (profile, follows the person), firm standards (shared template: layers, styles, text, title block, codes, units, zone defaults), drawing settings (only what must travel with the file). Searchable settings with import/export and per-mode defaults.",
+    "priority": "P1",
+    "nationwide": "Units are FEET only; paper sizes are US (Letter, Tabloid, Arch C/D/E) with no ISO sheets; Texas State Plane zones only.",
+    "evidence": [
+      "app/admin/cad/components/SettingsDialog.tsx:35",
+      "lib/cad/types.ts:202",
+      "lib/cad/types.ts:277",
+      "lib/cad/types.ts:292",
+      "lib/cad/types.ts:318"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No arc-by-start-centre-end, start-end-radius, tangent or continue arc; the survey-relevant arc inputs (radius, delta, chord, tangent, PC/PT) are only in the curve calculator.",
+      "No xline/ray, donut, multiline, revision cloud, wipeout, region/boundary, table, mtext, hatch tool (fills are properties of closed shapes).",
+      "No block/symbol insert tool for the symbol library (symbols attach by code or style).",
+      "Polyline has no per-segment arc bulge, width or close option keyword; arcs inside a line are separate ARC or MIXED_GEOMETRY features.",
+      "Line variants (dashed, dotted, center) exposed as tools instead of style."
+    ],
+    "overlaps": [
+      "cad.toolbar"
+    ],
+    "add": [
+      "Arc: SCE, SER, CSE, tangent, continue, radius+delta+chord",
+      "Polyline with arc segments and width",
+      "XLINE / RAY construction lines",
+      "MTEXT with fields; TABLE",
+      "Boundary / region from closed loops",
+      "Revision cloud, wipeout",
+      "Block insert with attributes"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD/STARR_CAD_PHASE_1_ENGINE_CORE.md",
+      "docs/planning/completed/STARR_CAD/STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md",
+      "docs/cad-click-order-contract.md"
+    ],
+    "elements": [
+      {
+        "name": "DRAW_POINT / LINE / POLYLINE / POLYGON",
+        "does": "Click sequences; double-click, right-click or Enter finishes; typed coordinates accepted."
+      },
+      {
+        "name": "DRAW_RECTANGLE / REGULAR_POLYGON / CIRCLE / CIRCLE_EDGE / ELLIPSE / ELLIPSE_EDGE",
+        "does": "Parametric shapes; regular polygon 3-20 sides."
+      },
+      {
+        "name": "DRAW_ARC",
+        "does": "Three clicks: PC, mid-point, PT."
+      },
+      {
+        "name": "DRAW_SPLINE_FIT / DRAW_SPLINE_CONTROL / DRAW_CURVED_LINE",
+        "does": "Smooth curves; spline can be converted to arcs for CAD packages that reject splines."
+      },
+      {
+        "name": "DRAW_FREEHAND",
+        "does": "Drag a stroke, commit as POLYLINE; smoothing toggle."
+      },
+      {
+        "name": "Draw style",
+        "does": "Session colour, weight, opacity, linetype override applied to new line features; otherwise layer values."
+      }
+    ],
+    "behaviours": [
+      "Feature types: POINT, LINE, POLYLINE, POLYGON, CIRCLE, ELLIPSE, ARC, SPLINE, TEXT, MIXED_GEOMETRY, IMAGE.",
+      "Click order is specified in docs/cad-click-order-contract.md and Escape is universal after C14."
+    ],
+    "data": [],
+    "id": "cad.draw-tools",
+    "kind": "tool",
+    "name": "Drawing tools",
+    "where": [
+      "lib/cad/types.ts",
+      "app/admin/cad/components/CanvasViewport.tsx",
+      "app/admin/cad/components/ToolOptionsBar.tsx",
+      "lib/cad/geometry/"
+    ],
+    "purpose": "Create geometry: point, line, polyline, polygon, rectangle, regular polygon, circle (centre and edge), ellipse (centre and edge), 3-point arc, fit-point spline, NURBS control-point spline, curved line (bezier with tangent handles), freehand pen (optionally Chaikin-smoothed), text, image, dimension.",
+    "verdict": "rebuild",
+    "rebuild": "Commands over the shared geometry engine. Keep the current shapes; add true polyline-with-arcs, arc option set, xline/ray, hatch/boundary, mtext, table. Style comes from layer/by-code/overrides, not from a tool.",
+    "priority": "P1",
+    "nationwide": "None; defaults are feet.",
+    "evidence": [
+      "lib/cad/types.ts:779",
+      "lib/cad/types.ts:451",
+      "lib/cad/types.ts:836",
+      "app/admin/cad/components/ToolBar.tsx:415",
+      "lib/cad/geometry/spline-to-arc.ts:46"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No stretch, break (at two points or at a point), lengthen, align (two-point with scale), overkill (remove duplicate geometry), pedit join modes, fillet radius polyline-wide, or trim/extend to edge with a pre-selected cutting set.",
+      "operations.ts is one 4,223-line module; tool dispatch, undo wrapping and UI messages are mixed in.",
+      "Move/rotate/scale by base and reference point (rotate by reference, scale by reference) are missing; scale takes a factor only."
+    ],
+    "overlaps": [
+      "cad.edit-geometry-nodes",
+      "cad.offset-tool"
+    ],
+    "add": [
+      "STRETCH",
+      "BREAK / BREAK at point",
+      "LENGTHEN",
+      "ALIGN (2-point and 3-point)",
+      "OVERKILL",
+      "Rotate/scale by reference",
+      "Trim/extend with edge set and fence"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-editing-and-audit-2026-05-27.md",
+      "docs/planning/completed/cad-multiselect-and-filemanager-io.md",
+      "docs/planning/completed/cad-rotation-grabnode-and-audit.md"
+    ],
+    "elements": [
+      {
+        "name": "Move / Copy / Rotate / Mirror / Scale",
+        "does": "Interactive with base point and typed values; copy mode keeps the original."
+      },
+      {
+        "name": "Trim / Extend",
+        "does": "Click-the-portion trim between crossings; extend an end to the next feature."
+      },
+      {
+        "name": "Fillet / Chamfer",
+        "does": "Between two lines and at a polyline vertex; curb return is a related tool."
+      },
+      {
+        "name": "Array",
+        "does": "Rows x columns with spacing, or polar fan."
+      },
+      {
+        "name": "Align",
+        "does": "Left/right/top/bottom/centre H/centre V, in the right-click menu."
+      },
+      {
+        "name": "Right-click menu",
+        "does": "Copy, duplicate, send to layer, rotate presets, flip, scale presets, offset, convert spline to arcs, align, split here, delete segment, properties, ask AI, add media."
+      }
+    ],
+    "behaviours": [
+      "Operations are about 4,200 lines in operations.ts with 60+ exports and each pushes one undo entry.",
+      "Trim and extend need explicit crossing features; there is no cutting-edge selection then pick-many workflow, and no fence/crossing selection of edges."
+    ],
+    "data": [],
+    "id": "cad.modify-tools",
+    "kind": "tool",
+    "name": "Modify tools",
+    "where": [
+      "lib/cad/operations.ts",
+      "lib/cad/operations/",
+      "lib/cad/geometry/transform.ts",
+      "app/admin/cad/components/ToolOptionsBar.tsx",
+      "app/admin/cad/components/FeatureContextMenu.tsx"
+    ],
+    "purpose": "Edit existing geometry: move, copy, rotate, mirror, flip, invert (point reflection), scale (uniform and XY), array (rectangular and polar), erase, trim, extend, split, join, fillet, chamfer, divide, explode (plain and grouped), reverse, match properties, delete segment, align (6 modes), duplicate (in place and to layer), nudge.",
+    "verdict": "improve",
+    "rebuild": "Keep every operation but move them into commands in the shared command system, one file per command with a test, using a common selection-then-base-point-then-target state machine; add STRETCH, BREAK, LENGTHEN, ALIGN, OVERKILL and reference-based rotate/scale.",
+    "priority": "P1",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/operations.ts:1985",
+      "lib/cad/operations.ts:2322",
+      "lib/cad/operations.ts:1446",
+      "lib/cad/operations.ts:2731",
+      "lib/cad/operations.ts:4172",
+      "app/admin/cad/components/FeatureContextMenu.tsx:755",
+      "lib/cad/operations.ts:2984"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Simplify is a menu entry with a fixed 0.5 ft tolerance and a toolbar tool with a configurable one; same operation, two entry paths.",
+      "No vertex-level table edit (type N/E per vertex), no grip-edit of arc radius or tangent."
+    ],
+    "overlaps": [
+      "cad.modify-tools"
+    ],
+    "add": [
+      "Vertex coordinate table",
+      "Arc grips (radius/chord)",
+      "Break at vertex"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-rotation-grabnode-and-audit.md"
+    ],
+    "elements": [
+      {
+        "name": "Insert / Remove Node",
+        "does": "Click on an edge or within 14 px of a node; minimum node counts enforced."
+      },
+      {
+        "name": "Simplify (RDP)",
+        "does": "Tolerance in the options bar; menu item hard-codes 0.5 ft."
+      },
+      {
+        "name": "Snap Point to",
+        "does": "Context-menu move of a point or whole feature to align to another point."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.edit-geometry-nodes",
+    "kind": "tool",
+    "name": "Vertex and node editing, simplify and smooth",
+    "where": [
+      "lib/cad/operations.ts",
+      "lib/cad/geometry/spline-edit.ts",
+      "lib/cad/geometry/simplify.ts",
+      "lib/cad/geometry/freehand.ts",
+      "app/admin/cad/components/CanvasViewport.tsx"
+    ],
+    "purpose": "Insert node, remove node (polyline, polygon, spline with shape-preserving de Casteljau split), smooth polyline to spline, simplify polyline by Ramer-Douglas-Peucker, drag grips, snap-point-to.",
+    "verdict": "merge",
+    "rebuild": "Fold into the modify command set and a Properties vertex list (edit coordinates per vertex).",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/operations.ts:680",
+      "lib/cad/operations.ts:596",
+      "lib/cad/operations.ts:768",
+      "app/admin/cad/components/MenuBar.tsx:1542"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Linked offset behaviour has no visible indicator in the Properties panel beyond metadata, and breaking the link is implicit.",
+      "Offset surface appears under Survey menu, Edit context menu and toolbar group Curb Return."
+    ],
+    "overlaps": [
+      "cad.modify-tools"
+    ],
+    "add": [
+      "Offset through point",
+      "Offset to layer option",
+      "Variable-distance offset for ROW and easement lines"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-offset-tool-2026-05-29.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C16)"
+    ],
+    "elements": [
+      {
+        "name": "OffsetPanel",
+        "does": "Distance, side, corner, mode, scale factor, scale line weight."
+      },
+      {
+        "name": "OnLineOffsetPanel",
+        "does": "Offset along a line from a reference point (for setbacks and ties)."
+      },
+      {
+        "name": "Propagation",
+        "does": "offset-propagator and recompute-offset-feature keep derived offsets in sync."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.offset-tool",
+    "kind": "tool",
+    "name": "Offset tool (parallel, scale, translate, on-line)",
+    "where": [
+      "app/admin/cad/components/OffsetPanel.tsx",
+      "app/admin/cad/components/OnLineOffsetPanel.tsx",
+      "lib/cad/geometry/offset.ts",
+      "lib/cad/operations/",
+      "lib/cad/ai-engine/offset-resolver.ts"
+    ],
+    "purpose": "Create parallel offsets of lines, polylines, polygons and curves with side (left/right/both), corner handling (miter/round/chamfer), whole or segment-only, scale mode and translate mode; offsets stay linked to the source and re-derive when it changes.",
+    "verdict": "keep",
+    "rebuild": "Keep behaviour; present as one OFFSET command with options (distance, through, side, delete source, layer) and an explicit associative-offset toggle.",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/types.ts:882",
+      "lib/cad/operations.ts:3598",
+      "lib/cad/operations/offset-propagator.ts:29"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No distance-distance, bearing-bearing or bearing-distance intersections as drawing tools (they exist only inside Calc Point / calculators).",
+      "No station-offset along an alignment tool in the canvas (stakeout calculator only), no deflection-angle, azimuth, angle-right entry modes.",
+      "No area-by-segments or hinge/slide partition on the canvas (only inside the calculator hub).",
+      "Inquiry results are text in the command bar or properties panel, not saved as a report or table."
+    ],
+    "overlaps": [
+      "cad.calculators",
+      "cad.traverse-closure"
+    ],
+    "add": [
+      "Distance-distance, bearing-bearing, bearing-distance intersection as commands",
+      "Station-offset and alignment commands",
+      "Deflection angle and angle-right entry",
+      "Save/export inquiry report",
+      "DIST / ID / AREA / LIST aliases like AutoCAD"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_POINTS_AND_AI.md",
+      "docs/planning/completed/cad-calculator-suite-2026-05-31.md",
+      "docs/planning/qa-evidence/cad-calculator-inventory-2026-08-15.md"
+    ],
+    "elements": [
+      {
+        "name": "INVERSE",
+        "does": "Two clicks, result in the Properties panel and highlighted leg."
+      },
+      {
+        "name": "FORWARD_POINT",
+        "does": "Base click, then type bearing and distance in the command bar."
+      },
+      {
+        "name": "POINT_AT_DISTANCE",
+        "does": "Exact arc length from start or end of a feature."
+      },
+      {
+        "name": "DIVIDE",
+        "does": "Drop points at equal arc-length intervals."
+      },
+      {
+        "name": "PERPENDICULAR",
+        "does": "Hover-lock start on a line, set length by typing and angle off line or absolute azimuth."
+      },
+      {
+        "name": "CURB_RETURN",
+        "does": "Two lines plus radius; arc computed at the intersection."
+      },
+      {
+        "name": "IntersectDialog",
+        "does": "Pick two features, drop a point where they cross or would cross extended; 1,137-line dialog."
+      },
+      {
+        "name": "MEASURE_AREA",
+        "does": "Click vertices for live perimeter and area in sq ft and acres."
+      },
+      {
+        "name": "LIST",
+        "does": "Print a feature description to the command bar."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.survey-construction-tools",
+    "kind": "tool",
+    "name": "Survey construction and inquiry tools",
+    "where": [
+      "lib/cad/geometry/bearing.ts",
+      "lib/cad/geometry/intersection.ts",
+      "lib/cad/geometry/perpendicular-line.ts",
+      "lib/cad/geometry/area.ts",
+      "app/admin/cad/components/IntersectDialog.tsx",
+      "app/admin/cad/components/AreaMeasureHUD.tsx",
+      "app/admin/cad/components/ChordHUD.tsx"
+    ],
+    "purpose": "Inverse (bearing, azimuth, distance between two points), forward point (bearing + distance), point at distance along a feature, divide into equal parts, perpendicular line off a line, curb return/fillet, line intersection dialog (line-line, line-arc, arc-arc), measure area, dimension, list.",
+    "verdict": "improve",
+    "rebuild": "Make every calculator a command that can run on the canvas with picks, previews and a result written to the drawing (point, line, label or table) and logged in a survey journal with provenance.",
+    "priority": "P1",
+    "nationwide": "Bearings and distances assume US survey feet; no metric or gon.",
+    "evidence": [
+      "app/admin/cad/components/ToolBar.tsx:436",
+      "app/admin/cad/components/ToolBar.tsx:396",
+      "app/admin/cad/components/ToolBar.tsx:397",
+      "app/admin/cad/components/IntersectDialog.tsx:129",
+      "lib/cad/geometry/area.ts:11"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Seven types versus AutoCAD 13+: missing tangent, quadrant, node, insertion, extension, parallel, apparent intersection, from, mid-between-two-points.",
+      "No object snap tracking (polar tracking from acquired points), no temporary override (shift+right-click menu or typed END/MID), no snap to point labels or to survey point numbers by name.",
+      "Snap mode is global; no running vs one-shot distinction."
+    ],
+    "overlaps": [
+      "cad.status-bar"
+    ],
+    "add": [
+      "Tangent, quadrant, node, insertion, extension, parallel, from, M2P",
+      "Object snap tracking",
+      "Temporary overrides and shift+right-click menu",
+      "Snap to point number / description"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C17 snap feedback)"
+    ],
+    "elements": [
+      {
+        "name": "Types",
+        "does": "ENDPOINT, MIDPOINT, INTERSECTION, NEAREST, CENTER, PERPENDICULAR, GRID."
+      },
+      {
+        "name": "Settings",
+        "does": "snapEnabled, snapTypes, snapRadius in pixels; F3 toggle; ortho F8; polar angle increment in tool state."
+      }
+    ],
+    "behaviours": [
+      "CENTER and PERPENDICULAR were offered in the UI but not produced by the engine until C17 fixed it.",
+      "Perpendicular uses the foot from the previously placed point, clamped to the segment."
+    ],
+    "data": [],
+    "id": "cad.snap-engine",
+    "kind": "mechanic",
+    "name": "Snap engine",
+    "where": [
+      "lib/cad/geometry/snap.ts",
+      "app/admin/cad/components/StatusBar.tsx",
+      "app/admin/cad/components/SettingsDialog.tsx",
+      "lib/cad/render/ghost-preview.ts"
+    ],
+    "purpose": "Finds the snap candidate near the cursor and draws the marker; ortho and polar constraints.",
+    "verdict": "rebuild",
+    "rebuild": "Plug-in snap providers with a priority and a marker glyph per type (AutoCAD set plus survey set: point number, monument, label anchor). Add tracking (polar, object-snap tracking, extension) and temporary override, per mode defaults (AutoCAD default running snaps END, MID, CEN, INT).",
+    "priority": "P1",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/types.ts:754",
+      "lib/cad/geometry/snap.ts:90",
+      "lib/cad/geometry/snap.ts:141",
+      "lib/cad/geometry/snap.ts:186",
+      "lib/cad/types.ts:861"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No quick select by property (layer, colour, linetype, code, area range), no select by filter, no fence, no lasso, no selection cycling, no named selection sets.",
+      "Select similar is by feature type only, not by layer, code or style."
+    ],
+    "overlaps": [
+      "cad.layer-system"
+    ],
+    "add": [
+      "QSELECT / SELECTSIMILAR with property rules",
+      "Fence and lasso",
+      "Selection cycling",
+      "Named selection sets / groups with names"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-multiselect-and-filemanager-io.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C26 isolate as a mode, C32 selection as AI scope)"
+    ],
+    "elements": [
+      {
+        "name": "groupSelectMode",
+        "does": "GROUP_FIRST or ELEMENT_FIRST."
+      },
+      {
+        "name": "boxSelectMode",
+        "does": "CROSSING_EXPAND_GROUPS, CROSSING_INDIVIDUAL or WINDOW_FULL_ONLY."
+      },
+      {
+        "name": "Select similar type",
+        "does": "selectSimilarType in operations.ts."
+      },
+      {
+        "name": "Isolate session",
+        "does": "Snapshot-based isolate with a badge, restored on exit (C26)."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.selection-system",
+    "kind": "mechanic",
+    "name": "Selection, groups, isolate",
+    "where": [
+      "lib/cad/store/selection-store.ts",
+      "lib/cad/feature-groups.ts",
+      "lib/cad/isolate.ts",
+      "lib/cad/operations.ts",
+      "app/admin/cad/components/SelectionDragChip.tsx",
+      "app/admin/cad/components/IsolateBadge.tsx",
+      "app/admin/cad/components/PickModeContextMenu.tsx",
+      "app/admin/cad/components/TargetContextMenu.tsx"
+    ],
+    "purpose": "Click, Shift-click toggle, window (left to right, fully enclosed) and crossing (right to left, any overlap) box select, select all, select similar type, feature groups, isolate as a mode with a way back.",
+    "verdict": "improve",
+    "rebuild": "Add a selection engine with filters and a QSELECT-like dialog, select similar by any property, cycle overlapping objects, lasso/fence, and saved selection sets; the same selection feeds AI scope.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/types.ts:775",
+      "lib/cad/types.ts:250",
+      "lib/cad/operations.ts:3505",
+      "lib/cad/isolate.ts:26"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Undo covers features and layers; settings, title block, styles and traverse/point store changes are not obviously on the same stack.",
+      "No undo history list, no multi-step undo (U n), no UNDO Mark/Back, no persistence of undo across saves.",
+      "The cap of 500 is silent."
+    ],
+    "overlaps": [],
+    "add": [
+      "History panel",
+      "Multi-step undo",
+      "Undo for non-geometry edits",
+      "Crash-safe journal"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C37 AI action = one undo)"
+    ],
+    "elements": [
+      {
+        "name": "Stack",
+        "does": "Capped at 500 entries; a new action clears redo."
+      },
+      {
+        "name": "Descriptions",
+        "does": "Menu shows Undo <action name>."
+      },
+      {
+        "name": "AI batch undo",
+        "does": "Ctrl+Alt+Z undoes every feature of the latest AI turn as one step; entries carry aiBatchId."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.undo-redo",
+    "kind": "mechanic",
+    "name": "Undo and redo",
+    "where": [
+      "lib/cad/store/undo-store.ts",
+      "app/admin/cad/components/UndoRedoButtons.tsx",
+      "lib/cad/ai/undo-batch.ts"
+    ],
+    "purpose": "Linear undo/redo stack of described entries (ADD/REMOVE/MODIFY feature, ADD/REMOVE/MODIFY layer, BATCH).",
+    "verdict": "improve",
+    "rebuild": "Command-level transactions across all document state (features, layers, styles, points, settings), a visible history panel, undo groups per command (including transparent commands), and an undo journal that survives crash recovery.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/store/undo-store.ts:8",
+      "lib/cad/types.ts:1089",
+      "lib/cad/types.ts:1112",
+      "lib/cad/hotkeys/registry.ts:120"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Linked-instance propagation is a global zustand subscription with a module-level re-entry flag; hard to reason about and not visible in the UI except as a property.",
+      "No paste-to-original-coordinates, paste-as-block or paste-with-base-point modifiers."
+    ],
+    "overlaps": [
+      "cad.layer-system"
+    ],
+    "add": [
+      "PASTECLIP / PASTEORIG / PASTEBLOCK equivalents",
+      "Block reference or xref concept for repeated details"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-multiselect-and-filemanager-io.md",
+      "docs/planning/completed/cad-layer-grouping-and-context-menus-2026-05-31.md"
+    ],
+    "elements": [
+      {
+        "name": "LayerTransferDialog",
+        "does": "Send to Layer (Ctrl+Shift+L), Duplicate to Layer, quick-add points to active layer, link duplicates to source."
+      },
+      {
+        "name": "Linked instances",
+        "does": "A subscription regenerates linked duplicates when the source geometry changes; editing a duplicate directly breaks the link."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.clipboard-transfer",
+    "kind": "mechanic",
+    "name": "Clipboard, send/duplicate to layer, linked instances",
+    "where": [
+      "lib/cad/operations.ts",
+      "lib/cad/store/transfer-store.ts",
+      "app/admin/cad/components/LayerTransferDialog.tsx",
+      "lib/cad/operations/linked-instances.ts",
+      "lib/cad/operations/find-linked-geometry.ts"
+    ],
+    "purpose": "Copy and paste features (including between drawings with layer snapshots), copy/move/duplicate a selection to another layer, optionally keep duplicates linked to the source with a stored offset.",
+    "verdict": "improve",
+    "rebuild": "Treat link/associativity as an explicit feature (like block references or xrefs) with a visible link badge and an unlink command; add paste modes.",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/operations/linked-instances.ts:21",
+      "lib/cad/operations.ts:3130",
+      "lib/cad/operations.ts:3353",
+      "lib/cad/hotkeys/registry.ts:32"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No plot / no-plot flag per layer; PrintDialog ignores layers so construction geometry cannot be on screen but off paper (audit C5 finding, not confirmed built).",
+      "Layer 0, by-layer and by-block property semantics are not present; features hold their own style overrides, so what a layer controls is unclear.",
+      "No layer filters (properties or group filters), no layer translation mapper (map client layer standard to firm standard), no layer freeze in current viewport, no layer walk or previous layer.",
+      "Layer panel is 1,826 lines and mixes create/delete defaults with preferences; two preference panels exist (LayerPreferencesPanel for labels, LayerPropertiesDialog for style).",
+      "Layer naming is free text; no firm layer standard (AIA, NCS, TxDOT) selectable."
+    ],
+    "overlaps": [
+      "cad.visibility-hidden-items",
+      "cad.style-systems"
+    ],
+    "add": [
+      "Plot/no-plot",
+      "Layer filters and groups with rules",
+      "Layer translator (LAYTRANS equivalent)",
+      "Firm layer standards library",
+      "LAYMCUR / LAYISO / LAYOFF / LAYFRZ command set",
+      "Layer description column in table"
+    ],
+    "plans": [
+      "docs/planning/qa-evidence/cad-layer-model-audit-2026-08-15.md (open: plot/no-plot field)",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C5-C8)",
+      "docs/planning/completed/cad-layer-grouping-and-context-menus-2026-05-31.md"
+    ],
+    "elements": [
+      {
+        "name": "LayerPanel",
+        "does": "Search, drag reorder, eye/lock toggles, rename, colour, delete, isolate by Shift+click, show all, quick-add points, layer groups, context menus."
+      },
+      {
+        "name": "LayerPropertiesDialog",
+        "does": "Line type, line weight, opacity, frozen (excluded from snap and selection), description (C6)."
+      },
+      {
+        "name": "Layer states",
+        "does": "Named snapshots of on/frozen/locked stored on the document (C8)."
+      },
+      {
+        "name": "Merge / split by code",
+        "does": "Merge layers; split a layer into layers by field code (C7, C7b)."
+      },
+      {
+        "name": "autoAssignCodes",
+        "does": "Field code to layer routing used by import."
+      }
+    ],
+    "behaviours": [
+      "SURVEY-INFO is a protected layer holding title block, seal, scale bar, north arrow, notes; its eye hides all of them.",
+      "DEFAULT layer is shown as Layer 1."
+    ],
+    "data": [],
+    "id": "cad.layer-system",
+    "kind": "panel",
+    "name": "Layers: panel, properties, groups, states, merge, split by code",
+    "where": [
+      "app/admin/cad/components/LayerPanel.tsx",
+      "app/admin/cad/components/LayerPropertiesDialog.tsx",
+      "app/admin/cad/components/NewLayerDialog.tsx",
+      "app/admin/cad/components/LayerPreferencesPanel.tsx",
+      "app/admin/cad/components/ExportLayersDialog.tsx",
+      "lib/cad/styles/default-layers.ts",
+      "lib/cad/styles/layer-states.ts",
+      "lib/cad/operations/merge-layers.ts",
+      "lib/cad/operations/split-layer-by-code.ts"
+    ],
+    "purpose": "Layer list with visibility, lock, freeze, colour, line type, line weight, opacity, groups, drag reorder, isolate, saved layer states, merge, split-by-code, per-layer label preferences and per-layer view rotation.",
+    "verdict": "improve",
+    "rebuild": "One Layer Manager (table like Layer Properties Manager) with filters, states, plot flag, by-layer semantics and a layer-standard/translation system; per-layer label prefs become a tab of the same dialog.",
+    "priority": "P1",
+    "nationwide": "Default layer names (BOUNDARY, BOUNDARY-MON, EASEMENT, ROW, BUILDING-LINE, SURVEY-INFO) are Starr conventions hard-coded in auto-annotate and the code library; firms need their own standard.",
+    "evidence": [
+      "lib/cad/types.ts:716",
+      "app/admin/cad/components/LayerPropertiesDialog.tsx:131",
+      "lib/cad/styles/default-layers.ts:47",
+      "lib/cad/operations/merge-layers.ts:67",
+      "lib/cad/operations/split-layer-by-code.ts:96",
+      "lib/cad/styles/layer-states.ts:35",
+      "lib/cad/labels/auto-annotate.ts:37"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Per-feature and per-segment hiding is a custom concept (AutoCAD has no hidden objects other than layer state and isolate), so drawings round-tripped through DXF lose hidden state."
+    ],
+    "overlaps": [
+      "cad.layer-system"
+    ],
+    "add": [
+      "Hide objects (HIDEOBJECTS/UNISOLATE) aliases"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C23-C26)",
+      "docs/planning/completed/cad-fills-and-element-visibility-2026-05-30.md"
+    ],
+    "elements": [
+      {
+        "name": "canFeatureBeRendered",
+        "does": "visibility() and isRenderable() give one answer used by render, snap and selection; canFeatureBeRendered(layer) lives in style-cascade.ts."
+      },
+      {
+        "name": "HiddenItemsPanel",
+        "does": "Two tabs, per-item Show, Unhide All; reachable from layer panel and status-bar pill."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.visibility-hidden-items",
+    "kind": "mechanic",
+    "name": "Visibility model and Hidden Items panel",
+    "where": [
+      "lib/cad/visibility.ts",
+      "app/admin/cad/components/HiddenItemsPanel.tsx",
+      "lib/cad/geometry/segment-visibility.ts",
+      "app/admin/cad/components/StatusBar.tsx"
+    ],
+    "purpose": "Five distinct ways a thing can be invisible (feature hidden, hidden segments, layer off, layer frozen, isolate) unified into one predicate and one panel that lists and unhides them, with an always-visible count.",
+    "verdict": "keep",
+    "rebuild": "Keep the unified predicate; export hidden objects on a generated hidden layer for DXF.",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/visibility.ts:68",
+      "lib/cad/styles/style-cascade.ts:50",
+      "app/admin/cad/components/HiddenItemsPanel.tsx:242"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Symbols and line types are Starr/Traverse PC derived and not exchangeable as files (no import of .lin, .shx, .pat, .dwg blocks).",
+      "No dimension styles, multileader styles, table styles, plot style tables (CTB/STB) or annotative scaling.",
+      "Style cascade has four levels with feature-level overrides that persist; \"by layer\" and \"by block\" are not first-class.",
+      "Several editors in different places (picker inside property panel, separate modals, code-style panel)."
+    ],
+    "overlaps": [
+      "cad.layer-system",
+      "cad.code-library-linework",
+      "cad.settings-dialog"
+    ],
+    "add": [
+      "Import .lin and .pat; DXF block to symbol",
+      "Dimension, leader and table styles",
+      "Plot style tables",
+      "Annotative text and symbols by scale",
+      "Share standards across the firm"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_3_STYLES_SYMBOLS.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C18-C22)",
+      "docs/planning/completed/cad-fill-stacking-and-pattern-controls-2026-05-30.md"
+    ],
+    "elements": [
+      {
+        "name": "Line types",
+        "does": "76 built-in (dashes, symbol-in-line); custom line types in the document; LineTypeEditor."
+      },
+      {
+        "name": "Symbols",
+        "does": "84 built-in; monument symbols FOUND/SET/CALC; custom symbols."
+      },
+      {
+        "name": "Fills",
+        "does": "SOLID, NONE, dots (gravel, sand), lines at any angle, textured; stacked fill layers."
+      },
+      {
+        "name": "Text styles",
+        "does": "Library plus editor and picker (C18-C19) with a font resolver."
+      },
+      {
+        "name": "CodeStylePanel",
+        "does": "Table mapping field codes to symbol, line type, colour, weight, layer, label format."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.style-systems",
+    "kind": "mechanic",
+    "name": "Style systems: line types, symbols, fills, text styles, code-to-style",
+    "where": [
+      "lib/cad/styles/",
+      "app/admin/cad/components/CodeStylePanel.tsx",
+      "app/admin/cad/components/LineTypeEditor.tsx",
+      "app/admin/cad/components/LineTypePicker.tsx",
+      "app/admin/cad/components/SymbolPicker.tsx",
+      "app/admin/cad/components/TextStyleEditorModal.tsx",
+      "app/admin/cad/components/TextStylePicker.tsx",
+      "app/admin/cad/components/ColorSwatchInput.tsx",
+      "lib/cad/store/code-style-store.ts"
+    ],
+    "purpose": "Library and editors for how things look: 76 line types, 84 symbols (including monument symbols), fill patterns with stacked fill layers and rotation, text styles (STANDARD plus built-ins), a code-to-style mapping table, global style config, and a cascade from document to layer to code to feature.",
+    "verdict": "improve",
+    "rebuild": "A firm standards package holds layers, linetypes, symbols, fills, text/dim/leader/table styles, plot styles and the code table as importable/exportable files (.lin, .pat, SVG/DXF symbol, JSON). One Styles manager (like Style Manager plus Civil 3D Settings tree) edits them.",
+    "priority": "P1",
+    "nationwide": "Symbols and the code-to-style defaults follow Starr/Traverse PC conventions; other firms use Carlson, Civil 3D description keys, or TxDOT/county standards.",
+    "evidence": [
+      "lib/cad/styles/style-cascade.ts:16",
+      "lib/cad/styles/text-style-library.ts:44",
+      "app/admin/cad/components/CodeStylePanel.tsx:36",
+      "lib/cad/styles/fill-stack.ts:29",
+      "lib/cad/styles/symbol-library.ts:11",
+      "lib/cad/styles/linetype-library.ts:26"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Two properties surfaces (side panel, modal) plus the per-feature label preference panel; no Quick Properties near the cursor.",
+      "No multi-object common-property editing across types with mixed values, no property painting by dropdown beyond Match Properties."
+    ],
+    "overlaps": [
+      "cad.style-systems",
+      "cad.annotation-labels"
+    ],
+    "add": [
+      "Quick Properties",
+      "Mixed-value multi-edit",
+      "Survey data category (northing, easting, elevation per vertex)"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-editing-and-audit-2026-05-27.md"
+    ],
+    "elements": [
+      {
+        "name": "PropertyPanel",
+        "does": "2,700 lines; type-specific sections, create-fill-area-from-boundary, drop area annotation, attach media, layer colour/delete."
+      },
+      {
+        "name": "FeaturePropertiesDialog",
+        "does": "Modal properties editor from the right-click menu."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.property-panel",
+    "kind": "panel",
+    "name": "Properties panel and feature properties dialog",
+    "where": [
+      "app/admin/cad/components/PropertyPanel.tsx",
+      "app/admin/cad/components/FeaturePropertiesDialog.tsx",
+      "app/admin/cad/components/FeatureContextMenu.tsx",
+      "lib/cad/feature-fields.ts",
+      "lib/cad/feature-row-label.ts"
+    ],
+    "purpose": "Shows and edits the selection: geometry values, layer, style (colour, weight, opacity, line type, fills, symbol), labels, group, media, area annotation, fillable area, inverse readout, and the layer list.",
+    "verdict": "improve",
+    "rebuild": "One Properties palette (AutoCAD PROPERTIES model): categories General, Geometry, Text, Survey (point number, code, elevation, monument action), Style; mixed-value editing for multi-select; Quick Properties tooltip.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "app/admin/cad/components/PropertyPanel.tsx:734",
+      "app/admin/cad/components/PropertyPanel.tsx:951",
+      "app/admin/cad/components/FeaturePropertiesDialog.tsx:103"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Two label systems: per-feature TextLabel rendering (layer/feature preferences) and a separate annotation store with its own types; AnnotationPanel, the UI for the second, is imported by nothing.",
+      "LEADER annotation type exists in the model and writers but there is no leader tool (hotkey l d is dead) and no multileader.",
+      "No dimension types beyond the bearing/distance note: no linear, aligned, angular, radius, diameter, ordinate, continued, baseline, arc length, or associative dimensions with styles.",
+      "Labels are not tied to a table (line table, curve table, parcel table) so curve and line tag tables, a standard plat deliverable, cannot be produced.",
+      "Text is single-line TEXT; no MTEXT, no fields linked to drawing data, no annotative scale."
+    ],
+    "overlaps": [
+      "cad.property-panel",
+      "cad.style-systems"
+    ],
+    "add": [
+      "Dimension suite with styles",
+      "MLEADER",
+      "MTEXT and fields",
+      "Line / curve / parcel / point tables with tags (Civil 3D label-and-table model)",
+      "Annotative scaling",
+      "Stationing labels"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md",
+      "docs/planning/completed/cad-point-code-description-labels-2026-06-01.md",
+      "docs/planning/completed/cad-label-backgrounds-and-textured-fills-2026-05-30.md"
+    ],
+    "elements": [
+      {
+        "name": "TextLabelKind",
+        "does": "BEARING, DISTANCE, AREA, POINT_NAME, POINT_CODE, POINT_DESCRIPTION, POINT_ELEVATION, POINT_COORDINATES, LINE_LENGTH, PERIMETER, CUSTOM."
+      },
+      {
+        "name": "AnnotationType",
+        "does": "BEARING_DISTANCE, CURVE_DATA, MONUMENT_LABEL, AREA_LABEL, TEXT, LEADER."
+      },
+      {
+        "name": "Auto annotate + optimiser",
+        "does": "Generates annotations for boundary and monument layers and spreads them to avoid collisions."
+      },
+      {
+        "name": "DIM tool",
+        "does": "Two clicks place a rotated bearing + distance TEXT offset 6 ft from the line."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.annotation-labels",
+    "kind": "mechanic",
+    "name": "Labels, annotations and dimensions",
+    "where": [
+      "lib/cad/labels/",
+      "lib/cad/store/annotation-store.ts",
+      "lib/cad/geometry/curve-render.ts",
+      "app/admin/cad/components/AnnotationPanel.tsx",
+      "app/admin/cad/components/FeatureLabelPreferencesPanel.tsx",
+      "app/admin/cad/components/LayerPreferencesPanel.tsx"
+    ],
+    "purpose": "Bearing/distance labels, curve data, monument labels, area labels, point name/code/description/elevation labels, text and leader annotations, auto-annotate for a boundary, collision-resolving label optimiser, per-layer and per-feature label preferences.",
+    "verdict": "rebuild",
+    "rebuild": "One annotation model: labels are styled annotation objects (text, mtext, leader, dimension, label-from-object, table) with styles and associativity to geometry. Include line/curve tag tables, parcel tables, point tables, and a label optimiser as a command.",
+    "priority": "P1",
+    "nationwide": "Bearing format defaults to quadrant with DMS; monument label formats (3/8 IRF style) follow Texas practice.",
+    "evidence": [
+      "lib/cad/types.ts:1340",
+      "lib/cad/labels/annotation-types.ts:4",
+      "app/admin/cad/components/AnnotationPanel.tsx:22",
+      "lib/cad/hotkeys/registry.ts:78",
+      "app/admin/cad/components/ToolBar.tsx:439",
+      "lib/cad/labels/label-optimizer.ts:5"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "No paper space / layouts / viewports: a plat set (cover, boundary sheet, detail sheet with different scales) needs several drawings or manual work.",
+      "No sheet index, no match lines, no multi-page PDF (the writer lists multi-page as unsupported).",
+      "Only five US paper sizes; no ANSI A-E, ISO A0-A4, custom size; no plot style tables or per-layer plot flag.",
+      "Title block is a fixed field set; firms cannot design their own block or attributes.",
+      "Standard notes and certification text are Texas-specific."
+    ],
+    "overlaps": [
+      "cad.pdf-export",
+      "cad.templates-company"
+    ],
+    "add": [
+      "Layouts, viewports, annotative scale",
+      "Sheet set manager and multi-page PDF",
+      "Custom title block designer",
+      "Plot style tables and plot/no-plot layer flag",
+      "ANSI and ISO sheet sizes, custom sizes"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD/STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md",
+      "docs/planning/completed/cad-survey-print-pdf-2026-06-02.md",
+      "docs/planning/completed/cad-titleblock-seal-and-date.md",
+      "docs/planning/completed/cad-cert-notes-context-menu-2026-05-29.md"
+    ],
+    "elements": [
+      {
+        "name": "Paper",
+        "does": "LETTER, TABLOID, ARCH_C, ARCH_D, ARCH_E; portrait or landscape; drawing scale (1 in = N ft)."
+      },
+      {
+        "name": "Title block",
+        "does": "Position, fields (project, client, address, dates, drawn/checked by, job number, county, acreage), company info, licence number, logo, font, border weights."
+      },
+      {
+        "name": "North arrow",
+        "does": "SIMPLE, COMPASS_ROSE, DETAILED, TRADITIONAL, STARR styles; declination."
+      },
+      {
+        "name": "Scale bar editor, legend (auto from codes), standard notes (about 15 canned notes), certification editor",
+        "does": "Each is a placed element with editor modal."
+      },
+      {
+        "name": "NewDrawingDialog",
+        "does": "Choose a template (Starr Surveying Standard TABLOID landscape 1 in = 50 ft, Letter portrait, ARCH D) on a new drawing."
+      },
+      {
+        "name": "PrintDialog",
+        "does": "Paper, colour mode (as displayed, monochrome, grayscale), fit-to-page or fixed scale, margins, live PDF preview."
+      }
+    ],
+    "behaviours": [
+      "Sheet furniture is drawn as paper-fixed overlays on the SURVEY-INFO layer, not as geometry in model space.",
+      "The drawing is placed on the single sheet; Fit Drawing to Page and Move Page adjust it.",
+      "One sheet per drawing: no multiple layouts, no viewports, no paper space."
+    ],
+    "data": [],
+    "id": "cad.sheet-title-block-print",
+    "kind": "panel",
+    "name": "Sheet furniture, title block, print dialog",
+    "where": [
+      "app/admin/cad/components/TitleBlockPanel.tsx",
+      "app/admin/cad/components/TitleBlockEditorModal.tsx",
+      "app/admin/cad/components/ScaleBarEditorModal.tsx",
+      "app/admin/cad/components/StandardNotesEditor.tsx",
+      "app/admin/cad/components/CertificationEditor.tsx",
+      "app/admin/cad/components/SealPickerModal.tsx",
+      "app/admin/cad/components/SealImageUploader.tsx",
+      "app/admin/cad/components/PrintDialog.tsx",
+      "app/admin/cad/components/NewDrawingDialog.tsx",
+      "lib/cad/templates/",
+      "lib/cad/sheet/title-block-hit-test.ts"
+    ],
+    "purpose": "Everything that makes a drawing a plat sheet: paper size and orientation, drawing scale, title block fields, north arrow styles, graphic scale bar, legend from codes, standard survey notes, certification block, seal image, border, and the Print/Export dialog.",
+    "verdict": "rebuild",
+    "rebuild": "Real model space plus layouts: sheets with viewports at named scales, firm title block templates with attribute fields filled from job data, a sheet set manager (index, sheet numbers, revision table), and a plot dialog with plot styles, multi-sheet PDF and per-layer plot flag. Keep the Print preview.",
+    "priority": "P1",
+    "nationwide": "North arrow style STARR; standard notes cite Texas Society of Professional Surveyors and the Texas State Plane Central Zone; certification text cites Texas Standards; template company block pulls from Starr business constants; US paper only.",
+    "evidence": [
+      "lib/cad/types.ts:349",
+      "lib/cad/templates/types.ts:4",
+      "lib/cad/templates/standard-notes.ts:61",
+      "lib/cad/templates/certification.ts:10",
+      "app/admin/cad/components/PrintDialog.tsx:277",
+      "lib/cad/delivery/pdf-writer.ts:31",
+      "lib/cad/templates/default-templates.ts:37"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "No firm-defined templates, no template import/export, no per-job or per-client template; firm identity is read from the marketing-site constants file.",
+      "Licence number string is RPLS-prefixed (Texas wording)."
+    ],
+    "overlaps": [
+      "cad.sheet-title-block-print",
+      "cad.settings-dialog"
+    ],
+    "add": [
+      "Template library with clone/edit",
+      "Firm profile with multiple licensed surveyors and per-state boilerplate"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md"
+    ],
+    "elements": [
+      {
+        "name": "STARR_COMPANY_INFO",
+        "does": "Name, address, phone, email and RPLS number read from lib/seo/business.ts."
+      },
+      {
+        "name": "isEditable false",
+        "does": "Built-in templates cannot be edited or cloned in the UI."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.templates-company",
+    "kind": "mechanic",
+    "name": "Drawing templates and company info",
+    "where": [
+      "lib/cad/templates/default-templates.ts",
+      "lib/cad/templates/types.ts",
+      "lib/cad/templates/standard-notes.ts",
+      "lib/cad/templates/certification.ts",
+      "lib/cad/templates/legend.ts"
+    ],
+    "purpose": "Three built-in non-editable templates (Starr Surveying Standard, Letter, ARCH D) that preset paper, title block, north arrow, scale bar, legend, certification, notes and company info.",
+    "verdict": "rebuild",
+    "rebuild": "Firm standards package (see cad.settings-dialog): templates are data a firm creates, clones and shares, with a firm profile (name, licence per state, seal images, boilerplate per state) stored in the firm account, not in code.",
+    "priority": "P1",
+    "nationwide": "STARR_SURVEYING_TEMPLATE, STARR_COMPANY_INFO (RPLS number), licenseState Texas, Texas notes and certification are all hard-coded.",
+    "evidence": [
+      "lib/cad/templates/default-templates.ts:13",
+      "lib/cad/templates/default-templates.ts:41",
+      "lib/cad/templates/default-templates.ts:82",
+      "lib/cad/templates/certification.ts:40"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "PointTablePanel (superseded duplicate) is imported by nothing and should be deleted.",
+      "Point model is northing/easting with optional elevation; no point groups (named query sets), no description keys with rules beyond the code library, no point styles/label styles per group, no point numbering ranges or reserved blocks, no point comparison/merge across files, no point-cloud or LAS.",
+      "No raw observations (angles, distances, rod height, setups) stored with points, so no re-reduction or audit trail from field data.",
+      "Point-file library deletion route has no confirmation or soft delete."
+    ],
+    "overlaps": [
+      "cad.code-library-linework"
+    ],
+    "add": [
+      "Point groups (Civil 3D Point Groups / Carlson point sort)",
+      "Raw observation store and reduction",
+      "Point comparison between files/epochs",
+      "Numbering ranges and renumber by rule",
+      "Elevation labels and 3D point display"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_IMPORT_AND_POINTS.md",
+      "docs/planning/completed/cad-duplicate-point-handling-and-unknown-refs-2026-05-31.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C9-C12)"
+    ],
+    "elements": [
+      {
+        "name": "PointDataViewer",
+        "does": "The mounted points table (C10 found PointTablePanel an orphan; the viewer is the real one)."
+      },
+      {
+        "name": "point-registry / point-naming / point-rename",
+        "does": "Unique names, suffix parsing (found/set/calculated), rename and duplicate plans that update line and traverse references."
+      },
+      {
+        "name": "Bulk operations (C11)",
+        "does": "Renumber, re-code over selection, each as one undo batch."
+      },
+      {
+        "name": "dedupe-points / disambiguate / unknown-refs",
+        "does": "Import-time duplicate and missing reference handling."
+      },
+      {
+        "name": "PointFileLibraryDialog + /api/admin/cad/point-files",
+        "does": "Shared point files in cad_point_files: list, fetch, upload, delete."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.points-system",
+    "kind": "panel",
+    "name": "Points: data viewer, naming, renumber, duplicates, point-file library",
+    "where": [
+      "app/admin/cad/components/PointDataViewer.tsx",
+      "app/admin/cad/components/PointFileLibraryDialog.tsx",
+      "app/admin/cad/components/RenameConfirmDialog.tsx",
+      "app/admin/cad/components/PointTablePanel.tsx",
+      "lib/cad/points/",
+      "lib/cad/store/point-store.ts",
+      "app/api/admin/cad/point-files/route.ts"
+    ],
+    "purpose": "Survey point management: table of points with sort, filter, in-place edit where allowed, bulk renumber, re-code, send to layer, recolour, delete, export; rename with reference updates; duplicate and unknown-reference handling; shared point-file library.",
+    "verdict": "improve",
+    "rebuild": "Points as first-class database objects with attributes (N, E, Z, code, description, source, status found/set/calc, accuracy, raw refs); point groups as saved queries; point and label styles per group; edit table with undo. Keep the import dedupe and rename-with-references logic.",
+    "priority": "P1",
+    "nationwide": "Point codes and monument naming (IRF, IRS, MAG nail) follow Texas / Traverse PC practice.",
+    "evidence": [
+      "lib/cad/types.ts:1236",
+      "app/admin/cad/components/PointTablePanel.tsx:145",
+      "lib/cad/points/renumber.ts:60",
+      "lib/cad/points/point-rename.ts:34",
+      "app/api/admin/cad/point-files/route.ts:32"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "The library is a TypeScript constant. It cannot be edited, added to or imported from the UI except through code-to-style overrides; no import of a Carlson .FCL, Civil 3D description key set, or Trimble feature library.",
+      "Linework logic (B/E/C/A suffix) is the Traverse PC convention; Carlson, Trimble and Leica field codes use different line-control syntax (for example space-delimited string numbers, JOIN/CLOSE keywords).",
+      "No string numbering (several simultaneous lines of the same code), no automatic closure by code, no offsets from code (edge of pavement plus offset)."
+    ],
+    "overlaps": [
+      "cad.points-system",
+      "cad.style-systems"
+    ],
+    "add": [
+      "Import Carlson FCL and Civil 3D description key sets",
+      "Dialect selector",
+      "String numbers, close/join/curve control codes",
+      "Field-to-finish preview and report of unmatched codes"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_IMPORT_AND_POINTS.md",
+      "docs/planning/completed/cad-point-code-description-labels-2026-06-01.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C22 style by code)"
+    ],
+    "elements": [
+      {
+        "name": "MASTER_CODE_LIBRARY",
+        "does": "152 entries: boundary control 33, utilities 30, fences 15, structures 12, topography 11, curves 10, miscellaneous 10, property lines 8, transportation 8, vegetation 8, survey control 6, ROW 1; each with symbol, layer, colour, label format, monument action."
+      },
+      {
+        "name": "Suffix and name parsers",
+        "does": "code-suffix-parser, name-suffix-parser, point-grouping."
+      },
+      {
+        "name": "Connect Points into Linework / command f2f",
+        "does": "buildLineworkFromCodes event."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.code-library-linework",
+    "kind": "mechanic",
+    "name": "Point code library and field-to-finish linework",
+    "where": [
+      "lib/cad/codes/",
+      "lib/cad/styles/code-style-map.ts",
+      "lib/cad/styles/code-to-symbol.ts",
+      "lib/cad/import/linework-features.ts",
+      "app/admin/cad/components/CodeStylePanel.tsx"
+    ],
+    "purpose": "Maps field codes to meaning and drawing style (152 built-in codes in 12 categories, alpha and numeric forms) and builds lines, curves and splines from coded points using begin/end/curve/arc suffixes (B, E, C, A, BA, EA, CA) and auto-connect.",
+    "verdict": "rebuild",
+    "rebuild": "Field-code engine with pluggable code dialects (Traverse PC suffix, Carlson F2F, Civil 3D linework code sets, Trimble feature codes), a firm-editable code table stored as data, string numbering and control codes, and field-to-finish preview before commit. Keep the 152 codes as a seed.",
+    "priority": "P1",
+    "nationwide": "Code numbers (308, 315, 327), alpha codes BC01-style and layer ids BOUNDARY-MON are Starr/Traverse PC conventions.",
+    "evidence": [
+      "lib/cad/codes/code-library.ts:4",
+      "lib/cad/types.ts:1139",
+      "lib/cad/codes/auto-connect.ts:21",
+      "app/admin/cad/components/CommandBar.tsx:535",
+      "lib/cad/types.ts:1181"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "CRANDALL is in the type but not implemented anywhere; no angle balancing, no least-squares adjustment, no network or loop adjustment, no side shots with multiple setups, no error ellipses.",
+      "No combined scale factor or convergence correction (explicitly left open); grid versus ground distances are not distinguished.",
+      "Closure assumes interior-angle logic for a simple closed polygon; open/link traverses and traverse-to-control closure are not supported.",
+      "Closure result is not saved as a report/PDF; no tolerance check against a standard (for example 1:10000 minimum for the state)."
+    ],
+    "overlaps": [
+      "cad.calculators",
+      "cad.legal-description"
+    ],
+    "add": [
+      "Angle balance",
+      "Crandall and least squares",
+      "Combined factor and grid/ground toggle",
+      "Closure report export with tolerance",
+      "Open and link traverses"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_POINTS_AND_AI.md (slice E closure repair)",
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S16 open: combined scale factor and convergence)"
+    ],
+    "elements": [
+      {
+        "name": "TraversePanel",
+        "does": "New traverse from all points; legal description button."
+      },
+      {
+        "name": "TraverseViewer",
+        "does": "Line and curve data table (view, can place geometry)."
+      },
+      {
+        "name": "ClosureReport",
+        "does": "Misclosure, precision 1:N, error bearing, total distance."
+      },
+      {
+        "name": "Adjustment",
+        "does": "Compass (Bowditch) and transit implemented; AdjustmentMethod type also lists CRANDALL and NONE."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.traverse-closure",
+    "kind": "panel",
+    "name": "Traverse, closure and adjustment",
+    "where": [
+      "app/admin/cad/components/TraversePanel.tsx",
+      "app/admin/cad/components/TraverseViewer.tsx",
+      "app/admin/cad/components/ClosureReport.tsx",
+      "app/admin/cad/components/CloseDrawingDialog.tsx",
+      "lib/cad/geometry/traverse.ts",
+      "lib/cad/geometry/closure.ts",
+      "lib/cad/store/traverse-store.ts",
+      "lib/cad/points/traverse-rows.ts"
+    ],
+    "purpose": "Build a traverse from points, show leg bearing and distance (and curve data), compute linear misclosure, precision ratio and angular error, adjust by Bowditch or transit rule, and repair a nearly-closed drawing (Close Drawing).",
+    "verdict": "improve",
+    "rebuild": "Make traverse a first-class survey object (setups, observations, control) with closure, angle balance, Bowditch/transit/Crandall and least-squares, grid/ground with scale factor, and a printable closure report. Civil 3D survey database and Carlson traverse routines are the benchmark.",
+    "priority": "P1",
+    "nationwide": "Precision standards and tolerance by state are not configurable (none applied).",
+    "evidence": [
+      "lib/cad/types.ts:1514",
+      "lib/cad/geometry/closure.ts:71",
+      "lib/cad/geometry/closure.ts:5",
+      "lib/cad/store/traverse-store.ts:102",
+      "app/admin/cad/components/CloseDrawingDialog.tsx:28"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Only Calc Point and Intersect write geometry with undo; most calculators are text-only and re-type values (audit F6).",
+      "Calculators are separate dialogs, not commands: no picking inputs from the canvas inside the dialog, no preview, no provenance except one surface (C30 added show-the-work).",
+      "Two COGO implementations existed (geometry/cogo.ts and solver.ts); C27 recorded one unused.",
+      "Several engine exports remain unreachable (spline fitting, orient wrappers, convexHull) per C27 F4.",
+      "No stationing along alignments, no alignment/profile objects, no cut/fill, no coordinate geometry from a described deed call list entered as text on the canvas."
+    ],
+    "overlaps": [
+      "cad.survey-construction-tools",
+      "cad.traverse-closure"
+    ],
+    "add": [
+      "Alignments, stationing and profiles",
+      "Inverse/area/COGO transparent commands",
+      "Parcel layout tools (slide line, swing line, frontage) like Civil 3D Parcel Layout",
+      "Cut/fill volumes, basic surfaces"
+    ],
+    "plans": [
+      "docs/planning/qa-evidence/cad-calculator-inventory-2026-08-15.md",
+      "docs/planning/completed/cad-calculator-suite-2026-05-31.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C27-C30)"
+    ],
+    "elements": [
+      {
+        "name": "Registry (registry.ts)",
+        "does": "11 entries in groups GENERAL, POINTS, CURVES, PROFILE, TRAVERSE, AREA; one predictable door (C28)."
+      },
+      {
+        "name": "Curve place",
+        "does": "Curve calculator can place the solved curve as an ARC feature (C29)."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.calculators",
+    "kind": "tool",
+    "name": "Calculator hub and COGO",
+    "where": [
+      "app/admin/cad/components/CalculatorModal.tsx",
+      "app/admin/cad/components/CalculatorPicker.tsx",
+      "app/admin/cad/components/GenericCalculator.tsx",
+      "app/admin/cad/components/CurveCalculator.tsx",
+      "app/admin/cad/components/CurveCalculatorBody.tsx",
+      "app/admin/cad/components/AdvancedCurveCalculator.tsx",
+      "app/admin/cad/components/StakeoutCalculator.tsx",
+      "app/admin/cad/components/PartitionCalculator.tsx",
+      "app/admin/cad/components/GradeCalculator.tsx",
+      "app/admin/cad/components/CalcPointDialog.tsx",
+      "lib/cad/calculators/registry.ts",
+      "lib/cad/geometry/cogo.ts",
+      "lib/cad/geometry/solver.ts",
+      "lib/cad/geometry/curve.ts",
+      "lib/cad/geometry/compound-curve.ts",
+      "lib/cad/geometry/stakeout.ts",
+      "lib/cad/geometry/partition.ts",
+      "lib/cad/geometry/grade.ts"
+    ],
+    "purpose": "The survey math: generic calculator, curve (any two of R/L/delta/T/C), compound, reverse and spiral curves, station-offset and radial stakeout, partition a parcel to an area, grade and vertical curve, Calc Point (distance-distance, bearing-distance, bearing-bearing, 4th corner, parallel), intersect, traverse, line and curve data.",
+    "verdict": "improve",
+    "rebuild": "Calculators become commands with canvas picks and a preview, results go to a Survey Journal (with undo and provenance) and can write points, lines, labels or tables. Keep the engines and their tests unchanged.",
+    "priority": "P1",
+    "nationwide": "US survey feet and degrees; no metric, no international datum math.",
+    "evidence": [
+      "lib/cad/calculators/registry.ts:106",
+      "lib/cad/calculators/registry.ts:148",
+      "lib/cad/calculators/registry.ts:160",
+      "lib/cad/geometry/cogo.ts:23",
+      "lib/cad/geometry/compound-curve.ts:94",
+      "lib/cad/geometry/partition.ts:114",
+      "lib/cad/geometry/stakeout.ts:163"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Format is METES_AND_BOUNDS only: no lot and block, aggregate tract, easement or strip descriptions, no POB tie, no adjoiner call-outs, no record vs measured dual call format.",
+      "Text is a single English template; wording (THENCE / to a found monument) is not firm- or state-editable.",
+      "Deterministic core only; the planned Claude narrative pass is a recorded follow-up and is not built.",
+      "Description generator hard-codes Texas and State Plane Central Zone in basis-of-bearings text."
+    ],
+    "overlaps": [
+      "cad.traverse-closure"
+    ],
+    "add": [
+      "Lot and block, easement, strip, aggregate descriptions",
+      "Record vs measured call pairs",
+      "State wording packs",
+      "Export to Word/PDF with tracked changes"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md (open: Claude-augmented narrative pass)"
+    ],
+    "elements": [
+      {
+        "name": "LegalDescConfig",
+        "does": "Bearing precision second/tenth-second, distance decimals, monument descriptions, curve data, basis of bearings, datum statement, area display."
+      },
+      {
+        "name": "generateSurveyDescription",
+        "does": "Returns null when no closed boundary polygon exists."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.legal-description",
+    "kind": "mechanic",
+    "name": "Legal and survey description generator",
+    "where": [
+      "lib/cad/geometry/legal-desc.ts",
+      "lib/cad/delivery/description-generator.ts",
+      "app/admin/cad/components/SurveyDescriptionPanel.tsx",
+      "lib/cad/delivery/scope-document.ts"
+    ],
+    "purpose": "Generates a metes-and-bounds legal description (BEGINNING at... THENCE bearing, distance... curve data) plus standard notes, certification, title-block fill and revision history from the boundary polygon.",
+    "verdict": "improve",
+    "rebuild": "Description templates as editable data per firm and state (wording, order, units, record vs measured), with options for lot/block, easement and strip descriptions; AI narrative as an optional reviewed pass.",
+    "priority": "P2",
+    "nationwide": "state: Texas default and Texas State Plane Central Zone wording; datum wording NAD83 (2011).",
+    "evidence": [
+      "lib/cad/geometry/legal-desc.ts:6",
+      "lib/cad/delivery/description-generator.ts:165",
+      "lib/cad/delivery/description-generator.ts:283",
+      "lib/cad/delivery/description-generator.ts:24"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Only Texas zones exist; every other state, UTM, local/site coordinate system and NAD83 realisations are absent. DrawingSettings.units is the literal FEET (no US survey foot vs international foot distinction).",
+      "No datum or epoch handling, no geoid, no convergence or combined scale factor, no ground-to-grid transform, no localisation (site calibration).",
+      "No coordinate system reprojection of whole drawings or of imported files.",
+      "Basis-of-bearings text and the zone default are hard-wired to Central."
+    ],
+    "overlaps": [
+      "cad.import-survey-data",
+      "cad.geojson-landxml-csv-exports"
+    ],
+    "add": [
+      "All US SPCS zones and UTM",
+      "Localisation/site calibration",
+      "Ground/grid toggle with combined factor",
+      "Metric and international foot",
+      "Geoid models for orthometric heights"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S16 open: combined factor and convergence, golden instrument file)"
+    ],
+    "elements": [
+      {
+        "name": "Texas State Plane zones",
+        "does": "Five NAD83 zones (EPSG 2275-2279), default Central."
+      },
+      {
+        "name": "Orientation dialog",
+        "does": "Pick a reference line or type a correction; rotates the whole drawing."
+      },
+      {
+        "name": "Units parsers",
+        "does": "Length (ft, in, mile, m, cm, mm, fraction), angle (DMS, decimal, DMS-packed), area."
+      },
+      {
+        "name": "proj4 use",
+        "does": "Present for GeoJSON WGS84 export, Orbit sync and the platform map features; the editor itself does not re-project."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.geo-units",
+    "kind": "mechanic",
+    "name": "Coordinate systems, units, orientation",
+    "where": [
+      "lib/cad/geo/texas-state-plane.ts",
+      "lib/geo/state-plane.ts",
+      "lib/cad/geometry/orient.ts",
+      "lib/cad/geometry/units.ts",
+      "lib/cad/units/",
+      "app/admin/cad/components/OrientationDialog.tsx",
+      "app/admin/cad/components/DrawingRotationDialog.tsx",
+      "app/admin/cad/components/UnitInput.tsx"
+    ],
+    "purpose": "Declares which Texas State Plane zone a drawing is in, rotates a drawing to a basis of bearings (adjust orientation with candidate reference lines), rotates the view, and parses/format lengths, angles, bearings and areas in several units.",
+    "verdict": "rebuild",
+    "rebuild": "Coordinate reference system service built on proj4 and an EPSG registry with US state plane (all states, NAD83 realisations, ftUS and metres), UTM, local systems with calibration, combined scale factor and convergence, and per-drawing CRS, units and datum notes. Imports and exports reproject on request; a ground/grid toggle drives displayed distances.",
+    "priority": "P1",
+    "nationwide": "Texas-only zone list, default Central, FEET units; this is the biggest blocker to selling outside Texas.",
+    "evidence": [
+      "lib/cad/geo/texas-state-plane.ts:51",
+      "lib/cad/geo/texas-state-plane.ts:66",
+      "lib/cad/types.ts:202",
+      "lib/geo/state-plane.ts:3",
+      "lib/cad/geometry/orient.ts:81",
+      "lib/cad/units/parse-length.ts:149"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No import for Carlson .CRD/.RAW/.FLD, Trimble .JOB/.DC, Topcon .GTS/.TXT job formats, Sokkia SDR, Nikon RAW, Leica .XML/.IDX beyond GSI; no Civil 3D point file template (PNEZD with spaces is only CSV).",
+      "Collector formats are import-only and points only: no observation reduction and no traverse import from raw angle/distance records.",
+      "LandXML alignments, surfaces and parcels are parsed but there is no UI that draws them (unverified: not found in ImportDialog).",
+      "No DWG, no shapefile, no KML, no LAS/point cloud, no PDF underlay or raster calibration/georeferencing."
+    ],
+    "overlaps": [
+      "cad.trv-io",
+      "cad.dxf-io"
+    ],
+    "add": [
+      "Carlson CRD/RAW/FLD",
+      "Trimble JOB/DC/T01",
+      "Topcon, Sokkia, Nikon formats",
+      "PDF/raster calibration",
+      "Shapefile, KML, LAS"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD/STARR_CAD_PHASE_2_DATA_IMPORT.md",
+      "docs/planning/completed/CAD_IMPORT_AND_POINTS.md",
+      "docs/planning/completed/cad-import-validation-dedup-and-copy-2026-05-31.md",
+      "docs/cad-integration-reference.md"
+    ],
+    "elements": [
+      {
+        "name": "Formats",
+        "does": "CSV/TXT with column mapping and presets; Carlson/Topcon RW5; Trimble JobXML; Leica GSI-8/16; LandXML (CgPoints, alignments, surfaces, parcels parsed)."
+      },
+      {
+        "name": "detectSurveyFormat",
+        "does": "Content first, extension second; returns unknown with a reason."
+      },
+      {
+        "name": "Validation",
+        "does": "Errors, warnings, info groups; every row accounted for as parsed or errored."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.import-survey-data",
+    "kind": "tool",
+    "name": "Survey data import (CSV, RW5, JobXML, GSI, LandXML, points)",
+    "where": [
+      "app/admin/cad/components/ImportDialog.tsx",
+      "lib/cad/import/",
+      "lib/cad/store/import-store.ts",
+      "app/admin/cad/components/MultiErrorModal.tsx"
+    ],
+    "purpose": "Five-step import (select file, map columns, preview, validate, done) for collector and text point files with format detection, validation, de-duplication and unknown-reference reporting.",
+    "verdict": "improve",
+    "rebuild": "Import as a pipeline of pluggable readers with a common preview/validate step: observation-level readers (RW5, JobXML, GSI, Carlson RAW, Topcon, SDR) producing a survey database that reduces to points; GIS/CAD readers (DXF, DWG via converter, shapefile, KML, GeoJSON, LandXML objects); raster/PDF underlays with calibration.",
+    "priority": "P1",
+    "nationwide": "None baked in except default code library; vendor coverage is the gap.",
+    "evidence": [
+      "lib/cad/import/format-detect.ts:53",
+      "lib/cad/import/rw5-parser.ts:117",
+      "lib/cad/import/gsi-parser.ts:99",
+      "lib/cad/import/jobxml-parser.ts:111",
+      "lib/cad/import/landxml-parser.ts:95",
+      "app/admin/cad/components/ImportDialog.tsx:45"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "The format is reverse-engineered, not documented by the vendor; unknown record codes are preserved but not interpreted, so a Traverse PC version change can break fidelity silently.",
+      "19 golden-file assertions across 16 files skip because the owner has not committed a golden fixture.",
+      "C44c found export silently dropped lines, polylines and polygons until fixed; this area has the most history of regressions.",
+      "Heavy Starr-specific workflow (synthetic Drawing and Points layers, dual-layer filename convention)."
+    ],
+    "overlaps": [
+      "cad.import-survey-data"
+    ],
+    "add": [
+      "Verified-version matrix",
+      "Golden fixtures",
+      "Import of TPC .TRB"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-trv-import-export-2026-05-31.md",
+      "docs/planning/completed/cad-trv-import-export-deep-semantic-2026-05-31.md",
+      "docs/planning/completed/cad-trv-line-curve-fidelity-and-roundtrip-2026-06-01.md",
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (open: golden fixture is owner-gated)"
+    ],
+    "elements": [
+      {
+        "name": "trv-parser",
+        "does": "Line-oriented CSV with numeric record codes; never throws; preserves every line verbatim for round trip."
+      },
+      {
+        "name": "trv-to-drawing / drawing-to-trv",
+        "does": "Convert to Starr features and back; 40-plus planning slices tuned fidelity."
+      },
+      {
+        "name": "docs/cad/trv-format.md",
+        "does": "Reverse-engineered format notes from 24 real job files with confidence levels."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.trv-io",
+    "kind": "integration",
+    "name": "Traverse PC (.TRV) import and export",
+    "where": [
+      "lib/cad/io/",
+      "docs/cad/trv-format.md",
+      "lib/cad/delivery/traversepc-bundle.ts",
+      "lib/files/trv-preview.ts"
+    ],
+    "purpose": "Round-trip support for the firm native Traverse PC file: layers, points, traverses, true arcs, shapes, fills, line styles, title block metadata; export back as .TRV, PNEZD CSV and a Traverse PC bundle zip.",
+    "verdict": "keep",
+    "rebuild": "Keep as one adapter in the import/export framework (Traverse PC is a major tool in Texas shops); add golden fixtures so format drift fails tests; document in-product which TPC versions are verified.",
+    "priority": "P2",
+    "nationwide": "Useful nationwide (Traverse PC is widely used) but layer naming and dual-layer import follow Starr conventions.",
+    "evidence": [
+      "lib/cad/io/trv-parser.ts:14",
+      "lib/cad/io/drawing-to-trv.ts:258",
+      "docs/cad/trv-format.md:3",
+      "lib/cad/delivery/traversepc-bundle.ts:23"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "R12 means no true lineweight, no LWPOLYLINE, no handles, limited layer properties; modern AutoCAD, Civil 3D and Carlson open it but the drawing looks cruder (arcs in polylines become segments or separate arcs).",
+      "Linetypes, hatch patterns, text styles and symbols do not round-trip as native DXF definitions; hidden state is lost.",
+      "No DWG (the main format Starr clients send), no coordinate or unit metadata ($INSUNITS), no layout export.",
+      "Reader ignores 3D, blocks with attributes, xrefs, paper space; unsupported entities are only warnings."
+    ],
+    "overlaps": [
+      "cad.import-survey-data"
+    ],
+    "add": [
+      "DWG import/export",
+      "R2013+ DXF with LWPOLYLINE and lineweights",
+      "Layer translation on import/export",
+      "Block and attribute round trip"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md",
+      "docs/cad-integration-reference.md"
+    ],
+    "elements": [
+      {
+        "name": "Writer",
+        "does": "R12 (AC1009) for maximum compatibility; POINT, LINE, POLYLINE, CIRCLE, ELLIPSE, ARC, SPLINE, TEXT, IMAGE, symbol INSERT blocks, LEADER annotations, sealed output."
+      },
+      {
+        "name": "Reader",
+        "does": "POINT, LINE, LWPOLYLINE, POLYLINE/VERTEX, CIRCLE, ARC, ELLIPSE, TEXT, MTEXT, INSERT, DIMENSION, SPLINE, HATCH with warnings."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.dxf-io",
+    "kind": "integration",
+    "name": "DXF import and export",
+    "where": [
+      "lib/cad/delivery/dxf-writer.ts",
+      "lib/cad/delivery/dxf-reader.ts",
+      "app/admin/cad/components/ExportLayersDialog.tsx"
+    ],
+    "purpose": "Write an AutoCAD R12 ASCII DXF of the drawing (also selection or chosen layers) and read DXF entities back, with per-entity warnings.",
+    "verdict": "improve",
+    "rebuild": "Write a current DXF (R2018) with LWPOLYLINE, bulge arcs, linetype/text style tables, INSUNITS and layouts; add DWG via a converter service (ODA or Autodesk APS); map layers via the layer translator; test with Civil 3D, Carlson and BricsCAD.",
+    "priority": "P1",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/delivery/dxf-writer.ts:160",
+      "lib/cad/delivery/dxf-reader.ts:330",
+      "lib/cad/delivery/dxf-reader.ts:406",
+      "lib/cad/delivery/dxf-writer.ts:469",
+      "lib/cad/delivery/dxf-writer.ts:1076"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "One page only (multi-page is listed as not supported); no viewports or multiple scales.",
+      "No PDF import or underlay.",
+      "jsPDF output is its own draw path, separate from the Pixi view, so symbols, fills and text can differ from screen.",
+      "Sealed PDF carries an image and a SHA-256 hash, not a PKI digital signature."
+    ],
+    "overlaps": [
+      "cad.sheet-title-block-print"
+    ],
+    "add": [
+      "Multi-sheet and layout PDF",
+      "PDF/A",
+      "Digital signature (PKCS#7) where the state board accepts it",
+      "PDF underlay import with scale calibration"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-survey-print-pdf-2026-06-02.md",
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md"
+    ],
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.pdf-export",
+    "kind": "integration",
+    "name": "PDF export (plat)",
+    "where": [
+      "lib/cad/delivery/pdf-writer.ts",
+      "app/admin/cad/components/PrintDialog.tsx",
+      "lib/cad/templates/print-engine.ts"
+    ],
+    "purpose": "Single-page PDF of the drawing via jsPDF with paper size and orientation from settings, fit-to-page or fixed scale, colour modes, and seal/title block.",
+    "verdict": "improve",
+    "rebuild": "Vector plot pipeline shared with the canvas renderer (one draw path), multi-sheet PDF, optional PDF digital signature using the RPLS certificate, PDF/A for archiving.",
+    "priority": "P1",
+    "nationwide": "US paper sizes only; sealed output assumes Texas style seal.",
+    "evidence": [
+      "lib/cad/delivery/pdf-writer.ts:33",
+      "lib/cad/delivery/pdf-writer.ts:31",
+      "lib/cad/delivery/seal-engine.ts:19",
+      "app/admin/cad/components/PrintDialog.tsx:278"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "No Carlson .CRD, Civil 3D point file, shapefile, KML, GSI/RW5 export for stakeout, instrument stakeout files (Trimble JXL, Leica, Topcon) or CAD-native DWG.",
+      "Export entry points are scattered (13 menu entries plus selection and layer variants)."
+    ],
+    "overlaps": [
+      "cad.dxf-io",
+      "cad.pdf-export"
+    ],
+    "add": [
+      "Stakeout export to instruments (JXL, GSI, RW5, Topcon)",
+      "Shapefile, KML",
+      "Publish presets"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md",
+      "docs/cad-integration-points.md"
+    ],
+    "elements": [
+      {
+        "name": "Deliverable bundle (zip)",
+        "does": "drawing.dxf, legal-description.txt, survey-description.json, completeness report, audit trail, seal.json, metadata.json, README."
+      },
+      {
+        "name": "LandXML writer",
+        "does": "Explicit Units element; arcs preserved as Curve; the duplicate writer in lib/cad/export was deleted (C44b)."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.geojson-landxml-csv-exports",
+    "kind": "integration",
+    "name": "Other exports: CSV, PNEZD, LandXML, GeoJSON, field cards, bundles",
+    "where": [
+      "lib/cad/persistence/export-csv.ts",
+      "lib/cad/delivery/landxml-writer.ts",
+      "lib/cad/delivery/geojson-writer.ts",
+      "lib/cad/delivery/geojson-reader.ts",
+      "lib/cad/delivery/sleeve-cards.ts",
+      "lib/cad/delivery/deliverable-bundle.ts",
+      "lib/cad/delivery/traversepc-bundle.ts",
+      "app/admin/cad/components/ExportLayersDialog.tsx"
+    ],
+    "purpose": "Get data out: CSV (simplified and full), Traverse PC PNEZD, LandXML with CgPoints and true Curve elements, GeoJSON (reprojected to WGS84), field reference cards, a client deliverable zip, and selection/layer scoped exports.",
+    "verdict": "improve",
+    "rebuild": "One Export/Publish dialog with a format list, scope (all, selection, layers, named set), CRS and units options, and presets for common recipients (client, county, Trimble field, Carlson, Civil 3D).",
+    "priority": "P2",
+    "nationwide": "GeoJSON/Orbit assume the Texas zone for reprojection.",
+    "evidence": [
+      "lib/cad/delivery/deliverable-bundle.ts:10",
+      "lib/cad/delivery/landxml-writer.ts:10",
+      "lib/cad/delivery/geojson-writer.ts:9",
+      "lib/cad/delivery/sleeve-cards.ts:30",
+      "app/admin/cad/components/MenuBar.tsx:1335"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Document is one big JSON blob with inline images (a heal-inline-images pass exists); large drawings mean large saves and no partial loading or diffing.",
+      "No version history of a drawing (only branches); no autosave to the cloud; undo is not saved.",
+      "Two storage worlds (local .starr, cloud row) with separate dialogs and no \"last saved where\" indicator beyond a save-target store.",
+      "Document-embedded settings and seal data travel with the file (see cad.settings-dialog)."
+    ],
+    "overlaps": [
+      "cad.api-drawings",
+      "cad.desktop-tauri"
+    ],
+    "add": [
+      "Version history with restore",
+      "Cloud autosave and restore points",
+      "Open recent list in File menu",
+      "File associations on desktop",
+      "Explicit schema versioning and migration tests"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md",
+      "docs/planning/completed/cad-trv-dual-layer-filename-and-unsaved-guard-2026-06-01.md",
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S12 emergency save)"
+    ],
+    "elements": [
+      {
+        "name": "Local file",
+        "does": "Open from this computer / save a copy (.starr); desktop uses native dialogs and filesystem autosave."
+      },
+      {
+        "name": "Cloud save",
+        "does": "Save to Cloud writes cad_drawings.document (JSONB) linked to a job and folder."
+      },
+      {
+        "name": "FileManagerDialog",
+        "does": "Folder tree, move, rename, delete, open."
+      },
+      {
+        "name": "Autosave",
+        "does": "IndexedDB per document, debounce 1.5 s with a 15 s max-wait, flushed on hide/pagehide; emergency save on crash, rejection, WebGL loss; recent recoveries dialog."
+      },
+      {
+        "name": "validateAndMigrateDocument",
+        "does": "Schema validation and migration on open; warns and still opens a partly unrenderable drawing."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.native-file-persistence",
+    "kind": "mechanic",
+    "name": "Files, saving, autosave and recovery (.starr)",
+    "where": [
+      "lib/cad/persistence/",
+      "lib/cad/validate.ts",
+      "app/admin/cad/components/FileManagerDialog.tsx",
+      "app/admin/cad/components/RecentRecoveriesDialog.tsx",
+      "app/admin/cad/components/UnsavedChangesModal.tsx",
+      "app/admin/cad/hooks/useUnsavedChangesGuard.ts",
+      "app/admin/cad/components/NewDrawingDialog.tsx"
+    ],
+    "purpose": "Save and open the drawing as .starr (the DrawingDocument as JSON) locally or to the cloud, keep unsaved work safe with debounced IndexedDB autosave and an emergency save, and migrate older documents on load.",
+    "verdict": "rebuild",
+    "rebuild": "Project-based storage: a drawing is a versioned object with chunked content (features, layers, styles, images stored separately), automatic cloud autosave with history and restore points, and a local-first cache for offline. The .starr file stays as a portable export/import with an explicit schema version.",
+    "priority": "P1",
+    "nationwide": "Single-tenant: drawings are a shared workspace for all authenticated users, with no firm/tenant column.",
+    "evidence": [
+      "lib/cad/persistence/autosave.ts:59",
+      "lib/cad/persistence/emergency-save.ts:7",
+      "lib/cad/validate.ts:37",
+      "seeds/100_cad_drawings.sql:18",
+      "lib/cad/persistence/heal-inline-images.ts:22",
+      "lib/cad/persistence/native-file.ts:24"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "any authenticated user (session email); AI routes admin or equipment_manager only"
+    ],
+    "route": "/api/admin/cad/*",
+    "status": "works",
+    "problems": [
+      "No optimistic concurrency: save overwrites with last write wins, so two people editing the same drawing silently destroy each other work.",
+      "Row policies state drawings are a shared workspace visible to and editable by every authenticated user; no per-job, per-role or per-firm access control, and students and guests can reach the editor.",
+      "Whole-document JSON in one row; no per-drawing history or audit of who changed what.",
+      "Service-role client used in routes, so RLS is only a fallback."
+    ],
+    "overlaps": [
+      "cad.native-file-persistence",
+      "cad.collaboration-branches-notes"
+    ],
+    "add": [
+      "Revision history and If-Match concurrency",
+      "Per-firm tenancy and roles",
+      "Presence or soft locking",
+      "Audit trail of edits"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-multiselect-and-filemanager-io.md",
+      "docs/cad-integration-reference.md"
+    ],
+    "elements": [
+      {
+        "name": "drawings",
+        "does": "GET list/get/branches, POST create or update (any authenticated user may overwrite any drawing), PATCH, DELETE (soft delete seed 307), writes an activity_log entry."
+      },
+      {
+        "name": "branch",
+        "does": "POST fork a drawing; PATCH submit, withdraw, accept (copies the branch document onto the parent), reject."
+      },
+      {
+        "name": "notes",
+        "does": "GET and POST drawing_notes thread."
+      },
+      {
+        "name": "folders",
+        "does": "cad_folders CRUD."
+      },
+      {
+        "name": "images",
+        "does": "Upload to storage bucket; from-library pulls research_documents."
+      }
+    ],
+    "behaviours": [],
+    "data": [
+      "cad_drawings",
+      "cad_folders",
+      "drawing_notes",
+      "cad_point_files",
+      "activity_log",
+      "research_documents",
+      "storage bucket cad-images"
+    ],
+    "id": "cad.api-drawings",
+    "kind": "api",
+    "name": "API: drawings, folders, notes, branch, export, images, point files",
+    "where": [
+      "app/api/admin/cad/drawings/route.ts",
+      "app/api/admin/cad/drawings/[id]/notes/route.ts",
+      "app/api/admin/cad/drawings/branch/route.ts",
+      "app/api/admin/cad/drawings/export/route.ts",
+      "app/api/admin/cad/folders/route.ts",
+      "app/api/admin/cad/point-files/route.ts",
+      "app/api/admin/cad/images/route.ts",
+      "app/api/admin/cad/images/from-library/route.ts",
+      "seeds/100_cad_drawings.sql",
+      "seeds/101_cad_folders.sql",
+      "seeds/290_cad_images_bucket.sql",
+      "seeds/303_cad_drawings_assignment.sql",
+      "seeds/307_cad_drawings_soft_delete.sql",
+      "seeds/386_cad_drawing_branches.sql"
+    ],
+    "purpose": "Server side of CAD storage: list/get/save/patch/delete drawings, folders, drawing notes thread, branch lifecycle, per-drawing export, image upload to the cad-images bucket, import images from the research library, shared point files.",
+    "verdict": "rebuild",
+    "rebuild": "Tenant-scoped project API with roles (drafter, party chief, RPLS, viewer, client), versioned drawing revisions with etag/If-Match, locking or real-time presence on a drawing, audit log, and signed upload URLs for large assets.",
+    "priority": "P1",
+    "nationwide": "Single-tenant by design (shared workspace policy); no firm_id on cad_drawings, cad_folders or cad_point_files.",
+    "evidence": [
+      "app/api/admin/cad/drawings/route.ts:189",
+      "seeds/100_cad_drawings.sql:54",
+      "app/api/admin/cad/drawings/branch/route.ts:166",
+      "app/api/admin/cad/images/route.ts:11",
+      "app/api/admin/cad/drawings/route.ts:219"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Accept replaces the main drawing with the branch document (take theirs); there is no merge, so two branches off the same parent cannot both land.",
+      "The diff is a list of counts, not an on-canvas overlay of changes.",
+      "Notes are not pinned to a location or feature; no mentions or notifications are wired in CAD.",
+      "Ownership rule uses created_by email, so a departing drafter strands approval."
+    ],
+    "overlaps": [
+      "cad.rpls-review-seal-delivery"
+    ],
+    "add": [
+      "On-canvas diff/compare overlay",
+      "Pinned comments (redline markup)",
+      "Feature-level merge",
+      "Reviewer assignment and notifications"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-layer-grouping-and-context-menus-2026-05-31.md"
+    ],
+    "elements": [
+      {
+        "name": "Lifecycle",
+        "does": "draft, in_review, accepted, rejected; only the author submits or withdraws; only the owner of the main drawing accepts or rejects."
+      },
+      {
+        "name": "Diff",
+        "does": "Counts only; no visual diff."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.collaboration-branches-notes",
+    "kind": "panel",
+    "name": "Collaboration: branches, reviews, notes",
+    "where": [
+      "app/admin/cad/components/BranchDialog.tsx",
+      "app/admin/cad/components/DrawingNotesDialog.tsx",
+      "lib/cad/branch/",
+      "app/api/admin/cad/drawings/branch/route.ts",
+      "app/api/admin/cad/drawings/[id]/notes/route.ts"
+    ],
+    "purpose": "GitHub-style branching of a drawing: fork, edit, submit for review, the main drawing owner accepts or rejects; diff summary of features and layers added, removed, modified; a notes thread per drawing for the RPLS, drafter and job overseer.",
+    "verdict": "improve",
+    "rebuild": "Revisions with visual compare (overlay of added/removed/changed), comments pinned to geometry with resolve, review assignments and notifications, and merge at feature level where branches touch different features.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/branch/types.ts:16",
+      "lib/cad/branch/diff.ts:6",
+      "app/api/admin/cad/drawings/branch/route.ts:160",
+      "app/admin/cad/components/BranchDialog.tsx:71"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Seal is applied client-side from a typed licence number; there is no server check that the user is a licensed RPLS, no role gate on seal/approve, and the seal data lives inside the document JSON that any user can overwrite (no PKI, comment in seal-engine says so).",
+      "Completeness rules are Texas-oriented and fixed; firms and states cannot define their own checklist.",
+      "Review workflow state is client store plus document record; not a server-enforced state machine.",
+      "Unsealing or editing after seal is detected by hash but not prevented."
+    ],
+    "overlaps": [
+      "cad.collaboration-branches-notes"
+    ],
+    "add": [
+      "Server-side roles and RPLS verification",
+      "Per-state checklist packs",
+      "PKI/PDF signature",
+      "Immutable sealed revision",
+      "Review comments tied to the checklist"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_7_FINAL.md (open: PKI-grade signing if a state board accepts e-signatures)",
+      "docs/planning/completed/cad-titleblock-seal-and-date.md"
+    ],
+    "elements": [
+      {
+        "name": "Status flow",
+        "does": "DRAFT, READY_FOR_REVIEW, IN_REVIEW, CHANGES_REQUESTED, APPROVED, SEALED, DELIVERED with an event log."
+      },
+      {
+        "name": "Completeness checker",
+        "does": "16 checks: boundary closed and annotated, monuments labelled, area label, north arrow, scale bar, title block, basis of bearings, flood zone note, certification, legal description, county, acreage, no blocking pending items, tier-1 resolved, no features on layer 0."
+      },
+      {
+        "name": "Seal engine",
+        "does": "computeDrawingHash, applySeal, verifyDrawingSeal detect post-seal drift; seal types digital image, digital signature, placeholder."
+      },
+      {
+        "name": "Delivery",
+        "does": "DELIVERED triggers Forge and Orbit syncs and the deliverable bundle."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.rpls-review-seal-delivery",
+    "kind": "mechanic",
+    "name": "RPLS review, completeness check, seal, delivery",
+    "where": [
+      "lib/cad/delivery/rpls-workflow.ts",
+      "lib/cad/delivery/seal-engine.ts",
+      "lib/cad/delivery/completeness-checker.ts",
+      "lib/cad/delivery/deliverable-bundle.ts",
+      "lib/cad/store/review-workflow-store.ts",
+      "app/admin/cad/components/RPLSReviewModePanel.tsx",
+      "app/admin/cad/components/RPLSSubmissionDialog.tsx",
+      "app/admin/cad/components/CompletenessPanel.tsx",
+      "app/admin/cad/components/SealHashBanner.tsx",
+      "app/admin/cad/components/SealPickerModal.tsx"
+    ],
+    "purpose": "Quality-control workflow before a drawing leaves the office: completeness check, submit for RPLS review, request changes, approve, seal (image plus SHA-256 of the canonical document), deliver.",
+    "verdict": "rebuild",
+    "rebuild": "Server-enforced review workflow tied to firm roles and the surveyor of record, with configurable checklists per state or firm, qualified electronic signature or certificate-based signing where the state allows, immutable sealed revisions, and an audit log that survives edits.",
+    "priority": "P1",
+    "nationwide": "Seal default state Texas; completeness rules (flood zone note, county in title block, basis of bearings) follow Texas practice; no TBPELS-style firm registration fields.",
+    "evidence": [
+      "lib/cad/delivery/rpls-workflow.ts:26",
+      "lib/cad/delivery/seal-engine.ts:19",
+      "lib/cad/delivery/seal-engine.ts:206",
+      "lib/cad/delivery/completeness-checker.ts:136",
+      "app/admin/cad/components/RPLSReviewModePanel.tsx:237",
+      "lib/cad/store/review-workflow-store.ts:90"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Hand-off is by browser localStorage, so it is lost across devices, breaks in the desktop app, and has no link back to the research project or a job.",
+      "The export-to-cad route returned 404 for every project until a column-name bug was fixed (documented in the route); two entry paths (route export and reading import) cover overlapping needs.",
+      "Layer mapping, confidence flags and sources do not travel as structured metadata that CAD shows later; once edited, the drawing cannot be refreshed from research."
+    ],
+    "overlaps": [
+      "cad.compare-reconcile"
+    ],
+    "add": [
+      "Server-side project link",
+      "Refresh/merge from research",
+      "Provenance and confidence overlay",
+      "Open from job page in one click"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S8, S9, S14)",
+      "docs/planning/completed/cad-hub-greeting-and-field-data-trv-route-2026-05-31.md"
+    ],
+    "elements": [
+      {
+        "name": "convertReconToCAD",
+        "does": "Maps RECON FeatureClass to built-in layers and builds features."
+      },
+      {
+        "name": "Import Research Reading",
+        "does": "From the Import submenu; unusable calls are reported and a boundary with unusable calls becomes an open POLYLINE, never a closed polygon."
+      },
+      {
+        "name": "Compare / Reconcile",
+        "does": "See cad.compare-reconcile."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.recon-import",
+    "kind": "integration",
+    "name": "Research (RECON) to CAD hand-off",
+    "where": [
+      "lib/cad/recon-to-cad.ts",
+      "lib/cad/import/from-survey-reading.ts",
+      "app/api/admin/research/[projectId]/export-to-cad/route.ts",
+      "app/admin/cad/components/MenuBar.tsx"
+    ],
+    "purpose": "Turn a research project into a CAD drawing: convert the latest RECON drawing elements into a DrawingDocument (route returns JSON the client stores in localStorage then opens in CAD), and import a research SurveyReading (traverse, monuments, features) from the File menu.",
+    "verdict": "improve",
+    "rebuild": "A project-linked drawing created from research (job id, source readings as underlay layers with confidence), with refresh-from-research that preserves edits and an explicit provenance panel.",
+    "priority": "P1",
+    "nationwide": "RECON classes and layer names follow Starr; the county and parcel data source behind research is Texas-specific.",
+    "evidence": [
+      "lib/cad/recon-to-cad.ts:213",
+      "app/api/admin/research/[projectId]/export-to-cad/route.ts:21",
+      "app/api/admin/research/[projectId]/export-to-cad/route.ts:39",
+      "lib/cad/import/from-survey-reading.ts:24",
+      "app/admin/cad/components/MenuBar.tsx:1455"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Reachable only from the Survey and AI menus and needs research readings as input; no way to compare two CAD drawings or two revisions of a drawing.",
+      "Sketch reconcile needs the API and cannot run in the desktop build."
+    ],
+    "overlaps": [
+      "cad.recon-import"
+    ],
+    "add": [
+      "Drawing-to-drawing compare",
+      "Compare against a county plat underlay"
+    ],
+    "plans": [
+      "docs/planning/completed/CAD_AUDIT_AND_OVERHAUL_2026-08-03.md (S9, S14)",
+      "docs/planning/completed/CAD_POINTS_AND_AI.md (slice F)"
+    ],
+    "elements": [
+      {
+        "name": "Compare with a prior survey",
+        "does": "Two readings; optional overlay on the drawing."
+      },
+      {
+        "name": "Reconcile several records",
+        "does": "N sources, per-call consensus or disputed, draws the figure."
+      },
+      {
+        "name": "Reconcile Hand Sketch",
+        "does": "Claude call via /api/admin/cad/sketch-reconcile; 503 naming ANTHROPIC_API_KEY when unset."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.compare-reconcile",
+    "kind": "tool",
+    "name": "Compare surveys, reconcile records, reconcile hand sketch",
+    "where": [
+      "lib/cad/compare/",
+      "app/admin/cad/components/SketchReconcileDialog.tsx",
+      "lib/cad/ai/sketch-reconcile.ts",
+      "app/api/admin/cad/sketch-reconcile/route.ts",
+      "lib/cad/compare/comparison-overlay.ts"
+    ],
+    "purpose": "Compare two readings and report differences (leading with the basis rotation), agree several records into one starting figure with consensus or disputed flags (median, not mean), and reconcile a hand sketch against measured points with AI.",
+    "verdict": "keep",
+    "rebuild": "Keep the reconcile rules (unknown is never an answer); generalise inputs to any two drawings, deeds and plats, and put the result into the review and revision workflow.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/compare/survey-reconcile.ts:22",
+      "lib/cad/compare/survey-compare.ts:78",
+      "app/api/admin/cad/sketch-reconcile/route.ts:90",
+      "app/admin/cad/components/SketchReconcileDialog.tsx:32"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "equipment_manager"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "API routes allow only admin or equipment_manager; the drawer and field roles, who do the drafting, get 403 even though the CAD menu shows AI items to everyone.",
+      "Without ANTHROPIC_API_KEY the pipeline falls back to a low-confidence regex deed parse and says so only in the response.",
+      "Default model id claude-sonnet-4-6 is hard-coded in the proposer; model choice, cost caps and per-firm keys are not configurable.",
+      "Pipeline is tuned to the Starr codes and Texas deed phrasing; accuracy on other firm code sets is unproven. No evaluation harness beyond unit tests with synthetic fixtures."
+    ],
+    "overlaps": [
+      "cad.ai-copilot-chat"
+    ],
+    "add": [
+      "Per-firm code and layer dialects",
+      "Evaluation set and regression score",
+      "Usage and cost caps per firm",
+      "Role gate by capability (drafter may run AI; only RPLS accepts into sealed set)"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_6_AI_ENGINE.md",
+      "docs/planning/completed/CAD_POINTS_AND_AI.md"
+    ],
+    "elements": [
+      {
+        "name": "Pipeline stages",
+        "does": "Stage 1 classify, Stage 2 assemble, Stage 3 deed reconcile (regex parser plus Claude deed parser), Stage 4 placement, Stage 5 label optimiser, Stage 6 confidence scoring; offset resolver; deliberation pass."
+      },
+      {
+        "name": "AIDrawingDialog",
+        "does": "Start the run with progress per stage."
+      },
+      {
+        "name": "ReviewQueuePanel",
+        "does": "Accept or skip proposals with ghost preview."
+      },
+      {
+        "name": "QuestionDialog",
+        "does": "Clarifying questions with apply-answers."
+      },
+      {
+        "name": "Explanations",
+        "does": "Why-did-AI-draw-this popup and element chat (/element-chat)."
+      }
+    ],
+    "behaviours": [],
+    "data": [
+      "POST /api/admin/cad/ai-pipeline (maxDuration 300)",
+      "POST /api/admin/cad/element-chat",
+      "Anthropic API (ANTHROPIC_API_KEY)"
+    ],
+    "id": "cad.ai-drawing-engine",
+    "kind": "tool",
+    "name": "AI drawing engine (point file to drawing pipeline)",
+    "where": [
+      "lib/cad/ai-engine/",
+      "app/admin/cad/components/AIDrawingDialog.tsx",
+      "app/admin/cad/components/ReviewQueuePanel.tsx",
+      "app/admin/cad/components/QuestionDialog.tsx",
+      "app/admin/cad/components/ElementExplanationPopup.tsx",
+      "app/admin/cad/components/AIProvenancePopup.tsx",
+      "app/admin/cad/components/AIScopeChip.tsx",
+      "lib/cad/store/ai-store.ts",
+      "app/api/admin/cad/ai-pipeline/route.ts",
+      "app/api/admin/cad/element-chat/route.ts"
+    ],
+    "purpose": "Takes the imported points (and optional deed text) and drafts a drawing: classify point codes, assemble features, reconcile against deed calls, choose paper/scale/orientation, auto-annotate, optimise labels, score confidence, then queue items for surveyor review with explanations and clarifying questions.",
+    "verdict": "improve",
+    "rebuild": "Keep the staged, reviewable design (AI proposes, surveyor accepts, every item carries provenance and confidence). Make code dialect, deed grammar and layer standard pluggable per firm, add an evaluation set per firm, run on the server with usage caps and a firm API key.",
+    "priority": "P1",
+    "nationwide": "System prompt says licensed Texas land surveyors; deed parser expects Texas style calls; layer ids and code library are Starr.",
+    "evidence": [
+      "lib/cad/ai-engine/pipeline.ts:3",
+      "app/api/admin/cad/ai-pipeline/route.ts:24",
+      "app/api/admin/cad/ai-pipeline/route.ts:44",
+      "lib/cad/ai/claude-proposer.ts:59",
+      "lib/cad/ai/system-prompt.ts:93",
+      "lib/cad/ai-engine/stage-6-confidence.ts:45"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "equipment_manager"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "AI reach is about 39 percent of editor commands (20 of 51 at C39); trim, extend, offset, fillet, join, divide, array, layers management beyond create, import, export and title block are not callable.",
+      "Two action vocabularies: the typed registry and drawing-chat EDIT_DRAWING bulk ops (bridged by capabilities.ts but not merged).",
+      "Mode logic and sandbox toggles persisted in localStorage per browser, not per firm; no audit log of AI edits beyond feature properties.",
+      "Same role gate as the pipeline route: drafters cannot use it.",
+      "Chat history stored client side; not part of the drawing record."
+    ],
+    "overlaps": [
+      "cad.ai-drawing-engine",
+      "cad.command-bar"
+    ],
+    "add": [
+      "Full command reach via registry",
+      "One chat dock",
+      "Journal of AI actions on the drawing",
+      "Firm-level policy (which commands AI may run, always preview)"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_6_AI_ENGINE.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C31-C39)",
+      "docs/planning/completed/CAD_UX_2026_05/02_AI_CHAT_CONSOLIDATION.md"
+    ],
+    "elements": [
+      {
+        "name": "Tool registry (25 tools)",
+        "does": "addPoint, drawLineBetween, drawPolylineThrough, createLayer, applyLayerStyle, calcFourthCorner, calcPointFromBearingDistance, calcPointFromTwoBearings, calcPointFromBearingAndLine, calcPointParallelToLine, inverseTwoPoints, closureReport, bowditchAdjust, drawRectangle, drawCircle, drawArc, drawText, moveFeatures, rotateFeatures, scaleFeatures, mirrorFeatures, deleteFeatures, measureFeature, measureTotalArea, describeFeature."
+      },
+      {
+        "name": "Scope",
+        "does": "Selection digest and pinned scope chips (selection, layer) sent to the model (C32-C33)."
+      },
+      {
+        "name": "Preview and undo",
+        "does": "Ghost preview before apply; one AI turn is one undo (aiBatchId, Ctrl+Alt+Z)."
+      },
+      {
+        "name": "Provenance",
+        "does": "Five properties stamped on AI features (source, batch, confidence, source points)."
+      },
+      {
+        "name": "Chat surfaces",
+        "does": "AIChatDock, AICopilotSidebar, AISidebar tabs, element chat: three overlapping chat UIs (CAD_UX plan 02 consolidated some)."
+      }
+    ],
+    "behaviours": [],
+    "data": [
+      "POST /api/admin/cad/ai-propose (maxDuration 60)",
+      "POST /api/admin/cad/drawing-chat",
+      "ai-conversations-store (persisted history)"
+    ],
+    "id": "cad.ai-copilot-chat",
+    "kind": "tool",
+    "name": "AI modes, copilot, drawing chat and the tool registry",
+    "where": [
+      "lib/cad/ai/",
+      "lib/cad/ai-engine/drawing-chat.ts",
+      "lib/cad/store/ai-store.ts",
+      "lib/cad/store/ai-conversations-store.ts",
+      "app/admin/cad/components/AICopilotSidebar.tsx",
+      "app/admin/cad/components/AIChatDock.tsx",
+      "app/admin/cad/components/AISidebar.tsx",
+      "app/admin/cad/components/CopilotCard.tsx",
+      "app/admin/cad/components/AIAutoRunner.tsx",
+      "app/api/admin/cad/ai-propose/route.ts",
+      "app/api/admin/cad/drawing-chat/route.ts"
+    ],
+    "purpose": "Conversational and command-driven AI that edits the drawing through a typed tool registry. Four modes: AUTO (end-to-end build), COPILOT (proposals queued for review), COMMAND (canned palette actions), MANUAL (off).",
+    "verdict": "rebuild",
+    "rebuild": "Make the command registry the single AI vocabulary: every command is automatically a tool with a schema, preview and undo; scope is first-class (selection, layer, named set); chat is one surface docked in the workspace; every AI action goes to the survey journal with provenance. Keep the four-mode idea but simplify to Ask, Propose, Auto.",
+    "priority": "P1",
+    "nationwide": "Prompt wording is Texas and Starr specific; sandbox and mode state is per-browser.",
+    "evidence": [
+      "lib/cad/store/ai-store.ts:52",
+      "lib/cad/ai/tool-registry.ts:1483",
+      "lib/cad/ai/capabilities.ts:1",
+      "lib/cad/ai/provenance.ts:24",
+      "app/api/admin/cad/ai-propose/route.ts:12",
+      "lib/cad/ai/undo-batch.ts:14"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Unconfigured webhooks return HTTP 200 ok true after only logging the payload; the surveyor sees no on-screen signal either way.",
+      "Forge sends only BOUNDARY, BUILDINGS and UTILITIES layers chosen by regex on layer names; Starr layer naming is assumed.",
+      "Compass hand-off uses browser localStorage; no server queue.",
+      "These are Starr product integrations (Compass, Forge, Orbit) and mean nothing to another firm."
+    ],
+    "overlaps": [],
+    "add": [
+      "Integration status panel with retry",
+      "Documented webhook schema",
+      "Trimble Connect, Procore, ArcGIS, county GIS targets"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_9_TRIMBLE_AUTOSYNC.md",
+      "docs/cad-integration-reference.md"
+    ],
+    "elements": [],
+    "behaviours": [],
+    "data": [
+      "COMPASS/FORGE/ORBIT webhook URL environment variables",
+      "localStorage key starr-cad-pending-compass"
+    ],
+    "id": "cad.integrations-sync",
+    "kind": "integration",
+    "name": "Compass, Forge, Orbit sync",
+    "where": [
+      "lib/cad/integrations/",
+      "app/api/admin/cad/compass-sync/route.ts",
+      "app/api/admin/cad/forge-sync/route.ts",
+      "app/api/admin/cad/orbit-sync/route.ts",
+      "app/admin/cad/components/BidirectionalSync.tsx",
+      "app/admin/cad/components/DeliveryHydrator.tsx",
+      "docs/cad-integration-reference.md"
+    ],
+    "purpose": "Three owner-configured connections to the firm other products: Compass (in and out job hand-off, patching the title block), Forge (boundary, building footprints and utilities as as-built layers) and Orbit (boundary, utilities and monuments for field mapping), fired when a drawing reaches DELIVERED.",
+    "verdict": "improve",
+    "rebuild": "Generic outbound webhooks and data targets configurable per firm in an integrations screen (status, last delivery, retry), with Compass/Forge/Orbit as first-party presets and a documented payload for third parties.",
+    "priority": "P3",
+    "nationwide": "Compass, Forge and Orbit are Starr-specific products; env-based single-tenant configuration.",
+    "evidence": [
+      "docs/cad-integration-reference.md:15",
+      "lib/cad/integrations/forge-sync.ts:11",
+      "lib/cad/integrations/orbit-sync.ts:13",
+      "app/api/admin/cad/forge-sync/route.ts:68",
+      "lib/cad/integrations/compass.ts:21"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "No PDF underlay or multi-page PDF, no georeferenced raster (world file, GeoTIFF), no calibration by two known points, no clipping or transparency colour, no image frame/quality control.",
+      "Images uploaded to a public bucket (getPublicUrl) so seal and plat images are world-readable by URL.",
+      "Large inline images were once embedded in the document JSON (healing pass exists)."
+    ],
+    "overlaps": [
+      "cad.native-file-persistence"
+    ],
+    "add": [
+      "PDF underlay with calibration",
+      "GeoTIFF and world files",
+      "Image clipping and transparency",
+      "External reference manager"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-fills-and-element-visibility-2026-05-30.md"
+    ],
+    "elements": [
+      {
+        "name": "IMAGE feature",
+        "does": "Placed with rotation and scale; stored as project images; exported to DXF as IMAGE."
+      },
+      {
+        "name": "Library import",
+        "does": "Pull research documents into the drawing."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.images-media",
+    "kind": "panel",
+    "name": "Project images, underlays and media attachments",
+    "where": [
+      "app/admin/cad/components/ImagePanel.tsx",
+      "app/admin/cad/components/ImageInsertDialog.tsx",
+      "app/admin/cad/components/ImageRotationField.tsx",
+      "app/admin/cad/components/MediaViewer.tsx",
+      "lib/cad/media/media-store.ts",
+      "lib/cad/geometry/image.ts",
+      "lib/cad/persistence/project-image.ts",
+      "app/api/admin/cad/images/route.ts",
+      "app/api/admin/cad/images/from-library/route.ts"
+    ],
+    "purpose": "Insert raster images as features (png, jpg, gif, webp, svg, bmp) for plats, aerials and seals; manage project images; attach photos or videos to a feature and view them.",
+    "verdict": "improve",
+    "rebuild": "Raster and PDF underlays as referenced assets with calibration and georeferencing, tiled for large aerials, signed URLs, and a reference manager (like AutoCAD External References palette).",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "app/admin/cad/components/ImageInsertDialog.tsx:235",
+      "app/api/admin/cad/images/route.ts:44",
+      "lib/cad/persistence/heal-inline-images.ts:22",
+      "lib/cad/media/media-store.ts:14"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "No named views, no zoom window/previous/scale/object, no pan-by-keys, no overview/aerial view, no multiple viewports on screen, no 3D or orbit, no UCS (user coordinate systems) or view-aligned drafting.",
+      "View rotation is a drawing-level setting that also stores rotation per layer, which can confuse bearings versus screen angle.",
+      "Middle-mouse and shift-wheel behaviours are not configurable per mode."
+    ],
+    "overlaps": [
+      "cad.canvas-viewport"
+    ],
+    "add": [
+      "Zoom window/previous/scale/object",
+      "Named views and view manager",
+      "UCS from line / by bearing",
+      "Overview window",
+      "Multi-view tiling"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-fill-rotation-and-visibility-2026-05-30.md",
+      "docs/planning/completed/cad-rotation-grabnode-and-audit.md"
+    ],
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.view-navigation",
+    "kind": "mechanic",
+    "name": "View and navigation",
+    "where": [
+      "lib/cad/store/viewport-store.ts",
+      "app/admin/cad/components/CanvasViewport.tsx",
+      "app/admin/cad/components/DrawingRotationDialog.tsx",
+      "app/admin/cad/components/CanvasCoordsPill.tsx",
+      "app/admin/cad/components/DisplayPreferencesPanel.tsx"
+    ],
+    "purpose": "Pan, zoom (wheel, toward cursor, speed, invert), zoom extents/selection/in/out, fit drawing to page, move page, drawing view rotation, refresh canvas (F5), grid display, crosshair size, cursor coordinates, fullscreen.",
+    "verdict": "improve",
+    "rebuild": "Complete AutoCAD view set (ZOOM options, named views, PLAN, regen, overview) and survey views (north-up, view-by-bearing, UCS from a line), with mouse maps per mode.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/hotkeys/registry.ts:83",
+      "lib/cad/hotkeys/registry.ts:89",
+      "lib/cad/types.ts:324",
+      "lib/cad/types.ts:292",
+      "app/admin/cad/components/MenuBar.tsx:1005"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Performance only measured for pan/zoom/select on synthetic point-like features; dense polygons with fills, large raster underlays and label-heavy drawings are not in the fixtures.",
+      "The next-order ceiling (millions of points, point clouds) needs a different renderer (the plan defers a native wgpu renderer pending profiling).",
+      "Everything is main-thread JavaScript; no worker for import parsing, label layout or hit testing."
+    ],
+    "overlaps": [
+      "cad.canvas-viewport"
+    ],
+    "add": [
+      "Fixtures with fills, labels and images",
+      "Worker-based import and label layout",
+      "CI performance budget gate"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-desktop-tauri-and-perf-2026-06-14.md (open: native Rust/wgpu renderer, profiling-gated)",
+      "docs/planning/qa-evidence/cad-frame-budget-2026-08-15.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C1-C4)"
+    ],
+    "elements": [
+      {
+        "name": "Measured budget",
+        "does": "16.7 ms frame: 1k 4.9 ms p95, 50k 11.1 ms p95 pan, 200k was 66.9 ms p95 before C2-C4 fixes (now inside budget in the tested range)."
+      },
+      {
+        "name": "PerfOverlay",
+        "does": "p50/p95/p99 per phase and fixture buttons; destructive (replaces the document) with a confirm."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.performance-lod",
+    "kind": "mechanic",
+    "name": "Performance: culling, LOD, perf overlay, harness",
+    "where": [
+      "lib/cad/perf/",
+      "lib/cad/spatial/viewport-cull-cache.ts",
+      "lib/cad/geometry/lod.ts",
+      "lib/cad/geometry/spatial-index.ts",
+      "app/admin/cad/components/PerfOverlay.tsx",
+      "docs/planning/qa-evidence/cad-frame-budget-2026-08-15.md"
+    ],
+    "purpose": "Keep large drawings smooth: viewport culling with a cached spatial query, LOD decimation, id-set caching, label culling, render-phase histogram overlay (Ctrl+Alt+P) and synthetic 1k, 50k and 200k feature fixtures.",
+    "verdict": "keep",
+    "rebuild": "Keep the measurement discipline and fixtures as a CI gate for the rebuild; design the renderer interface so a GPU path or workers can be added without touching commands.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "lib/cad/perf/harness.ts:3",
+      "lib/cad/spatial/viewport-cull-cache.ts:25",
+      "lib/cad/hotkeys/registry.ts:131",
+      "docs/planning/qa-evidence/cad-frame-budget-2026-08-15.md:30",
+      "lib/cad/perf/fixtures.ts:33"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Reports are copied by hand to the owner; no automatic submission, no screenshot or drawing attachment, no link to the error log page in the admin."
+    ],
+    "overlaps": [],
+    "add": [
+      "Send report with drawing snapshot",
+      "Telemetry opt-in"
+    ],
+    "plans": [
+      "docs/planning/completed/cad-multi-error-report-modal-2026-05-31.md"
+    ],
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.error-reporting",
+    "kind": "mechanic",
+    "name": "Error reporting, logging and crash recovery UI",
+    "where": [
+      "app/admin/cad/components/MultiErrorModal.tsx",
+      "app/admin/cad/components/ErrorReportStatusButton.tsx",
+      "app/admin/cad/components/CADErrorBoundary.tsx",
+      "lib/cad/store/error-report-store.ts",
+      "lib/cad/io/error-report.ts",
+      "lib/cad/logger.ts",
+      "lib/cad/persistence/emergency-save.ts"
+    ],
+    "purpose": "Session-wide error and bug modal with per-row and bulk copy, status-bar button, error boundary with recovery screen, structured logger, emergency save on crash.",
+    "verdict": "keep",
+    "rebuild": "Keep; add one-click send with the autosave attached to the firm error log and the vendor.",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "app/admin/cad/components/MultiErrorModal.tsx:21",
+      "lib/cad/persistence/emergency-save.ts:40",
+      "lib/cad/logger.ts:11"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "works",
+    "problems": [
+      "Tests lock wiring of components that are being replaced; a rebuild must port the intent (golden files, click-order contract, reachability ratchet) rather than the tests.",
+      "Golden instrument and plat fixtures are missing (owner), so format fidelity tests skip."
+    ],
+    "overlaps": [
+      "cad.entry-routes"
+    ],
+    "add": [
+      "Golden fixtures for TRV/DXF/LandXML",
+      "Visual regression suite",
+      "Command contract tests (one per command: prompts, escape, preview, undo)"
+    ],
+    "plans": [
+      "docs/cad-click-order-contract.md",
+      "docs/cad-integration-points.md",
+      "docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md (C13, C44, C45)"
+    ],
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.testing-harness",
+    "kind": "mechanic",
+    "name": "Tests, harness and audit scripts",
+    "where": [
+      "__tests__/cad/",
+      "e2e/cad-smoke.spec.ts",
+      "e2e/cad-existing-tools.spec.ts",
+      "e2e/cad-offset-tool.spec.ts",
+      "e2e/cad-calc-point.spec.ts",
+      "e2e/cad-close-drawing.spec.ts",
+      "e2e/cad-menu-smoothness.spec.ts",
+      "e2e/cad-sketch-reconcile.spec.ts",
+      "e2e/cad-calc-point-compute.spec.ts",
+      "scripts/cad-integration-audit.mjs",
+      "scripts/cad-click-order-audit.mjs",
+      "scripts/cad-calculator-audit.mjs",
+      "scripts/cad-panels-at-390.mjs",
+      "app/cad-harness/page.tsx"
+    ],
+    "purpose": "About 121 unit test entries under __tests__/cad plus 8 Playwright specs, a CAD harness route and generated audits (reachability, click order, calculators, panels at 390 px).",
+    "verdict": "improve",
+    "rebuild": "Carry forward the contracts as executable specs: the click-order contract, the reachability audit, performance budget fixtures, round-trip golden files (TRV, DXF, LandXML) and a visual regression set at desktop and phone widths.",
+    "priority": "P2",
+    "nationwide": "None.",
+    "evidence": [
+      "docs/cad-integration-points.md:8",
+      "docs/cad-click-order-contract.md:57",
+      "app/admin/cad/components/CadTestHooks.tsx:27",
+      "scripts/cad-click-order-audit.mjs:36"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Each of these has passing tests, which is how they survive; the reachability test only checks an importer exists."
+    ],
+    "overlaps": [
+      "cad.annotation-labels",
+      "cad.points-system",
+      "cad.command-palette-hotkeys"
+    ],
+    "add": [],
+    "plans": [
+      "docs/planning/qa-evidence/cad-calculator-inventory-2026-08-15.md (F2-F5)",
+      "docs/cad-integration-points.md"
+    ],
+    "elements": [
+      {
+        "name": "Unimported components and hooks",
+        "does": "AnnotationPanel, PointTablePanel, useEscapeToClose have no importer; mock-proposer has none outside tests."
+      },
+      {
+        "name": "Dead bindings",
+        "does": "tool.leader (l d) has no tool."
+      },
+      {
+        "name": "Unimplemented enum values",
+        "does": "AdjustmentMethod CRANDALL."
+      },
+      {
+        "name": "Two curve calculators",
+        "does": "CurveCalculator and CurveCalculatorBody are both kept deliberately because only the first can place the curve."
+      },
+      {
+        "name": "Two keyboard layers and two label systems",
+        "does": "See cad.command-palette-hotkeys and cad.annotation-labels."
+      },
+      {
+        "name": "Open item that is now unblocked",
+        "does": "orbit-sync ships state-plane feet and its comment says it flips to WGS84 once proj4 lands; proj4 is now a dependency (used by geojson-writer and lib/geo/state-plane.ts) but orbit-sync still has only comments about it."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.dead-code-and-dups",
+    "kind": "mechanic",
+    "name": "Dead code, duplicates and drift to remove",
+    "where": [
+      "app/admin/cad/components/AnnotationPanel.tsx",
+      "app/admin/cad/components/PointTablePanel.tsx",
+      "app/admin/cad/hooks/useEscapeToClose.ts",
+      "lib/cad/ai/mock-proposer.ts",
+      "lib/cad/hotkeys/registry.ts",
+      "lib/cad/types.ts",
+      "app/admin/cad/components/CurveCalculator.tsx",
+      "app/admin/cad/components/CurveCalculatorBody.tsx",
+      "app/admin/cad/hooks/useKeyboard.ts"
+    ],
+    "purpose": "Things the rebuild should not carry over.",
+    "verdict": "remove",
+    "rebuild": "Do not port: delete AnnotationPanel, PointTablePanel, useEscapeToClose, mock-proposer, dead leader binding and the Phase-1 keyboard table; collapse the curve calculators into one command with place.",
+    "priority": "P3",
+    "nationwide": "None.",
+    "evidence": [
+      "app/admin/cad/components/AnnotationPanel.tsx:22",
+      "app/admin/cad/components/PointTablePanel.tsx:145",
+      "lib/cad/ai/mock-proposer.ts:34",
+      "lib/cad/hotkeys/registry.ts:78",
+      "lib/cad/types.ts:1514",
+      "lib/cad/integrations/orbit-sync.ts:16",
+      "lib/cad/delivery/geojson-writer.ts:9"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "stub",
+    "problems": [
+      "A preset changes key aliases only. It does not change menus, ribbon, panels, selection model, snap defaults, mouse buttons, colours, units, cursor, prompts or terminology, which is what makes a drafter feel at home.",
+      "No profile for Civil 3D, Carlson, MicroStation or TBC users; their key maps and command names are not represented anywhere.",
+      "No per-role default (drafter, party chief, RPLS, office) and no way to save a layout."
+    ],
+    "overlaps": [
+      "cad.command-palette-hotkeys",
+      "cad.shell-layout",
+      "cad.settings-dialog"
+    ],
+    "add": [
+      "Six built-in modes",
+      "Mode editor and export/import",
+      "Per-role default mode",
+      "First-run chooser: What software do you know?"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_8_UX_CONTROLS.md (hotkey presets; open: other presets)"
+    ],
+    "elements": [
+      {
+        "name": "AUTOCAD hotkey preset",
+        "does": "Rewrites about 20 tool aliases (L, PL, M, CO, RO, MI, SC, TR, EX, F, E) and leaves everything else unchanged."
+      },
+      {
+        "name": "ui-store default workspace comment",
+        "does": "A comment notes a new drawing should present the default workspace, but no workspace object exists."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.modes-workspaces",
+    "kind": "mechanic",
+    "name": "Modes and workspaces (what exists: one AutoCAD hotkey preset)",
+    "where": [
+      "lib/cad/hotkeys/presets.ts",
+      "lib/cad/store/hotkeys-store.ts",
+      "lib/cad/store/ui-store.ts",
+      "app/admin/cad/CADLayout.tsx"
+    ],
+    "purpose": "The only existing mode concept is the AUTOCAD hotkey preset. There is no workspace, ribbon, layout template or software-emulation mode. This entry records the gap the owner wants closed: modes and layout templates that feel like AutoCAD, Civil 3D, Carlson, MicroStation or TBC, with STARR CAD as the default.",
+    "verdict": "rebuild",
+    "rebuild": "A Mode is a data bundle: command alias table, key map, mouse map, ribbon/menu definition, panel layout, status-bar items, snap and selection defaults, cursor and colour scheme, prompt wording, units and angle display, template defaults and terminology map. Ship STARR CAD (default), AutoCAD, Civil 3D, Carlson, MicroStation and TBC modes as editable presets, share firm modes, and switch live without reloading. All modes run over one command registry. See cad.md for the proposed mode specifications.",
+    "priority": "P1",
+    "nationwide": "The STARR CAD default mode should itself be a firm-neutral default with Starr kept as one firm preset.",
+    "evidence": [
+      "lib/cad/hotkeys/presets.ts:29",
+      "lib/cad/hotkeys/registry.ts:142",
+      "lib/cad/store/ui-store.ts:303",
+      "lib/cad/hotkeys/presets.ts:53"
+    ]
+  },
+  {
+    "area": "cad",
+    "roles": [
+      "admin",
+      "developer",
+      "drawer",
+      "researcher",
+      "field_crew",
+      "tech_support",
+      "equipment_manager",
+      "employee",
+      "teacher",
+      "student",
+      "guest"
+    ],
+    "route": "/admin/cad",
+    "status": "partial",
+    "problems": [
+      "Everything custom lives inside each drawing document; nothing is user-level or firm-level, so each new drawing starts from defaults and customisations are copied by hand.",
+      "No macros, no scripting, no command aliases beyond hotkeys, no plugin API, no custom toolbars or palettes, no custom commands, no action recorder, no batch processing of many files.",
+      "No import or export of a settings package."
+    ],
+    "overlaps": [
+      "cad.settings-dialog",
+      "cad.style-systems",
+      "cad.command-palette-hotkeys"
+    ],
+    "add": [
+      "Scopes user/firm/drawing",
+      "Macro recorder and aliases",
+      "Scripting API with sandbox",
+      "Batch processing of folders",
+      "Custom ribbons and palettes",
+      "Settings package import/export"
+    ],
+    "plans": [
+      "docs/planning/completed/STARR_CAD_PHASE_8_UX_CONTROLS.md"
+    ],
+    "elements": [
+      {
+        "name": "Hotkeys",
+        "does": "Rebind any registered action in Settings > Hotkeys."
+      },
+      {
+        "name": "Custom styles",
+        "does": "customSymbols, customLineTypes, customTextStyles, codeStyleOverrides stored in the drawing document."
+      },
+      {
+        "name": "Settings",
+        "does": "About 50 DrawingSettings fields."
+      }
+    ],
+    "behaviours": [],
+    "data": [],
+    "id": "cad.customization",
+    "kind": "mechanic",
+    "name": "Customisation and extensibility (what exists)",
+    "where": [
+      "lib/cad/hotkeys/",
+      "lib/cad/store/hotkeys-store.ts",
+      "lib/cad/store/code-style-store.ts",
+      "lib/cad/styles/",
+      "app/admin/cad/components/SettingsDialog.tsx",
+      "app/admin/cad/components/LineTypeEditor.tsx",
+      "app/admin/cad/components/TextStyleEditorModal.tsx",
+      "app/admin/cad/components/CodeStylePanel.tsx"
+    ],
+    "purpose": "What a user can change today: hotkey bindings, display and interaction settings, code-to-style mapping, custom line types, symbols and text styles, layer states, templates (built-in only).",
+    "verdict": "rebuild",
+    "rebuild": "Three scopes (user, firm, drawing) for every customisable thing; command aliases and macros (record a sequence, bind to a key or button); custom palettes and ribbons; a scripting API (TypeScript) over the command registry with a sandbox, firm-shared scripts, and batch jobs (convert 200 TRVs to DXF, re-style a folder).",
+    "priority": "P1",
+    "nationwide": "Firm scope is the missing tenant concept; there is no firm record to hold shared standards today.",
+    "evidence": [
+      "lib/cad/types.ts:157",
+      "lib/cad/types.ts:166",
+      "app/admin/cad/components/SettingsDialog.tsx:35",
+      "lib/cad/store/hotkeys-store.ts:10"
+    ]
+  }
+]

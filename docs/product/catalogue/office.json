@@ -1,0 +1,3450 @@
+[
+  {
+    "id": "office.shell-route-registry",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Route registry (single source of nav truth)",
+    "where": [
+      "lib/admin/route-registry.ts",
+      "lib/admin/route-icons.tsx",
+      "lib/admin/nav-store.ts"
+    ],
+    "route": null,
+    "roles": [
+      "all"
+    ],
+    "purpose": "One TypeScript list that decides what every navigation surface shows: rail, fly-outs, mobile drawer, landings, breadcrumbs, Cmd+K and search.",
+    "elements": [
+      {
+        "name": "ADMIN_ROUTES",
+        "does": "About 100 entries (workspace, label, icon, description, roles, section, keywords). Fewer than half of the ~197 page.tsx files; the rest are records, sub-pages or redirects."
+      },
+      {
+        "name": "showInRail:false",
+        "does": "Hides a route from rail surfaces but keeps it in Cmd+K. Used on 56 rows."
+      },
+      {
+        "name": "parked:true",
+        "does": "Hides a route from the rail AND search while keeping the URL alive. Used on 2 rows (pay progression)."
+      },
+      {
+        "name": "requiredBundle",
+        "does": "SaaS subscription gate. Declared on 3 rows only."
+      },
+      {
+        "name": "scoreRoute / rankRoutes",
+        "does": "Fuzzy scoring behind Cmd+K."
+      },
+      {
+        "name": "breadcrumbTrail",
+        "does": "Resolves breadcrumbs from the same list."
+      }
+    ],
+    "behaviours": [
+      "Role gates are copied by hand from middleware.ts and AdminSidebar, then asserted equal by a test (header says it mirrors them).",
+      "Feature toggles are applied in accessibleRoutes so the four nav surfaces cannot disagree.",
+      "Workspace membership is a field on the route, so moving a page between workspaces changes every surface at once with no URL change."
+    ],
+    "data": [
+      "lib/admin/route-registry.ts",
+      "middleware.ts",
+      "lib/admin/feature-toggles.ts",
+      "tabs.generated.json"
+    ],
+    "status": "works",
+    "problems": [
+      "Three lists must agree and are kept in sync by tests, not by construction: the registry, the middleware ROLE table and each page's own check. An 2026-08-30 audit counted 135 page files; today there are 197.",
+      "56 of ~100 rows are showInRail:false, so the rail row count says little about how many pages exist.",
+      "Descriptions are long owner-quote essays in comments; the product copy itself is short and fine, the code is hard to scan.",
+      "AdminRoute has role lists and bundle gates but no concept of tabs; tabs live in a second generated file (lib/admin/portal/tabs.generated.json)."
+    ],
+    "overlaps": [
+      "office.shell-portal-tabs",
+      "office.shell-feature-toggles"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep one registry, but make it generate middleware rules and the tab list instead of mirroring them: each destination declares {id, label, area, roles, tabs[], bundle}. Add a per-firm override layer (name, order, hidden) so a firm can rename 'Knowledge' or drop 'Equipment' without code.",
+    "add": [
+      "Per-firm renaming and ordering of destinations",
+      "Usage-ranked default order per persona"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "lib/admin/route-registry.ts:1-12",
+      "lib/admin/route-registry.ts:75-125",
+      "lib/admin/route-registry.ts:129",
+      "lib/admin/route-registry.ts:826",
+      "docs/admin-surface-audit-2026-05-30.md:14-18"
+    ],
+    "nationwide": "Workspace names, labels, descriptions and keywords are Starr's vocabulary (e.g. 'Knowledge', owner quotes in descriptions). Registry is compiled in, so a firm cannot reorder or rename it. Bundles exist (SaaS) but only 3 rows use them.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.shell-icon-rail-workspaces",
+    "area": "office",
+    "kind": "panel",
+    "name": "Icon rail, fly-outs and the seven workspaces",
+    "where": [
+      "app/admin/components/nav/IconRail.tsx",
+      "app/admin/components/nav/WorkspaceFlyout.tsx",
+      "app/admin/components/AdminLayoutClient.tsx",
+      "lib/admin/personas.ts"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "all"
+    ],
+    "purpose": "The desktop navigation: a narrow rail of seven workspace icons (Hub, Work, Equipment, Research & CAD, Knowledge, Money, Office) with fly-outs listing each workspace's pages.",
+    "elements": [
+      {
+        "name": "Rail icons",
+        "does": "Seven workspaces with Mod+1..7 shortcuts (registry WORKSPACES)."
+      },
+      {
+        "name": "Fly-out",
+        "does": "Lists the workspace's rail-visible pages the user's roles and the firm's toggles allow."
+      },
+      {
+        "name": "Pinned pages",
+        "does": "Starred pages from the page header are pinned to the rail (help-catalog tip, personas header)."
+      },
+      {
+        "name": "Persona reorder",
+        "does": "A persona (field-surveyor, equipment-manager, dispatcher, bookkeeper, researcher, admin, student) only reorders the rail; it never hides a workspace."
+      }
+    ],
+    "behaviours": [
+      "Persona is inferred from role and can be overridden in the Hub greeting.",
+      "Equipment workspace has 4 registry rows, Research & CAD 5, so two of seven workspaces are nearly empty (PAGE_CONSOLIDATION section 12 records Equipment as a one-link anomaly).",
+      "Mobile uses AdminSidebar as a drawer, not the rail."
+    ],
+    "data": [
+      "lib/admin/nav-store.ts (client store)",
+      "/api/admin/nav-events (telemetry)"
+    ],
+    "status": "works",
+    "problems": [
+      "Seven workspaces for a typical firm is too many to learn: counts by registry row are hub 11, work 18, equipment 4, research-cad 5, knowledge 12, money 15, office 21.",
+      "Knowledge is a workspace but has no landing in the consolidation write-up (section 12 table), and Learn + Knowledge + Exam Prep + Manage + Students all sit in it.",
+      "Office is a grab-bag (files, design studio, brand, people, comms, support, settings, reports, notifications): 21 rows in four sections."
+    ],
+    "overlaps": [
+      "office.shell-workspace-landings",
+      "office.shell-command-palette"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Collapse to four destinations that match how a firm talks: Today (hub), Jobs (field, schedule, equipment, CAD, research), Clients and Money (leads, contacts, calls, invoices, payments), Office and Learn (people, files, settings, how-to). Keep the rail but make each fly-out a short two-level list. See office.md section 'The admin shell'.",
+    "add": [
+      "Per-firm choice of which workspaces appear",
+      "Role presets that pick the rail, not just reorder it"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/admin/route-registry.ts:28-62",
+      "lib/admin/personas.ts:21-50",
+      "app/admin/components/AdminLayoutClient.tsx:255-263",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md:3527-3560"
+    ],
+    "nationwide": "'Research & CAD' and 'Equipment' assume a firm that runs its own research and gear ledger; both should be optional modules. Persona names assume a Starr-sized crew.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.shell-workspace-landings",
+    "area": "office",
+    "kind": "page",
+    "name": "Workspace landing pages (/admin/work, /office, /research-cad, /money)",
+    "where": [
+      "app/admin/work/page.tsx",
+      "app/admin/office/page.tsx",
+      "app/admin/research-cad/page.tsx",
+      "app/admin/money/page.tsx",
+      "app/admin/components/nav/WorkspaceLanding.tsx",
+      "app/api/admin/workspace-summary"
+    ],
+    "route": "/admin/office",
+    "roles": [
+      "all (cards filtered by role)"
+    ],
+    "purpose": "A directory page per workspace: a count strip plus cards for each page in that workspace, grouped by section where the registry declares one.",
+    "elements": [
+      {
+        "name": "Stat strip",
+        "does": "Counts from /api/admin/workspace-summary. A count the server could not take is omitted, not shown as zero."
+      },
+      {
+        "name": "Cards",
+        "does": "One per route in the workspace; Money and Office group by section."
+      }
+    ],
+    "behaviours": [
+      "Office sections: Documents & records, People, Talking to people, Setup & account.",
+      "Equipment and Learn use their own landing rather than WorkspaceLanding."
+    ],
+    "data": [
+      "/api/admin/workspace-summary",
+      "route-registry"
+    ],
+    "status": "works",
+    "problems": [
+      "Landings repeat what the fly-out already lists; a user can reach the same page three ways (rail, landing card, Cmd+K).",
+      "Office is the only landing carrying 21 destinations; sections help but it is still a menu of a menu."
+    ],
+    "overlaps": [
+      "office.shell-icon-rail-workspaces"
+    ],
+    "verdict": "merge",
+    "rebuild": "Drop the landings as separate pages; put the same stat strip and top actions on the Hub for that persona, and let the fly-out be the directory.",
+    "add": [
+      "'What needs me in this area' count with a link, per workspace"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/components/nav/WorkspaceLanding.tsx:1-25",
+      "lib/admin/route-registry.ts:541",
+      "docs/admin-surface-audit-2026-05-30.md:62-64"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md"
+    ]
+  },
+  {
+    "id": "office.shell-command-palette",
+    "area": "office",
+    "kind": "tool",
+    "name": "Cmd+K command palette",
+    "where": [
+      "app/admin/components/nav/CommandPalette.tsx",
+      "app/admin/components/nav/CommandPaletteProvider.tsx",
+      "lib/admin/route-registry.ts"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "all (filtered)"
+    ],
+    "purpose": "Jump to any page, run six named actions, or search records from anywhere in the admin.",
+    "elements": [
+      {
+        "name": "Pages",
+        "does": "Fuzzy search over the registry (scoreRoute)."
+      },
+      {
+        "name": "Actions",
+        "does": "New job, Approve receipts, Run AI Drawing Engine, Start research, Review employee hours, Clock in/out (CommandPalette ACTIONS)."
+      },
+      {
+        "name": "Recent",
+        "does": "Shown when the query is empty, from nav-store."
+      },
+      {
+        "name": "Records",
+        "does": "Row type reserved for record hits; details unverified."
+      }
+    ],
+    "behaviours": [
+      "Opens on Ctrl/Cmd+K (CommandPaletteProvider metaKey handler).",
+      "Respects roles, feature toggles and parked flags, so a switched-off page is not findable."
+    ],
+    "data": [
+      "route-registry",
+      "nav-store",
+      "feature toggles"
+    ],
+    "status": "works",
+    "problems": [
+      "Only six actions; no 'new lead', 'new contact', 'log a call', 'send email' action even though those are common office jobs.",
+      "Records are not searched here: the Search Everything page does that separately, so there are two searches."
+    ],
+    "overlaps": [
+      "office.search",
+      "office.shell-icon-rail-workspaces"
+    ],
+    "verdict": "improve",
+    "rebuild": "Make Cmd+K the one search: pages, actions and records (jobs, customers, leads, calls) in one ranked list, with the full results page behind 'see all'.",
+    "add": [
+      "Record search in the palette",
+      "Actions for each office job (new lead, add contact, send email, find a call)",
+      "Mobile entry point"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/components/nav/CommandPalette.tsx:36-60",
+      "app/admin/components/nav/CommandPaletteProvider.tsx:41"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md"
+    ]
+  },
+  {
+    "id": "office.shell-roles-personas-gating",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Roles, persona and the three-layer access model",
+    "where": [
+      "lib/auth-roles.ts",
+      "middleware.ts",
+      "lib/admin/role-builder.ts",
+      "lib/admin/apply-roles.ts",
+      "lib/saas/bundles.ts"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Decides who sees what: 12 roles, a middleware prefix table, per-route registry roles, SaaS bundles and the firm's toggles.",
+    "elements": [
+      {
+        "name": "ALL_ROLES",
+        "does": "admin, developer, teacher, student, researcher, drawer, field_crew, employee, guest, tech_support, equipment_manager, finance."
+      },
+      {
+        "name": "Middleware ROLE table",
+        "does": "Prefix to roles. /admin/settings, /payroll, /roles, /calls, /leads, /marketing are admin only; /design is admin+developer; /messages and /discussions are eight roles."
+      },
+      {
+        "name": "Registry roles",
+        "does": "Mirror of the above for nav (shell-route-registry)."
+      },
+      {
+        "name": "API checks",
+        "does": "Each route repeats its own isAdmin or session check."
+      }
+    ],
+    "behaviours": [
+      "Four different questions are kept apart on purpose: may you (roles), did the firm pay (bundle), is it for staff (internalOnly), does the firm use it (toggle).",
+      "Role builder exists (W7) for custom roles; scope not verified."
+    ],
+    "data": [
+      "session roles",
+      "app_settings",
+      "bundles"
+    ],
+    "status": "partial",
+    "problems": [
+      "There is no party-chief, drafter, RPLS or office-manager role. 'admin' is everything: leads, calls, marketing and settings are admin only, so an office manager has to be given full admin to use the CRM.",
+      "Middleware and API disagree in places: /admin/discussions is open to eight roles but POST and PUT /api/admin/discussions are admin only (discussions route:65,172), so non-admins can open the tab and the floating Report button but not post.",
+      "GET /api/admin/contacts only checks sign-in although its header says admin (contacts route:28); PAGE_CONSOLIDATION section 13.2 records that any signed-in account, including a student, can read the client list.",
+      "Finance role is additive and was added late (2026-08-12); office permission still hangs off admin."
+    ],
+    "overlaps": [
+      "office.shell-feature-toggles"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Use permissions by capability (view leads, send quotes, read call recordings, approve hours, manage settings) bundled into editable role templates (Owner, Office manager, RPLS, Party chief, Drafter, Field tech, Bookkeeper). Generate middleware and nav from the same table.",
+    "add": [
+      "Capability-level permissions",
+      "Role templates a firm can edit",
+      "Per-job visibility for crews"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/auth-roles.ts:22-46",
+      "middleware.ts:26-100",
+      "middleware.ts:226-233",
+      "app/api/admin/discussions/route.ts:65",
+      "app/api/admin/contacts/route.ts:28",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md:3635-3690"
+    ],
+    "nationwide": "Role names are Starr's seven-person crew model (drawer, field_crew, researcher). Roles are global constants, not per-organisation.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.shell-feature-toggles",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Page toggles (switch pages on or off per firm)",
+    "where": [
+      "lib/admin/feature-toggles.ts",
+      "lib/admin/use-feature-toggles.ts",
+      "app/api/admin/feature-toggles/route.ts",
+      "app/admin/settings/PageToggles.tsx"
+    ],
+    "route": "/admin/settings?tab=pages",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Lets the owner hide pages and tabs the firm does not use so the menu is shorter. Visibility only, never a permission.",
+    "elements": [
+      {
+        "name": "Toggle map",
+        "does": "Stored as exceptions only in the app_settings key feature_toggles: absent means on."
+      },
+      {
+        "name": "Keys",
+        "does": "A route, or route#tab for a tab of a portal."
+      },
+      {
+        "name": "Pages tab",
+        "does": "One switch per destination, grouped like the sidebar, each saves immediately and reverts on failure."
+      },
+      {
+        "name": "isDestinationEnabled",
+        "does": "A tab of a switched-off portal counts as off."
+      }
+    ],
+    "behaviours": [
+      "Read by sidebar, rail, palette and search; the redirect sends a visitor away from a switched-off page.",
+      "A test asserts APIs answer the same with a page off."
+    ],
+    "data": [
+      "app_settings.feature_toggles",
+      "/api/admin/feature-toggles"
+    ],
+    "status": "works",
+    "problems": [
+      "Non-admins get an empty destinations list (feature-toggles route:127), so the toggle screen is admin only while the toggles apply to everyone: right, but the firm has no way to say 'hide for crew only'.",
+      "Toggle keys are route strings; renaming a route silently orphans a toggle.",
+      "It treats a symptom: 197 pages exist so firms need a switch to hide them. Fewer pages and modules would remove the need."
+    ],
+    "overlaps": [
+      "office.shell-route-registry"
+    ],
+    "verdict": "improve",
+    "rebuild": "Replace page-level toggles with modules chosen at onboarding (Jobs, CRM and leads, Phone receptionist, Marketing, Learn, Research, Equipment, Payroll). Toggle by module; keep the per-page switch as an advanced option.",
+    "add": [
+      "Per-role hiding",
+      "Onboarding questions that set modules",
+      "Module-level pricing hooks"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/admin/feature-toggles.ts:1-60",
+      "lib/admin/feature-toggles.ts:97",
+      "app/api/admin/feature-toggles/route.ts:113-127",
+      "app/admin/settings/PageToggles.tsx:1-25"
+    ],
+    "nationwide": "Already per firm (org-scoped app_settings row). Defaults assume a full Starr-style install.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md (section 11)"
+    ]
+  },
+  {
+    "id": "office.shell-portal-tabs",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Portal tab shell (?tab= pages)",
+    "where": [
+      "lib/admin/portal/usePortalTabs.ts",
+      "lib/admin/portal/tabs.ts",
+      "lib/admin/portal/tabs.generated.json",
+      "lib/admin/portal/tab-keyboard.ts"
+    ],
+    "route": "/admin/{messages,marketing,support,settings,learn,design,...}",
+    "roles": [
+      "all"
+    ],
+    "purpose": "The shared tab strip used by 17 consolidated portals, with URL-held tab state, per-role tabs and per-tab toggles.",
+    "elements": [
+      {
+        "name": "PortalSpec",
+        "does": "route, tabs[{id,label,icon,hint,roles}], defaultTab."
+      },
+      {
+        "name": "URL rules",
+        "does": "Unknown tab falls back to default; default omits ?tab=; selection uses replace not push."
+      },
+      {
+        "name": "portalHref",
+        "does": "One writer for the query string so Marketing keeps its date range when tab changes."
+      }
+    ],
+    "behaviours": [
+      "Used by billing, branding, design, equipment, finances, hours, invoicing, jobs, learn, marketing, messages, pay, people, receipts, research, settings, support."
+    ],
+    "data": [
+      "tabs.generated.json"
+    ],
+    "status": "works",
+    "problems": [
+      "Hints under tabs are good but long; many tabs repeat their own page title (Hub tab on Learn, Support tab on Support).",
+      "Records (leads/[id], contacts/[id], tickets/[id]) are separate routes by rule, which is fine but means the CRM is split across Marketing (leads), Messages (contacts) and records."
+    ],
+    "overlaps": [
+      "office.shell-route-registry"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep the pattern. Add deep-linkable record drawers so a lead or contact opens beside the list rather than on a new page.",
+    "add": [
+      "Record side-panel on desktop"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "lib/admin/portal/tabs.ts:1-30",
+      "lib/admin/portal/usePortalTabs.ts:56",
+      "docs/admin-surface-audit-2026-05-30.md:1-20"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.shell-mobile-topbar-drawer",
+    "area": "office",
+    "kind": "panel",
+    "name": "Top bar and mobile drawer",
+    "where": [
+      "app/admin/components/AdminTopBar.tsx",
+      "app/admin/components/AdminSidebar.tsx",
+      "app/admin/components/nav/AdminPageHeader.tsx",
+      "app/admin/components/SmallScreenBanner.tsx"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "all"
+    ],
+    "purpose": "Page header with breadcrumb, star/pin and help; on phones a drawer carries the same registry list the rail does.",
+    "elements": [
+      {
+        "name": "AdminTopBar",
+        "does": "Title, menu toggle, clock-in pill, notification bell."
+      },
+      {
+        "name": "AdminSidebar",
+        "does": "Mobile drawer driven by accessibleRoutes."
+      },
+      {
+        "name": "AdminPageHeader",
+        "does": "Breadcrumb from the registry, star to pin, ? for the help drawer."
+      }
+    ],
+    "behaviours": [
+      "The sidebar is hidden on desktop by CSS and only used as the phone drawer (AdminLayoutClient comment)."
+    ],
+    "data": [
+      "route-registry",
+      "notifications"
+    ],
+    "status": "works",
+    "problems": [
+      "UI_AUDIT (2026-05-21) found the floating action pill overlaps phone content on dozens of pages, and button styles, input heights and contrast differ page to page; follow-up status of each item not verified here.",
+      "Two nav components (rail and drawer) render the same data."
+    ],
+    "overlaps": [
+      "office.shell-icon-rail-workspaces"
+    ],
+    "verdict": "improve",
+    "rebuild": "One responsive nav component (rail on wide screens, bottom bar plus drawer on phones) fed by the registry.",
+    "add": [
+      "Bottom tab bar for the four main destinations on phone"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/components/AdminLayoutClient.tsx:255-263",
+      "docs/UI_AUDIT.md:12-60"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md"
+    ]
+  },
+  {
+    "id": "office.shell-floating-tools",
+    "area": "office",
+    "kind": "panel",
+    "name": "Floating tools: messenger, report an issue, fieldbook, calculator, AI assistant",
+    "where": [
+      "app/admin/components/FloatingActionMenu.tsx",
+      "app/admin/components/FloatingMessenger.tsx",
+      "app/admin/components/DiscussionThreadButton.tsx",
+      "app/admin/components/Fieldbook.tsx",
+      "app/admin/components/calculator/CalculatorFab.tsx",
+      "app/admin/components/assistant/AssistantDock.tsx"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "all"
+    ],
+    "purpose": "Five always-available tools stacked in one floating menu on every admin page.",
+    "elements": [
+      {
+        "name": "Messenger",
+        "does": "Quick chat popup (same data as /admin/messages)."
+      },
+      {
+        "name": "Discussion / Report",
+        "does": "Lists open threads and files a new one tagged to the current page."
+      },
+      {
+        "name": "Fieldbook",
+        "does": "Field notes and bookmarks."
+      },
+      {
+        "name": "Calculator",
+        "does": "Survey calculator."
+      },
+      {
+        "name": "AI assistant",
+        "does": "Assistant dock."
+      }
+    ],
+    "behaviours": [
+      "Mounted by the layout so CSS for messaging, discussions and assistant loads on every page.",
+      "DiscussionThreadButton POSTs /api/admin/discussions, which only admins may do."
+    ],
+    "data": [
+      "/api/admin/discussions",
+      "/api/admin/messages/*",
+      "/api/admin/assistant",
+      "/api/admin/calculator-state"
+    ],
+    "status": "partial",
+    "problems": [
+      "For a non-admin the Report button likely fails with 403: layout shows it to everyone, API forbids non-admins (discussions route:65). Not verified in a browser.",
+      "Five overlapping floating controls; the audit logged them covering content on phones.",
+      "Messenger and Messages page are two surfaces for one thing."
+    ],
+    "overlaps": [
+      "office.messages-portal",
+      "office.discussions"
+    ],
+    "verdict": "merge",
+    "rebuild": "One help-and-comms launcher: Message, Report a problem, Ask AI, Calculator. Move Fieldbook into the Hub and field flows. Let every role file a report.",
+    "add": [
+      "Screenshot attach and auto page context on reports",
+      "Voice note on mobile"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/components/AdminLayoutClient.tsx:296-302",
+      "app/admin/components/DiscussionThreadButton.tsx:130-158",
+      "app/api/admin/discussions/route.ts:62-65"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.shell-help-drawer",
+    "area": "office",
+    "kind": "panel",
+    "name": "Help drawer (?)",
+    "where": [
+      "app/admin/components/nav/HelpDrawer.tsx",
+      "lib/admin/help-catalog.ts",
+      "app/api/admin/help/generate",
+      "seeds/526_help_generated.sql"
+    ],
+    "route": "/admin/*",
+    "roles": [
+      "all"
+    ],
+    "purpose": "Per-page help: curated tips, else AI-generated, cached text labelled as generated.",
+    "elements": [
+      {
+        "name": "Curated entry",
+        "does": "title, blurb, tips, resources. Only 7 pages and workspace entries are curated in help-catalog."
+      },
+      {
+        "name": "Generated fallback",
+        "does": "Calls /api/admin/help/generate using route metadata only."
+      }
+    ],
+    "behaviours": [
+      "Curated lookup is synchronous; AI only runs when empty and caches in help_generated."
+    ],
+    "data": [
+      "help_generated table",
+      "AI client"
+    ],
+    "status": "partial",
+    "problems": [
+      "HelpDrawer header says 150 of 158 pages had no curated entry; catalog still has about 7 keys, so nearly all help is AI-guessed from route metadata alone.",
+      "Help text and Learn hub are separate systems; no video anywhere in help."
+    ],
+    "overlaps": [
+      "office.learn-portal-study"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Make the drawer a doorway into the How To library (see office.md): one short video and one written step list per tool, authored once, shown in the drawer, on the page empty state and in Learn.",
+    "add": [
+      "Video per page",
+      "First-run tour per role",
+      "'Was this helpful' feedback"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/components/nav/HelpDrawer.tsx:1-30",
+      "lib/admin/help-catalog.ts:33"
+    ],
+    "nationwide": "Curated copy refers to Starr pages. Needs per-firm editable content.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md"
+    ]
+  },
+  {
+    "id": "office.shell-hub-dashboard",
+    "area": "office",
+    "kind": "page",
+    "name": "Hub dashboard (/admin/me)",
+    "where": [
+      "app/admin/me/page.tsx",
+      "app/admin/me/HubMeClient.tsx",
+      "app/admin/me/components/HubGreeting.tsx",
+      "lib/hub/**",
+      "lib/hub/widgets/*"
+    ],
+    "route": "/admin/me",
+    "roles": [
+      "all"
+    ],
+    "purpose": "The personal home: a customisable grid of widgets (today's schedule, pay, hours, approvals, messages, learning...).",
+    "elements": [
+      {
+        "name": "Widget grid",
+        "does": "56 widget directories registered by defineWidget; add, resize, move in edit mode; mobile editor."
+      },
+      {
+        "name": "Greeting",
+        "does": "Persona picker, quick buttons."
+      },
+      {
+        "name": "Widget options",
+        "does": "Layout, style, interaction and per-widget settings."
+      },
+      {
+        "name": "Bundle and role gating",
+        "does": "lib/hub/bundle-gating.ts, widget-catalog-filter.ts."
+      }
+    ],
+    "behaviours": [
+      "Saved layout loads on the server so first paint has it.",
+      "Hub replaced /admin/dashboard (redirect in legacy-redirects).",
+      "Several widgets overlap: pending-hours, pending-receipts, pending-time-off; recent-drawings and drawings-in-progress; job-activity-feed and recent-activity (audit consolidation clusters)."
+    ],
+    "data": [
+      "hub layout tables",
+      "/api/admin/hub/*",
+      "aggregator"
+    ],
+    "status": "works",
+    "problems": [
+      "56 widgets is a large catalog to expose to every user; most people want 5-6.",
+      "Hub grid editor, themes and mobile editor are a lot of code for a landing page (lib/hub is large).",
+      "Customising is per user, so the firm cannot set 'what the party chief sees on day one' except by persona defaults."
+    ],
+    "overlaps": [
+      "office.shell-workspace-landings"
+    ],
+    "verdict": "improve",
+    "rebuild": "Ship role-based default layouts the owner can edit once for all users, cut the catalog to about 15 widgets grouped by job, keep customisation as an advanced edit.",
+    "add": [
+      "Firm-wide default layout per role",
+      "Today's schedule and 'what is blocked' as the fixed top row"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/me/HubMeClient.tsx:1-30",
+      "lib/hub/widget-registry.ts:1-25",
+      "docs/admin-surface-audit-2026-05-30.md:83-100"
+    ],
+    "nationwide": "Widgets such as county research and Texas FS learning are Starr's. Gating by bundle exists.",
+    "plans": [
+      "docs/planning/completed/HUB_CUSTOMIZER_2026-08-27.md",
+      "docs/planning/completed/customizable-hub-and-work-mode-2026-05-28.md",
+      "docs/planning/completed/HUB_WIDGETS_AND_NOTIFICATIONS_2026-08-05.md"
+    ]
+  },
+  {
+    "id": "office.shell-legacy-redirects-telemetry",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Legacy redirects and route-usage telemetry",
+    "where": [
+      "lib/admin/legacy-redirects.ts",
+      "lib/admin/route-usage.ts",
+      "app/admin/components/RouteViewTelemetry.tsx",
+      "app/api/admin/nav-events"
+    ],
+    "route": null,
+    "roles": [
+      "all"
+    ],
+    "purpose": "Keeps old URLs alive after consolidation and counts which pages people actually open.",
+    "elements": [
+      {
+        "name": "LEGACY_REDIRECTS",
+        "does": "Only /admin/my-jobs and /admin/dashboard now redirect; four others were removed after the routing-confusion report of 2026-08-04."
+      },
+      {
+        "name": "Route view telemetry",
+        "does": "One row per admin route opened, ids normalised so /jobs/uuid counts as /jobs/[id]."
+      }
+    ],
+    "behaviours": [
+      "Telemetry is off in development unless NEXT_PUBLIC_ROUTE_TELEMETRY=1."
+    ],
+    "data": [
+      "nav_events"
+    ],
+    "status": "works",
+    "problems": [
+      "The consolidation plan itself notes there was no page_views table until C0, so earlier 'unused page' claims were unobserved rather than measured. Nothing in the UI reports the data back to the owner."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Add an owner-facing 'pages nobody opened in 90 days' view in Settings > Pages so toggling and deleting are data-driven.",
+    "add": [
+      "Usage report in Settings"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "lib/admin/legacy-redirects.ts:1-53",
+      "lib/admin/route-usage.ts:1-30",
+      "app/admin/layout.tsx:7-10"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md (section 9)"
+    ]
+  },
+  {
+    "id": "office.shell-docs-ui-audit-styling",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "UI audit, surface audit and styling contract (docs)",
+    "where": [
+      "docs/UI_AUDIT.md",
+      "docs/admin-surface-audit-2026-05-30.md",
+      "docs/admin-styling-contract.md",
+      "app/styles/tokens.css"
+    ],
+    "route": null,
+    "roles": [
+      "developer"
+    ],
+    "purpose": "Three standing documents: a 2026-05-21 screenshot audit (54 routes x 3 viewports), a frozen 2026-05-30 page/widget/API inventory, and the tokens-based styling rules.",
+    "elements": [
+      {
+        "name": "UI_AUDIT",
+        "does": "Cross-cutting issues: no design tokens, FAB overlap, greeting card on mobile, four button styles, contrast, marketing header on /platform. Also three DB column bugs."
+      },
+      {
+        "name": "Surface audit",
+        "does": "135 pages, 43 widgets, 267 admin API routes; classifies pages active, legacy-redirect, consolidation-candidate."
+      },
+      {
+        "name": "Styling contract",
+        "does": "Canonical tokens: colours, spacing 4-64px, radii, type; new CSS must consume tokens.css."
+      }
+    ],
+    "behaviours": [
+      "Surface audit numbers are already stale: 197 pages and 56 widgets now.",
+      "Tokens were the audit's first fix and are now the contract."
+    ],
+    "data": [
+      "docs"
+    ],
+    "status": "works",
+    "problems": [
+      "Audit counts predate the consolidation; no regenerated inventory. UI_AUDIT lists bugs (receipts.deleted_at, jobs.assigned_to, receipts.org_id) whose current state is unverified here."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Generate the inventory from the registry and filesystem in CI so it cannot go stale; archive the 2026-05 UI audit.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "docs/UI_AUDIT.md:1-60",
+      "docs/admin-surface-audit-2026-05-30.md:14-18",
+      "docs/admin-styling-contract.md:20-60"
+    ],
+    "nationwide": "Styling contract bakes in Starr red/navy as brand tokens; a per-firm theme layer is needed.",
+    "plans": []
+  },
+  {
+    "id": "office.leads-queue",
+    "area": "office",
+    "kind": "page",
+    "name": "Lead queue (Marketing > Leads, /admin/leads)",
+    "where": [
+      "app/admin/leads/page.tsx",
+      "app/admin/marketing/_tabs/LeadsTab.tsx",
+      "app/admin/marketing/_tabs/FollowUpQueue.tsx"
+    ],
+    "route": "/admin/marketing?tab=leads",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Every enquiry that asked for a quote, with a status, and the list of leads nobody has rung back.",
+    "elements": [
+      {
+        "name": "Status chips",
+        "does": "new, contacted, quoted, accepted, declined, lost (STATUS_OPTIONS)."
+      },
+      {
+        "name": "New lead form",
+        "does": "Name, source, contact, property."
+      },
+      {
+        "name": "Lead card",
+        "does": "Status dropdown, open detail, delete."
+      },
+      {
+        "name": "Follow-up queue",
+        "does": "Overdue and due-today separated; the leads nobody has rung back."
+      }
+    ],
+    "behaviours": [
+      "/admin/leads redirects to the marketing tab; /admin/leads/[id] stays a record.",
+      "Leads land from the website form, receptionist and manual entry through insertLeadFromForm (lib/leads/intake.ts).",
+      "Status change records a pipeline milestone via lib/pipeline/events."
+    ],
+    "data": [
+      "leads (seed 292)",
+      "/api/admin/leads",
+      "/api/admin/leads/follow-ups"
+    ],
+    "status": "works",
+    "problems": [
+      "Admin only (middleware:96 and every leads API), so an office manager or RPLS cannot work leads without full admin.",
+      "Leads are hidden inside the Marketing portal; an office user looking for 'quotes' will not look under advertising.",
+      "No board view or drag between stages although the API is described as a pipeline board."
+    ],
+    "overlaps": [
+      "office.contacts-crm",
+      "office.marketing-portal"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Make 'Leads' its own top-level page in the CRM area with a board (New, Contacted, Quoted, Won, Lost), keyboard-fast status moves, a 'call back today' strip first, and a one-click 'make job'.",
+    "add": [
+      "Board view",
+      "Assign to a person",
+      "SLA timer on new leads",
+      "Duplicate detection against contacts",
+      "Bulk email"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/leads/page.tsx:1-13",
+      "app/admin/marketing/_tabs/LeadsTab.tsx:50",
+      "middleware.ts:96",
+      "lib/leads/follow-up.ts:1-9"
+    ],
+    "nationwide": "Sources and survey types are Starr's lists; follow-up SLA and statuses are fixed constants rather than per-firm pipeline settings.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md",
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md"
+    ]
+  },
+  {
+    "id": "office.leads-detail",
+    "area": "office",
+    "kind": "page",
+    "name": "Lead detail",
+    "where": [
+      "app/admin/leads/[id]/page.tsx",
+      "LeadNotesCard.tsx",
+      "LifecycleTimeline.tsx",
+      "BackgroundCard.tsx"
+    ],
+    "route": "/admin/leads/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "One screen per lead: contact, property, pipeline, customer notes, attachments, reply thread, quotes, attribution and audit.",
+    "elements": [
+      {
+        "name": "Reply",
+        "does": "Opens the composer; disabled with no email on file."
+      },
+      {
+        "name": "Mark contacted",
+        "does": "Sets status and clears the new-query notification."
+      },
+      {
+        "name": "Convert to job",
+        "does": "Goes to /admin/jobs/new?fromLead=<id>."
+      },
+      {
+        "name": "Cards",
+        "does": "Contact, Property, Pipeline, Notes from customer, Attachments (bulk delete), Audit."
+      },
+      {
+        "name": "Lifecycle timeline",
+        "does": "Every touch in order."
+      },
+      {
+        "name": "Background card",
+        "does": "Enrichment (who the customer is) before calling back."
+      }
+    ],
+    "behaviours": [
+      "Single column under 768px, grid above.",
+      "Shows lifetime value from the customers table when the person was a client before."
+    ],
+    "data": [
+      "leads",
+      "lead_notes",
+      "lead_replies",
+      "lead_quotes",
+      "customers",
+      "/api/admin/leads/[id]/*"
+    ],
+    "status": "works",
+    "problems": [
+      "938 lines in one page plus seven card files; the heading icons are emoji while the rest of the shell uses lucide.",
+      "Delete is on the card list; no archive or merge for duplicates."
+    ],
+    "overlaps": [
+      "office.contacts-crm"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the cards but put the next action (reply, call, quote) at top, and merge a lead with an existing contact instead of keeping two records.",
+    "add": [
+      "Merge duplicates",
+      "Tasks and reminders on the lead",
+      "Call log inline"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/leads/[id]/page.tsx:36-60",
+      "app/admin/leads/[id]/page.tsx:290-322",
+      "app/admin/leads/[id]/page.tsx:362-586"
+    ],
+    "nationwide": "Enrichment and county background assume Texas public records (see leads-quotes-attribution).",
+    "plans": [
+      "docs/planning/completed/lead-reply-expansion-2026-06-18.md"
+    ]
+  },
+  {
+    "id": "office.leads-reply-composer",
+    "area": "office",
+    "kind": "tool",
+    "name": "Lead reply composer with templates and AI draft",
+    "where": [
+      "app/admin/leads/[id]/ReplyDialog.tsx",
+      "RepliesList.tsx",
+      "lib/leads/ai-draft.ts",
+      "lib/leads/templates.ts",
+      "lib/leads/inbound-parser.ts",
+      "app/api/admin/reply-templates"
+    ],
+    "route": "/admin/leads/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Write and send an email reply to a lead from the site, with saved templates, an AI first draft and inbound replies threaded back.",
+    "elements": [
+      {
+        "name": "Template picker",
+        "does": "{{first_name}} style variables, loaded from /api/admin/reply-templates."
+      },
+      {
+        "name": "AI draft",
+        "does": "POST /api/admin/leads/[id]/ai-draft, pasted into the editor for editing."
+      },
+      {
+        "name": "Send",
+        "does": "POST /api/admin/leads/[id]/reply."
+      },
+      {
+        "name": "Replies list",
+        "does": "Outbound and inbound messages on the lead."
+      }
+    ],
+    "behaviours": [
+      "Inbound email payloads from several providers are parsed by provider-agnostic helpers."
+    ],
+    "data": [
+      "lead_replies",
+      "reply_templates",
+      "Anthropic via callAi",
+      "Resend"
+    ],
+    "status": "works",
+    "problems": [
+      "912-line dialog; reply goes out of the lead page only, so the 'Email' tab under Messages does not show leads thread (separate log).",
+      "Templates are admin only (reply-templates route:32)."
+    ],
+    "overlaps": [
+      "office.email-compose"
+    ],
+    "verdict": "improve",
+    "rebuild": "Make the composer a shared component used for leads, customers and jobs, with one email log that links to the record.",
+    "add": [
+      "Send from the firm's own mailbox",
+      "Open and click tracking",
+      "Attach quote PDF"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/leads/[id]/ReplyDialog.tsx:95-226",
+      "lib/leads/ai-draft.ts:1-8",
+      "lib/leads/templates.ts:1-9",
+      "app/api/admin/reply-templates/route.ts:32"
+    ],
+    "nationwide": "Template wording and signature are Starr's.",
+    "plans": [
+      "docs/planning/completed/lead-reply-expansion-2026-06-18.md"
+    ]
+  },
+  {
+    "id": "office.leads-quotes-attribution",
+    "area": "office",
+    "kind": "panel",
+    "name": "Quotes, attribution and background on a lead",
+    "where": [
+      "QuotesCard.tsx",
+      "AttributionCard.tsx",
+      "BackgroundCard.tsx",
+      "lib/leads/quotes.ts",
+      "lib/leads/attribution.ts",
+      "lib/leads/identity.ts",
+      "lib/leads/enrichment.ts"
+    ],
+    "route": "/admin/leads/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "The official quote versioned (so a revision does not overwrite the first price), where the lead came from, who was behind a click, and what the office should know before ringing back.",
+    "elements": [
+      {
+        "name": "Quotes card",
+        "does": "Versioned quotes with decline reasons; quote amount feeds Google offline conversion."
+      },
+      {
+        "name": "Attribution card",
+        "does": "gclid, gbraid, UTM captured on the first page of the session plus staff-recorded source."
+      },
+      {
+        "name": "Background card",
+        "does": "Enrichment: a reading layer over records, not a search."
+      }
+    ],
+    "behaviours": [
+      "Attribution is captured at first page and carried to the form (lib/leads/attribution.ts), not read at submit."
+    ],
+    "data": [
+      "lead_quotes",
+      "lead_attribution",
+      "enrichment sources"
+    ],
+    "status": "works",
+    "problems": [
+      "Owner quotes in code say most inquiries arrive by phone with no click, so attribution coverage is partial by design (marketing page says so first).",
+      "Quote is recorded but not generated: no quote builder, PDF or e-sign."
+    ],
+    "overlaps": [
+      "office.marketing-portal"
+    ],
+    "verdict": "improve",
+    "rebuild": "Add a real proposal builder (scope, fee schedule, terms, PDF, accept link) that writes the quote version.",
+    "add": [
+      "Proposal PDF and online accept",
+      "Fee schedule by service and county",
+      "Deposit request"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/leads/quotes.ts:1-9",
+      "lib/leads/attribution.ts:1-9",
+      "lib/leads/enrichment.ts:1-9"
+    ],
+    "nationwide": "Enrichment sources and county lists assume Texas; fee schedules would need per-firm tables.",
+    "plans": [
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md"
+    ]
+  },
+  {
+    "id": "office.leads-api",
+    "area": "office",
+    "kind": "api",
+    "name": "Leads API group",
+    "where": [
+      "app/api/admin/leads/**",
+      "lib/leads/intake.ts",
+      "lib/leads/honeypot.ts",
+      "lib/leads/phone-tap-beacon.ts"
+    ],
+    "route": "/api/admin/leads",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "CRUD, follow-ups, notes, quotes, reply, ai-draft, attribution, enrichment, timeline for leads, plus public intake.",
+    "elements": [
+      {
+        "name": "GET/POST/PATCH/DELETE /api/admin/leads",
+        "does": "List with ?status ?search, create, update, delete."
+      },
+      {
+        "name": "/leads/[id]/{notes,quotes,reply,ai-draft,attribution,enrichment,timeline}",
+        "does": "Per-lead sub-resources."
+      },
+      {
+        "name": "/leads/follow-ups",
+        "does": "Overdue and due-today list."
+      },
+      {
+        "name": "Public intake",
+        "does": "lib/leads/intake.ts, honeypot spam filter, phone-tap beacon."
+      }
+    ],
+    "behaviours": [
+      "Admin only via isAdmin.",
+      "PATCH records a pipeline milestone."
+    ],
+    "data": [
+      "leads (seed 292)",
+      "lead_* tables"
+    ],
+    "status": "works",
+    "problems": [
+      "No per-organisation scoping visible in the main handler (no org id in route:1-20); multi-tenant behaviour for leads is unverified."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep; add organisation scoping and assignee filters.",
+    "add": [
+      "Assignee filter",
+      "Webhook intake for Thumbtack-style sources"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/leads/route.ts:1-20"
+    ],
+    "nationwide": "Single organisation assumed in the main route.",
+    "plans": []
+  },
+  {
+    "id": "office.contacts-crm",
+    "area": "office",
+    "kind": "page",
+    "name": "Contacts (CRM list and profile)",
+    "where": [
+      "app/admin/contacts/page.tsx",
+      "app/admin/messages/_tabs/CrmTab.tsx",
+      "app/admin/contacts/[id]/page.tsx",
+      "LinkJobDialog.tsx",
+      "lib/contacts/labels.ts"
+    ],
+    "route": "/admin/messages?tab=contacts and /admin/contacts/[id]",
+    "roles": [
+      "admin",
+      "developer",
+      "employee",
+      "teacher",
+      "researcher",
+      "drawer",
+      "field_crew",
+      "tech_support"
+    ],
+    "purpose": "People the firm deals with (realtors, repeat clients, title companies): saved contacts with labels, notes and linked jobs.",
+    "elements": [
+      {
+        "name": "Labels",
+        "does": "Chip row toggles; custom labels allowed."
+      },
+      {
+        "name": "Contact info",
+        "does": "Click-to-edit fields (InlineEditField)."
+      },
+      {
+        "name": "Notes",
+        "does": "Free text."
+      },
+      {
+        "name": "Linked jobs",
+        "does": "Link a job via picker with a role chip; unlink; delete contact."
+      }
+    ],
+    "behaviours": [
+      "/admin/contacts redirects to the Messages tab; profile stays its own route.",
+      "After delete the page pushes to /admin/contacts, which redirects."
+    ],
+    "data": [
+      "contacts table",
+      "/api/admin/contacts",
+      "contact_jobs"
+    ],
+    "status": "works",
+    "problems": [
+      "The client CRM sits as a tab in the staff messaging portal, beside the internal team directory (renamed from 'contacts' to 'directory' to avoid confusion): two different nouns in one portal.",
+      "Contacts, customers and leads are three tables for one person; the lead page reads customers for lifetime value (leads page:266).",
+      "GET /api/admin/contacts is readable by any signed-in account (contacts route:28), an open owner decision in PAGE_CONSOLIDATION 13.2."
+    ],
+    "overlaps": [
+      "office.leads-queue",
+      "office.messages-directory-settings"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "One 'Clients' record (person or company) that leads, jobs, invoices, calls and emails all attach to, with a timeline. Contacts, customers and leads become views of it.",
+    "add": [
+      "Company vs person",
+      "Duplicate merge",
+      "Timeline of every touch",
+      "Import from CSV or phone",
+      "Marketing consent flag"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/messages/_tabs/CrmTab.tsx:1-20",
+      "app/admin/contacts/[id]/page.tsx:1-20",
+      "app/admin/leads/[id]/page.tsx:266",
+      "app/api/admin/contacts/route.ts:6-8",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md:3635-3690"
+    ],
+    "nationwide": "Labels and job roles are a fixed list for surveying (realtor, title company); should be firm-editable.",
+    "plans": [
+      "docs/planning/completed/contacts-2026-05-30.md",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.calls-log",
+    "area": "office",
+    "kind": "page",
+    "name": "Call log (/admin/calls)",
+    "where": [
+      "app/admin/calls/page.tsx",
+      "lib/receptionist/calls.ts",
+      "lib/receptionist/call-search.ts",
+      "app/api/admin/calls/route.ts"
+    ],
+    "route": "/admin/calls",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Every call to the business line, newest first, with recordings, filters and search by name or address.",
+    "elements": [
+      {
+        "name": "Scope",
+        "does": "Live vs test calls, part of the query and the URL."
+      },
+      {
+        "name": "Filter chips",
+        "does": "Answered by Hank, receptionist, voicemail, missed, blocked, etc."
+      },
+      {
+        "name": "Search",
+        "does": "Server narrows, browser ranks (name above passing mention)."
+      }
+    ],
+    "behaviours": [
+      "Test calls are kept out of the live log by owner request (2026-09-21)."
+    ],
+    "data": [
+      "phone_calls",
+      "/api/admin/calls"
+    ],
+    "status": "works",
+    "problems": [
+      "Admin only. Labels 'Hank answered' and 'Ellie' are hard-coded (calls/[id] page:16-17).",
+      "Calls and leads are separate lists; a call turns into a lead through a button on the call page."
+    ],
+    "overlaps": [
+      "office.call-detail",
+      "office.leads-queue"
+    ],
+    "verdict": "improve",
+    "rebuild": "Put calls into the client timeline and a single inbox filtered 'needs a callback'; use names from settings, not code.",
+    "add": [
+      "Callback task from a missed call",
+      "Click to call from the site",
+      "Spam score shown inline"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/calls/page.tsx:1-30",
+      "middleware.ts:77",
+      "app/admin/calls/[id]/page.tsx:16-17"
+    ],
+    "nationwide": "Owner and assistant names (Hank, Ellie) are hard-coded or read from env RECEPTIONIST_OWNER_NAME/NAME (lib/receptionist/knowledge.ts:12-13). Twilio-only.",
+    "plans": []
+  },
+  {
+    "id": "office.call-detail",
+    "area": "office",
+    "kind": "page",
+    "name": "Call detail",
+    "where": [
+      "app/admin/calls/[id]/page.tsx",
+      "CallScreeningPanels.tsx",
+      "app/api/admin/calls/[id]/{lead,recording,verdict}"
+    ],
+    "route": "/admin/calls/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Listen, read the transcript and analysis, and act: make a lead, label the number, override screening.",
+    "elements": [
+      {
+        "name": "Recording and transcript",
+        "does": "Audio player; roles shown as Caller, Ellie, Hank."
+      },
+      {
+        "name": "Make lead",
+        "does": "POST /api/admin/calls/[id]/lead."
+      },
+      {
+        "name": "This number panel",
+        "does": "Registry entry, other calls, treatment of the number."
+      },
+      {
+        "name": "Verdict panel",
+        "does": "Why the system labelled the call (robocall, silent, real) and one-tap undo."
+      },
+      {
+        "name": "Always ring / block",
+        "does": "Block asks twice and warns if the number had real conversations."
+      }
+    ],
+    "behaviours": [
+      "Every automatic decision shows its reason and can be undone."
+    ],
+    "data": [
+      "phone_calls",
+      "caller_registry",
+      "Twilio recordings"
+    ],
+    "status": "works",
+    "problems": [
+      "Recording consent is spoken by the receptionist; the platform has no per-state consent setting."
+    ],
+    "overlaps": [
+      "office.caller-registry"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep; add transfer, notes and a 'create task' action.",
+    "add": [
+      "Notes on a call",
+      "Link to job",
+      "Share recording link with crew"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/calls/[id]/page.tsx:1-50",
+      "app/admin/calls/[id]/CallScreeningPanels.tsx:1-20",
+      "lib/receptionist/agent-prompt.ts:84"
+    ],
+    "nationwide": "Recording-consent wording assumes Texas one-party consent (agent-prompt:84).",
+    "plans": []
+  },
+  {
+    "id": "office.caller-registry",
+    "area": "office",
+    "kind": "page",
+    "name": "Caller registry (numbers catalogue)",
+    "where": [
+      "app/admin/calls/registry/page.tsx",
+      "lib/receptionist/registry.ts",
+      "app/api/admin/caller-registry",
+      "seeds/640_caller_registry.sql"
+    ],
+    "route": "/admin/calls/registry",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Every number that has called, what it is, how sure we are of the name, and how the line treats it.",
+    "elements": [
+      {
+        "name": "Row",
+        "does": "Number id, status (customer, real person, robocaller, silent), origin, tied-to, screening choice."
+      },
+      {
+        "name": "Name field",
+        "does": "Typing a name promotes it from heard-on-call to confirmed."
+      }
+    ],
+    "behaviours": [
+      "Confirmed names let the receptionist greet by name; heard names are only used to recognise an answer."
+    ],
+    "data": [
+      "caller_registry",
+      "customers/leads/jobs/contacts (known-number check)"
+    ],
+    "status": "works",
+    "problems": [
+      "655-line page; registry, calls and blocked list are three pages for one concern."
+    ],
+    "overlaps": [
+      "office.blocked-calls",
+      "office.contacts-crm"
+    ],
+    "verdict": "merge",
+    "rebuild": "Fold registry and blocked into one 'Numbers' page with a status filter, and link each number to the client record.",
+    "add": [
+      "Auto-link to client by phone"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/calls/registry/page.tsx:1-30",
+      "lib/receptionist/registry.ts:1-15"
+    ],
+    "nationwide": "US area-code table (lib/receptionist/area-code-map.ts) is hard-coded.",
+    "plans": []
+  },
+  {
+    "id": "office.blocked-calls",
+    "area": "office",
+    "kind": "page",
+    "name": "Blocked calls",
+    "where": [
+      "app/admin/calls/blocked/page.tsx",
+      "lib/receptionist/blocklist.ts",
+      "app/api/admin/calls/blocked"
+    ],
+    "route": "/admin/calls/blocked",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "List of numbers refused, how often they tried, the last thing they said, with unblock.",
+    "elements": [
+      {
+        "name": "Rule row",
+        "does": "Count since blocked and last words."
+      },
+      {
+        "name": "Unblock",
+        "does": "Deactivates, keeps reason and tally."
+      },
+      {
+        "name": "Add block",
+        "does": "POST /api/admin/calls/blocked."
+      }
+    ],
+    "behaviours": [
+      "Check runs before the owner's phone rings and fails open if the database is slow."
+    ],
+    "data": [
+      "call_blocklist"
+    ],
+    "status": "works",
+    "problems": [],
+    "overlaps": [
+      "office.caller-registry"
+    ],
+    "verdict": "merge",
+    "rebuild": "Part of the Numbers page above.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/calls/blocked/page.tsx:1-30",
+      "lib/receptionist/blocklist.ts:1-12"
+    ],
+    "nationwide": "E.164 and US numbers only.",
+    "plans": []
+  },
+  {
+    "id": "office.receptionist-runtime",
+    "area": "office",
+    "kind": "integration",
+    "name": "Phone receptionist: call flow (Twilio, AI agent, answering machine)",
+    "where": [
+      "app/api/twilio/receptionist/**",
+      "lib/receptionist/{brain,relay,agent-prompt,agent-init,answering-machine,call-outcome,fallback-watch,version}.ts",
+      "lib/twilio/*",
+      "app/api/cron/receptionist-transcripts"
+    ],
+    "route": "/api/twilio/receptionist",
+    "roles": [
+      "public (Twilio signature)"
+    ],
+    "purpose": "The business number rings the owner's cell; if he does not pick up, an AI receptionist (or a plain answering machine) takes the message and creates a lead.",
+    "elements": [
+      {
+        "name": "Entry route",
+        "does": "Opens the call row, plays the recording notice, dials the owner with a whisper press-any-key."
+      },
+      {
+        "name": "after-dial / agent-ended",
+        "does": "Hands the missed caller to the AI agent or the machine."
+      },
+      {
+        "name": "Versions",
+        "does": "Live mode switch between the complex agent and the fixed-script answering machine (owner 2026-09-15)."
+      },
+      {
+        "name": "Relay path",
+        "does": "Twilio ConversationRelay for fast streaming replies."
+      },
+      {
+        "name": "Agent path",
+        "does": "ElevenLabs agent over SIP with prompt from agent-prompt.ts."
+      },
+      {
+        "name": "Fallback watch",
+        "does": "Alerts when the chosen receptionist is not the one answering."
+      }
+    ],
+    "behaviours": [
+      "Prices are never given to the agent: only the owner quotes (agent-prompt header).",
+      "The caller is dropped to the machine if the agent is unreachable.",
+      "Transcripts are filled in by a cron."
+    ],
+    "data": [
+      "Twilio",
+      "ElevenLabs",
+      "Anthropic via callAi",
+      "phone_calls",
+      "leads via insertLeadFromForm"
+    ],
+    "status": "partial",
+    "problems": [
+      "Owner reports the AI agent was 'pretty bad' (2026-09-15) and the same week four of ten calls never reached it (call-outcome header); correctness depends on Twilio, SIP trunk and ElevenLabs staying up.",
+      "Three ways to answer (Gather, Relay, ElevenLabs) plus the machine: more paths than one firm needs."
+    ],
+    "overlaps": [
+      "office.receptionist-screening",
+      "office.receptionist-test-bench"
+    ],
+    "verdict": "improve",
+    "rebuild": "Offer two clear modes: Voicemail (default) and AI receptionist, each with a plain config page (greeting, hours, questions to ask, who to notify). Keep one AI path.",
+    "add": [
+      "Per-firm greeting and question script",
+      "Business hours routing",
+      "Text-back to missed callers",
+      "Calendar-aware callback promise"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/api/twilio/receptionist/route.ts:1-45",
+      "lib/receptionist/answering-machine.ts:1-15",
+      "lib/receptionist/fallback-watch.ts:1-12",
+      "lib/receptionist/call-outcome.ts:1-15",
+      "lib/receptionist/agent-prompt.ts:1-15"
+    ],
+    "nationwide": "Heavily hard-coded: Hank, Ellie, Belton, county list, Texas RPLS and law, Spanish switch for Central Texas (agent-prompt:99-184), single Twilio number, owner phone from env.",
+    "plans": []
+  },
+  {
+    "id": "office.receptionist-screening",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Call screening, verdicts and caller memory",
+    "where": [
+      "lib/receptionist/screening.ts",
+      "call-verdict.ts",
+      "known-caller.ts",
+      "blocklist.ts",
+      "call-source.ts",
+      "screening-labels.ts"
+    ],
+    "route": null,
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Decides which calls ring, which go to voicemail and which are refused, with fail-safes so real customers are not screened out.",
+    "elements": [
+      {
+        "name": "Fail-safes",
+        "does": "A person's 'always ring' beats rules; any number tied to a customer, lead, job or contact is known and untouched."
+      },
+      {
+        "name": "Verdicts",
+        "does": "robocall, silent, etc. read off 140 live calls."
+      },
+      {
+        "name": "Known caller",
+        "does": "Does not count the live call as a prior call."
+      },
+      {
+        "name": "Call source",
+        "does": "Matches a call to an earlier phone tap on the website."
+      }
+    ],
+    "behaviours": [
+      "Rules were written from the live log and tests replay those calls."
+    ],
+    "data": [
+      "phone_calls",
+      "caller_registry"
+    ],
+    "status": "works",
+    "problems": [
+      "Rules are tuned to one number's spam pattern; false-positive risk for another firm is unknown."
+    ],
+    "overlaps": [
+      "office.caller-registry"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep; expose thresholds in settings with a dry-run view.",
+    "add": [
+      "Dry run view",
+      "Shared spam list across firms"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "lib/receptionist/screening.ts:1-14",
+      "lib/receptionist/call-verdict.ts:1-14",
+      "lib/receptionist/known-caller.ts:1-14"
+    ],
+    "nationwide": "Robocall phrases and US area codes are English/US only.",
+    "plans": []
+  },
+  {
+    "id": "office.receptionist-notify",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Telling the owner about a call",
+    "where": [
+      "lib/receptionist/notify.ts",
+      "lib/receptionist/analysis.ts"
+    ],
+    "route": null,
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Bell and push to intake roles, a text with summary and link, and an email to the office inbox.",
+    "elements": [
+      {
+        "name": "Bell + push",
+        "does": "notifyMany to everyone with an intake role."
+      },
+      {
+        "name": "Text",
+        "does": "Business calls to LEAD_SMS_RECIPIENTS; personal calls only to RECEPTIONIST_PERSONAL_RECIPIENT."
+      },
+      {
+        "name": "Email",
+        "does": "Resend to the office inbox."
+      }
+    ],
+    "behaviours": [
+      "Text is a one-to-two sentence summary then name, number, email, job, link."
+    ],
+    "data": [
+      "Twilio SMS",
+      "Resend",
+      "notifications"
+    ],
+    "status": "works",
+    "problems": [
+      "Recipients come from environment variables, not a settings screen."
+    ],
+    "overlaps": [
+      "office.settings-core"
+    ],
+    "verdict": "improve",
+    "rebuild": "Move recipients and channels to Settings > Notifications per user.",
+    "add": [
+      "Per-user channel choice",
+      "Quiet hours"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "lib/receptionist/notify.ts:1-20"
+    ],
+    "nationwide": "Env-var recipients; single firm.",
+    "plans": []
+  },
+  {
+    "id": "office.receptionist-test-bench",
+    "area": "office",
+    "kind": "tool",
+    "name": "Receptionist test bench and 21 caller scripts",
+    "where": [
+      "app/admin/dev/receptionist/page.tsx",
+      "app/api/admin/receptionist-test/**",
+      "lib/receptionist/test-scripts.ts",
+      "docs/receptionist/test-scripts/*.md"
+    ],
+    "route": "/admin/dev/receptionist",
+    "roles": [
+      "admin",
+      "developer"
+    ],
+    "purpose": "Rehearse the receptionist without calling the owner: browser call, call-my-phone, or text chat; switch which version answers live calls.",
+    "elements": [
+      {
+        "name": "Version switch",
+        "does": "Which receptionist answers live calls."
+      },
+      {
+        "name": "Three ways in",
+        "does": "WebRTC, Twilio dials your phone, text chat."
+      },
+      {
+        "name": "Scripts",
+        "does": "21 generated caller scripts (straightforward to hard) with 'what it should end with' and 'never ask' lists."
+      }
+    ],
+    "behaviours": [
+      "Test sessions appear on /admin/calls under the test scope; no owner alerts and no lead."
+    ],
+    "data": [
+      "Twilio Voice SDK",
+      "ElevenLabs voices",
+      "phone_calls (test scope)"
+    ],
+    "status": "works",
+    "problems": [
+      "Scripts are a markdown mirror generated from test-scripts.ts; scripts include Austin, El Paso and Central-Texas callers."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep as a developer tool; add it to the firm onboarding flow as 'try your receptionist'.",
+    "add": [
+      "Scorecard per script"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/dev/receptionist/page.tsx:1-20",
+      "docs/receptionist/test-scripts/README.md:1-12"
+    ],
+    "nationwide": "Scripts are Starr-area.",
+    "plans": []
+  },
+  {
+    "id": "office.receptionist-knowledge",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Receptionist knowledge base",
+    "where": [
+      "lib/receptionist/knowledge.ts",
+      "lib/seo/business.ts"
+    ],
+    "route": null,
+    "roles": [
+      "developer"
+    ],
+    "purpose": "Everything the receptionist may say about the firm, scraped from the public site on 2026-09-11.",
+    "elements": [
+      {
+        "name": "Services",
+        "does": "Boundary, ALTA, topographic, etc."
+      },
+      {
+        "name": "Service area",
+        "does": "Nine counties core, 46 counties in about 150 miles."
+      },
+      {
+        "name": "Texas law basics",
+        "does": "Licensing, adverse possession with a disclaimer."
+      }
+    ],
+    "behaviours": [
+      "Prices are excluded by design."
+    ],
+    "data": [
+      "lib/seo/business.ts constants"
+    ],
+    "status": "works",
+    "problems": [
+      "A file edit and deploy is the only way to change what the receptionist knows; no UI."
+    ],
+    "overlaps": [],
+    "verdict": "rebuild",
+    "rebuild": "Settings page 'What your receptionist knows' with service list, area, hours, FAQs and a state law pack that is chosen by state.",
+    "add": [
+      "State law packs",
+      "FAQ editor"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/receptionist/knowledge.ts:1-12",
+      "lib/receptionist/knowledge.ts:134",
+      "lib/receptionist/knowledge.ts:194-223"
+    ],
+    "nationwide": "Belton, Texas, TBPELS, Texas Occupations Code and Texas property law are written into the file. Needs per-firm and per-state packs.",
+    "plans": []
+  },
+  {
+    "id": "office.email-compose",
+    "area": "office",
+    "kind": "page",
+    "name": "Compose email",
+    "where": [
+      "app/admin/email/new/page.tsx",
+      "lib/email/sender.ts",
+      "lib/email/templates.ts",
+      "app/api/admin/email/{send,recipients,log}"
+    ],
+    "route": "/admin/email/new",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Send an email from the site to teammates or a role, with templates; preloaded with ?to=.",
+    "elements": [
+      {
+        "name": "Recipients",
+        "does": "From /api/admin/email/recipients."
+      },
+      {
+        "name": "Templates",
+        "does": "EMAIL_TEMPLATES."
+      },
+      {
+        "name": "Send",
+        "does": "POST /api/admin/email/send, logged to email_send_log."
+      }
+    ],
+    "behaviours": [
+      "Admin only in the API (email send route:62)."
+    ],
+    "data": [
+      "email_send_log",
+      "Resend"
+    ],
+    "status": "works",
+    "problems": [
+      "Aimed at staff recipients (employee-pond), not customers; customer replies live in the lead dialog, so there are two composers.",
+      "No inbox: mail the firm receives is not shown except inbound lead replies."
+    ],
+    "overlaps": [
+      "office.leads-reply-composer",
+      "office.messages-portal"
+    ],
+    "verdict": "merge",
+    "rebuild": "One composer for any record (client, lead, job, staff), sending from the firm's address, with threads on the record.",
+    "add": [
+      "Connect Gmail/Outlook",
+      "Shared inbox",
+      "Attachments"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/email/new/page.tsx:1-20",
+      "app/api/admin/email/send/route.ts:62"
+    ],
+    "nationwide": "Sender domain from env/Resend setup, single firm.",
+    "plans": [
+      "docs/planning/completed/04_EMAIL_CUSTOMERS_EMPLOYEES_2026-06-24.md"
+    ]
+  },
+  {
+    "id": "office.email-sent-log",
+    "area": "office",
+    "kind": "page",
+    "name": "Sent email log (Messages > Email)",
+    "where": [
+      "app/admin/email/sent/page.tsx",
+      "app/admin/messages/_tabs/EmailTab.tsx",
+      "app/api/admin/email/log"
+    ],
+    "route": "/admin/messages?tab=email",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "List of recent sends from email_send_log as a stacked card list.",
+    "elements": [
+      {
+        "name": "Row",
+        "does": "Sender, subject, role, recipient count."
+      }
+    ],
+    "behaviours": [
+      "Old route forwards to the tab."
+    ],
+    "data": [
+      "email_send_log"
+    ],
+    "status": "works",
+    "problems": [
+      "Only staff mail sends are logged; lead replies live elsewhere."
+    ],
+    "overlaps": [
+      "office.email-compose"
+    ],
+    "verdict": "merge",
+    "rebuild": "Becomes the timeline on each record rather than a global log.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/messages/_tabs/EmailTab.tsx:1-14",
+      "app/admin/email/sent/page.tsx:1-12"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.messages-portal",
+    "area": "office",
+    "kind": "page",
+    "name": "Messages portal: inbox, conversations and new message",
+    "where": [
+      "app/admin/messages/page.tsx",
+      "_tabs/InboxTab.tsx",
+      "[conversationId]/page.tsx",
+      "new/page.tsx",
+      "components/messaging/*",
+      "lib/messages/*"
+    ],
+    "route": "/admin/messages",
+    "roles": [
+      "admin",
+      "developer",
+      "employee",
+      "teacher",
+      "researcher",
+      "drawer",
+      "field_crew",
+      "tech_support"
+    ],
+    "purpose": "Chat between teammates: one-to-one and group, attachments, rich text, mentions, reactions, read receipts and search.",
+    "elements": [
+      {
+        "name": "Inbox tab",
+        "does": "Conversations with inline thread (766 lines)."
+      },
+      {
+        "name": "New message / group",
+        "does": "ContactPicker and ComposeBox."
+      },
+      {
+        "name": "Conversation page",
+        "does": "Thread view, message search."
+      },
+      {
+        "name": "Tabs",
+        "does": "Inbox, Team directory, Contacts, Discussions, Email (3 roles), Settings."
+      }
+    ],
+    "behaviours": [
+      "Active recipient is remembered across messenger, messages and email composer (E9b).",
+      "Read state syncs across surfaces (lib/messages/read-sync)."
+    ],
+    "data": [
+      "messages/conversations/mentions/reactions/read/search/attachments/preferences APIs (8 route groups)"
+    ],
+    "status": "works",
+    "problems": [
+      "A staff chat tool competing with Slack, Teams or text. For a six-person firm most coordination is by phone or text.",
+      "Portal mixes four jobs: staff chat, client CRM, discussion threads, outbound email log.",
+      "Inbox and conversation page both implement a thread view; floating messenger is a third."
+    ],
+    "overlaps": [
+      "office.shell-floating-tools",
+      "office.discussions"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep staff chat but tie it to jobs (a thread per job with files and field notes). Move CRM and email log out to the Clients area.",
+    "add": [
+      "Thread per job",
+      "Push to phone",
+      "Share a point or photo from the field"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/messages/page.tsx:43-57",
+      "app/admin/messages/_tabs/InboxTab.tsx:1-20",
+      "middleware.ts:226"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.messages-directory-settings",
+    "area": "office",
+    "kind": "panel",
+    "name": "Team directory and messaging preferences (Messages tabs)",
+    "where": [
+      "app/admin/messages/_tabs/ContactsTab.tsx",
+      "_tabs/SettingsTab.tsx",
+      "messages/preferences API"
+    ],
+    "route": "/admin/messages?tab=directory / settings",
+    "roles": [
+      "admin",
+      "developer",
+      "employee",
+      "teacher",
+      "researcher",
+      "drawer",
+      "field_crew",
+      "tech_support"
+    ],
+    "purpose": "Who at the firm you can message, and per-user chat notification, sound, receipts and density settings.",
+    "elements": [
+      {
+        "name": "Directory",
+        "does": "Name, email, admin flag."
+      },
+      {
+        "name": "Preferences",
+        "does": "Notifications, sound, read receipts, typing indicators, auto-archive, theme."
+      }
+    ],
+    "behaviours": [
+      "Directory is a second list of staff next to /admin/people."
+    ],
+    "data": [
+      "messages preferences",
+      "users"
+    ],
+    "status": "works",
+    "problems": [
+      "Team directory duplicates People (/admin/people directory)."
+    ],
+    "overlaps": [
+      "office.shell-roles-personas-gating"
+    ],
+    "verdict": "merge",
+    "rebuild": "Use the People directory as the one staff list; keep preferences under the user's own profile.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/messages/_tabs/ContactsTab.tsx:1-16",
+      "app/admin/messages/_tabs/SettingsTab.tsx:1-16",
+      "lib/admin/route-registry.ts:558"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.discussions",
+    "area": "office",
+    "kind": "page",
+    "name": "Discussions (issue and content threads)",
+    "where": [
+      "app/admin/discussions/page.tsx",
+      "[id]/page.tsx",
+      "app/admin/messages/_tabs/DiscussionsTab.tsx",
+      "app/api/admin/discussions/route.ts"
+    ],
+    "route": "/admin/messages?tab=discussions, /admin/discussions/[id]",
+    "roles": [
+      "admin",
+      "developer",
+      "employee",
+      "teacher",
+      "researcher",
+      "drawer",
+      "field_crew",
+      "tech_support"
+    ],
+    "purpose": "Threads the whole firm can read: bug reports, content flags and suggestions, with escalation level and status.",
+    "elements": [
+      {
+        "name": "Thread",
+        "does": "Type, escalation level, status, page path and title, resolve."
+      },
+      {
+        "name": "Replies",
+        "does": "Post a reply message."
+      }
+    ],
+    "behaviours": [
+      "GET open to any signed-in; POST and PUT admin only (route:65, 172)."
+    ],
+    "data": [
+      "discussion threads tables"
+    ],
+    "status": "partial",
+    "problems": [
+      "Eight roles can reach the tab but only admins can create or reply, so crew can read but not report.",
+      "Same function as support tickets (bugs and requests) and as the issue button: three feedback channels."
+    ],
+    "overlaps": [
+      "office.support-tickets",
+      "office.shell-floating-tools"
+    ],
+    "verdict": "merge",
+    "rebuild": "One 'Report a problem or idea' flow open to all roles, feeding one queue.",
+    "add": [
+      "Vote on requests",
+      "Link to page and screenshot"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "middleware.ts:233",
+      "app/api/admin/discussions/route.ts:62-65",
+      "app/api/admin/discussions/route.ts:169-172"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.marketing-portal",
+    "area": "office",
+    "kind": "page",
+    "name": "Marketing / Growth portal and dashboard",
+    "where": [
+      "app/admin/marketing/page.tsx",
+      "_tabs/DashboardTab.tsx",
+      "TrendChart.tsx",
+      "RangePicker.tsx",
+      "AdsAccessBanner.tsx",
+      "lib/marketing/*",
+      "app/api/admin/marketing/{dashboard,access-check}"
+    ],
+    "route": "/admin/marketing",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Did the advertising work: funnel, cost per stage, campaigns, repeat customers and how much of it we can actually attribute.",
+    "elements": [
+      {
+        "name": "Tabs",
+        "does": "Overview, Leads, Spend, Conversions, Connection and uploads."
+      },
+      {
+        "name": "Attribution coverage meter",
+        "does": "Shown first, because it bounds every other number."
+      },
+      {
+        "name": "Panels",
+        "does": "Google Ads this period, By campaign, Funnel, What it costs, By slice, Repeat customers."
+      },
+      {
+        "name": "Range picker",
+        "does": "Date range lives in the URL beside the tab."
+      }
+    ],
+    "behaviours": [
+      "Ads access banner probes Google API access level on demand."
+    ],
+    "data": [
+      "leads",
+      "ad spend tables",
+      "Google Ads API",
+      "/api/admin/marketing/dashboard"
+    ],
+    "status": "partial",
+    "problems": [
+      "Built around Google Ads only; most inquiries arrive by phone with no click, so coverage is capped (DashboardTab header).",
+      "Admin only; there is also an unconnected Google Ads developer token per owner-actions plan (M1).",
+      "A small firm may run no ads at all, yet Marketing is a core page."
+    ],
+    "overlaps": [
+      "office.leads-queue",
+      "office.marketing-spend",
+      "office.marketing-conversions-uploads"
+    ],
+    "verdict": "improve",
+    "rebuild": "Reduce to a 'Where leads come from' view: source mix, cost per lead if spend entered, win rate by source. Treat Google Ads connection as an optional integration.",
+    "add": [
+      "Source tracking by call tracking number",
+      "Google Business Profile reviews and calls",
+      "Facebook and Angi sources"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/marketing/page.tsx:67-110",
+      "app/admin/marketing/_tabs/DashboardTab.tsx:1-12",
+      "app/admin/marketing/_tabs/DashboardTab.tsx:304-564",
+      "middleware.ts:100"
+    ],
+    "nationwide": "Google Ads only, single account; costs in dollars; Texas service-area counties in market watch.",
+    "plans": [
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md",
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md"
+    ]
+  },
+  {
+    "id": "office.marketing-spend",
+    "area": "office",
+    "kind": "panel",
+    "name": "Ad spend",
+    "where": [
+      "app/admin/marketing/_tabs/SpendTab.tsx",
+      "app/api/admin/marketing/spend",
+      "app/api/cron/google-ads-spend"
+    ],
+    "route": "/admin/marketing?tab=spend",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "What the ads cost, imported nightly or typed from the invoice, so cost per lead has a denominator.",
+    "elements": [
+      {
+        "name": "Totals and rows",
+        "does": "Spend across rows."
+      },
+      {
+        "name": "Record by hand",
+        "does": "Manual rows until the API token exists."
+      },
+      {
+        "name": "Refresh",
+        "does": "POST spend/refresh."
+      }
+    ],
+    "behaviours": [
+      "Manual share is displayed so approximate figures are known as such."
+    ],
+    "data": [
+      "ad_spend",
+      "Google Ads API"
+    ],
+    "status": "partial",
+    "problems": [
+      "Nightly import depends on an Ads developer token not yet obtained (owner actions M1)."
+    ],
+    "overlaps": [
+      "office.marketing-portal"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep; allow CSV paste for any channel.",
+    "add": [
+      "Other channels"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/marketing/_tabs/SpendTab.tsx:1-12",
+      "app/admin/marketing/_tabs/SpendTab.tsx:142"
+    ],
+    "nationwide": "Google only.",
+    "plans": []
+  },
+  {
+    "id": "office.marketing-conversions-uploads",
+    "area": "office",
+    "kind": "panel",
+    "name": "Offline conversions export and Google Ads connection",
+    "where": [
+      "app/admin/marketing/_tabs/ExportsTab.tsx",
+      "_tabs/UploadsTab.tsx",
+      "app/api/admin/marketing/{exports,uploads,google-ads}",
+      "app/api/cron/google-ads-upload"
+    ],
+    "route": "/admin/marketing?tab=conversions / uploads",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Send won-job results back to Google Ads, by CSV today and by nightly API upload when connected, with a log of what Google rejected.",
+    "elements": [
+      {
+        "name": "Export",
+        "does": "Summary of what is included before the download; mark as uploaded."
+      },
+      {
+        "name": "Connection",
+        "does": "Connect or reconnect Google Ads."
+      },
+      {
+        "name": "Upload log",
+        "does": "Last 100 attempts, window-closed corrections, rejected rows in Google's words."
+      }
+    ],
+    "behaviours": [
+      "Cron uploads with partialFailure, so Google returns 200 while rejecting rows; this log is the only place that shows it."
+    ],
+    "data": [
+      "Google Ads API",
+      "conversion upload tables"
+    ],
+    "status": "partial",
+    "problems": [
+      "Not connected by design until the developer token arrives; the CSV path is the working one.",
+      "Five tabs of advertising for a feature that only helps a firm that buys Google ads."
+    ],
+    "overlaps": [
+      "office.marketing-portal"
+    ],
+    "verdict": "improve",
+    "rebuild": "Hide under Integrations > Google Ads; show only if connected.",
+    "add": [
+      "Reviews and Business Profile"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/marketing/_tabs/ExportsTab.tsx:1-12",
+      "app/admin/marketing/_tabs/UploadsTab.tsx:1-12"
+    ],
+    "nationwide": "Google Ads only.",
+    "plans": [
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md"
+    ]
+  },
+  {
+    "id": "office.marketing-people-marketwatch",
+    "area": "office",
+    "kind": "panel",
+    "name": "People behind clicks and Market watch",
+    "where": [
+      "_tabs/PeoplePanel.tsx",
+      "_tabs/MarketWatchPanel.tsx",
+      "lib/leads/market-watch.ts",
+      "lib/leads/identity.ts",
+      "app/api/admin/marketing/{people,market-watch}"
+    ],
+    "route": "/admin/marketing (overview)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "From a click to a person (graded by confidence), and a watch of public agendas for subdivisions and rezonings that will need a surveyor.",
+    "elements": [
+      {
+        "name": "People panel",
+        "does": "Coverage line first, then who came from ads, phone calls."
+      },
+      {
+        "name": "Market watch",
+        "does": "Searches commissioners' court and city agendas in 11 of 46 service-area counties."
+      }
+    ],
+    "behaviours": [
+      "Uses Tavily-style web search; a blank result is not evidence of nothing (market-watch:79)."
+    ],
+    "data": [
+      "web search API",
+      "leads"
+    ],
+    "status": "partial",
+    "problems": [
+      "Covers 11 of 46 counties by design for cost; results are unverified leads.",
+      "Market watch is one of the few features that finds new work, but it is buried in an advertising dashboard."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Move Market watch to its own 'Opportunities' page with county agenda alerts the firm picks.",
+    "add": [
+      "Permit and plat filings feed",
+      "Email alerts per county"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/marketing/_tabs/MarketWatchPanel.tsx:14",
+      "lib/leads/market-watch.ts:27-34",
+      "lib/leads/market-watch.ts:79"
+    ],
+    "nationwide": "County list is Central Texas (Bell, Coryell, McLennan, Williamson, Falls...). Needs a per-firm county picker.",
+    "plans": []
+  },
+  {
+    "id": "office.support-tickets",
+    "area": "office",
+    "kind": "page",
+    "name": "Support tickets",
+    "where": [
+      "app/admin/support/page.tsx",
+      "_tabs/TicketsTab.tsx",
+      "new/page.tsx",
+      "tickets/[id]/page.tsx",
+      "app/api/admin/support/tickets"
+    ],
+    "route": "/admin/support",
+    "roles": [
+      "all (ungated)"
+    ],
+    "purpose": "Ask the software operator for help and follow the thread; auto-captures URL, browser and viewport.",
+    "elements": [
+      {
+        "name": "New ticket",
+        "does": "Form with captured context shown before submit."
+      },
+      {
+        "name": "Thread",
+        "does": "Reply or mark resolved; page reloads on reply (no realtime)."
+      }
+    ],
+    "behaviours": [
+      "Customer-side of SUPPORT_DESK; the operator side is under /platform."
+    ],
+    "data": [
+      "support_tickets",
+      "/api/admin/support/tickets"
+    ],
+    "status": "works",
+    "problems": [
+      "Overlaps discussions and the report button (three feedback paths).",
+      "Ticket thread has no live updates."
+    ],
+    "overlaps": [
+      "office.discussions"
+    ],
+    "verdict": "merge",
+    "rebuild": "One 'Help' entry: Ask a question, Report a problem, Request a feature.",
+    "add": [
+      "Attach screenshot",
+      "Knowledge-base suggestions before submit"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/support/page.tsx:44-60",
+      "app/admin/support/tickets/[id]/page.tsx:1-9",
+      "app/admin/support/new/page.tsx:1-10"
+    ],
+    "nationwide": "Assumes the operator is the same company as the software owner (Starr); fine for SaaS support desk.",
+    "plans": [
+      "docs/planning/completed/SUPPORT_DESK.md"
+    ]
+  },
+  {
+    "id": "office.support-errors-audit",
+    "area": "office",
+    "kind": "panel",
+    "name": "Error log and audit log (Support tabs)",
+    "where": [
+      "_tabs/ErrorLogTab.tsx",
+      "_tabs/AuditTab.tsx",
+      "app/api/admin/{errors,audit}"
+    ],
+    "route": "/admin/support?tab=error-log / audit",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "Errors the software hit, and who changed what.",
+    "elements": [
+      {
+        "name": "Errors",
+        "does": "Stack traces and failed requests; non-admins see only their own."
+      },
+      {
+        "name": "Audit",
+        "does": "Permission changes, record edits, operator access."
+      }
+    ],
+    "behaviours": [
+      "Both protect by filtering rows, not by status code: audit returns empty unless caller is org admin."
+    ],
+    "data": [
+      "error log table",
+      "audit table"
+    ],
+    "status": "works",
+    "problems": [
+      "Error log tab is 661 lines; audit and error log overlap with the Hub 'proactive alerts' widget in intent."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep; add export and retention.",
+    "add": [
+      "CSV export of audit",
+      "Alert on repeated errors"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/support/_tabs/ErrorLogTab.tsx:1-14",
+      "app/admin/support/_tabs/AuditTab.tsx:1-9",
+      "app/api/admin/errors/route.ts:120"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.search",
+    "area": "office",
+    "kind": "page",
+    "name": "Search Everything",
+    "where": [
+      "app/admin/search/page.tsx",
+      "SearchResult.tsx",
+      "lib/search/{corpora,query,pages,semantic}.ts",
+      "app/api/admin/search/route.ts",
+      "seeds/515"
+    ],
+    "route": "/admin/search",
+    "roles": [
+      "all"
+    ],
+    "purpose": "One search across documents, jobs, customers, contacts, leads, invoices and research files, with date filters.",
+    "elements": [
+      {
+        "name": "Corpora",
+        "does": "research-documents, job-files, field-media, maintenance-documents, files, customers, jobs, contacts, leads, invoices."
+      },
+      {
+        "name": "Filters",
+        "does": "Corpus, type, date role (created, modified, effective/recorded)."
+      },
+      {
+        "name": "Semantic",
+        "does": "AI retrieval merged with keyword and labelled when found only by meaning."
+      }
+    ],
+    "behaviours": [
+      "Never shows a failed query as 'no results'; shows notes and errors.",
+      "customers hits have no viewer page so render without a link."
+    ],
+    "data": [
+      "search_everything() SQL function",
+      "embeddings"
+    ],
+    "status": "works",
+    "problems": [
+      "Separate from Cmd+K, which does not search records.",
+      "Calls and call transcripts are not a corpus (calls have their own search).",
+      "Roles passed down as data but corpus-level visibility rules unverified."
+    ],
+    "overlaps": [
+      "office.shell-command-palette"
+    ],
+    "verdict": "merge",
+    "rebuild": "Make this the 'see all' page behind Cmd+K and add calls and emails as corpora.",
+    "add": [
+      "Calls and transcripts",
+      "Saved searches"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/search/page.tsx:1-18",
+      "lib/search/corpora.ts:1-35",
+      "lib/search/corpora.ts:92-274",
+      "app/api/admin/search/route.ts:1-20"
+    ],
+    "nationwide": "None specific; recording-date filter suits title and deed archives.",
+    "plans": []
+  },
+  {
+    "id": "office.settings-core",
+    "area": "office",
+    "kind": "page",
+    "name": "Settings: General, Company, Pages",
+    "where": [
+      "app/admin/settings/page.tsx",
+      "PageToggles.tsx",
+      "app/api/admin/settings/route.ts"
+    ],
+    "route": "/admin/settings",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Firm name, default state, job-number prefix, timezone, address, phone, firm registration number, and which pages are on.",
+    "elements": [
+      {
+        "name": "General",
+        "does": "companyName, defaultState, jobNumberPrefix, timezone (defaults Starr Surveying, TX, SS, America/Chicago)."
+      },
+      {
+        "name": "Company",
+        "does": "address, phone, fax, website, tbpelsFirmNumber (what goes on a plat)."
+      },
+      {
+        "name": "Pages",
+        "does": "Toggle map (see shell-feature-toggles)."
+      }
+    ],
+    "behaviours": [
+      "Admin only door; every tab needs admin.",
+      "Page was rendering unstyled because it never imported the jobs CSS (header note, fixed)."
+    ],
+    "data": [
+      "app_settings",
+      "/api/admin/settings"
+    ],
+    "status": "partial",
+    "problems": [
+      "Firm registration field is named for Texas (tbpelsFirmNumber).",
+      "Settings misses most firm rules: units, state plane zone, plat standard, deliverable naming, default fee tables, survey types, call hours, receptionist script.",
+      "Notification and integration controls are scattered in this file, HoursNotificationSetting, BroadcastNotificationSettings and messaging prefs."
+    ],
+    "overlaps": [
+      "office.settings-more-tabs"
+    ],
+    "verdict": "improve",
+    "rebuild": "Add a 'Firm profile' step in onboarding collecting state(s), license numbers (per state, multiple), units and coordinate system, brand, service area and hours; apply them everywhere.",
+    "add": [
+      "Multiple state license numbers",
+      "Service area map",
+      "Units and datum defaults",
+      "Survey type list",
+      "Deliverable templates"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/settings/page.tsx:76-81",
+      "app/admin/settings/page.tsx:86-103",
+      "middleware.ts:26"
+    ],
+    "nationwide": "Default state TX, prefix SS and timezone Chicago are Starr defaults; tbpelsFirmNumber is a Texas board field. Needs state-agnostic license fields and per-state rules.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "office.settings-more-tabs",
+    "area": "office",
+    "kind": "panel",
+    "name": "Settings: Org profile, Organisations, User Access, Notifications, Integrations, Billing",
+    "where": [
+      "app/admin/settings/_tabs/OrgProfileTab.tsx",
+      "_tabs/OrgsTab.tsx",
+      "BroadcastNotificationSettings.tsx",
+      "HoursNotificationSetting.tsx",
+      "settings/page.tsx (Google Calendar)"
+    ],
+    "route": "/admin/settings",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "The organisation record, the organisations you belong to, sign-in access, notification toggles, outside services and the subscription.",
+    "elements": [
+      {
+        "name": "Org profile",
+        "does": "GET/PUT /api/admin/org-settings."
+      },
+      {
+        "name": "Organisations",
+        "does": "Admin and tech_support; switches and lists the caller's organisations."
+      },
+      {
+        "name": "Integrations",
+        "does": "Google Calendar connect, disconnect and sync (page.tsx:366-421)."
+      },
+      {
+        "name": "Notifications",
+        "does": "Broadcast and hours notification preferences via /api/admin/me/*."
+      },
+      {
+        "name": "Billing",
+        "does": "Subscription tab; also /admin/billing exists."
+      }
+    ],
+    "behaviours": [
+      "Tab list is per role (orgs for admin and tech_support)."
+    ],
+    "data": [
+      "org_settings",
+      "orgs",
+      "Google Calendar API"
+    ],
+    "status": "partial",
+    "problems": [
+      "Billing appears both as a tab here and as its own /admin/billing portal.",
+      "The 'Organisations' tab hint says 'every organisation on the platform' but GET /api/admin/orgs lists only the caller's own memberships (orgs route:3), so the label over-promises.",
+      "Integrations tab covers Google Calendar only in this file; other integrations (Twilio, Resend, Google Ads) are configured elsewhere or in env."
+    ],
+    "overlaps": [
+      "office.settings-core"
+    ],
+    "verdict": "improve",
+    "rebuild": "One Integrations screen listing every connection with status, connect and test buttons; keep organisation switching but move any operator-level view to /platform.",
+    "add": [
+      "Integration status checks",
+      "QuickBooks connect"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/settings/page.tsx:94-100",
+      "app/admin/settings/_tabs/OrgsTab.tsx:42-59",
+      "app/api/admin/orgs/route.ts:3",
+      "app/admin/settings/page.tsx:366-421"
+    ],
+    "nationwide": "Google-only calendar integration.",
+    "plans": []
+  },
+  {
+    "id": "office.design-studio",
+    "area": "office",
+    "kind": "tool",
+    "name": "Page Designer studio",
+    "where": [
+      "app/admin/design/Studio.tsx",
+      "[id]/page.tsx",
+      "components/*",
+      "lib/design/*",
+      "app/api/admin/design/**"
+    ],
+    "route": "/admin/design/[id]",
+    "roles": [
+      "admin",
+      "developer"
+    ],
+    "purpose": "The owner's tool for drawing mock pages (desktop and mobile canvases) from a palette of real app elements so he can design each page and hand the picture to the developer.",
+    "elements": [
+      {
+        "name": "Palette",
+        "does": "Searchable catalogue of elements from every admin page."
+      },
+      {
+        "name": "Artboard",
+        "does": "Two independent views, pointer-drag with grid and guides (lib/design/snap)."
+      },
+      {
+        "name": "Inspector, Layers, Theme panel, Lifecycle panel",
+        "does": "Properties, ordering, themes, and draft/alternative/active status."
+      },
+      {
+        "name": "Export",
+        "does": "Standalone HTML with its own stylesheet."
+      }
+    ],
+    "behaviours": [
+      "Inline render (no iframe) so mockups wear the real CSS.",
+      "Designs have a lifecycle: draft, alternative, active, linked theme."
+    ],
+    "data": [
+      "design tables",
+      "lib/design/pages.generated.json"
+    ],
+    "status": "works",
+    "problems": [
+      "1,302-line component plus 1,862 lines of CSS for an internal planning tool.",
+      "Middleware allows admin and developer; API requires isDeveloper (design route:19), so an admin without developer role gets 403 on API calls while the page loads (unverified in browser).",
+      "Solves the owner's planning need, not a surveying firm's job; will not be a customer feature."
+    ],
+    "overlaps": [
+      "office.design-boards"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep as an internal developer tool outside the customer product; hide behind a developer flag.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/design/Studio.tsx:1-25",
+      "middleware.ts:50",
+      "app/api/admin/design/route.ts:11-19"
+    ],
+    "nationwide": "Palette and dossiers describe the Starr admin; internal only.",
+    "plans": [
+      "docs/planning/completed/DESIGN_STUDIO_2026-08-23.md",
+      "docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md",
+      "docs/planning/completed/DESIGN_THEMES_2026-08-23.md"
+    ]
+  },
+  {
+    "id": "office.design-boards",
+    "area": "office",
+    "kind": "page",
+    "name": "Design portal: Pages, Compare, Dossiers, Site versions",
+    "where": [
+      "app/admin/design/page.tsx",
+      "DesignHome.tsx",
+      "compare/CompareBoard.tsx",
+      "dossiers/DossierBoard.tsx",
+      "versions/VersionsBoard.tsx"
+    ],
+    "route": "/admin/design",
+    "roles": [
+      "admin",
+      "developer"
+    ],
+    "purpose": "Four boards: every page and its designs, versions side by side under any theme, a written dossier per page, and a named set of designs published together.",
+    "elements": [
+      {
+        "name": "Pages",
+        "does": "Every page, its designs, which one is the record."
+      },
+      {
+        "name": "Compare",
+        "does": "All versions of one page."
+      },
+      {
+        "name": "Dossiers",
+        "does": "Purpose and elements of each page, written and measured."
+      },
+      {
+        "name": "Site versions",
+        "does": "Publish a set of designs in one action."
+      }
+    ],
+    "behaviours": [
+      "Design 'served' pages and conformance score are read-only views."
+    ],
+    "data": [
+      "design tables"
+    ],
+    "status": "works",
+    "problems": [
+      "Plan docs referenced as in-progress (PAGE_VERSIONS...) now live in completed/; 'serve a design as the real page' cannot replace a working route (conformance header)."
+    ],
+    "overlaps": [
+      "office.design-studio"
+    ],
+    "verdict": "merge",
+    "rebuild": "Fold into the single internal design tool; drop Site versions unless a customer-facing theme feature is wanted.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/design/page.tsx:54-62",
+      "app/admin/design/versions/VersionsBoard.tsx:1-10"
+    ],
+    "nationwide": "Internal.",
+    "plans": [
+      "docs/planning/completed/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md"
+    ]
+  },
+  {
+    "id": "office.design-serve-conformance",
+    "area": "office",
+    "kind": "page",
+    "name": "Design as a page and Design conformance",
+    "where": [
+      "app/admin/design/serve/page.tsx",
+      "app/admin/design/conformance/page.tsx",
+      "lib/design/conformance.generated.json"
+    ],
+    "route": "/admin/design/serve, /admin/design/conformance",
+    "roles": [
+      "admin",
+      "developer"
+    ],
+    "purpose": "Show a design at real size without chrome, and score how much of each design is on the real page.",
+    "elements": [
+      {
+        "name": "Serve",
+        "does": "?route= or ?id=, resolved through resolveActive."
+      },
+      {
+        "name": "Conformance",
+        "does": "Server component reading a generated JSON at request time."
+      }
+    ],
+    "behaviours": [
+      "Conformance is a file, not a database read, by design."
+    ],
+    "data": [
+      "conformance.generated.json"
+    ],
+    "status": "works",
+    "problems": [
+      "Score is a file regenerated by script; can be stale."
+    ],
+    "overlaps": [
+      "office.design-boards"
+    ],
+    "verdict": "remove",
+    "rebuild": "Delete unless the design tool is productised.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/design/conformance/page.tsx:1-12",
+      "app/admin/design/serve/page.tsx:1-14"
+    ],
+    "nationwide": "Internal.",
+    "plans": []
+  },
+  {
+    "id": "office.learn-portal-study",
+    "area": "office",
+    "kind": "page",
+    "name": "Learn: Knowledge portal (study tabs)",
+    "where": [
+      "app/admin/learn/page.tsx",
+      "_tabs/*",
+      "app/admin/learn/modules/**",
+      "app/admin/learn/flashcards/**",
+      "app/admin/learn/knowledge-base/**",
+      "app/admin/learn/articles/[id]"
+    ],
+    "route": "/admin/learn",
+    "roles": [
+      "all (ungated)"
+    ],
+    "purpose": "A study area for Texas surveyor education: roadmap, modules and lessons, reference library, flashcards, practice quizzes, history and search.",
+    "elements": [
+      {
+        "name": "Tabs",
+        "does": "Hub, Roadmap, Modules, Knowledge base, References, Flashcards, Card bank, Practice, Quiz history, Search."
+      },
+      {
+        "name": "Roadmap",
+        "does": "28 modules from foundations to RPLS prep with sequential locking."
+      },
+      {
+        "name": "Module and lesson pages",
+        "does": "Locked lessons, videos with interaction tracking, quiz unlock only after required resources."
+      },
+      {
+        "name": "Pay impact callout",
+        "does": "Shows the pay raise a credential adds (pay progression, now parked)."
+      }
+    ],
+    "behaviours": [
+      "Old study routes forward to their tab.",
+      "XP, streak and credentials are tracked."
+    ],
+    "data": [
+      "learn_* tables (modules, lessons, articles, questions, flashcards)",
+      "44 learn API routes"
+    ],
+    "status": "works",
+    "problems": [
+      "Ten tabs for one activity; Hub card grid repeats the tabs.",
+      "Pay impact callout points at a parked feature.",
+      "Content is Texas licence prep, not how to use the software."
+    ],
+    "overlaps": [
+      "office.learn-howto-gap"
+    ],
+    "verdict": "improve",
+    "rebuild": "Split into 'Learn the profession' (exam prep) and 'How to use the software' (see office.md); trim study tabs to Continue, Library, Practice.",
+    "add": [
+      "Assigned courses with due dates",
+      "CE credit tracking per state"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/learn/page.tsx:1-60",
+      "app/admin/learn/page.tsx:65-74",
+      "app/admin/learn/_tabs/RoadmapTab.tsx:173",
+      "app/admin/learn/modules/[id]/[lessonId]/page.tsx:396",
+      "app/admin/learn/modules/[id]/PayImpactCallout.tsx:1-10"
+    ],
+    "nationwide": "Roadmap says 'complete Texas Land Surveying curriculum' (RoadmapTab:173); seeds include NMSU SUR292 land law; the exam content is NCEES FS and Texas RPLS. Needs per-state curricula.",
+    "plans": [
+      "docs/planning/completed/FS_EXAM_ALIGNMENT_BUILDOUT_2026-07-10.md",
+      "docs/planning/completed/FS_PREP_PRACTICE_FLASHCARDS_2026-07-05.md",
+      "docs/planning/completed/hub-widget-excellence-13-learning-widgets-2026-05-30.md"
+    ]
+  },
+  {
+    "id": "office.learn-exam-prep",
+    "area": "office",
+    "kind": "page",
+    "name": "Exam prep: FS/SIT, mock exam, calculator, RPLS",
+    "where": [
+      "app/admin/learn/exam-prep/**",
+      "app/api/admin/learn/exam-prep/**",
+      "components/QuizRunner.tsx",
+      "components/QuestionBody.tsx"
+    ],
+    "route": "/admin/learn/exam-prep",
+    "roles": [
+      "all (ungated)"
+    ],
+    "purpose": "Timed and untimed preparation for the Fundamentals of Surveying exam (SIT) and the RPLS exam.",
+    "elements": [
+      {
+        "name": "SIT overview and modules",
+        "does": "Per-module chunked lessons with deeper-learning tutor."
+      },
+      {
+        "name": "Mock exam",
+        "does": "Full-length timed exam with drag and hotspot questions."
+      },
+      {
+        "name": "Calculator reference",
+        "does": "Every TI-30Xa key, guided keystroke practice."
+      },
+      {
+        "name": "RPLS",
+        "does": "QuizRunner of type exam_prep; one 16-line page."
+      }
+    ],
+    "behaviours": [
+      "Kept as separate routes so the timed exam has no tab bar."
+    ],
+    "data": [
+      "learn exam-prep APIs",
+      "question tables"
+    ],
+    "status": "partial",
+    "problems": [
+      "RPLS prep is a thin quiz page next to a deep SIT build.",
+      "Exam prep serves the owner's own licensure, not firm operations."
+    ],
+    "overlaps": [
+      "office.learn-portal-study"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep as an optional 'Licensure prep' pack per state.",
+    "add": [
+      "Per-state exam packs",
+      "CE hours log for renewals"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/learn/exam-prep/rpls/page.tsx:1-16",
+      "app/admin/learn/exam-prep/sit/calculator/page.tsx:1-15",
+      "app/admin/learn/exam-prep/sit/mock-exam/page.tsx:1-10"
+    ],
+    "nationwide": "NCEES FS is national; RPLS and Texas items are state-specific.",
+    "plans": [
+      "docs/planning/completed/SIT_PREP_BUILDOUT_2026-07-02.md",
+      "docs/planning/completed/EXAM_CALCULATORS.md"
+    ]
+  },
+  {
+    "id": "office.learn-manage-authoring",
+    "area": "office",
+    "kind": "page",
+    "name": "Learning content management (/admin/learn/manage)",
+    "where": [
+      "app/admin/learn/manage/page.tsx",
+      "_tabs/MediaTab.tsx",
+      "_tabs/QuestionBuilderTab.tsx",
+      "article-editor/[id]/page.tsx",
+      "lesson-builder/[id]/*"
+    ],
+    "route": "/admin/learn/manage",
+    "roles": [
+      "admin",
+      "developer",
+      "teacher",
+      "tech_support"
+    ],
+    "purpose": "Author courses: modules, lessons, articles, questions, flashcards, XP config, assignments, student overrides, activity, recycle bin and media.",
+    "elements": [
+      {
+        "name": "Tabs",
+        "does": "modules, lessons, articles, questions, flashcards, xp_config, assignments, student_overrides, activity, recycle_bin, media, question_builder."
+      },
+      {
+        "name": "Lesson builder",
+        "does": "23 block types: text, image, video, callout, quiz, embed, table, file, slideshow, html, audio, flashcard, popup article, equation, tabs, accordion, columns, practice problem and more."
+      },
+      {
+        "name": "Question builder",
+        "does": "1,873-line tab."
+      },
+      {
+        "name": "Media tab",
+        "does": "Upload images, video, audio and documents or add URLs."
+      }
+    ],
+    "behaviours": [
+      "Page is 1,537 lines, lesson-builder 1,978."
+    ],
+    "data": [
+      "learn tables",
+      "storage bucket"
+    ],
+    "status": "works",
+    "problems": [
+      "Two giant files; nine+ tabs in a flat bar with a page-local tab implementation different from the portal pattern.",
+      "Video support is YouTube/Vimeo embed or an uploaded file with no transcript, chapters or captions."
+    ],
+    "overlaps": [
+      "office.learn-howto-gap"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the block editor; split manage into 'Courses' and 'Question bank'; add video chapters and transcripts.",
+    "add": [
+      "Captions and transcripts",
+      "Version history",
+      "Reuse a lesson in several courses"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/learn/manage/page.tsx:1-20",
+      "app/admin/learn/manage/page.tsx:37",
+      "app/admin/learn/manage/lesson-builder/[id]/blocks.ts:15",
+      "middleware.ts:198"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.learn-students-tutor",
+    "area": "office",
+    "kind": "page",
+    "name": "Student progress, AI tutor and reference library",
+    "where": [
+      "app/admin/learn/students/**",
+      "_tabs/ReferencesTab.tsx",
+      "_tabs/ContentFreshnessPanel.tsx",
+      "app/api/admin/learn/{ai-tutor,tutor-*,references,content-freshness,students}",
+      "lib/learn/tutor-*.ts"
+    ],
+    "route": "/admin/learn/students, /admin/learn?tab=references",
+    "roles": [
+      "admin",
+      "developer",
+      "teacher",
+      "tech_support"
+    ],
+    "purpose": "Teacher view of each learner, an AI tutor that answers from uploaded trusted documents, and a freshness check for the material taught.",
+    "elements": [
+      {
+        "name": "Students",
+        "does": "List and per-student page: lessons, quizzes, module completion."
+      },
+      {
+        "name": "References",
+        "does": "Upload PDFs, notes; extracted, chunked, embedded for retrieval."
+      },
+      {
+        "name": "Content freshness",
+        "does": "Flags a new handbook edition or amended rule; never edits."
+      }
+    ],
+    "behaviours": [
+      "Tutor answers are guarded (tutor-guard) and retrieval uses embeddings."
+    ],
+    "data": [
+      "learn_references",
+      "embeddings",
+      "Anthropic",
+      "ElevenLabs (read-aloud)"
+    ],
+    "status": "works",
+    "problems": [
+      "References tab appears in the ungated study portal although it is a manager function (upload and delete).",
+      "Tutor is built around FS exam content."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Reuse the retrieval stack as the 'Ask the how-to guide' AI over the software tutorials.",
+    "add": [
+      "Firm SOP documents as a tutor source"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/learn/students/page.tsx:1-12",
+      "app/admin/learn/_tabs/ReferencesTab.tsx:9-12",
+      "app/admin/learn/_tabs/ContentFreshnessPanel.tsx:1-15"
+    ],
+    "nationwide": "Reference documents are FS/Texas.",
+    "plans": [
+      "docs/planning/completed/AI_TUTOR_HIGHLIGHT_2026-07-03.md",
+      "docs/planning/completed/AI_TUTOR_INTERACTIVE_PROBLEMS_2026-07-03.md",
+      "docs/planning/completed/AI_TUTOR_SAVED_CONVERSATIONS_2026-07-04.md"
+    ]
+  },
+  {
+    "id": "office.learn-fieldbook",
+    "area": "office",
+    "kind": "page",
+    "name": "Fieldbook (notes and bookmarks)",
+    "where": [
+      "app/admin/learn/fieldbook/page.tsx",
+      "FieldbookPanel.tsx",
+      "components/fieldbook/AudioPlayer.tsx",
+      "app/api/admin/learn/fieldbook"
+    ],
+    "route": "/admin/learn/fieldbook",
+    "roles": [
+      "all"
+    ],
+    "purpose": "Your field notes and research bookmarks with categories, search and audio playback; also a floating tool.",
+    "elements": [
+      {
+        "name": "Panel",
+        "does": "Categories, search, audio notes."
+      }
+    ],
+    "behaviours": [
+      "Restored 2026-08-06 after a redirect sent the menu entry to the Hub."
+    ],
+    "data": [
+      "fieldbook tables"
+    ],
+    "status": "works",
+    "problems": [
+      "Lives under Learn but is a field-work tool; reached from the Hub and the floating menu as well."
+    ],
+    "overlaps": [
+      "office.shell-floating-tools"
+    ],
+    "verdict": "merge",
+    "rebuild": "Move to the Jobs area as job notes with photos and audio.",
+    "add": [
+      "Attach to a job or point"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/learn/fieldbook/page.tsx:1-21",
+      "app/admin/learn/fieldbook/FieldbookPanel.tsx:1-8"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.learn-howto-gap",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "How-to guide hub (not built; gap analysis)",
+    "where": [
+      "app/admin/learn/**",
+      "lib/admin/help-catalog.ts",
+      "app/admin/components/nav/HelpDrawer.tsx",
+      "app/admin/learn/manage/lesson-builder/[id]/blocks.ts"
+    ],
+    "route": "/admin/learn",
+    "roles": [
+      "all"
+    ],
+    "purpose": "No in-product how-to library exists. Learn teaches surveying; the help drawer gives 3-5 bullets on 7 curated pages and AI guesses elsewhere.",
+    "elements": [
+      {
+        "name": "Reusable pieces",
+        "does": "Lesson builder with video, slideshow, callout and popup blocks; media library; module completion and XP; AI tutor retrieval; help drawer; Cmd+K."
+      }
+    ],
+    "behaviours": [
+      "Video blocks accept YouTube or Vimeo URLs (blocks.ts:81) and lessons list videos with interaction tracking (lessonId page:903)."
+    ],
+    "data": [
+      "learn tables",
+      "help_generated"
+    ],
+    "status": "stub",
+    "problems": [
+      "No tool has a video. No mapping from a route to its guide. Help content is not authored by the firm."
+    ],
+    "overlaps": [
+      "office.shell-help-drawer",
+      "office.learn-portal-study",
+      "office.learn-manage-authoring"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "See office.md: a How To area keyed by route id, each guide = 60-120s video + step list + 'try it' link, authored in the existing lesson builder, shown in the help drawer, page empty states, Cmd+K and Learn.",
+    "add": [
+      "Guide per tool",
+      "Role paths (new crew hire, new office manager)",
+      "Completion tracking and sign-off"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/learn/manage/lesson-builder/[id]/blocks.ts:52",
+      "app/admin/learn/manage/lesson-builder/[id]/blocks.ts:81",
+      "app/admin/learn/modules/[id]/[lessonId]/page.tsx:903",
+      "lib/admin/help-catalog.ts:33",
+      "app/admin/components/nav/HelpDrawer.tsx:1-30"
+    ],
+    "nationwide": "Guides must be per-firm editable; Starr-specific steps (local county sites, TBPELS) must be separable from generic product guides.",
+    "plans": []
+  },
+  {
+    "id": "office.learn-api",
+    "area": "office",
+    "kind": "api",
+    "name": "Learn API group",
+    "where": [
+      "app/api/admin/learn/** (44 route files)",
+      "lib/learn/*"
+    ],
+    "route": "/api/admin/learn",
+    "roles": [
+      "all; manage routes via canManageContent"
+    ],
+    "purpose": "Modules, lessons, quizzes, questions, flashcards, progress, streak, XP, tutor, TTS, references, exam prep, templates, recycle bin and seed.",
+    "elements": [
+      {
+        "name": "Content routes",
+        "does": "modules, lessons, lesson-blocks, articles, questions, quizzes, flashcards, block-templates, templates, topics, recycle-bin."
+      },
+      {
+        "name": "Learner routes",
+        "does": "progress, user-progress, streak, practice, recommended, roadmap, search, notes, fieldbook."
+      },
+      {
+        "name": "AI and audio",
+        "does": "ai-tutor, ai-grade, explain-step, define, tutor-problem, tts."
+      },
+      {
+        "name": "Admin",
+        "does": "admin-overrides, assignments, students, xp-config, credits, seed."
+      }
+    ],
+    "behaviours": [
+      "modules route imports canManageContent; many routes only check sign-in."
+    ],
+    "data": [
+      "learn_* tables",
+      "embeddings",
+      "Anthropic",
+      "ElevenLabs"
+    ],
+    "status": "works",
+    "problems": [
+      "Largest admin API domain after research (surface audit: 33 learn routes then, 44 now)."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep; group behind fewer endpoints when the how-to hub is built.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/api/admin/learn/modules/route.ts:2",
+      "docs/admin-surface-audit-2026-05-30.md:112-125"
+    ],
+    "nationwide": "None.",
+    "plans": []
+  },
+  {
+    "id": "office.plan-settings-per-system-rules",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Plan: SETTINGS_PER_SYSTEM_RULES_VARIANTS (pending)",
+    "where": [
+      "docs/planning/pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md"
+    ],
+    "route": null,
+    "roles": [
+      "n/a"
+    ],
+    "purpose": "Despite the name this plan is about per-character preferences for the tabletop game sheets (Pathfinder 2 and 'IG' variants), not about firm settings.",
+    "elements": [
+      {
+        "name": "S-4a",
+        "does": "Plumb preferences into PF2Sheet/IGSheet (built)."
+      },
+      {
+        "name": "S-4b",
+        "does": "PF2 variants (built)."
+      },
+      {
+        "name": "S-4c",
+        "does": "IG house rules: blocked on owner naming them."
+      },
+      {
+        "name": "S-5",
+        "does": "Cross-system QA."
+      }
+    ],
+    "behaviours": [
+      "Parked back to pending on 2026-08-31 by owner direction to focus on research software."
+    ],
+    "data": [
+      "character sheet code (not office)"
+    ],
+    "status": "unknown",
+    "problems": [
+      "Not relevant to the surveying product or to Settings. It should be filed with the game project so it does not read as an unbuilt firm-settings feature."
+    ],
+    "overlaps": [],
+    "verdict": "remove",
+    "rebuild": "Remove from the surveying roadmap; keep only as a game-project note.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "docs/planning/pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md:1-30"
+    ],
+    "nationwide": "n/a",
+    "plans": [
+      "docs/planning/pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md (open: IG house rules unnamed)"
+    ]
+  },
+  {
+    "id": "office.plan-owner-actions",
+    "area": "office",
+    "kind": "mechanic",
+    "name": "Plan: OWNER_ACTIONS_RESEARCH_AND_MARKETING (pending)",
+    "where": [
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md"
+    ],
+    "route": null,
+    "roles": [
+      "owner"
+    ],
+    "purpose": "A checklist of things only the owner can do: research-worker decisions, vendor cancellations, secrets, and marketing logins and content.",
+    "elements": [
+      {
+        "name": "Research",
+        "does": "Bell CAD geo-block and Browserbase decision; TexasFile paid run; CapSolver key."
+      },
+      {
+        "name": "Money",
+        "does": "Cancel or check Browserbase, iDocket, Mapbox, ElevenLabs, managed Redis."
+      },
+      {
+        "name": "Marketing M1-M4, G1-G4",
+        "does": "Ads conversion actions, Search Console, sameAs URLs, county landing pages, Business Profile."
+      }
+    ],
+    "behaviours": [
+      "Nothing in it is engineering work."
+    ],
+    "data": [
+      "n/a"
+    ],
+    "status": "unknown",
+    "problems": [
+      "Marketing items M1 and G1-G4 gate the Google Ads upload and reviews, which the marketing tabs depend on."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep as the owner's checklist; surface the marketing items inside Settings > Integrations as 'to connect' states.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md:98-112"
+    ],
+    "nationwide": "Texas county pages and Bell CAD are Starr/Texas.",
+    "plans": [
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md (open: M1 to M4, G1 to G4)"
+    ]
+  }
+]

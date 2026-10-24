@@ -1,0 +1,3153 @@
+[
+  {
+    "id": "jobs.portal",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Jobs & Projects portal (tabbed hub)",
+    "where": [
+      "app/admin/jobs/page.tsx",
+      "app/admin/jobs/JobsPortal.css",
+      "lib/admin/portal/usePortalTabs.ts",
+      "app/admin/jobs/layout.tsx"
+    ],
+    "route": "/admin/jobs",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support",
+      "field_crew (Weather tab only)"
+    ],
+    "purpose": "One page holding six tabs: Jobs, Projects, Field data, Activity, Weather, Compliance. It replaced seven separate sidebar pages in the 2026-08-24 consolidation.",
+    "elements": [
+      {
+        "name": "Tab strip (Jobs / Projects / Field data / Activity / Weather / Compliance)",
+        "does": "Selects the panel via ?tab=. Only the active panel mounts, so a tab fetches only when opened."
+      },
+      {
+        "name": "New job / Import buttons",
+        "does": "Shown to admins on the Jobs tab only. Link to /admin/jobs/new and /admin/jobs/import."
+      },
+      {
+        "name": "New Project button",
+        "does": "Shown to admins on the Projects tab only. Links to /admin/projects/new."
+      },
+      {
+        "name": "Per-tab hint line",
+        "does": "One sentence under the tabs describing the active tab."
+      }
+    ],
+    "behaviours": [
+      "Default tab is Projects, not Jobs (page.tsx:87), although the page and route are called Jobs.",
+      "Tabs are filtered per viewer role; if every tab is switched off for the firm the page shows a 'switched off for this company' message (page.tsx:~105).",
+      "Old routes /admin/projects, /timeline, /field-data, /weather, /vehicles, /schedule forward here with ?tab= so bookmarks survive."
+    ],
+    "data": [
+      "/api/admin/jobs/counts (per-tab counts)",
+      "page-level feature toggles (Settings → Pages)"
+    ],
+    "status": "works",
+    "problems": [
+      "Two of the six tabs (Weather, Compliance) are not jobs or projects at all; 'Field data' and 'Activity' are about people and devices rather than jobs. The tab strip is a junk drawer for 'things office people look at'.",
+      "The Activity tab hint promises 'what the firm did today: clock-ins, stage changes, uploads', but the tab renders the per-user Daily Timeline of GPS stops (see jobs.activity-timeline). The hint and the page disagree.",
+      "Defaulting to Projects while the nav and URL say Jobs makes first-time users hunt for the job list.",
+      "File headers in app/admin/jobs/_tabs/* still carry the old route's comment (e.g. ActivityTab says 'app/admin/timeline/page.tsx'), which makes the code hard to navigate."
+    ],
+    "overlaps": [
+      "jobs.work-landing",
+      "jobs.redirect-routes"
+    ],
+    "verdict": "improve",
+    "rebuild": "Make /admin/jobs a single work board: Jobs (default) and Projects as two views of the same list with a grouping toggle, plus a 'Today' view for the crew calendar. Move Weather into the schedule/calendar day view, Compliance into Company settings, and Field data into each job's Field panel plus one office inbox of unreviewed uploads.",
+    "add": [
+      "Saved filters and a 'my jobs' view",
+      "Board (kanban by status) view",
+      "Bulk actions (reassign, change status)"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/jobs/page.tsx:57-88",
+      "app/admin/jobs/page.tsx:59-87",
+      "app/admin/jobs/_tabs/ActivityTab.tsx:1-12"
+    ],
+    "nationwide": "No Starr-specific content. Tab visibility and roles are per-firm settings already (Settings → Pages). Role names (admin/developer/tech_support/field_crew) need mapping to a firm's own roles.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md (C7, C13a: done)",
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md"
+    ]
+  },
+  {
+    "id": "jobs.jobs-list",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "All Jobs list (Jobs tab)",
+    "where": [
+      "app/admin/jobs/_tabs/JobsTab.tsx",
+      "app/admin/components/jobs/JobCard.tsx",
+      "app/api/admin/jobs/route.ts"
+    ],
+    "route": "/admin/jobs?tab=jobs",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "Browse and search every job, by stage, as cards or a list.",
+    "elements": [
+      {
+        "name": "Search box",
+        "does": "Server-side ilike on name, job number, client name and address (route.ts:88)."
+      },
+      {
+        "name": "Stage pipeline strip",
+        "does": "Counts per stage (quote, research, fieldwork, drawing, legal, delivery, completed); click to filter. Cancelled and on-hold are hidden from it (JobsTab.tsx:238)."
+      },
+      {
+        "name": "Grid / List toggle",
+        "does": "Switches between card grid and table list."
+      },
+      {
+        "name": "Deleted view",
+        "does": "Shows soft-deleted jobs; Delete moves a job to a 30-day recycle bin, Restore PUTs deleted_at:null."
+      },
+      {
+        "name": "New badge",
+        "does": "Marks jobs this person has not opened yet, from the unread job_created notification."
+      }
+    ],
+    "behaviours": [
+      "Delete is a soft delete with 30-day recovery (route.ts:432).",
+      "A job card shows number, stage chip, deadline bubble, team count and tags.",
+      "The stage description tooltips in this file explain each stage in surveying terms."
+    ],
+    "data": [
+      "jobs",
+      "job_team",
+      "job_tags",
+      "notifications (job_created)"
+    ],
+    "status": "works",
+    "problems": [
+      "No column sort, no assignee or due-date filter, no 'overdue' or 'mine' view: a firm with 200 open jobs cannot triage from here.",
+      "Stage is the only axis; on_hold and cancelled are hidden from the strip even though they are stored in the same stage column.",
+      "Stage descriptions are duplicated here and in STAGE_CONFIG; both hard-code the Starr seven-stage flow."
+    ],
+    "overlaps": [
+      "jobs.projects-list"
+    ],
+    "verdict": "improve",
+    "rebuild": "One dense table (job number, client, site, type, status, assigned PM, party chief, due date, % billed) with saved views and a board view. Status chips come from the canonical lifecycle in jobs.md.",
+    "add": [
+      "Sort and multi-filter",
+      "Assignee, due-date, overdue filters",
+      "Bulk status change",
+      "Export to CSV",
+      "Map view of open jobs"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/_tabs/JobsTab.tsx:103-114",
+      "app/admin/jobs/_tabs/JobsTab.tsx:236-240",
+      "app/api/admin/jobs/route.ts:86-88",
+      "app/api/admin/jobs/route.ts:432"
+    ],
+    "nationwide": "Stage names and the tooltips that describe them are Starr's workflow. They must come from a per-firm pipeline config.",
+    "plans": [
+      "docs/planning/pending/job-soft-delete-2026-05-30.md",
+      "docs/planning/pending/job-calendar-2026-06-16.md"
+    ]
+  },
+  {
+    "id": "jobs.job-new",
+    "area": "jobs",
+    "kind": "page",
+    "name": "New job form",
+    "where": [
+      "app/admin/jobs/new/page.tsx",
+      "app/api/admin/jobs/route.ts (POST)",
+      "lib/calendar/lead-to-job.ts",
+      "lib/projects/model.ts"
+    ],
+    "route": "/admin/jobs/new",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Create a job inside a project, optionally converting a lead (?fromLead=) and pre-filling from it.",
+    "elements": [
+      {
+        "name": "Project picker (required)",
+        "does": "Chooses the parent project; ?project= preselects it. Client and site are inherited from the project once, at creation."
+      },
+      {
+        "name": "Client, property, legal-description fields",
+        "does": "Name, address with Google autocomplete, county, abstract number (GLO), lot, acreage."
+      },
+      {
+        "name": "Lead RPLS email, deadline, tags, quote amount, stage",
+        "does": "Stored on the job. Stage defaults to 'quote'."
+      },
+      {
+        "name": "Job number field",
+        "does": "Optional; the API generates YYYY-NNN when blank."
+      }
+    ],
+    "behaviours": [
+      "With ?fromLead=<id> the form prefills from the lead (buildJobDraftFromLead), then after create PATCHes the lead to status 'accepted' and stamps converted_job_id (best-effort; failure is only logged) (page.tsx:218-232).",
+      "The API refuses a job with no project_id (route.ts:148). Job number is MAX-based per org per year (route.ts:199-210).",
+      "Creating a job writes a stage history row, an activity_log row and a job_created notification to the team."
+    ],
+    "data": [
+      "jobs",
+      "projects",
+      "leads (status, converted_job_id)",
+      "job_stages_history",
+      "activity_log",
+      "notifications"
+    ],
+    "status": "works",
+    "problems": [
+      "Converting a lead marks it 'accepted' at the moment the job is created, but the job starts in the 'quote' stage with the checklist item 'Quote accepted by client'. 'Accepted' is therefore stated twice and the two can disagree.",
+      "A job number is burned for every quote, including those that are lost. Firms normally number the job when the work is won, and number proposals separately.",
+      "Lead conversion is a best-effort second request: if it fails, the lead stays 'new' with a job already created (duplicate follow-up risk).",
+      "Single long form: 600+ lines of fields for a firm that would enter client, site, type, and due date and fill the rest later."
+    ],
+    "overlaps": [
+      "jobs.project-new-edit",
+      "jobs.job-import"
+    ],
+    "verdict": "improve",
+    "rebuild": "A two-step 'New job' dialog: pick or create the project (client + site), then job type, scope, due date and fee. Lead conversion becomes one server transaction (lead to won, project created, job created, quote copied as the fee). Job numbers are assigned when a quote is accepted.",
+    "add": [
+      "Job templates by type (boundary, topo, ALTA, stakeout, elevation certificate) with default scope, checklist and fee",
+      "Fee schedule or lump-sum vs hourly flag",
+      "Duplicate-job detection by address or parcel"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/new/page.tsx:58-64",
+      "app/admin/jobs/new/page.tsx:196-232",
+      "app/api/admin/jobs/route.ts:129-148",
+      "app/api/admin/jobs/route.ts:199-236"
+    ],
+    "nationwide": "biasTexas autocomplete (page.tsx:463), 'Texas GLO abstract number' tooltip (page.tsx:536), TBPELS-flavoured RPLS wording. Parcel identifier needs to be a per-state field set (abstract number, PIN, APN, section-township-range). 'RPLS' is a Texas licence title; make it 'responsible licensed surveyor'.",
+    "plans": [
+      "docs/planning/completed/PROJECTS_ABOVE_JOBS_2026-08-19.md",
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md"
+    ]
+  },
+  {
+    "id": "jobs.job-import",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Import legacy jobs and files",
+    "where": [
+      "app/admin/jobs/import/page.tsx"
+    ],
+    "route": "/admin/jobs/import",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Bring historical jobs in from a CSV, and upload files against them.",
+    "elements": [
+      {
+        "name": "CSV drop and preview",
+        "does": "Parses client-side (parseCSVLine, page.tsx:~133), shows headers and rows."
+      },
+      {
+        "name": "Column mapping",
+        "does": "Maps CSV columns to job fields before submit."
+      },
+      {
+        "name": "File upload step",
+        "does": "Posts to /api/admin/jobs/files."
+      }
+    ],
+    "behaviours": [
+      "Posts rows one by one to /api/admin/jobs.",
+      "Each imported job needs a project; the page must pick or create one."
+    ],
+    "data": [
+      "jobs",
+      "projects",
+      "job_files"
+    ],
+    "status": "unknown",
+    "problems": [
+      "Not verified end to end: it was written before projects became mandatory, and whether it creates projects per row is not confirmed in the code read.",
+      "Hand-rolled CSV parser instead of a library; quoted-newline cases are untested."
+    ],
+    "overlaps": [
+      "jobs.job-new"
+    ],
+    "verdict": "improve",
+    "rebuild": "A first-run migration wizard: upload a spreadsheet or QuickBooks/Jobber/Monday export, map columns, group rows into projects by client + site, preview, and import in one transaction with an undo.",
+    "add": [
+      "Importers for common firm tools (QuickBooks, Smartsheet, Excel templates)",
+      "Dry run with error report",
+      "Undo an import batch"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/jobs/import/page.tsx:120-135"
+    ],
+    "nationwide": "Import mapping must be configurable; firms arrive with their own spreadsheets and numbering.",
+    "plans": []
+  },
+  {
+    "id": "jobs.job-detail",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Job detail workspace (7 tabs)",
+    "where": [
+      "app/admin/jobs/[id]/page.tsx",
+      "app/admin/components/jobs/*",
+      "app/admin/jobs/[id]/*.tsx",
+      "app/api/admin/jobs/route.ts (PUT)"
+    ],
+    "route": "/admin/jobs/[id]",
+    "roles": [
+      "admin (full)",
+      "team members (read, notes, files)"
+    ],
+    "purpose": "The single page a job is run from: overview, scheduling, files, field work, property map, financial, activity, messages.",
+    "elements": [
+      {
+        "name": "Header: stage badge, Export PDF, result control",
+        "does": "Shows stage; exports a one-page client-side PDF summary; sets won/lost/abandoned with reason."
+      },
+      {
+        "name": "Stage timeline",
+        "does": "JobStageTimeline: click a stage to move there (both directions); opening a stage also jumps to its folder."
+      },
+      {
+        "name": "Action row",
+        "does": "Upload files, Files and photos, Interactive map, View field captures, Delete job."
+      },
+      {
+        "name": "Overview tab",
+        "does": "Originating inquiry card, research packet, property panel, inline-editable client, deliverables, team, equipment, checklist."
+      },
+      {
+        "name": "Schedule tab",
+        "does": "Three-phase scheduler (Research, Field, Drawing and Deliverables) plus job instructions."
+      },
+      {
+        "name": "Files tab",
+        "does": "One folder explorer (Research, CAD, Photos, Videos, Documents) replacing five older tabs."
+      },
+      {
+        "name": "Field Work tab",
+        "does": "Job notes, field media panel and FieldWorkView (collector points plot)."
+      },
+      {
+        "name": "Property Map tab",
+        "does": "Summary and entry to /admin/map?job=."
+      },
+      {
+        "name": "Financial tab",
+        "does": "JobMoneyPanel and JobTimeTracker."
+      },
+      {
+        "name": "Activity / Messages tabs",
+        "does": "Job activity feed; per-job conversation embedded from messaging."
+      }
+    ],
+    "behaviours": [
+      "1,446-line client component; loads the job, stage history, checklists, team, equipment in separate calls.",
+      "Opening the page POSTs /api/admin/jobs/[id]/open so recently viewed jobs sort first, and clears the 'New' badge.",
+      "Old tab keys (research, cad, photos, videos) are remapped to Files folders (page.tsx:~284 openTab).",
+      "Inline edits save field by field through PUT /api/admin/jobs."
+    ],
+    "data": [
+      "jobs",
+      "job_stages_history",
+      "job_checklists",
+      "job_team",
+      "job_equipment",
+      "job_payments",
+      "job_time_entries",
+      "job_files",
+      "job_map_*",
+      "fieldbook_notes",
+      "conversations",
+      "activity_log"
+    ],
+    "status": "works",
+    "problems": [
+      "Three tabs and two buttons all lead to 'what the crew captured': Field Work tab, Property Map tab, the 'Interactive map' button, 'View field captures', and the Files > Photos folder. Same point, five doors.",
+      "'Field Work' is the name of a stage, a tab, and a legacy component (FieldWorkView) over a table (job_field_data) that holds zero rows per the 2026-09-20 review.",
+      "Deliverables is a free-text field here; the real deliverable records (revision, seal, issued-to) have an API and no screen (see jobs.deliverables-api).",
+      "No change-order, proposal or invoice panel on the job, even though the data and API exist.",
+      "Overview tab is long: nine panels stacked, no 'what needs doing next' summary beyond the checklist.",
+      "Page is one 1,446-line file with its own copies of types and tab logic; hard to change safely."
+    ],
+    "overlaps": [
+      "jobs.job-fieldwork-tab",
+      "jobs.job-field-captures-page",
+      "jobs.property-map"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Job page = header (number, client, site, status, PM, due date, fee and billed) + five tabs: Overview (next actions, team, schedule), Field (map, captures, notes, instructions), Office (files, drafting, research, deliverables and QA), Money (fee, change orders, invoices, payments, time), Conversation (messages and activity merged). Everything about the field lives on the map; one door in.",
+    "add": [
+      "Next-action strip based on status",
+      "Deliverables and change orders on the page",
+      "Invoice and 'bill this job' button",
+      "Related jobs on same parcel"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/[id]/page.tsx:92-121",
+      "app/admin/jobs/[id]/page.tsx:504-574 (per docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.1)",
+      "app/admin/jobs/[id]/page.tsx:732-740",
+      "app/admin/jobs/[id]/page.tsx:798-1006",
+      "app/admin/jobs/[id]/page.tsx:819-821"
+    ],
+    "nationwide": "Tab tooltips, RPLS wording, drawing/legal stage names and checklist text are Starr's. Tab set should be configurable per firm type (boundary-only firm vs construction layout firm).",
+    "plans": [
+      "docs/planning/completed/JOB_WORKSPACE_BUILDOUT.md",
+      "docs/planning/completed/JOBS_FILES_FABRIC_2026-08-19.md",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (open: remove 'View field captures', add Research this Property button; 12 open questions)"
+    ]
+  },
+  {
+    "id": "jobs.job-stage-pipeline",
+    "area": "jobs",
+    "kind": "mechanic",
+    "name": "Job stage pipeline, history and checklists",
+    "where": [
+      "app/api/admin/jobs/stages/route.ts",
+      "app/admin/components/jobs/JobCard.tsx",
+      "app/admin/components/jobs/JobStageTimeline.tsx",
+      "app/admin/components/jobs/JobChecklist.tsx",
+      "app/api/admin/jobs/checklists/route.ts",
+      "lib/notifications/job-stage.ts"
+    ],
+    "route": "/api/admin/jobs/stages",
+    "roles": [
+      "any signed-in user (POST has no admin check)"
+    ],
+    "purpose": "Move a job through quote, research, fieldwork, drawing, legal, delivery, completed, with a history and per-stage checklist.",
+    "elements": [
+      {
+        "name": "STAGE_ORDER",
+        "does": "['quote','research','fieldwork','drawing','legal','delivery','completed'] (stages/route.ts:11)."
+      },
+      {
+        "name": "cancelled / on_hold",
+        "does": "Accepted as stages in POST but not in STAGE_ORDER."
+      },
+      {
+        "name": "STAGE_DATE_MAP",
+        "does": "Stamps date_accepted, date_started, date_fieldwork_complete, date_drawing_complete, date_legal_complete, date_delivered on first arrival only."
+      },
+      {
+        "name": "Stage checklists",
+        "does": "Template items per stage (e.g. 'Title search completed', 'Final delivery sent to client') loaded on demand; ticked per item."
+      }
+    ],
+    "behaviours": [
+      "Moves are allowed in both directions with no gate; a milestone date is written only once (route.ts:60-75).",
+      "Every move writes job_stages_history and an activity_log row, and notifies the job's team except the actor.",
+      "Checklists are advisory: a stage can be left with unticked items.",
+      "STAGE_CONFIG (labels, colours, emojis) is a second copy of the stage list in JobCard.tsx:37-47; mobile has a third in mobile/lib/db/schema.ts:512."
+    ],
+    "data": [
+      "jobs.stage, stage_changed_at, date_* columns",
+      "job_stages_history",
+      "job_checklists",
+      "activity_log",
+      "notifications"
+    ],
+    "status": "works",
+    "problems": [
+      "'cancelled' and 'on_hold' are stored in the same column as the pipeline stages, so putting a job on hold loses its place (it survives only in history); 'result' (won/lost/abandoned) is a second cancel mechanism.",
+      "No real QA step: 'legal' is the RPLS review, but there are no reviewer assignment, seal or approval states in the stage flow.",
+      "Billing is absent from the pipeline: 'completed' does not mean invoiced or paid.",
+      "The POST route does not check admin or job membership: any signed-in user can move any job.",
+      "Three copies of the stage vocabulary (route, JobCard, mobile schema) must be edited together.",
+      "No required-fields or required-checklist gates, so 'delivery' can be reached with no drawing and no deliverable."
+    ],
+    "overlaps": [
+      "jobs.job-result-cancel",
+      "jobs.project-model"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Separate three things now fused: production status (a short fixed set, see jobs.md), flags (on hold, blocked, cancelled with reason), and billing status. One shared constants module for web and mobile. Optional gates per firm (e.g. cannot reach Delivered without a sealed deliverable).",
+    "add": [
+      "Review/QA state with named reviewer",
+      "Gates and required checklist items",
+      "Per-firm stage names mapped onto fixed canonical states",
+      "Stage SLA / age-in-stage alerts"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/api/admin/jobs/stages/route.ts:11-19",
+      "app/api/admin/jobs/stages/route.ts:36-37",
+      "app/api/admin/jobs/stages/route.ts:60-80",
+      "app/admin/components/jobs/JobCard.tsx:37-47",
+      "mobile/lib/db/schema.ts:512",
+      "app/api/admin/jobs/checklists/route.ts:8-60"
+    ],
+    "nationwide": "The seven stages, checklist text ('Corner records searched', 'Easements and ROW identified') and the 'legal' stage reflect Starr's boundary-survey workflow. Needs per-firm pipeline and checklist templates by survey type.",
+    "plans": [
+      "docs/planning/completed/JOB_WORKSPACE_BUILDOUT.md",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "jobs.job-result-cancel",
+    "area": "jobs",
+    "kind": "mechanic",
+    "name": "Job result (won / lost / abandoned) and cancellation",
+    "where": [
+      "app/api/admin/jobs/[id]/result/route.ts",
+      "app/api/admin/jobs/route.ts (PUT, lines ~365-373)",
+      "app/admin/components/jobs/JobMoneyPanel.tsx"
+    ],
+    "route": "/api/admin/jobs/[id]/result",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Record the pipeline outcome of a quote or job and why, for conversion reporting.",
+    "elements": [
+      {
+        "name": "Result control (job header)",
+        "does": "Sets won, lost or abandoned with a reason, or clears it."
+      },
+      {
+        "name": "result_set_at stamp",
+        "does": "Set when a job becomes lost or abandoned if not already set (route.ts:370-373)."
+      }
+    ],
+    "behaviours": [
+      "Writes an audit_log entry per change.",
+      "Cancellation after starting work is recorded with a reason (JobMoneyPanel header notes the owner's request)."
+    ],
+    "data": [
+      "jobs.result, result_reason, result_set_at",
+      "audit_log"
+    ],
+    "status": "works",
+    "problems": [
+      "Overlaps the 'cancelled' stage and the project 'cancelled' status: three ways to say 'this did not go ahead'.",
+      "'won' is set by hand on a job, but the lead already says 'accepted' and the stage moves past 'quote'. Win/loss belongs to the proposal, not the job."
+    ],
+    "overlaps": [
+      "jobs.job-stage-pipeline",
+      "jobs.project-model"
+    ],
+    "verdict": "merge",
+    "rebuild": "Win/loss lives on the proposal/opportunity. A started job can be Cancelled (with reason and a final invoice for work done). Remove 'won' as a manual job flag.",
+    "add": [
+      "Loss reason picklist for reporting",
+      "Competitor and price-gap capture on lost quotes"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/jobs/[id]/result/route.ts:1-7",
+      "app/api/admin/jobs/route.ts:365-373",
+      "app/admin/jobs/[id]/page.tsx:81-83"
+    ],
+    "nationwide": "No Starr-specific code; reporting vocabulary should be configurable.",
+    "plans": [
+      "docs/planning/completed/OWNER_REPORTS.md (Phase R-10)"
+    ]
+  },
+  {
+    "id": "jobs.job-money",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Job financial tab: fee, payments, price history, time",
+    "where": [
+      "app/admin/components/jobs/JobMoneyPanel.tsx",
+      "app/admin/components/jobs/JobQuoteBuilder.tsx",
+      "app/admin/components/jobs/JobTimeTracker.tsx",
+      "app/api/admin/jobs/money/route.ts",
+      "app/api/admin/jobs/payments/route.ts",
+      "app/api/admin/jobs/time/route.ts",
+      "lib/jobs/money.ts",
+      "seeds/603_job_money_history.sql",
+      "seeds/604_project_payments.sql"
+    ],
+    "route": "/admin/jobs/[id] (Financial tab)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Show bid, received and owed, record down payments and price changes, and log hours.",
+    "elements": [
+      {
+        "name": "Bid and final amount",
+        "does": "Click-to-edit quote_amount and final_amount; every change appends price history."
+      },
+      {
+        "name": "Record payment",
+        "does": "Adds a job_payments row (type, amount, date)."
+      },
+      {
+        "name": "Reconcile warning",
+        "does": "Flags when jobs.amount_paid disagrees with the sum of job_payments."
+      },
+      {
+        "name": "Time tracker",
+        "does": "Lists and adds hours per team member."
+      },
+      {
+        "name": "Project-level payments",
+        "does": "A retainer or cheque against a whole project (project_payments)."
+      }
+    ],
+    "behaviours": [
+      "All arithmetic is in lib/jobs/money.ts; 'received' is the sum of payment rows, never jobs.amount_paid (money.ts:24-26, 119-123).",
+      "Project roll-ups are summed on read, never stored."
+    ],
+    "data": [
+      "jobs.quote_amount, final_amount, amount_paid",
+      "job_payments",
+      "project_payments",
+      "job_price_history",
+      "job_time_entries",
+      "invoices.job_id (separate)"
+    ],
+    "status": "partial",
+    "problems": [
+      "Four overlapping money records: jobs.quote_amount (and leads.quote_amount mirror, lead_quotes versions), job_payments, jobs.amount_paid (legacy, still written by older paths), and invoices with their own payments. A payment recorded here does not touch an invoice and vice versa.",
+      "No invoice from the job: invoices/new can pick a job (invoices/new/page.tsx:302) but the job page has no 'Invoice this job' or billed-to-date view.",
+      "No change orders in the fee story, though change_orders exists (jobs.change-orders-api).",
+      "Fee model is one number: no lump sum vs hourly vs per-unit, no retainer, no phases or milestones billing.",
+      "Time entries show hours, not cost or margin against the fee."
+    ],
+    "overlaps": [
+      "jobs.change-orders-api",
+      "jobs.job-lead-origin"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Job Money = Fee (from the accepted proposal) + Change orders = Contract value; Invoices and their payments as the only payment record; Time and expenses as cost; one panel: contract, billed, collected, unbilled, hours, margin. Retire jobs.amount_paid and job_payments as separate truth.",
+    "add": [
+      "Create invoice from job (fixed, % complete, milestone, T&M)",
+      "Retainers",
+      "Job profitability (hours x rate vs fee)",
+      "WIP / unbilled report"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/jobs/money.ts:24-26",
+      "lib/jobs/money.ts:119-123",
+      "app/api/admin/jobs/money/route.ts:41-57",
+      "app/admin/invoices/new/page.tsx:302",
+      "seeds/603_job_money_history.sql",
+      "seeds/604_project_payments.sql"
+    ],
+    "nationwide": "Currency and tax assumptions are USD. Fee types and retainer practices vary; make them configurable.",
+    "plans": [
+      "docs/planning/completed/CUSTOMER_INVOICING_BUILD_2026-06-21.md",
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md"
+    ]
+  },
+  {
+    "id": "jobs.job-property-panel",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Property panel (job site, parcel, lat/lon)",
+    "where": [
+      "app/admin/jobs/[id]/PropertyPanel.tsx",
+      "app/admin/jobs/[id]/PropertyPanel.css",
+      "app/components/TexasCountyDatalist.tsx",
+      "app/api/admin/jobs/[id]/geofence/route.ts"
+    ],
+    "route": "/admin/jobs/[id] (Overview)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Where the property is: address with Google lookup, county, legal description, optional lat/lon, and the map button.",
+    "elements": [
+      {
+        "name": "Address box with suggestions",
+        "does": "Free text first, Google Places lookup second (PropertyPanel.tsx:288-297)."
+      },
+      {
+        "name": "County type-ahead",
+        "does": "Texas counties datalist only (line 330-331)."
+      },
+      {
+        "name": "Lat / Lon fields",
+        "does": "Manual coordinates the map opens on."
+      },
+      {
+        "name": "Interactive map button",
+        "does": "Second copy of the map link, data-testid job-property-map (line 243-245)."
+      },
+      {
+        "name": "Geofence centroid and radius",
+        "does": "PATCH geofence route sets the site circle used to label GPS stops by job (radius at least 25 m)."
+      }
+    ],
+    "behaviours": [
+      "Edits are saved as one form instead of nine separate click-to-edits.",
+      "The owner asked the map button go to the property, not the default Belton view (line 241)."
+    ],
+    "data": [
+      "jobs (address, county, lat/lon, centroid_lat/lon, geofence_radius_m)",
+      "Google Places"
+    ],
+    "status": "works",
+    "problems": [
+      "Duplicate 'Interactive map' button also in the page action row.",
+      "County list is Texas only; a Louisiana parish or Oklahoma county cannot be chosen.",
+      "Geofence is a circle only; no parcel polygon, so GPS stop-to-job matching is rough for large rural tracts."
+    ],
+    "overlaps": [
+      "jobs.property-map"
+    ],
+    "verdict": "improve",
+    "rebuild": "A site card: address (lookup), parcel id(s) per state format, county/state from a national list, pin on the map. Parcel polygon from a county GIS layer where available; geofence derived from it.",
+    "add": [
+      "Multiple parcels per job",
+      "Parcel boundary polygon",
+      "State and county from a national list"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/jobs/[id]/PropertyPanel.tsx:27-35",
+      "app/admin/jobs/[id]/PropertyPanel.tsx:241-245",
+      "app/admin/jobs/[id]/PropertyPanel.tsx:288-331",
+      "app/api/admin/jobs/[id]/geofence/route.ts:1-10"
+    ],
+    "nationwide": "TexasCountyDatalist, 'rural Texas' comments, biasTexas autocomplete. Replace with state-aware county list and country bias per firm.",
+    "plans": [
+      "docs/planning/in-progress/interactive-property-map-2026-09-16.md"
+    ]
+  },
+  {
+    "id": "jobs.job-phase-scheduler",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Job phase scheduler (Research / Field Work / Drawing and Deliverables)",
+    "where": [
+      "app/admin/jobs/[id]/JobPhaseScheduler.tsx",
+      "app/api/admin/schedule/route.ts",
+      "seeds/293_schedule_events.sql",
+      "seeds/309_schedule_reminders.sql"
+    ],
+    "route": "/admin/jobs/[id] (Schedule tab)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Pick days and an assignee for three phases of a job; each lands on the org calendar with reminders.",
+    "elements": [
+      {
+        "name": "Phase rows (Research, Field Work, Drawing and Deliverables)",
+        "does": "Choose date(s) and assignee; POST /api/admin/schedule with event_type and job_id."
+      },
+      {
+        "name": "Existing events list",
+        "does": "Reads schedule_events for this job and shows scheduled phases."
+      }
+    ],
+    "behaviours": [
+      "Fires day-before and day-of reminders to the assignee.",
+      "Non-admins see only their own events in the schedule API; admins see all."
+    ],
+    "data": [
+      "schedule_events",
+      "google calendar sync (lib/integrations/google-calendar.ts)"
+    ],
+    "status": "works",
+    "problems": [
+      "Three phases here do not match the seven stages; there is no 'Review' or 'Delivery' phase to schedule.",
+      "Scheduling is per job one phase at a time: no crew-by-day view, no check that the assignee or the equipment is free (equipment has its own separate schedule).",
+      "No multi-person crew on a phase and no capacity check; schedule_events also carry PTO."
+    ],
+    "overlaps": [
+      "jobs.schedule",
+      "jobs.equipment-portal"
+    ],
+    "verdict": "merge",
+    "rebuild": "Scheduling as a dispatch board: day x crew grid, drag jobs and phases onto party chiefs, vehicles and instruments, with conflict warnings (person on PTO, gear double-booked). The job's Schedule tab is a filtered view of that board.",
+    "add": [
+      "Crew dispatch board",
+      "Conflict detection across people, vehicles, gear",
+      "Customer-facing appointment confirmation / access notice",
+      "Weather-driven reschedule suggestions"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/[id]/JobPhaseScheduler.tsx:1-12",
+      "app/api/admin/schedule/route.ts:1-8"
+    ],
+    "nationwide": "Phase names are Starr's. Time zone is assumed per firm; check calendar sync defaults.",
+    "plans": [
+      "docs/planning/pending/job-calendar-2026-06-16.md",
+      "docs/planning/pending/calendar-mobile-2026-06-16.md"
+    ]
+  },
+  {
+    "id": "jobs.job-files",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Job Files tab (standard folders, upload, send)",
+    "where": [
+      "app/api/admin/jobs/files/route.ts",
+      "app/api/admin/jobs/files/upload/route.ts",
+      "app/api/admin/jobs/files/[id]/route.ts",
+      "app/api/admin/jobs/files/[id]/download/route.ts",
+      "app/api/admin/jobs/files/[id]/send/route.ts",
+      "app/api/admin/jobs/folders/route.ts",
+      "app/api/admin/jobs/[id]/files/from-research/route.ts",
+      "lib/jobs/file-storage.ts",
+      "lib/jobs/file-thumbnails.ts"
+    ],
+    "route": "/admin/jobs/[id] (Files tab)",
+    "roles": [
+      "admin",
+      "team members (per-kind gates)"
+    ],
+    "purpose": "One explorer for every file on a job in standard folders (Research, CAD, Photos, Videos, Documents) with previews, upload and emailing a file to a customer.",
+    "elements": [
+      {
+        "name": "Folder tree and file grid",
+        "does": "Standard folders plus custom folders; project files appear in the project mount."
+      },
+      {
+        "name": "Upload (files, drag and drop)",
+        "does": "Chunked client upload; background upload helper; thumbnails made server side."
+      },
+      {
+        "name": "Send",
+        "does": "Email a file to a contact (files/[id]/send)."
+      },
+      {
+        "name": "From research",
+        "does": "Attach a purchased or captured research document to the job."
+      }
+    ],
+    "behaviours": [
+      "Reads EXIF GPS from uploaded photos and writes job_file_captures (files/route.ts:10, lib/jobs/exif-capture-server.ts).",
+      "A file keeps one id across the job explorer, project explorer and map (no copies)."
+    ],
+    "data": [
+      "job_files",
+      "job_file_folders",
+      "job_file_captures",
+      "storage buckets (starr-field-files and job buckets)"
+    ],
+    "status": "works",
+    "problems": [
+      "Bucket names are Starr-prefixed (starr-field-photos, -videos, -voice, -files) and are fixed constants in four routes.",
+      "Files can arrive from three paths (web upload, mobile storage_path, F5 capture) with different columns; the route normalises them but the schema is split.",
+      "No file versioning, no 'issued' lock on a drawing PDF that has been delivered."
+    ],
+    "overlaps": [
+      "jobs.deliverables-api",
+      "jobs.property-map"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the explorer. Add file status (working, issued, superseded) tied to deliverables so a delivered PDF is locked and versioned. Bucket names per tenant, not per product name.",
+    "add": [
+      "Versioning",
+      "Issued lock",
+      "Client portal share link per folder",
+      "Bulk download as zip with manifest"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/jobs/files/route.ts:10",
+      "app/api/admin/jobs/files/route.ts:80",
+      "app/api/admin/jobs/[id]/field-data/route.ts:37-40"
+    ],
+    "nationwide": "Hard-coded bucket names; sample folder names assume Texas deed research. Folder set should be per-firm configurable.",
+    "plans": [
+      "docs/planning/completed/JOBS_FILES_FABRIC_2026-08-19.md",
+      "docs/planning/pending/UNIFIED_VIEWER_AND_PROJECT_FILE_STRUCTURE_2026-09-10.md",
+      "docs/planning/completed/FILE_EXPLORER_2026-06-25.md"
+    ]
+  },
+  {
+    "id": "jobs.job-research-link",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Job to research link (Research packet, Start property research)",
+    "where": [
+      "app/admin/jobs/[id]/JobResearchPacket.tsx",
+      "app/api/admin/jobs/[id]/research-packet/route.ts",
+      "app/api/admin/jobs/research/route.ts",
+      "app/admin/components/jobs/JobResearchPanel.tsx",
+      "seeds/633_research_project_links.sql"
+    ],
+    "route": "/admin/jobs/[id] (Overview and Files > Research)",
+    "roles": [
+      "admin",
+      "crew (packet read)"
+    ],
+    "purpose": "Give the crew the approved research packet on the job, and start a research project for the job.",
+    "elements": [
+      {
+        "name": "Research packet panel",
+        "does": "Four states (none, in progress, draft, approved) so a crew does not mistake empty for nothing; stores a copy for no-signal trucks."
+      },
+      {
+        "name": "Start property research link",
+        "does": "Opens /admin/research?new=1&job=<id> inside the Files > Research folder; passes only the job id (jobs-page.tsx:1007-1012)."
+      },
+      {
+        "name": "Research documents (old panel)",
+        "does": "Fourteen-category add/expand/delete list from the original job workspace."
+      }
+    ],
+    "behaviours": [
+      "Creating a research project does not start a run; a run is started separately inside research.",
+      "Address, county, parcel and documents do not travel to the research project."
+    ],
+    "data": [
+      "research_projects",
+      "research_project_links (seed 633)",
+      "job research documents"
+    ],
+    "status": "partial",
+    "problems": [
+      "No 'Research this Property' button on the job header; the only door is buried in a folder and passes nothing but the job id (confirmed in the 2026-09-20 review).",
+      "Two research concepts remain: the old per-job research document list and the research platform's research_projects.",
+      "The word 'project' means a Starr project to jobs and a research run to research."
+    ],
+    "overlaps": [
+      "jobs.job-files"
+    ],
+    "verdict": "improve",
+    "rebuild": "One 'Research' action on the job that creates the research run prefilled with address, county, parcel and client, and returns a packet attached to the job with status. Retire the old document list.",
+    "add": [
+      "Prefill from job",
+      "Research status in the job header",
+      "Cost-per-job rollup of paid research"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/[id]/JobResearchPacket.tsx:1-12",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.2, §6"
+    ],
+    "nationwide": "Research sources are Texas county-record and TexasFile oriented; every state needs its own adapter set.",
+    "plans": [
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (open: Research this Property button, prefill fields)",
+      "docs/planning/completed/NEW_RESEARCH_PROJECT_MODAL_2026-09-09.md"
+    ]
+  },
+  {
+    "id": "jobs.job-lead-origin",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Originating inquiry card (lead to job link)",
+    "where": [
+      "app/admin/jobs/[id]/JobOriginatingLead.tsx",
+      "app/api/admin/jobs/[id]/origin-lead/route.ts",
+      "seeds/506_job_origin_links.sql"
+    ],
+    "route": "/admin/jobs/[id] (Overview)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Show the lead a job came from, its reply and note counts, and link to the full conversation.",
+    "elements": [
+      {
+        "name": "Card",
+        "does": "Reference number, reply count, office-note count, link to the lead. Renders nothing when the job has no origin lead."
+      }
+    ],
+    "behaviours": [
+      "Looks up by jobs.origin_lead_id when present, else by the older leads.converted_job_id scan (origin-lead/route.ts:64)."
+    ],
+    "data": [
+      "leads",
+      "lead_replies",
+      "lead_notes",
+      "jobs.origin_lead_id"
+    ],
+    "status": "works",
+    "problems": [
+      "Two linking mechanisms (leads.converted_job_id and jobs.origin_lead_id) are both kept.",
+      "The card does not show the accepted quote or proposal the job should be priced from."
+    ],
+    "overlaps": [
+      "jobs.job-money"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep, but show the accepted proposal and its signed copy, and make origin_lead_id the only link.",
+    "add": [
+      "Accepted proposal and signature shown on the job",
+      "Marketing source for the job (feeds reporting)"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/api/admin/jobs/[id]/origin-lead/route.ts:1-10",
+      "app/api/admin/jobs/[id]/origin-lead/route.ts:64",
+      "app/api/admin/jobs/route.ts:241"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/pending/lead-reply-expansion-2026-06-18.md",
+      "docs/planning/completed/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md"
+    ]
+  },
+  {
+    "id": "jobs.job-side-panels",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Job team, equipment, instructions, notes, contacts, messages",
+    "where": [
+      "app/admin/components/jobs/JobTeamPanel.tsx",
+      "app/admin/components/jobs/JobEquipmentList.tsx",
+      "app/admin/components/jobs/JobInstructionsPanel.tsx",
+      "app/admin/components/jobs/JobNotesPanel.tsx",
+      "app/admin/components/jobs/JobMessagesPanel.tsx",
+      "app/admin/components/jobs/LinkContactDialog.tsx",
+      "app/api/admin/jobs/team/route.ts",
+      "app/api/admin/jobs/equipment/route.ts",
+      "app/api/admin/jobs/[id]/instructions/route.ts",
+      "app/api/admin/jobs/[id]/notes/route.ts",
+      "app/api/admin/jobs/contacts/route.ts",
+      "app/api/admin/jobs/conversation/route.ts"
+    ],
+    "route": "/admin/jobs/[id]",
+    "roles": [
+      "admin (edit)",
+      "team (read, notes)"
+    ],
+    "purpose": "Who is on the job, what gear is booked to it, the RPLS's written instructions, the note log, linked contacts, and the job conversation.",
+    "elements": [
+      {
+        "name": "Team panel",
+        "does": "Add or remove members with a role (job_team); the team receives stage-change notifications."
+      },
+      {
+        "name": "Equipment list",
+        "does": "Manual job_equipment rows with checkout and return times."
+      },
+      {
+        "name": "Instructions",
+        "does": "Text with [label](job-file:id) embeds resolved server side; broken links flagged; same on web and mobile."
+      },
+      {
+        "name": "Notes",
+        "does": "Posts to fieldbook_notes with author, source and time."
+      },
+      {
+        "name": "Contacts",
+        "does": "Links address-book contacts to the job."
+      },
+      {
+        "name": "Messages",
+        "does": "Find-or-create conversation scoped by metadata.job_id."
+      }
+    ],
+    "behaviours": [
+      "Instructions are the RPLS-to-crew brief: the only structured field handoff on the job."
+    ],
+    "data": [
+      "job_team",
+      "job_equipment",
+      "fieldbook_notes",
+      "job_contacts",
+      "conversations",
+      "jobs.instructions (seed 452)"
+    ],
+    "status": "works",
+    "problems": [
+      "job_equipment (manual list) is a different record from equipment reservations, assignments and kits; gear booked here is not the same gear checked out in the Equipment portal.",
+      "Team roles on a job are free-text strings, not tied to the firm's roles (party chief, instrument operator, drafter, reviewer).",
+      "Instructions have no acknowledgement: nobody can tell that the crew read them."
+    ],
+    "overlaps": [
+      "jobs.equipment-portal",
+      "jobs.mobile-starr-field"
+    ],
+    "verdict": "improve",
+    "rebuild": "Job roles from a fixed set (PM, party chief, crew, drafter, reviewer/RPLS). Equipment on the job becomes the reservation itself, one record. Instructions get read receipts and a sign-off by the party chief before field start.",
+    "add": [
+      "Read receipt on instructions",
+      "Crew roles matched to licences and certifications",
+      "Customer and site contact with access notes (gate codes, landowner call-ahead)"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/jobs/[id]/instructions/route.ts:1-10",
+      "app/api/admin/jobs/[id]/notes/route.ts:1-8",
+      "app/api/admin/jobs/conversation/route.ts:1-8",
+      "app/admin/jobs/[id]/page.tsx:965-1005"
+    ],
+    "nationwide": "None specific beyond role names.",
+    "plans": [
+      "docs/planning/pending/SURVEYING_WORKMODE_MOBILE_UPLOADS_2026-07-16.md"
+    ]
+  },
+  {
+    "id": "jobs.job-field-captures-page",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Job field captures page and point detail",
+    "where": [
+      "app/admin/jobs/[id]/field/page.tsx",
+      "app/admin/field-data/[id]/page.tsx",
+      "app/api/admin/jobs/[id]/field-data/route.ts",
+      "app/api/admin/jobs/[id]/field-data/manifest/route.ts",
+      "app/api/admin/jobs/[id]/field-data/zip/route.ts",
+      "app/api/admin/field-data/[id]/route.ts",
+      "app/admin/components/jobs/JobFieldMediaPanel.tsx"
+    ],
+    "route": "/admin/jobs/[id]/field and /admin/field-data/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "List every point the crew logged for a job as thumbnail cards, open one point with its comments, files and media, download a CSV manifest or a streamed ZIP of everything.",
+    "elements": [
+      {
+        "name": "Stats line",
+        "does": "X points, Y photos, Z videos."
+      },
+      {
+        "name": "Point cards",
+        "does": "Each links to /admin/field-data/<point id>."
+      },
+      {
+        "name": "CSV manifest",
+        "does": "One row per downloadable with a 4-hour signed URL."
+      },
+      {
+        "name": "Download ZIP",
+        "does": "Streams every file on the job as a ZIP; HEAD pre-check."
+      },
+      {
+        "name": "Point detail (1,565 lines)",
+        "does": "Gallery, GPS metadata, creator, comments."
+      }
+    ],
+    "behaviours": [
+      "Fetches device_lat/device_lon in PointSummary and never shows them (field/page.tsx:48-49).",
+      "Renders cards, not a map."
+    ],
+    "data": [
+      "field_data_points (0 rows)",
+      "field_media (0 rows)",
+      "storage buckets starr-field-photos/videos/voice/files"
+    ],
+    "status": "partial",
+    "problems": [
+      "Reads tables holding zero rows today, so the page is empty in production; the mobile capture flow that writes them has not been used.",
+      "Duplicates the Property Map's point list: same idea (point with notes and media), different tables, different pages.",
+      "The manifest and ZIP are the only bulk-export features for a job's captures; deleting the page deletes them unless moved (plan §2.1).",
+      "field-data/[id] is a 1,565-line page for one record."
+    ],
+    "overlaps": [
+      "jobs.property-map",
+      "jobs.job-fieldwork-tab",
+      "jobs.field-data-tab"
+    ],
+    "verdict": "merge",
+    "rebuild": "Fold into the map: a captured photo is a file with a location (job_file_captures) and appears as a point. Keep CSV manifest and ZIP as 'Export' on the Files tab.",
+    "add": [
+      "Export all field media from the Files tab",
+      "Show device location on a map in the point view"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/[id]/field/page.tsx:1-22",
+      "app/admin/jobs/[id]/field/page.tsx:48-49",
+      "app/admin/jobs/[id]/field/page.tsx:218-285",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.6, §2.1, §5"
+    ],
+    "nationwide": "Bucket names are Starr-prefixed.",
+    "plans": [
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (open: delete or bridge field_data_points, field_media; where do the manifest and ZIP go)"
+    ]
+  },
+  {
+    "id": "jobs.job-fieldwork-tab",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Field Work tab (collector points plot, shot log)",
+    "where": [
+      "app/admin/components/jobs/FieldWorkView.tsx",
+      "app/admin/components/jobs/fieldwork-export.ts",
+      "app/admin/components/jobs/fieldwork-demo.ts",
+      "app/api/admin/jobs/field-data/route.ts"
+    ],
+    "route": "/admin/jobs/[id] (Field Work tab)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "A hand-drawn northing/easting plot of points, a searchable shot log and a timeline, from job_field_data.",
+    "elements": [
+      {
+        "name": "Point plot",
+        "does": "SVG plot of N/E, not on a basemap."
+      },
+      {
+        "name": "Shot log with search",
+        "does": "Table of imported shots."
+      },
+      {
+        "name": "Export",
+        "does": "fieldwork-export.ts writes the shots out."
+      }
+    ],
+    "behaviours": [
+      "Has a demo-data module (fieldwork-demo.ts) in the production tree."
+    ],
+    "data": [
+      "job_field_data (0 rows)"
+    ],
+    "status": "stub",
+    "problems": [
+      "Fourth parallel points table (job_map_points, field_data_points, instrument_points, job_field_data) with zero rows; duplicates instrument_points exactly.",
+      "Name collision with the Field Work stage and the Field data tab.",
+      "No import path wired for it; nothing writes job_field_data from the app."
+    ],
+    "overlaps": [
+      "jobs.collector-ingest",
+      "jobs.property-map"
+    ],
+    "verdict": "remove",
+    "rebuild": "Delete. Collector points land in instrument_points and render on the map layer (seed 654 already adds the map columns).",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.6, §5",
+      "app/admin/jobs/[id]/page.tsx:1006"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (Part 5 recommends deleting)"
+    ]
+  },
+  {
+    "id": "jobs.field-data-tab",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Field data tab (office review of uploads)",
+    "where": [
+      "app/admin/jobs/_tabs/FieldDataTab.tsx",
+      "app/admin/field-data/page.tsx",
+      "app/api/admin/field-data/route.ts"
+    ],
+    "route": "/admin/jobs?tab=field-data (was /admin/field-data)",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "Office surface for mobile-captured data points and photos, across all jobs.",
+    "elements": [
+      {
+        "name": "Filters",
+        "does": "Job, user, date range, text search on point name and description; default last 14 days."
+      },
+      {
+        "name": "Live feed strip",
+        "does": "LiveFieldFeed above the list (see jobs.collector-ingest)."
+      },
+      {
+        "name": "Collector arrivals",
+        "does": "CollectorArrivals upload box below it."
+      },
+      {
+        "name": "Row click",
+        "does": "Opens /admin/field-data/[id]."
+      }
+    ],
+    "behaviours": [
+      "Reads supabaseAdmin so every employee's captures show (admins-see-all privacy contract).",
+      "Hidden from nav after consolidation; a field-upload notification links here."
+    ],
+    "data": [
+      "field_data_points",
+      "field_media",
+      "instrument_points",
+      "ingest_batches"
+    ],
+    "status": "partial",
+    "problems": [
+      "Holds nothing today (tables empty).",
+      "There is no review status: office staff cannot mark a capture as reviewed, flagged or assigned to the wrong job.",
+      "No way to move a capture between jobs, which the owner asked for in the GPS plan."
+    ],
+    "overlaps": [
+      "jobs.job-field-captures-page",
+      "jobs.collector-ingest"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "One 'Field inbox' for the office: new uploads from phones and collectors grouped by job and day, with move-to-job, flag, and 'reviewed' actions. Items land on the job's map automatically.",
+    "add": [
+      "Move capture to another job or project",
+      "Review state",
+      "Notifications digest per project"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/jobs/_tabs/FieldDataTab.tsx:1-22",
+      "app/admin/jobs/_tabs/FieldDataTab.tsx:104",
+      "app/admin/jobs/_tabs/FieldDataTab.tsx:163-164"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/in-progress/gps-capture-2026-09-19.md (open: moving files between jobs)",
+      "docs/planning/pending/cad-hub-greeting-and-field-data-trv-route-2026-05-31.md"
+    ]
+  },
+  {
+    "id": "jobs.collector-ingest",
+    "area": "jobs",
+    "kind": "integration",
+    "name": "Data collector ingest and live feed (Trimble, LandXML, RW5, JobXML, GSI, CSV)",
+    "where": [
+      "app/admin/jobs/_tabs/CollectorArrivals.tsx",
+      "app/admin/jobs/_tabs/LiveFieldFeed.tsx",
+      "app/api/admin/field-ingest/route.ts",
+      "app/api/admin/field-live/route.ts",
+      "lib/field-ingest/ingest.ts",
+      "lib/field-ingest/to-map.ts",
+      "lib/field-ingest/trimble-connect.ts",
+      "lib/field-live/feed.ts",
+      "lib/field-data/reconcile.ts",
+      "seeds/522_field_ingest.sql",
+      "seeds/654_map_instrument_points.sql"
+    ],
+    "route": "/api/admin/field-ingest, /api/admin/field-live",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Get points from a surveyor's data collector into the job: manual upload now, watched-folder agent and Trimble Connect polling planned.",
+    "elements": [
+      {
+        "name": "Upload box",
+        "does": "Drag and drop a collector file; the route parses by format and de-dupes by content hash; says 'already imported' on a repeat."
+      },
+      {
+        "name": "Live feed",
+        "does": "Polls field-live every 15 s for arrivals from phone and collector, ordered by arrival time."
+      },
+      {
+        "name": "Trimble Connect poller",
+        "does": "Exists in lib; needs paid Connect subscription and OAuth credentials."
+      }
+    ],
+    "behaviours": [
+      "Two clocks per point: shot time and arrival time.",
+      "Zone must be declared to place state-plane N/E on the map; it is not guessed (seed 654)."
+    ],
+    "data": [
+      "instrument_points (0 rows)",
+      "ingest_batches (0 rows)",
+      "instrument_sources",
+      "Trimble Connect API"
+    ],
+    "status": "partial",
+    "problems": [
+      "Built and tested but never fed: no data and no credentials; no watched-folder agent exists yet.",
+      "Not tied to a job by default: upload takes a jobId option but a file does not name its job.",
+      "No Leica, GeoMax or Topcon native path; only exports surveyors must remember to make.",
+      "The earlier recommendation to delete it was retracted in the same plan (§10): it is the base of the streaming feature."
+    ],
+    "overlaps": [
+      "jobs.job-fieldwork-tab",
+      "jobs.field-data-tab"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep the parser set and idempotent ingest. Add a desktop watched-folder helper (like Starr Scan) per firm and a per-job 'Import from collector' on the map layer panel. Defer live streaming until a vendor route is confirmed.",
+    "add": [
+      "Leica and Topcon cloud connectors",
+      "Folder agent",
+      "Coordinate system presets per project",
+      "Point codes mapped to map point types and feature codes to layers"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/field-ingest/route.ts:1-10",
+      "app/admin/jobs/_tabs/LiveFieldFeed.tsx:1-22",
+      "seeds/654_map_instrument_points.sql:1-14",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §9-§10"
+    ],
+    "nationwide": "State-plane helpers cover Texas zones only (lib/geo/state-plane.ts: TEXAS_STATE_PLANE_ZONES, looksLikeTexas). Needs all US SPCS zones or a proj library, plus local grid and units (US survey foot vs international foot).",
+    "plans": [
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (Phase 2 questions 9-11 open: streaming route, Trimble subscription)",
+      "docs/planning/in-progress/gps-capture-2026-09-19.md"
+    ]
+  },
+  {
+    "id": "jobs.projects-list",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "All Projects list (Projects tab)",
+    "where": [
+      "app/admin/jobs/_tabs/ProjectsTab.tsx",
+      "app/api/admin/projects/route.ts",
+      "app/admin/styles/AdminProjects.css"
+    ],
+    "route": "/admin/jobs?tab=projects (/admin/projects redirects)",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "Stacked project cards with status, customer, dates, jobs complete and paid-to-date.",
+    "elements": [
+      {
+        "name": "Search and Filter dropdown",
+        "does": "Text search and status/date filters."
+      },
+      {
+        "name": "Project card",
+        "does": "Name and status chip, customer, created date, nearest open job deadline, addresses, 'n/m jobs complete', '$x / $y paid', project id."
+      },
+      {
+        "name": "Pagination",
+        "does": "Ten per page."
+      }
+    ],
+    "behaviours": [
+      "Roll-up is one query, not N+1.",
+      "Status chip is the project status set by a person, not derived from its jobs."
+    ],
+    "data": [
+      "projects",
+      "jobs",
+      "job_payments / project_payments"
+    ],
+    "status": "works",
+    "problems": [
+      "Project status is manual and is not reconciled with its jobs: a project can be 'active' with all jobs completed.",
+      "Recents strip and assignee search were removed ('keep it simple'), so no 'projects I am on'."
+    ],
+    "overlaps": [
+      "jobs.jobs-list"
+    ],
+    "verdict": "improve",
+    "rebuild": "Same list, with derived status suggestions ('all jobs delivered: close project?') and a manager filter. Merge into one list with the jobs list through a grouping toggle.",
+    "add": [
+      "Project manager owner and filter",
+      "Derived status",
+      "Unbilled amount per project"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/jobs/_tabs/ProjectsTab.tsx:1-14",
+      "app/api/admin/projects/route.ts:1-8"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/completed/PROJECTS_ABOVE_JOBS_2026-08-19.md",
+      "docs/planning/completed/LISTING_PAGES_2026-09-09.md"
+    ]
+  },
+  {
+    "id": "jobs.project-new-edit",
+    "area": "jobs",
+    "kind": "page",
+    "name": "New project and Edit project",
+    "where": [
+      "app/admin/projects/new/page.tsx",
+      "app/admin/projects/[id]/edit/page.tsx",
+      "app/api/admin/projects/route.ts",
+      "app/api/admin/projects/[id]/route.ts"
+    ],
+    "route": "/admin/projects/new, /admin/projects/[id]/edit",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Create a project (client and site entered once) and correct it later.",
+    "elements": [
+      {
+        "name": "Suggested name button",
+        "does": "Builds 'Client — Location — Mon YYYY' from the three parts; name stays free text."
+      },
+      {
+        "name": "Client and site fields",
+        "does": "Inherited by jobs created inside the project."
+      },
+      {
+        "name": "Edit form",
+        "does": "Corrects fields; changes do not cascade to existing jobs."
+      }
+    ],
+    "behaviours": [
+      "Project number P-YYYY-NNNN uses MAX not count (model.ts:48-70).",
+      "Delete is refused while live jobs remain."
+    ],
+    "data": [
+      "projects"
+    ],
+    "status": "works",
+    "problems": [
+      "Edit does not cascade, and a diverged job is only reported on the project page; no 'apply to jobs' option.",
+      "Client is typed text on the project plus customer_id from a lead: a job can have a typed client and a linked customer that disagree.",
+      "Edit page is created separately from new; two near-identical forms."
+    ],
+    "overlaps": [
+      "jobs.job-new"
+    ],
+    "verdict": "improve",
+    "rebuild": "A project is client + site(s) + manager. Client is always a linked customer record (create inline), never retyped. One form for create and edit.",
+    "add": [
+      "Link to customer record",
+      "Multiple sites per project",
+      "Project templates"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/projects/new/page.tsx:1-6",
+      "app/admin/projects/[id]/edit/page.tsx:1-16",
+      "lib/projects/model.ts:48-70",
+      "lib/projects/model.ts:209-225"
+    ],
+    "nationwide": "P- prefix and P-YYYY-NNNN number format are fixed; per-firm numbering schemes needed.",
+    "plans": [
+      "docs/planning/completed/PROJECTS_ABOVE_JOBS_2026-08-19.md"
+    ]
+  },
+  {
+    "id": "jobs.project-detail",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Project detail",
+    "where": [
+      "app/admin/projects/[id]/page.tsx",
+      "app/api/admin/projects/[id]/route.ts",
+      "app/api/admin/projects/[id]/activity/route.ts",
+      "app/api/admin/projects/[id]/open/route.ts",
+      "seeds/602_project_files.sql",
+      "seeds/606_project_recents.sql"
+    ],
+    "route": "/admin/projects/[id]",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "One engagement: its jobs, money roll-up, files and activity. Primary action is New job in this project.",
+    "elements": [
+      {
+        "name": "New job in this project",
+        "does": "Links to /admin/jobs/new?project=<id>."
+      },
+      {
+        "name": "Job cards",
+        "does": "One link per job; no per-job actions."
+      },
+      {
+        "name": "Money roll-up",
+        "does": "Sums bid, received and owed across jobs; never stored."
+      },
+      {
+        "name": "Diverged jobs notice",
+        "does": "Lists jobs whose client or site differ from the project."
+      },
+      {
+        "name": "Status control",
+        "does": "Set active, on hold, complete or cancelled."
+      }
+    ],
+    "behaviours": [
+      "Opening a project stamps it viewed for the recents ordering."
+    ],
+    "data": [
+      "projects",
+      "jobs",
+      "project_payments",
+      "project_files"
+    ],
+    "status": "works",
+    "problems": [
+      "Job cards are a single link with no stage, due date or assignee actions.",
+      "No project timeline or deliverables summary; the project cannot say 'what is outstanding'.",
+      "Project-level files exist (seed 602) but there are no project-level deliverables or invoices."
+    ],
+    "overlaps": [
+      "jobs.job-detail"
+    ],
+    "verdict": "improve",
+    "rebuild": "Project page = client and site, manager, jobs table with status and due dates, contract value / billed / collected, project files, one combined invoice view.",
+    "add": [
+      "Combined invoice across jobs",
+      "Project-level change orders",
+      "Client portal share for the project"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/projects/[id]/page.tsx:1-10",
+      "lib/projects/model.ts:135-160"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/completed/PROJECTS_ABOVE_JOBS_2026-08-19.md",
+      "docs/planning/pending/UNIFIED_VIEWER_AND_PROJECT_FILE_STRUCTURE_2026-09-10.md"
+    ]
+  },
+  {
+    "id": "jobs.project-model",
+    "area": "jobs",
+    "kind": "mechanic",
+    "name": "Project model: required parent, one-time inheritance, roll-up",
+    "where": [
+      "lib/projects/model.ts",
+      "seeds/601_projects.sql",
+      "scripts/check-projects-jobs.mjs"
+    ],
+    "route": "(lib)",
+    "roles": [
+      "system"
+    ],
+    "purpose": "Rules that make a project the container of jobs: required, inherits client and site once, status vocabulary, number format, money summed on read.",
+    "elements": [
+      {
+        "name": "PROJECT_STATUSES",
+        "does": "active, on_hold, complete, cancelled (model.ts:25)."
+      },
+      {
+        "name": "INHERITED_FIELDS and inheritFromProject",
+        "does": "Copies client and site onto a job at create, never overwrites a typed value (model.ts:76-111)."
+      },
+      {
+        "name": "rollUp",
+        "does": "Sums job money; JOB_STAGE_COMPLETED counts finished jobs (model.ts:133-160)."
+      }
+    ],
+    "behaviours": [
+      "jobs.project_id is NOT NULL with a foreign key.",
+      "Backfill made one project per existing job."
+    ],
+    "data": [
+      "projects",
+      "jobs.project_id"
+    ],
+    "status": "works",
+    "problems": [
+      "A project is required even for a single, one-off job: a firm doing a quick elevation certificate must create a project first.",
+      "Project 'complete' is a manual flag with no link to job stages or to billing.",
+      "'Project' collides with research_projects, CAD projects and unrelated project_id columns on other tables."
+    ],
+    "overlaps": [
+      "jobs.job-stage-pipeline"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep required-project but create it silently from the job form for one-off work (client + site entered once, project number hidden until needed). Derive project status from jobs and invoices.",
+    "add": [
+      "Auto-create project when a job is created standalone",
+      "Derived status"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "lib/projects/model.ts:25-48",
+      "lib/projects/model.ts:76-111",
+      "lib/projects/model.ts:133-160",
+      "app/api/admin/jobs/route.ts:145-148"
+    ],
+    "nationwide": "P-YYYY-NNNN and 'YYYY-NNN' job numbering are Starr conventions; allow firm patterns (for example 2026-0451-01).",
+    "plans": [
+      "docs/planning/completed/PROJECTS_ABOVE_JOBS_2026-08-19.md"
+    ]
+  },
+  {
+    "id": "jobs.work-landing",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Work workspace landing",
+    "where": [
+      "app/admin/work/page.tsx",
+      "app/admin/components/nav/WorkspaceLanding.tsx"
+    ],
+    "route": "/admin/work",
+    "roles": [
+      "any with work-workspace access"
+    ],
+    "purpose": "A card grid listing every route in the Work workspace of the admin nav, plus active-jobs counters.",
+    "elements": [
+      {
+        "name": "Workspace cards",
+        "does": "One card per accessible Work route, generated from the nav registry."
+      }
+    ],
+    "behaviours": [
+      "12-line page that renders WorkspaceLanding workspace='work'."
+    ],
+    "data": [
+      "nav registry"
+    ],
+    "status": "works",
+    "problems": [
+      "A directory of directories: the consolidation plan itself calls this pattern the sidebar's problem 'given a second surface'.",
+      "'Work' here means the nav workspace, while 'Work Mode' was a retired mobile clock-in concept and 'work' is also used for a job: three meanings."
+    ],
+    "overlaps": [
+      "jobs.portal"
+    ],
+    "verdict": "remove",
+    "rebuild": "Replace with the Jobs board as the landing for the Work workspace, with a Today strip (my jobs, crews out, weather).",
+    "add": [
+      "Today strip with crews out and jobs due"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/work/page.tsx:1-12",
+      "app/admin/equipment/page.tsx:7-13"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/ADMIN_NAVIGATION_REDESIGN.md",
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "jobs.redirect-routes",
+    "area": "jobs",
+    "kind": "mechanic",
+    "name": "Forwarding routes (projects, timeline, field-data, weather, vehicles, schedule, jobs/[id]/map)",
+    "where": [
+      "app/admin/projects/page.tsx",
+      "app/admin/timeline/page.tsx",
+      "app/admin/field-data/page.tsx",
+      "app/admin/weather/page.tsx",
+      "app/admin/vehicles/page.tsx",
+      "app/admin/schedule/page.tsx",
+      "app/admin/jobs/[id]/map/page.tsx"
+    ],
+    "route": "/admin/projects, /admin/timeline, /admin/field-data, /admin/weather, /admin/vehicles, /admin/schedule, /admin/jobs/[id]/map",
+    "roles": [
+      "n/a"
+    ],
+    "purpose": "Old URLs kept as redirects so bookmarks, emails and notifications still land somewhere.",
+    "elements": [
+      {
+        "name": "projects",
+        "does": "To /admin/jobs?tab=projects."
+      },
+      {
+        "name": "timeline",
+        "does": "To /admin/jobs?tab=activity."
+      },
+      {
+        "name": "field-data",
+        "does": "To /admin/jobs?tab=field-data (upload notifications link here)."
+      },
+      {
+        "name": "weather",
+        "does": "To /admin/jobs?tab=weather."
+      },
+      {
+        "name": "vehicles",
+        "does": "To /admin/equipment?tab=vehicles."
+      },
+      {
+        "name": "schedule",
+        "does": "To /admin/calendar."
+      },
+      {
+        "name": "jobs/[id]/map",
+        "does": "To /admin/map?job=<id>."
+      }
+    ],
+    "behaviours": [
+      "Each file explains why it was kept."
+    ],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "Eleven-line files with long comments; harmless but each is a place a stale link can hide.",
+      "/admin/schedule redirect comment says SchedulePanel is still used by the hub widget; the page itself no longer renders."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep, generated from one redirect table in config rather than seven files.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/projects/page.tsx:1-12",
+      "app/admin/schedule/page.tsx:1-15",
+      "app/admin/jobs/[id]/map/page.tsx:1-19"
+    ],
+    "nationwide": "None.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md"
+    ]
+  },
+  {
+    "id": "jobs.activity-timeline",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Activity tab: per-employee Daily Timeline",
+    "where": [
+      "app/admin/jobs/_tabs/ActivityTab.tsx",
+      "app/api/admin/timeline/route.ts",
+      "seeds/224_starr_field_location_derivations.sql",
+      "seeds/227_starr_field_geofence_classifier.sql"
+    ],
+    "route": "/admin/jobs?tab=activity (/admin/timeline redirects)",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "Show where an employee was on a day: stops, travel segments, linked job and time entry.",
+    "elements": [
+      {
+        "name": "Date and employee pickers",
+        "does": "Default today; re-fetches."
+      },
+      {
+        "name": "Recompute button",
+        "does": "POST /api/admin/timeline derives stops and segments on demand."
+      },
+      {
+        "name": "Stop card",
+        "does": "Time window, duration, lat/lon with Maps link, category, place, linked job and time entry; button to set a job's geofence from the stop (ActivityTab.tsx:327)."
+      },
+      {
+        "name": "Segment row",
+        "does": "Distance and duration between consecutive stops."
+      }
+    ],
+    "behaviours": [
+      "Reads derived location_stops and location_segments; does not derive on GET.",
+      "A nightly job derives the rest."
+    ],
+    "data": [
+      "location_pings",
+      "location_stops",
+      "location_segments",
+      "job_time_entries"
+    ],
+    "status": "works",
+    "problems": [
+      "The tab's hint says it is the firm's activity feed (clock-ins, stage changes, uploads); the content is a per-person GPS timeline.",
+      "The firm's real activity feed lives in the job page (JobActivityFeed, /api/admin/jobs/activity) and in the Audit Log; there is no firm-wide feed anywhere.",
+      "Employee GPS history is sensitive: no visible consent or retention statement on the page itself; only mobile has the privacy screen."
+    ],
+    "overlaps": [
+      "jobs.job-detail"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Split: (1) a firm activity feed of job events (stage, upload, note, delivered) filterable by job and person; (2) a crew-location 'Today' view on the dispatch board with the timeline as a drill-down, visible only to authorised roles with a consent banner.",
+    "add": [
+      "Firm-wide activity feed",
+      "Timeline-to-timesheet suggestion (accept the stops as time on the job)",
+      "Retention and consent notice"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/jobs/page.tsx:73",
+      "app/admin/jobs/_tabs/ActivityTab.tsx:1-12",
+      "app/admin/jobs/_tabs/ActivityTab.tsx:106-128",
+      "app/admin/jobs/_tabs/ActivityTab.tsx:327",
+      "app/api/admin/timeline/route.ts:1-10"
+    ],
+    "nationwide": "Location privacy law differs by state (consent rules); retention should be configurable.",
+    "plans": [
+      "docs/planning/completed/HOURS_TO_PAYOUT_2026-08-05.md",
+      "docs/planning/pending/PAYROLL_HOURS_AND_EMPLOYEE_MONEY_2026-08-12.md"
+    ]
+  },
+  {
+    "id": "jobs.weather",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Weather tab and sun calculator",
+    "where": [
+      "app/admin/jobs/_tabs/WeatherTab.tsx",
+      "app/api/admin/weather/route.ts",
+      "app/api/admin/weather/locations/route.ts",
+      "app/api/admin/sun/route.ts",
+      "lib/weather/*",
+      "lib/sun/*"
+    ],
+    "route": "/admin/jobs?tab=weather (/admin/weather redirects)",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support",
+      "field_crew"
+    ],
+    "purpose": "Can the crew work today: current conditions, 5-day forecast for any searched place, sunrise and sunset.",
+    "elements": [
+      {
+        "name": "Place search",
+        "does": "Open-Meteo geocoding by ZIP or name; coordinates in the URL make a view shareable."
+      },
+      {
+        "name": "5-day forecast",
+        "does": "Open-Meteo forecast in Fahrenheit with a work-severity rating (lib/weather/severity.ts)."
+      },
+      {
+        "name": "Sun endpoint",
+        "does": "NOAA sunrise equation computed server side."
+      }
+    ],
+    "behaviours": [
+      "Open-Meteo is keyless and free.",
+      "Default location is Central Texas (31.0698, -97.3536) when none is given (lib/weather/geocode.ts:16-20)."
+    ],
+    "data": [
+      "Open-Meteo API",
+      "weather location presets"
+    ],
+    "status": "works",
+    "problems": [
+      "Not tied to jobs: it does not show the weather over the day's scheduled jobs, despite the tab hint saying so.",
+      "Default location and units (F, mph) are fixed for Central Texas.",
+      "Lives in the Jobs portal but belongs in the schedule day view."
+    ],
+    "overlaps": [
+      "jobs.schedule"
+    ],
+    "verdict": "merge",
+    "rebuild": "Put a weather chip on every scheduled job and day in the dispatch board (using the job's coordinates), with rain/wind/heat thresholds a firm can set; keep the place search as a small utility.",
+    "add": [
+      "Weather per scheduled job",
+      "Heat and lightning alerts to the party chief",
+      "Sunrise/sunset limits for field hours"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/jobs/_tabs/WeatherTab.tsx:195-205",
+      "app/api/admin/weather/route.ts:19-72",
+      "lib/weather/geocode.ts:16-20"
+    ],
+    "nationwide": "DEFAULT_LOCATION Central Texas; Fahrenheit; us-counties list. Needs per-firm home location and unit setting.",
+    "plans": [
+      "docs/planning/pending/hub-widget-excellence-10-work-widgets-2026-05-30.md"
+    ]
+  },
+  {
+    "id": "jobs.compliance-tab",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Compliance tab (licences, insurance, calibration, regulatory watch)",
+    "where": [
+      "app/admin/jobs/_tabs/ComplianceTab.tsx",
+      "app/admin/jobs/_tabs/RegulatoryWatchPanel.tsx",
+      "app/api/admin/compliance/route.ts",
+      "app/api/admin/compliance/regulatory-watch/route.ts"
+    ],
+    "route": "/admin/jobs?tab=compliance (/admin/compliance redirects)",
+    "roles": [
+      "admin",
+      "developer",
+      "tech_support"
+    ],
+    "purpose": "A register of obligations (licences, insurance, instrument calibration) with due dates, and an on-demand AI check whether a governing rule changed.",
+    "elements": [
+      {
+        "name": "Tracked obligations table and add form",
+        "does": "Create and list obligations with expiry."
+      },
+      {
+        "name": "Regulatory watch",
+        "does": "Click-to-run web search per topic (for example TBPELS amendment, FEMA panel); states whether nothing was found or nothing was checked."
+      }
+    ],
+    "behaviours": [
+      "GET was open to any signed-in user until C13a; now admin-gated.",
+      "Costs two or three searches per topic, so it waits for a click."
+    ],
+    "data": [
+      "compliance_items",
+      "web search"
+    ],
+    "status": "works",
+    "problems": [
+      "Not jobs or projects: sits in this portal only because the old nav grouped 'can we work, and may we'.",
+      "Regulatory topics are Texas (TBPELS) oriented.",
+      "Calibration is a manual date here; equipment has its own calibration route and maintenance schedules, so two records of the same fact."
+    ],
+    "overlaps": [
+      "jobs.equipment-portal"
+    ],
+    "verdict": "merge",
+    "rebuild": "Move to Company settings > Licences and insurance, with per-person licence expiry on each employee's profile, and instrument calibration owned by the equipment record.",
+    "add": [
+      "Per-surveyor licence and CE hours tracking",
+      "Alerts 90/60/30 days out",
+      "Certificate of insurance attached to proposals on request"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/jobs/_tabs/ComplianceTab.tsx:1-20",
+      "app/admin/jobs/_tabs/ComplianceTab.tsx:65-84",
+      "app/admin/jobs/_tabs/RegulatoryWatchPanel.tsx:1-20",
+      "app/api/admin/equipment/calibration/route.ts:1"
+    ],
+    "nationwide": "TBPELS and Texas rule topics; licence boards are per state.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md (C13a)"
+    ]
+  },
+  {
+    "id": "jobs.schedule",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Schedule (SchedulePanel and the org calendar)",
+    "where": [
+      "app/admin/schedule/page.tsx",
+      "app/admin/schedule/SchedulePanel.tsx",
+      "app/api/admin/schedule/route.ts",
+      "lib/schedule/recurrence.ts",
+      "lib/schedule/pto-hours.ts",
+      "lib/scheduling/day-availability.ts",
+      "lib/integrations/google-calendar.ts"
+    ],
+    "route": "/admin/schedule (redirects to /admin/calendar)",
+    "roles": [
+      "admin (write)",
+      "staff (own events)"
+    ],
+    "purpose": "Org calendar events, recurring events, reminders and PTO; SchedulePanel is the extracted body once used by the hub.",
+    "elements": [
+      {
+        "name": "Schedule API",
+        "does": "GET range, POST/PATCH/DELETE; non-admins see only their own events."
+      },
+      {
+        "name": "SchedulePanel (485 lines)",
+        "does": "List-style body used by the calendar page and the UX harness."
+      },
+      {
+        "name": "Recurrence and PTO helpers",
+        "does": "Expand recurring events; count PTO hours."
+      }
+    ],
+    "behaviours": [
+      "/admin/schedule only redirects to /admin/calendar (page.tsx:12-14).",
+      "Events carry job_id and event_type for the phase scheduler."
+    ],
+    "data": [
+      "schedule_events",
+      "PTO tables",
+      "Google Calendar"
+    ],
+    "status": "works",
+    "problems": [
+      "Three scheduling surfaces (phase scheduler on the job, the calendar, equipment schedule/Gantt) with no shared conflict check.",
+      "Calendar is owned by another area; the job scheduling story is split between them.",
+      "Non-admins see only their own events: a party chief cannot see the rest of the crew's day."
+    ],
+    "overlaps": [
+      "jobs.job-phase-scheduler",
+      "jobs.equipment-portal"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "One dispatch board (see jobs.job-phase-scheduler). Crew members see their crew's day; admins see all.",
+    "add": [
+      "Dispatch board",
+      "Crew view for party chiefs",
+      "Travel time and route order"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/schedule/page.tsx:1-15",
+      "app/admin/schedule/SchedulePanel.tsx:1-6",
+      "app/api/admin/schedule/route.ts:1-8"
+    ],
+    "nationwide": "Time zone and work-week assumptions per firm; Google Calendar only.",
+    "plans": [
+      "docs/planning/pending/job-calendar-2026-06-16.md",
+      "docs/planning/pending/calendar-mobile-2026-06-16.md"
+    ]
+  },
+  {
+    "id": "jobs.property-map",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Property map (/admin/map): per-job and all-jobs map on Google satellite",
+    "where": [
+      "app/admin/map/page.tsx",
+      "app/admin/map/components/MapFrame.tsx",
+      "app/admin/map/components/Tiles.tsx",
+      "app/admin/map/components/kinds.ts",
+      "app/admin/map/components/thumbnails.ts",
+      "app/admin/map/PropertyMap.css",
+      "lib/jobs/property-map.ts",
+      "lib/jobs/property-map-shapes.ts",
+      "lib/jobs/map-world.ts",
+      "lib/jobs/map-shapes-world.ts"
+    ],
+    "route": "/admin/map and /admin/map?job=<id>",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Satellite map where crews and drafters see every point of interest with its photos, video, voice notes and files. Browse mode shows all jobs' points; work mode edits one job's points and layers.",
+    "elements": [
+      {
+        "name": "Browse mode (no job)",
+        "does": "Clustered points in the viewport, loaded only past zoom 12; address search flies to a place."
+      },
+      {
+        "name": "Work mode (?job=)",
+        "does": "Flies to the property, editing on; point, path, area and camera-cone (fov) shapes."
+      },
+      {
+        "name": "Layers panel",
+        "does": "Named, coloured layers with show/hide, counts and a default layer; move points between layers (copy is missing)."
+      },
+      {
+        "name": "Files panel",
+        "does": "Job files as tiles; drag onto a pin, or arm a file then click a pin, or drop on the open point; search by name."
+      },
+      {
+        "name": "Point panel",
+        "does": "Title, notes, type (generic, building, utility, fence, boundary, street view and others), status (open, resolved, attention), attached media, centre-on-point, open in Google Maps."
+      },
+      {
+        "name": "Labels toggle",
+        "does": "Show each point's name beside the pin."
+      },
+      {
+        "name": "Camera cone width",
+        "does": "Slider for field-of-view degrees on fov shapes."
+      }
+    ],
+    "behaviours": [
+      "Files are linked, never copied: job_map_point_media.job_file_id points at job_files.",
+      "A job with no map row gets one when the first point is dropped.",
+      "The points API refuses to answer below the minimum zoom so a bad client cannot pull every point.",
+      "Replaced an uploaded-aerial image map on 2026-09-19 (the old /jobs/[id]/map now redirects)."
+    ],
+    "data": [
+      "job_property_maps",
+      "job_map_points",
+      "job_map_point_media",
+      "job_map_layers",
+      "job_files",
+      "Google Maps JS and Places"
+    ],
+    "status": "works",
+    "problems": [
+      "2,367-line client page; very hard to test or change.",
+      "Four doors from the job page (action row, PropertyPanel, tab, redirect) with two labels (renamed 'View interactive map' in code, but a duplicate button remains).",
+      "Layers conflict with the point-type axis (plan §4.1): 'a layer for pictures' duplicates what type already says.",
+      "No CSV or collector import onto the map in the UI (seed 654 adds the columns; the importer exists at the property-map/import API), no copy-between-layers.",
+      "Needs a Google Maps key and billed requests per tile load; no offline mode for a crew with no signal.",
+      "No printable map or share link; the client-facing view (plan Phase 8) is not built."
+    ],
+    "overlaps": [
+      "jobs.job-field-captures-page",
+      "jobs.job-fieldwork-tab",
+      "jobs.job-property-panel"
+    ],
+    "verdict": "keep",
+    "rebuild": "Keep as the single field data view. Split the page into components and tests; make the map the hub for photos, GPS captures, collector points and walked paths; add a read-only share/print view for the client and the RPLS review.",
+    "add": [
+      "CSV and collector layer import button",
+      "Copy point between layers",
+      "Offline tiles for the crew",
+      "Client share link",
+      "Print to PDF with numbered legend",
+      "Measure distance and area tools"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/map/page.tsx:1-30",
+      "app/admin/map/page.tsx:122-147",
+      "app/admin/map/page.tsx:2020-2056",
+      "app/api/admin/map/points/route.ts:1-10",
+      "lib/jobs/property-map.ts:105-170"
+    ],
+    "nationwide": "'TX' appended to every geocode query (map/page.tsx:147); state-plane import supports Texas zones only (property-map/import/route.ts:30-124 looksLikeTexas); Google Maps keys and billing owned by Starr.",
+    "plans": [
+      "docs/planning/in-progress/interactive-property-map-2026-09-16.md (open: Phases 6-9: survey tools, real-world coordinates, share, close-out)",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md (open: CSV to layer, layers vs types, copy between layers)"
+    ]
+  },
+  {
+    "id": "jobs.property-map-api",
+    "area": "jobs",
+    "kind": "api",
+    "name": "Property map API group",
+    "where": [
+      "app/api/admin/jobs/[id]/property-map/route.ts",
+      "app/api/admin/jobs/[id]/property-map/points/route.ts",
+      "app/api/admin/jobs/[id]/property-map/layers/route.ts",
+      "app/api/admin/jobs/[id]/property-map/media/route.ts",
+      "app/api/admin/jobs/[id]/property-map/library/route.ts",
+      "app/api/admin/jobs/[id]/property-map/import/route.ts",
+      "app/api/admin/jobs/[id]/property-map/thumbnail/route.ts",
+      "app/api/admin/map/points/route.ts",
+      "app/api/admin/map/job/[id]/route.ts",
+      "lib/jobs/property-map-server.ts",
+      "lib/jobs/map-world-server.ts"
+    ],
+    "route": "/api/admin/jobs/[id]/property-map/*, /api/admin/map/*",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "CRUD for a job's map, points, layers, media links, file library and thumbnails; coordinate-file import; viewport-bounded point query for browse mode.",
+    "elements": [
+      {
+        "name": "points",
+        "does": "Create, update, move (including move between layers, line 201-206), delete points; geometry types point/path/area/fov."
+      },
+      {
+        "name": "layers",
+        "does": "Create, rename, recolour, delete layers."
+      },
+      {
+        "name": "media",
+        "does": "Attach or detach a job file to a point; many-to-many since seed 646."
+      },
+      {
+        "name": "import",
+        "does": "Parses a coordinate file and places points; declared Texas State Plane zone converts N/E to lat/lng; points outside Texas are reported, not dropped."
+      },
+      {
+        "name": "map/points",
+        "does": "Viewport query; refuses below MIN_POINT_ZOOM."
+      }
+    ],
+    "behaviours": [
+      "Layer colours and one-to-many media relationships were later migrations (645, 646, 648)."
+    ],
+    "data": [
+      "job_property_maps",
+      "job_map_points",
+      "job_map_point_media",
+      "job_map_layers",
+      "job_files"
+    ],
+    "status": "works",
+    "problems": [
+      "The import route exists but the 2026-09-20 review lists CSV-to-layer as missing in the UI.",
+      "Texas-only projection in the import."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep. Add state-plane support for all US zones or a proj-based converter, and an importer UI.",
+    "add": [
+      "Nationwide coordinate system support",
+      "Bulk move/copy of points",
+      "GeoJSON/KML export"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/jobs/[id]/property-map/import/route.ts:30-124",
+      "app/api/admin/map/points/route.ts:1-10",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.5, §2"
+    ],
+    "nationwide": "TEXAS_STATE_PLANE_ZONES and looksLikeTexas hard-coded.",
+    "plans": [
+      "docs/planning/in-progress/interactive-property-map-2026-09-16.md",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md"
+    ]
+  },
+  {
+    "id": "jobs.gps-capture",
+    "area": "jobs",
+    "kind": "mechanic",
+    "name": "GPS-tagged photo and video capture (file captures, EXIF, walked path)",
+    "where": [
+      "seeds/653_job_file_captures.sql",
+      "lib/jobs/capture-track.ts",
+      "lib/jobs/exif-capture.ts",
+      "lib/jobs/exif-capture-server.ts",
+      "lib/jobs/point-file.ts",
+      "mobile/lib/locationTracker.ts",
+      "mobile/lib/fieldMedia.ts",
+      "mobile/lib/storage/mediaUpload.ts"
+    ],
+    "route": "(lib + mobile)",
+    "roles": [
+      "crew",
+      "system"
+    ],
+    "purpose": "Place photos and videos on the map from the GPS fix taken at capture, and draw the path walked while filming, stored on the file so it survives a move to another job.",
+    "elements": [
+      {
+        "name": "job_file_captures table",
+        "does": "One row per file: captured_at, lat/lng, accuracy, optional track, source (seed 653)."
+      },
+      {
+        "name": "EXIF reader",
+        "does": "On web upload, reads GPS from photos and writes a capture; does not overwrite a position a person set by hand."
+      },
+      {
+        "name": "Walked-path filter",
+        "does": "Keeps a video sample only if it is further than both 15 ft and the reported accuracy; first and last always kept; drops very poor fixes."
+      },
+      {
+        "name": "Capture dialog (planned)",
+        "does": "Title, notes, type, accuracy and target job shown before upload; consent toggle when off the clock."
+      }
+    ],
+    "behaviours": [
+      "The mobile app deliberately turns EXIF off on images (mediaUpload.ts:225,240) and records phone GPS into its own columns instead (fieldMedia.ts:182).",
+      "No code path writes a video track into job_file_captures from the phone yet; only the server-side EXIF half is wired (files/route.ts:10).",
+      "Consent rules decided: automatic when clocked in, per-capture ask when not (default off)."
+    ],
+    "data": [
+      "job_file_captures",
+      "job_files",
+      "job_map_points",
+      "location_pings (phone background GPS)"
+    ],
+    "status": "partial",
+    "problems": [
+      "The plan file still says 'designed, not built' although seed 653, capture-track and exif-capture exist; the plan's status line is stale.",
+      "Phone capture to point and the capture dialog are unbuilt; the video-playback marker that moves along the path is unbuilt.",
+      "Moving a file between jobs has open design questions (recreate or offer the point; what happens to the empty point)."
+    ],
+    "overlaps": [
+      "jobs.job-field-captures-page",
+      "jobs.property-map"
+    ],
+    "verdict": "improve",
+    "rebuild": "Finish as planned: capture belongs to the file, point derived from it. Phone writes the capture and track with the upload; drag a file to another job carries the capture. Share one capture library across photos, video and documents.",
+    "add": [
+      "Compass heading on capture",
+      "Offline queue visibility (exists in uploads screen)",
+      "RTK/external GNSS receiver accuracy source"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "seeds/653_job_file_captures.sql:1-30",
+      "lib/jobs/capture-track.ts:1-15",
+      "lib/jobs/exif-capture.ts:1-30",
+      "mobile/lib/storage/mediaUpload.ts:225",
+      "mobile/lib/fieldMedia.ts:182-190",
+      "app/api/admin/jobs/files/route.ts:10"
+    ],
+    "nationwide": "Accuracy thresholds are in feet (15 ft); unit setting per firm. Privacy and consent rules vary by state.",
+    "plans": [
+      "docs/planning/in-progress/gps-capture-2026-09-19.md (open: move-to-job point behaviour, sampling interval, capture dialog, consent UI)"
+    ]
+  },
+  {
+    "id": "jobs.equipment-portal",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Equipment portal (ten tabs)",
+    "where": [
+      "app/admin/equipment/page.tsx",
+      "app/admin/equipment/EquipmentManagerHub.tsx",
+      "app/admin/equipment/_tabs/*",
+      "app/admin/equipment/EquipmentPortal.css"
+    ],
+    "route": "/admin/equipment",
+    "roles": [
+      "admin",
+      "equipment manager"
+    ],
+    "purpose": "One page for the equipment cage: today, check in/out, schedule, maintenance, supplies, templates, cleanup, valuation, vehicles and overrides.",
+    "elements": [
+      {
+        "name": "Today",
+        "does": "Strips: going out, out now, returned; banners for PTO conflicts, low stock, maintenance starting (TodayTab, default tab)."
+      },
+      {
+        "name": "Check in / out",
+        "does": "Hand gear to a crew, vehicle or maintenance with condition and expected-back."
+      },
+      {
+        "name": "Schedule",
+        "does": "14-day Gantt of every unit's reservations (read-only drilldown)."
+      },
+      {
+        "name": "Maintenance",
+        "does": "Due, overdue and done; event detail page with documents."
+      },
+      {
+        "name": "Supplies",
+        "does": "Consumables low-stock with reorder tiers and restock."
+      },
+      {
+        "name": "Templates",
+        "does": "Kinds of gear and kits/loadouts a job should take."
+      },
+      {
+        "name": "Cleanup queue",
+        "does": "Templates pointing at retired gear."
+      },
+      {
+        "name": "Valuation",
+        "does": "Depreciation by asset and the admin-only Lock tax year ritual."
+      },
+      {
+        "name": "Vehicles",
+        "does": "Fleet CRUD, condition, photos, mpg; feeds the mobile clock-in vehicle picker."
+      },
+      {
+        "name": "Overrides (Audit)",
+        "does": "Every time a reservation rule was overridden."
+      }
+    ],
+    "behaviours": [
+      "Each tab is the old page moved untouched to _tabs; fetches on mount.",
+      "Inventory and Import are routes reached by buttons, not tabs.",
+      "Self checkout flag, QR stickers, nag silencing, borrow-from-other-crew and promote-from-receipt exist as API routes."
+    ],
+    "data": [
+      "equipment_inventory",
+      "equipment_reservations",
+      "equipment_assignments",
+      "equipment_events",
+      "equipment_templates and kits",
+      "maintenance_events",
+      "vehicles",
+      "depreciation and tax election tables"
+    ],
+    "status": "works",
+    "problems": [
+      "17,000 lines in 16 pages and tabs; it is a full asset-management system inside a surveying app, far beyond what a 5-person firm needs.",
+      "Instruments are the real need (total stations, GNSS, levels, calibration certificates, tripods, prisms) and are not distinguished from consumables and trucks.",
+      "Assignments exist in four forms: job_equipment (job page), equipment_assignments, reservations, check-out events.",
+      "Ten tabs with similar names (Today, Check in/out, Schedule, Overrides/Audit, Cleanup) and an embedded hub component repeating the same counts.",
+      "Maintenance detail dialogs run to 1,728 lines (EventDialogs.tsx) and the template editor to 1,867 lines."
+    ],
+    "overlaps": [
+      "jobs.job-side-panels",
+      "jobs.compliance-tab",
+      "jobs.vehicles"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Three simple views: Gear (list with status, who has it, next calibration), Booking (crew day board, shared with dispatch), Service (calibration and maintenance due). Vehicles as a gear type. Depreciation exported to the accountant instead of its own subsystem.",
+    "add": [
+      "Calibration certificate storage per instrument with expiry alerts",
+      "Instrument loadout by job type",
+      "Barcode/QR scan to check out (QR sticker API exists)",
+      "Instrument-to-job usage for billing"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/equipment/page.tsx:1-40",
+      "app/admin/equipment/page.tsx:68-86",
+      "app/admin/equipment/page.tsx:88",
+      "app/admin/equipment/maintenance/[id]/EventDialogs.tsx (1,728 lines)",
+      "app/admin/equipment/templates/[id]/page.tsx (1,867 lines)"
+    ],
+    "nationwide": "Tax elections (Section 179, bonus depreciation, tax-year lock) are US federal; state treatment differs. Otherwise generic.",
+    "plans": [
+      "docs/planning/completed/EQUIPMENT_MANAGER_BUILDOUT_2026-06-22.md",
+      "docs/planning/pending/hub-widget-excellence-12-equipment-cad-research-2026-05-30.md"
+    ]
+  },
+  {
+    "id": "jobs.equipment-routes",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Equipment sub-pages (inventory, unit, import, maintenance event, templates)",
+    "where": [
+      "app/admin/equipment/inventory/page.tsx",
+      "app/admin/equipment/inventory/UnitModals.tsx",
+      "app/admin/equipment/[id]/page.tsx",
+      "app/admin/equipment/import/page.tsx",
+      "app/admin/equipment/maintenance/[id]/page.tsx",
+      "app/admin/equipment/maintenance/[id]/EventDialogs.tsx",
+      "app/admin/equipment/templates/new/page.tsx",
+      "app/admin/equipment/templates/[id]/page.tsx",
+      "app/admin/equipment/{checked-out,consumables,fleet-valuation,maintenance,overrides,templates,templates/cleanup-queue,timeline,today}/page.tsx"
+    ],
+    "route": "/admin/equipment/inventory, /[id], /import, /maintenance/[id], /templates/new, /templates/[id] and redirect stubs",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Editors reached from tabs: the catalogue with add/edit unit modals, a unit's drilldown (assignment history), CSV fleet import, a maintenance event with documents, a template with line items.",
+    "elements": [
+      {
+        "name": "Inventory list and unit modals",
+        "does": "Add, edit, retire, restore, assign units (1,212-line UnitModals)."
+      },
+      {
+        "name": "Unit drilldown",
+        "does": "Every column plus joined job_equipment history."
+      },
+      {
+        "name": "CSV import",
+        "does": "Fleet seeding from a spreadsheet."
+      },
+      {
+        "name": "Maintenance event page",
+        "does": "Header, details, documents; state transitions and editing."
+      },
+      {
+        "name": "Template editor",
+        "does": "Header and line items, apply to a job, preview, save from job."
+      },
+      {
+        "name": "Nine redirect stubs",
+        "does": "Each old page forwards to a tab (26 lines each)."
+      }
+    ],
+    "behaviours": [
+      "Templates can be applied to a job (templates/[id]/apply) and saved from a job.",
+      "Equipment promotes from a receipt (promote-from-receipt)."
+    ],
+    "data": [
+      "equipment_inventory",
+      "equipment_templates",
+      "maintenance_events",
+      "job_equipment"
+    ],
+    "status": "works",
+    "problems": [
+      "Page headers still say 'Read-only' or list sub-batches (F10.x) that were later built; stale comments mislead.",
+      "Two unit detail surfaces (drilldown page and modals).",
+      "Nine 26-line redirect stubs under equipment/ add noise."
+    ],
+    "overlaps": [
+      "jobs.equipment-portal"
+    ],
+    "verdict": "improve",
+    "rebuild": "One unit page (drawer) with history, calibration and bookings; one import wizard; templates become 'job-type loadouts'.",
+    "add": [
+      "Instrument calibration certificate upload",
+      "Printable QR labels"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/equipment/[id]/page.tsx:1-8",
+      "app/admin/equipment/inventory/page.tsx:1-8",
+      "app/admin/equipment/maintenance/[id]/page.tsx:1-8",
+      "app/admin/equipment/templates/[id]/page.tsx:1-8"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/completed/EQUIPMENT_MANAGER_BUILDOUT_2026-06-22.md"
+    ]
+  },
+  {
+    "id": "jobs.vehicles",
+    "area": "jobs",
+    "kind": "panel",
+    "name": "Vehicles (fleet) tab and API",
+    "where": [
+      "app/admin/equipment/_tabs/VehiclesTab.tsx",
+      "app/admin/vehicles/page.tsx",
+      "app/api/admin/vehicles/route.ts",
+      "app/api/admin/vehicles/condition/route.ts",
+      "app/api/admin/vehicles/[id]/photos/route.ts",
+      "seeds/225_starr_field_vehicles.sql",
+      "seeds/365_vehicle_condition.sql",
+      "seeds/376_vehicle_details_and_photos.sql",
+      "seeds/592_vehicle_mpg_and_fuel_price.sql",
+      "lib/mileage/*",
+      "app/api/admin/mileage/route.ts"
+    ],
+    "route": "/admin/equipment?tab=vehicles (/admin/vehicles redirects)",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "List the firm's vehicles, their condition, photos, mpg and fuel price; source of truth for the vehicle picker on mobile clock-in and for mileage reimbursement.",
+    "elements": [
+      {
+        "name": "Fleet CRUD",
+        "does": "Add, edit, archive (1,301-line tab)."
+      },
+      {
+        "name": "Condition log with photos",
+        "does": "Per-vehicle condition entries."
+      },
+      {
+        "name": "Mileage and reimbursement",
+        "does": "IRS-style mileage report from location pings (Haversine); manual entry; distance provider; reimbursement rules."
+      }
+    ],
+    "behaviours": [
+      "Mobile gets only active vehicles via RLS; admin sees archived.",
+      "Time entries carry vehicle_id for mileage attribution."
+    ],
+    "data": [
+      "vehicles",
+      "vehicle_condition",
+      "location_pings",
+      "job_time_entries.vehicle_id"
+    ],
+    "status": "works",
+    "problems": [
+      "Mileage is built on IRS rules (rate, log format) and appears in vehicles, payroll and money; ownership is unclear.",
+      "A vehicle is not an equipment row, so truck-mounted gear (a loadout in a truck) has two separate records.",
+      "No per-job vehicle cost."
+    ],
+    "overlaps": [
+      "jobs.equipment-portal"
+    ],
+    "verdict": "merge",
+    "rebuild": "A vehicle is an asset type in the Gear list, with mileage log and fuel; per-job mileage cost rolls into the job's cost.",
+    "add": [
+      "Per-job vehicle cost",
+      "Insurance and registration expiry alerts",
+      "Service intervals by mileage"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/vehicles/page.tsx:1-15",
+      "app/api/admin/vehicles/route.ts:1-12",
+      "app/api/admin/mileage/route.ts:1-10"
+    ],
+    "nationwide": "IRS mileage rate and format are US federal; check state reimbursement rules.",
+    "plans": [
+      "docs/planning/completed/EQUIPMENT_MANAGER_BUILDOUT_2026-06-22.md"
+    ]
+  },
+  {
+    "id": "jobs.scan-setup",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Scan setup (Starr Scan helper)",
+    "where": [
+      "app/admin/scan-setup/page.tsx",
+      "app/admin/scan-setup/scan-setup.css",
+      "lib/scan/*",
+      "scan-helper/",
+      "app/admin/components/scan/*"
+    ],
+    "route": "/admin/scan-setup",
+    "roles": [
+      "any signed-in admin user"
+    ],
+    "purpose": "Get a computer ready to scan paper into the platform: download the small Starr Scan helper for the OS, install steps, and a live check that turns green when the helper answers.",
+    "elements": [
+      {
+        "name": "Download per OS",
+        "does": "Links to the build produced by the scan-helper release workflow."
+      },
+      {
+        "name": "Live status",
+        "does": "Polls the helper; shows its version when running."
+      },
+      {
+        "name": "Supported scanners list",
+        "does": "Brother, Epson, HP, ScanSnap, VueScan, NAPS2, Image Capture, Windows Scan."
+      },
+      {
+        "name": "Security note",
+        "does": "Explains the unrecognised-software warning."
+      }
+    ],
+    "behaviours": [
+      "Reached from the Scan pop-up when the helper is not running (2026-10-06 owner request).",
+      "Scan pop-up appears where files are uploaded (job and research)."
+    ],
+    "data": [
+      "helper at a local port",
+      "release downloads"
+    ],
+    "status": "works",
+    "problems": [
+      "Not a job feature: it is a utility page for the file upload flow and is gated only by being signed in.",
+      "Branded 'Starr Scan', a downloaded helper that is signed per vendor; unsigned builds trigger OS warnings."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep. Make it a settings page (Company > Devices) and show when the helper is out of date. Scanned documents should auto-file to the job by barcode cover sheet.",
+    "add": [
+      "Barcode cover sheet to route scans to a job folder",
+      "Mobile camera scan to PDF (document capture) in Starr Field"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/scan-setup/page.tsx:1-10",
+      "app/admin/scan-setup/page.tsx:48-57",
+      "app/admin/scan-setup/page.tsx:120-147"
+    ],
+    "nationwide": "'Starr Scan' brand name and the vendor build workflow are single-tenant.",
+    "plans": []
+  },
+  {
+    "id": "jobs.share",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Public share link (research report viewer)",
+    "where": [
+      "app/share/[token]/page.tsx",
+      "app/api/share/[token]/route.ts",
+      "app/api/admin/research/[projectId]/share/route.ts"
+    ],
+    "route": "/share/[token]",
+    "roles": [
+      "public (no sign-in)",
+      "admin creates the link"
+    ],
+    "purpose": "A read-only, permission-filtered view of a research project report for a client, optionally password-protected and expiring.",
+    "elements": [
+      {
+        "name": "Password prompt",
+        "does": "Appears when the share requires one; password checked by sha256 compare."
+      },
+      {
+        "name": "Report viewer",
+        "does": "Shows only sections allowed by the link's permission; view count recorded."
+      },
+      {
+        "name": "'Powered by Starr Recon' footer",
+        "does": "Fixed branding."
+      }
+    ],
+    "behaviours": [
+      "GET returns 401 for password issues and 404 for missing, expired or revoked.",
+      "There is no job or project share: only research reports are shareable."
+    ],
+    "data": [
+      "share records (project, permission, expiry, view count)",
+      "research project report"
+    ],
+    "status": "works",
+    "problems": [
+      "Not in the jobs area in practice: it shares research, not jobs, projects or maps.",
+      "The password hash is an unsalted SHA-256 (route.ts:11-13); weak for a password-gated page.",
+      "No share link for a job's map or status from the admin side. A separate token-based customer portal (app/portal/[token]/page.tsx: job status, documents, invoices, change orders) and public proposal/invoice/pay pages exist under app/api/public, so share links are built three ways (research share, portal token, proposal/invoice tokens)."
+    ],
+    "overlaps": [
+      "jobs.portal-customer"
+    ],
+    "verdict": "improve",
+    "rebuild": "Consolidate research share, customer portal and proposal/invoice/change-order tokens into one share-link service (token, expiry, optional salted password, audit trail), and add the property map and deliverables to the portal. Tenant-branded footer.",
+    "add": [
+      "Property map and deliverables in the customer portal",
+      "Download tracking",
+      "Revoke link"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/share/[token]/route.ts:1-14",
+      "app/share/[token]/page.tsx:1-12",
+      "app/portal/[token]/page.tsx:1-6"
+    ],
+    "nationwide": "'Powered by Starr Recon' branding; single-tenant look.",
+    "plans": [
+      "docs/planning/in-progress/interactive-property-map-2026-09-16.md (Phase 8, share, not built)",
+      "docs/planning/completed/CUSTOMER_PORTAL.md"
+    ]
+  },
+  {
+    "id": "jobs.portal-customer",
+    "area": "jobs",
+    "kind": "page",
+    "name": "Customer portal (tokenised job status page)",
+    "where": [
+      "app/portal/[token]/page.tsx",
+      "app/api/public/portal/*",
+      "app/api/admin/portal-access/*",
+      "app/change-order/[token]/page.tsx",
+      "app/api/public/change-order/[token]/route.ts"
+    ],
+    "route": "/portal/[token], /change-order/[token]",
+    "roles": [
+      "customer (no account, link from email)"
+    ],
+    "purpose": "The customer's own view of their job: status, documents and deliverables, invoices, change orders to approve. Reached by an emailed link, no password.",
+    "elements": [
+      {
+        "name": "Job status",
+        "does": "Shows the job's progress for the customer."
+      },
+      {
+        "name": "Deliverables list",
+        "does": "Reads deliverables (revision, state, file, issued date, seal date)."
+      },
+      {
+        "name": "Invoices",
+        "does": "Lists invoices with a link to the public invoice page."
+      },
+      {
+        "name": "Change orders",
+        "does": "Lists them and links to the approve/decline page with a name field."
+      }
+    ],
+    "behaviours": [
+      "No account by design: a survey customer interacts a few times and then not again for years (page header).",
+      "Admin creates the access through the portal-access API."
+    ],
+    "data": [
+      "jobs",
+      "deliverables",
+      "invoices",
+      "change_orders",
+      "portal access tokens"
+    ],
+    "status": "partial",
+    "problems": [
+      "It displays records the office cannot create (deliverables, change orders have no admin screen), so the portal is thin in practice.",
+      "Does not show the property map, schedule or field-complete status.",
+      "Token links cannot be revoked from a job page (not found in the code read)."
+    ],
+    "overlaps": [
+      "jobs.share",
+      "jobs.deliverables-api",
+      "jobs.change-orders-api"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the no-password link model. Fill it from real deliverables and change orders; add a simple timeline (scheduled, field work done, drafting, ready for review, delivered) that maps to the clean statuses in jobs.md.",
+    "add": [
+      "Status timeline",
+      "Appointment and access confirmation",
+      "Pay online from the portal",
+      "Message the surveyor"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/portal/[token]/page.tsx:1-14",
+      "app/change-order/[token]/page.tsx:1-5"
+    ],
+    "nationwide": "Firm name, phone and email are read from tenant data (change-order payload firm block); branding and legal text need per-firm config.",
+    "plans": [
+      "docs/planning/completed/CUSTOMER_PORTAL.md"
+    ]
+  },
+  {
+    "id": "jobs.deliverables-api",
+    "area": "jobs",
+    "kind": "api",
+    "name": "Deliverables (revision, seal, issue) - API only",
+    "where": [
+      "app/api/admin/deliverables/route.ts",
+      "seeds/523_proposals_deliverables_ar.sql",
+      "seeds/304_jobs_deliverables.sql"
+    ],
+    "route": "/api/admin/deliverables",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "The record of what the firm issued: revision number, state, who sealed it and with what seal number, issued-to, delivery method and receipt.",
+    "elements": [
+      {
+        "name": "GET ?jobId=",
+        "does": "Job's deliverables, newest first."
+      },
+      {
+        "name": "POST",
+        "does": "Create a deliverable or a new revision of one (supersedes_id)."
+      },
+      {
+        "name": "PATCH action issue | seal | receive",
+        "does": "Sealing writes who, seal number and time in the same statement; state is not a free field."
+      }
+    ],
+    "behaviours": [
+      "Sealing and issuing are actions so a plat cannot be marked final with nobody's name on it (route.ts:5-10)."
+    ],
+    "data": [
+      "deliverables"
+    ],
+    "status": "partial",
+    "problems": [
+      "No admin screen calls this API, so nobody in the office can create, seal or issue a deliverable. The customer side does read it: the public portal page lists deliverables (app/portal/[token]/page.tsx:11), so the customer sees an empty list.",
+      "The job page edits a free-text jobs.deliverables description instead, so there are two concepts with the same name.",
+      "No link to the file that was sealed: file_url is a string, not a job_files id."
+    ],
+    "overlaps": [
+      "jobs.job-detail",
+      "jobs.job-files"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Surface as a Deliverables panel on the job: list, add revision, 'Seal' (RPLS only, with seal number and signed PDF attached from job files), 'Issue' (recipient, method, date), receipt. Locks the file. Free-text jobs.deliverables becomes the scope line only.",
+    "add": [
+      "RPLS review/QA queue of drafts awaiting seal",
+      "Digital seal/signature support per state rules",
+      "Transmittal letter generated on issue"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/api/admin/deliverables/route.ts:1-17",
+      "app/admin/jobs/[id]/page.tsx:819-821",
+      "app/portal/[token]/page.tsx:1-14"
+    ],
+    "nationwide": "Seal and signature rules, seal formats and e-seal allowances vary by state board; the seal number field should follow the firm's licence data.",
+    "plans": [
+      "docs/planning/completed (audit §3 item 11 referenced in seed 523)"
+    ]
+  },
+  {
+    "id": "jobs.change-orders-api",
+    "area": "jobs",
+    "kind": "api",
+    "name": "Change orders (scope and fee changes) - API only",
+    "where": [
+      "app/api/admin/change-orders/route.ts",
+      "seeds/523_proposals_deliverables_ar.sql",
+      "lib/proposals/proposals.ts"
+    ],
+    "route": "/api/admin/change-orders",
+    "roles": [
+      "admin"
+    ],
+    "purpose": "Record scope changes: description, signed amount, days added, with a customer approval link.",
+    "elements": [
+      {
+        "name": "GET ?jobId=",
+        "does": "Change orders in number order."
+      },
+      {
+        "name": "POST",
+        "does": "Raise one."
+      },
+      {
+        "name": "PATCH action send | approve | decline | void",
+        "does": "State changes; approval by public token with name, email and IP hash."
+      }
+    ],
+    "behaviours": [
+      "Amount is signed so a reduction is just a negative change order."
+    ],
+    "data": [
+      "change_orders",
+      "proposal tokens"
+    ],
+    "status": "partial",
+    "problems": [
+      "No admin UI raises or sends a change order. The customer approval page exists (app/change-order/[token]/page.tsx, API app/api/public/change-order/[token]/route.ts) and the portal lists them, but there is no way to create one from the job.",
+      "Not included in the job money roll-up (jobs.job-money), so approved changes do not move the contract value."
+    ],
+    "overlaps": [
+      "jobs.job-money"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Change-orders section on the job's Money tab: raise, send for e-signature, approve; approved amount adds to contract value and days to due date.",
+    "add": [
+      "Customer e-sign page",
+      "Contract value including change orders"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/change-orders/route.ts:1-14",
+      "app/api/admin/change-orders/route.ts:16-17",
+      "app/change-order/[token]/page.tsx:1-5",
+      "app/api/public/change-order/[token]/route.ts:1"
+    ],
+    "nationwide": "None specific.",
+    "plans": [
+      "docs/planning/completed/CUSTOMER_INVOICING_PHASE2_2026-06-21.md"
+    ]
+  },
+  {
+    "id": "jobs.api-core",
+    "area": "jobs",
+    "kind": "api",
+    "name": "Jobs API group (CRUD, counts, resolve, activity, new, open)",
+    "where": [
+      "app/api/admin/jobs/route.ts",
+      "app/api/admin/jobs/counts/route.ts",
+      "app/api/admin/jobs/resolve/route.ts",
+      "app/api/admin/jobs/activity/route.ts",
+      "app/api/admin/jobs/new/route.ts",
+      "app/api/admin/jobs/[id]/open/route.ts",
+      "app/api/admin/jobs/stages/route.ts",
+      "app/api/admin/jobs/checklists/route.ts",
+      "app/api/admin/jobs/team/route.ts",
+      "app/api/admin/jobs/time/route.ts",
+      "app/api/admin/jobs/money/route.ts",
+      "app/api/admin/jobs/payments/route.ts",
+      "app/api/admin/assignments/route.ts",
+      "app/api/admin/projects/route.ts",
+      "app/api/admin/projects/[id]/route.ts",
+      "lib/jobs/job-ref.ts",
+      "lib/jobs/hub.ts",
+      "lib/jobs/scope.ts",
+      "lib/jobs/soft-delete.ts",
+      "lib/jobs/calc.ts"
+    ],
+    "route": "/api/admin/jobs/*, /api/admin/projects/*, /api/admin/assignments",
+    "roles": [
+      "admin (writes)",
+      "signed-in (many reads and a few writes)"
+    ],
+    "purpose": "All server operations for jobs and projects, including org scoping, numbering, soft delete, tab counts, type-ahead and the job reference resolver.",
+    "elements": [
+      {
+        "name": "jobs (GET/POST/PUT/DELETE)",
+        "does": "List with search and stage filter, create under a required project, update, soft-delete (30 days)."
+      },
+      {
+        "name": "counts",
+        "does": "Every tab's number in one request."
+      },
+      {
+        "name": "resolve",
+        "does": "Type-ahead and verdict for a typed job reference (24-103) before filing against it."
+      },
+      {
+        "name": "new and [id]/open",
+        "does": "Unread-job markers and last-viewed stamps."
+      },
+      {
+        "name": "assignments",
+        "does": "Separate assignments CRUD (not described in the code read; purpose beyond job_team is unknown)."
+      }
+    ],
+    "behaviours": [
+      "supabaseAdmin is an org-scoped client: reads and updates are filtered and inserts stamped by org_id centrally (lib/saas/org-scope.ts).",
+      "Job number generation scans the org's jobs for the current year (route.ts:199-210).",
+      "JobRefPicker and resolve make 'which job is this?' consistent in pickers."
+    ],
+    "data": [
+      "jobs",
+      "projects",
+      "job_team",
+      "job_tags",
+      "job_stages_history",
+      "job_time_entries",
+      "notifications",
+      "activity_log"
+    ],
+    "status": "works",
+    "problems": [
+      "Auth is inconsistent: stages POST and several reads only check signed-in, not job membership.",
+      "Sub-resources are split between query-string style (jobs/team?job_id=) and path style (jobs/[id]/notes); two conventions in one group.",
+      "jobs/field-data and jobs/[id]/field-data are different systems with near-identical names.",
+      "job_number generation reads all rows for the year; two simultaneous creates can race for the same number (only a unique index would stop it; not verified).",
+      "/api/admin/assignments purpose is not clear from its header: 'Assignments CRUD' only."
+    ],
+    "overlaps": [
+      "jobs.job-side-panels"
+    ],
+    "verdict": "improve",
+    "rebuild": "Resource-style REST: /jobs/{id}/(team|files|stages|payments...) with per-job authorisation (member or admin), number allocated by a database sequence per org per year, an OpenAPI description so a second firm's integrations can be built.",
+    "add": [
+      "Per-job authorisation",
+      "Database-allocated job numbers",
+      "Webhooks for stage changes",
+      "Public API and docs"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/api/admin/jobs/route.ts:129-236",
+      "app/api/admin/jobs/stages/route.ts:26-37",
+      "app/api/admin/jobs/counts/route.ts:1-12",
+      "app/api/admin/jobs/resolve/route.ts:1-10",
+      "lib/saas/org-scope.ts:1-30"
+    ],
+    "nationwide": "Job number format YYYY-NNN hard-coded in the route; per-firm format needed.",
+    "plans": [
+      "docs/planning/completed/MULTI_TENANCY_FOUNDATION.md"
+    ]
+  },
+  {
+    "id": "jobs.field-assistant",
+    "area": "jobs",
+    "kind": "tool",
+    "name": "AI field assistant",
+    "where": [
+      "app/api/admin/field-assistant/route.ts"
+    ],
+    "route": "/api/admin/field-assistant",
+    "roles": [
+      "crew (signed in)"
+    ],
+    "purpose": "A crew member types a surveying question (back-azimuth, closed traverse set up, IRS mileage rate) and gets a short answer.",
+    "elements": [
+      {
+        "name": "POST question",
+        "does": "Calls Claude with a surveying field-work system prompt and returns a concise answer."
+      }
+    ],
+    "behaviours": [
+      "Moved from /api/admin/work-mode/assistant when Work Mode was retired (C0e); the text half only, voice is device-gated."
+    ],
+    "data": [
+      "Anthropic API"
+    ],
+    "status": "unknown",
+    "problems": [
+      "No UI caller was found in the code read for this area; may be called from the mobile app or the floating assistant (not confirmed).",
+      "Not grounded in the job: it does not know the job's instructions, county or datum."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Make it job-aware (job instructions, research packet, point list) and available from the field app; log questions for QA.",
+    "add": [
+      "Job context",
+      "Citations to the firm's procedures"
+    ],
+    "priority": "P3",
+    "evidence": [
+      "app/api/admin/field-assistant/route.ts:1-10"
+    ],
+    "nationwide": "Answers should be state-aware (state plane, local rules).",
+    "plans": [
+      "docs/planning/pending/SURVEYING_WORKMODE_MOBILE_UPLOADS_2026-07-16.md"
+    ]
+  },
+  {
+    "id": "jobs.mobile-starr-field",
+    "area": "jobs",
+    "kind": "integration",
+    "name": "Starr Field mobile app (Expo)",
+    "where": [
+      "mobile/app.json",
+      "mobile/app/(tabs)/jobs/*",
+      "mobile/app/(tabs)/capture/*",
+      "mobile/app/(tabs)/time/*",
+      "mobile/app/(tabs)/gear/index.tsx",
+      "mobile/app/(tabs)/money/*",
+      "mobile/app/(tabs)/me/*",
+      "mobile/lib/*",
+      "mobile/lib/db/schema.ts"
+    ],
+    "route": "iOS and Android app (com.starrsoftware.starrfield)",
+    "roles": [
+      "crew",
+      "admin"
+    ],
+    "purpose": "The field crew's phone app: clock in on a job, capture photos, video, voice notes and points, notes, receipts, gear and vehicle, with offline queue and sync to the platform.",
+    "elements": [
+      {
+        "name": "Jobs tab",
+        "does": "Job list and search; job page with points, notes, files and previews; point detail (998 lines)."
+      },
+      {
+        "name": "Capture tab",
+        "does": "Create a point, then photos, video, voice (video player screen)."
+      },
+      {
+        "name": "Time tab",
+        "does": "Clock in/out with a job picker, time edits with history, vehicle picker."
+      },
+      {
+        "name": "Gear tab",
+        "does": "Equipment, personal kit, truck contents, QR scanning."
+      },
+      {
+        "name": "Money tab",
+        "does": "Receipt capture and review."
+      },
+      {
+        "name": "Me tab",
+        "does": "Privacy, tracking consent, uploads queue, profile."
+      },
+      {
+        "name": "Background location tracker",
+        "does": "30 s or 50 m samples into local SQLite; synced when reception returns."
+      }
+    ],
+    "behaviours": [
+      "Offline-first: PowerSync replays a local queue; uploads back off and retry (uploadQueue, uploadBackoff).",
+      "Biometric lock, push notifications, OTA updates.",
+      "Job stage vocabulary is a text column in the mobile schema (schema.ts:512), a third copy."
+    ],
+    "data": [
+      "PowerSync / Supabase tables: jobs, field_data_points, field_media, job_files, job_time_entries, receipts, vehicles, equipment",
+      "expo-location, expo-camera, expo-av, expo-media-library"
+    ],
+    "status": "partial",
+    "problems": [
+      "Mobile writes to field_data_points and field_media (zero rows today), while the office map reads job_map_points: the phone's captures do not reach the map.",
+      "No change of stage or QA from the phone; crew cannot mark field complete.",
+      "No instruction acknowledgement, no map view of the job's points (only a list).",
+      "Brand and bundle id are Starr-specific; the multi-tenant plan (MOBILE_MULTI_TENANT) is not shipped in this code.",
+      "The mobile app is large (11.5k lines in tabs alone) for a not yet launched product; the 2026-09-20 review calls the capture flow unused."
+    ],
+    "overlaps": [
+      "jobs.job-field-captures-page",
+      "jobs.gps-capture"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the offline architecture. Reduce the phone to three jobs: today's jobs (instructions, map, nav), capture (photo, video, voice, points straight to the job map), and time (clock-in with job and vehicle). Money and gear are secondary tabs behind permissions.",
+    "add": [
+      "Map view with the job's points and the crew's position",
+      "Field-complete button that moves status and notifies the PM",
+      "Instruction acknowledgement",
+      "Per-firm app branding (white label via EAS)"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "mobile/app.json:1-138",
+      "mobile/app/(tabs)/_layout.tsx:70-112",
+      "mobile/lib/db/schema.ts:512",
+      "mobile/lib/locationTracker.ts",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md §1.6, §5"
+    ],
+    "nationwide": "App name 'Starr Field', bundle id com.starrsoftware.starrfield, tenant hosted storage buckets starr-field-*. Needs tenant config and white-label builds.",
+    "plans": [
+      "docs/planning/completed/STARR_FIELD_MOBILE_APP_PLAN.md",
+      "docs/planning/completed/MOBILE_MULTI_TENANT.md",
+      "docs/planning/completed/MOBILE_LAUNCH_READINESS_2026-07-02.md",
+      "docs/planning/in-progress/gps-capture-2026-09-19.md"
+    ]
+  }
+]

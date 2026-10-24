@@ -1,0 +1,1822 @@
+[
+  {
+    "id": "research.portal",
+    "area": "research",
+    "kind": "page",
+    "name": "Research portal (projects list + tabs)",
+    "where": [
+      "app/admin/research/page.tsx",
+      "app/admin/research/layout.tsx",
+      "app/admin/research/_tabs/ProjectsTab.tsx"
+    ],
+    "route": "/admin/research",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Front door of Starr Recon. A searchable, filterable list of research projects, with six other former pages folded in as tabs (Coverage, Library, Sites, Self-heal, Pipeline, Billing).",
+    "elements": [
+      {
+        "name": "Search + Filter",
+        "does": "Filters stacked project cards (name, status chip, address, created date, linked job)."
+      },
+      {
+        "name": "+ New Research Project",
+        "does": "Opens NewResearchProjectModal; ?new=1 and ?new=1&job=<id> deep links open it pre-filled."
+      },
+      {
+        "name": "Tab strip",
+        "does": "Projects, Coverage, Library, Sites, Self-heal, Pipeline, Billing; old routes (/coverage, /library, /sites, /self-heal, /pipeline, /billing) still exist as forwarders."
+      },
+      {
+        "name": "Worker status banner",
+        "does": "Shows whether the research worker is reachable (WorkerStatusBanner, /api/admin/research/worker-status)."
+      }
+    ],
+    "behaviours": [
+      "Pipeline and billing tabs were bundle-exempt operator tools; as tabs they now sit under the 'recon' bundle gate (operators bypass it)."
+    ],
+    "data": [
+      "research_projects",
+      "GET /api/admin/research",
+      "GET /api/admin/research/worker-status"
+    ],
+    "status": "works",
+    "problems": [
+      "Seven tabs mix daily-use (projects) with engine administration (self-heal, sites, pipeline); a field user sees dead-end operator tabs.",
+      "/admin/research/testing is a separate lab with its own middleware entry and is not reachable from the tabs."
+    ],
+    "overlaps": [
+      "research.library-tab",
+      "research.pipeline-tab"
+    ],
+    "verdict": "improve",
+    "rebuild": "One screen: 'Research' = list of runs for a job/address with status chip, address, date, linked job. Everything operator-only (sites, self-heal, pipeline, billing, testing) moves under one Settings > Research Engine area so a party chief or office manager sees only runs and results.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/page.tsx:1",
+      "app/admin/research/_tabs/ProjectsTab.tsx:1"
+    ],
+    "nationwide": "Single-tenant admin; bundle gate 'recon' per org exists. Firm name and county list (org_counties, seed 519) must drive list defaults.",
+    "plans": [
+      "docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md (cited in page header)",
+      "docs/planning/completed/RESEARCH_UI_OVERHAUL_2026-08-30.md"
+    ]
+  },
+  {
+    "id": "research.new-project",
+    "area": "research",
+    "kind": "page",
+    "name": "New research project modal and Research-from-job",
+    "where": [
+      "app/admin/research/components/NewResearchProjectModal.tsx",
+      "app/admin/research/start/page.tsx",
+      "app/admin/research/start/StartResearchConfirm.tsx",
+      "lib/research/from-job.ts",
+      "lib/research/job-documents.ts",
+      "lib/research/intake.ts",
+      "lib/research/county-input.ts"
+    ],
+    "route": "/admin/research/start?job=<id>",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Creates a project with address (structured fields), county, owner, instrument, survey type, budget settings and attached files; from a job it inherits address, client, documents and map library.",
+    "elements": [
+      {
+        "name": "Confirm screen",
+        "does": "Shows inherited fields and what is missing; nothing is written until the button is pressed (avoids Next.js prefetch creating rows)."
+      },
+      {
+        "name": "Gather selections / spend limit / supplemental info",
+        "does": "GatherSelectionsField, SpendLimitSlider, SupplementalInfoFields feed run settings."
+      },
+      {
+        "name": "Job file offer",
+        "does": "offerJobFiles proposes job documents to attach as already-held."
+      }
+    ],
+    "behaviours": [
+      "A job has client_name only, no parcel id or owner; the page asks a human to confirm (client may be a title company)."
+    ],
+    "data": [
+      "research_projects",
+      "POST /api/admin/research",
+      "jobs",
+      "owner_name (seed 655)"
+    ],
+    "status": "works",
+    "problems": [
+      "Confirm screen adds a click on the most common path.",
+      "Address entry is free text plus parts; no map pick."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "One 'Start research' sheet: address (autocomplete to parcel), county auto-detected, what-do-you-need checklist, budget slider; inherit everything from the job without a confirm screen when nothing is ambiguous.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/research/start/page.tsx:1",
+      "app/admin/research/components/NewResearchProjectModal.tsx:1"
+    ],
+    "nationwide": "State is not asked; county list is Texas. Needs a state field and per-state county lists.",
+    "plans": [
+      "docs/planning/completed/NEW_RESEARCH_PROJECT_MODAL_2026-09-09.md",
+      "docs/planning/in-progress/jobs-map-research-consolidation-2026-09-20.md"
+    ]
+  },
+  {
+    "id": "research.project-hub",
+    "area": "research",
+    "kind": "page",
+    "name": "Project hub (five-stage workflow)",
+    "where": [
+      "app/admin/research/[projectId]/page.tsx",
+      "app/admin/research/components/PipelineStepper.tsx",
+      "app/admin/research/components/ResearchRunView.tsx",
+      "app/admin/research/components/PipelineProgressPanel.tsx",
+      "app/admin/research/components/useRunState.ts",
+      "types/research.ts"
+    ],
+    "route": "/admin/research/[projectId]",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "The working screen for one property. Stages: upload, research, analysis, review, jobprep. Runs gather, shows live progress, documents, data points, discrepancies, drawing, purchases and exports.",
+    "elements": [
+      {
+        "name": "PipelineStepper",
+        "does": "User-facing stages mapped from internal WorkflowStep values."
+      },
+      {
+        "name": "Panels",
+        "does": "Briefing, AnalysisEstimate, ReviewDocumentsList, PurchaseOffers, DataPoints, Discrepancy, Adjoiners, Encumbrance, SurveyPlan, PacketBuilder, ReportCard, RunDiff, VendorAccounts, Export, ArtifactGallery, SourceDocumentViewer, DrawingCanvas."
+      },
+      {
+        "name": "Rerun dialog",
+        "does": "RerunDialog edits run settings before starting; no longer auto-starts with defaults."
+      },
+      {
+        "name": "RunAiReviewControl",
+        "does": "Starts AI document reading after gather."
+      }
+    ],
+    "behaviours": [
+      "Gather run does no AI work; AI review is a separate action with its own estimate and bar.",
+      "DELETE .../analyze unsticks a stuck project back to 'configure'.",
+      "Document source tags: property_search, user_upload, linked_reference, manual_entry."
+    ],
+    "data": [
+      "research_projects",
+      "research_documents",
+      "extracted_data_points",
+      "discrepancies",
+      "research_runs",
+      "/api/admin/research/[projectId]/*"
+    ],
+    "status": "partial",
+    "problems": [
+      "One 3,545-line client component with about 40 panels; hard to test and reason about.",
+      "Two stage vocabularies (WorkflowStep vs PipelineStage) must stay in sync.",
+      "Many panels overlap (data points, boundary calls, survey plan, report card)."
+    ],
+    "overlaps": [
+      "research.boundary-page",
+      "research.documents-page",
+      "research.field-report",
+      "research.drawing-tools"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Split the 3,545-line page into a run timeline (what we searched, found, could not reach, spent), a documents/evidence board, and a result dossier (parcel, chain of title, boundary calls, encumbrances, confidence). Gather and AI review stay separate actions as the gather/review split already does.",
+    "add": [
+      "Chain-of-title timeline as the primary result",
+      "One-click send to CAD/job carrying parcel, calls and documents",
+      "Per-fact evidence side panel (source image crop)"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/research/[projectId]/page.tsx:178",
+      "types/research.ts:20",
+      "app/admin/research/components/PipelineStepper.tsx:36"
+    ],
+    "nationwide": "Texas deed vocabulary (vara, abstract, survey) in labels and prompts; county detection assumes Texas.",
+    "plans": [
+      "docs/planning/completed/GATHER_AND_REVIEW_SPLIT_2026-09-05.md",
+      "docs/planning/completed/RESEARCH_SYSTEM_COMPLETION_2026-09-05.md",
+      "docs/planning/completed/ITERATIVE_RESEARCH_ANALYSIS_LOOP_2026-09-06.md"
+    ]
+  },
+  {
+    "id": "research.documents-page",
+    "area": "research",
+    "kind": "page",
+    "name": "Project document library",
+    "where": [
+      "app/admin/research/[projectId]/documents/page.tsx",
+      "app/admin/research/components/ReviewDocumentsList.tsx",
+      "app/admin/research/components/DocumentUploadPanel.tsx",
+      "app/admin/research/components/SourceDocumentViewer.tsx",
+      "lib/research/document.service.ts"
+    ],
+    "route": "/admin/research/[projectId]/documents",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "All documents filed to a project: fetched deeds/plats, bought documents, uploads, linked references, with filters and a viewer.",
+    "elements": [],
+    "behaviours": [
+      "The header records a bug where 17 rows rendered blank because the page cast the API to a shape no code produced (found 2026-08-31)."
+    ],
+    "data": [
+      "research_documents",
+      "GET /api/admin/research/[projectId]/documents"
+    ],
+    "status": "works",
+    "problems": [
+      "Duplicate of the library tab and of the hub review list."
+    ],
+    "overlaps": [
+      "research.library-tab",
+      "research.project-hub"
+    ],
+    "verdict": "merge",
+    "rebuild": "Fold into the project hub evidence board; keep one viewer with annotations and OCR text.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/[projectId]/documents/page.tsx:1"
+    ],
+    "nationwide": "Document types are Texas-flavoured (plat, deed, metes_and_bounds).",
+    "plans": [
+      "docs/planning/completed/BOUGHT_DOCUMENTS_SURVIVE_2026-09-07.md"
+    ]
+  },
+  {
+    "id": "research.boundary-page",
+    "area": "research",
+    "kind": "page",
+    "name": "Interactive boundary viewer",
+    "where": [
+      "app/admin/research/[projectId]/boundary/page.tsx",
+      "app/admin/research/components/InteractiveBoundaryViewer.tsx",
+      "app/admin/research/components/BoundaryCallsPanel.tsx"
+    ],
+    "route": "/admin/research/[projectId]/boundary",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "SVG view of the reconciled boundary with confidence colouring, click-to-inspect per call, layer toggles and a measure tool.",
+    "elements": [],
+    "behaviours": [],
+    "data": [
+      "GET worker /research/boundary/:projectId",
+      "reconciled model and ConfidenceReport"
+    ],
+    "status": "partial",
+    "problems": [
+      "Depends on a successful reconcile; empty when Phase 7 has not produced a model (most non-Bell runs)."
+    ],
+    "overlaps": [
+      "research.project-hub",
+      "research.drawing-tools"
+    ],
+    "verdict": "improve",
+    "rebuild": "Make it the core result view: parcel on aerial/GIS base, calls table beside it, colour by confidence, evidence popover per call.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/research/[projectId]/boundary/page.tsx:1",
+      "worker/src/index.ts:7614"
+    ],
+    "nationwide": "Closure thresholds Texas-based; no PLSS section-corner view.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_13_INTERACTIVE_UI.md"
+    ]
+  },
+  {
+    "id": "research.field-report",
+    "area": "research",
+    "kind": "page",
+    "name": "Mobile field report",
+    "where": [
+      "app/admin/research/[projectId]/report/page.tsx"
+    ],
+    "route": "/admin/research/[projectId]/report",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Phone-friendly card view for a party chief on site: confidence, boundary calls, monuments, discrepancies.",
+    "elements": [],
+    "behaviours": [],
+    "data": [
+      "research data points",
+      "discrepancies"
+    ],
+    "status": "partial",
+    "problems": [
+      "Only as good as extracted data; no monument photos or access notes."
+    ],
+    "overlaps": [
+      "research.reports"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep, but make it offline-capable (packet PDF and offline already exist) and promote it out of admin nav; it is the one view a field crew will open.",
+    "add": [
+      "Gate/landowner/access notes",
+      "Offline cache",
+      "Share link to crew"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/[projectId]/report/page.tsx:3",
+      "lib/research/packet-offline.ts:1"
+    ],
+    "nationwide": "None specific.",
+    "plans": []
+  },
+  {
+    "id": "research.drawing-tools",
+    "area": "research",
+    "kind": "tool",
+    "name": "Drawing canvas, tools and templates",
+    "where": [
+      "app/admin/research/components/DrawingCanvas.tsx",
+      "app/admin/research/components/DrawingToolsSidebar.tsx",
+      "app/admin/research/components/DrawingPreferencesPanel.tsx",
+      "app/admin/research/components/VertexEditPanel.tsx",
+      "app/admin/research/components/RotationPanel.tsx",
+      "app/admin/research/components/TemplateManager.tsx",
+      "lib/research/drawing.service.ts",
+      "lib/research/geometry.engine.ts",
+      "lib/research/svg.renderer.ts",
+      "app/api/admin/research/[projectId]/drawings/route.ts",
+      "app/api/admin/research/templates/drawing/route.ts"
+    ],
+    "route": "/admin/research/[projectId] (drawing stage)",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "A 2,678-line in-browser canvas for drawing the boundary from extracted data, editing vertices, annotating and saving versions.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Duplicates the CAD editor under app/admin/cad.",
+      "Largest component after the hub; hard to maintain."
+    ],
+    "overlaps": [
+      "research.boundary-page"
+    ],
+    "verdict": "merge",
+    "rebuild": "Do not keep a second drafting tool inside Research. Send the boundary to the CAD area (export-to-cad route already exists) and keep a read-only preview here.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "app/admin/research/components/DrawingCanvas.tsx:1",
+      "app/api/admin/research/[projectId]/export-to-cad/route.ts:1"
+    ],
+    "nationwide": "Bearing/distance conventions assume Texas surveys (feet, varas converted).",
+    "plans": []
+  },
+  {
+    "id": "research.coverage-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Coverage tab and County profiles panel",
+    "where": [
+      "app/admin/research/_tabs/CoverageTab.tsx",
+      "app/api/admin/research/coverage/route.ts",
+      "app/api/admin/research/county-profiles/route.ts",
+      "lib/research/coverage-rollup.ts",
+      "lib/research/county-support.ts",
+      "worker/src/counties/profile.ts"
+    ],
+    "route": "/admin/research?tab=coverage",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Shows which of 254 counties the platform can research, by tier (curated, vendor-default, fallback) and per source.",
+    "elements": [],
+    "behaviours": [
+      "Tier comes from resolveCountyProfile; worker GET /research/county-profiles (+/:county) with an app proxy; same function the router uses.",
+      "Last-green dates are empty: no drill has run (research_adapter_canaries held zero rows when last measured)."
+    ],
+    "data": [
+      "worker /research/county-profiles",
+      "research_site_adapters (seeds 370,540,541)",
+      "research_counties (254 rows, seed 372)"
+    ],
+    "status": "partial",
+    "problems": [
+      "'Vendor-default' conflates configured with working: BIS rows for Williamson and Milam pointed at hosts that do not resolve.",
+      "App-side SUPPORTED_COUNTIES is ['bell'] only (verify-lot returns 400 elsewhere).",
+      "Nine overlapping county registries remain, only asserted equal."
+    ],
+    "overlaps": [
+      "research.sites-tab",
+      "research.self-heal-tab"
+    ],
+    "verdict": "improve",
+    "rebuild": "Make it the owner's single Texas coverage truth: one row per county and source with state (works / partial / missing / paid-only) and last-green date, driven by drills, not registry intent.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/counties/profile.ts:114",
+      "lib/research/county-support.ts:32",
+      "app/admin/research/_tabs/CoverageTab.tsx:1"
+    ],
+    "nationwide": "254-county Texas table; per-firm coverage lives in org_counties (seed 519) and is separate from capability.",
+    "plans": [
+      "docs/planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md (open: golden parcels, drill command, scheduled drills, registry consolidation, owner-ordered county list)",
+      "docs/planning/completed/RESEARCH_RELIABILITY_AND_COUNTIES_2026-09-02.md"
+    ]
+  },
+  {
+    "id": "research.sites-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Sites tab (adapter registry and probe)",
+    "where": [
+      "app/admin/research/_tabs/SitesTab.tsx",
+      "app/admin/research/sites/SitesClient.tsx",
+      "app/api/admin/research/sites/route.ts",
+      "app/api/admin/research/sites/probe/route.ts",
+      "lib/research/site-probe.ts",
+      "lib/research/site-probe-runner.ts",
+      "lib/research/vendor-detection.ts",
+      "seeds/370_research_adapter_registry.sql"
+    ],
+    "route": "/admin/research?tab=sites",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Register a county data site (vendor, URL, field map), probe it and see health; backed by research_site_adapters and data_vendors.",
+    "elements": [],
+    "behaviours": [],
+    "data": [
+      "research_site_adapters",
+      "data_vendors",
+      "county_data_sources"
+    ],
+    "status": "partial",
+    "problems": [
+      "Seeds 540/541/555/557 leave most adapters draft with survey_status not_surveyed; the DB registry and the worker code registries disagree.",
+      "The worker routes from compiled sets, not from these DB rows."
+    ],
+    "overlaps": [
+      "research.coverage-tab",
+      "research.self-heal-tab"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the registry idea (vendor template plus county config) but make the code profile and the DB row one thing, and let a new county be added by pasting a URL that the probe classifies.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "seeds/370_research_adapter_registry.sql:1",
+      "app/api/admin/research/sites/probe/route.ts:1"
+    ],
+    "nationwide": "research_counties has a state column (default TX), so the schema is multi-state ready; data is Texas only.",
+    "plans": [
+      "docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md",
+      "docs/planning/completed/RESEARCH_SOURCES_AND_PAID_ACCOUNTS_2026-08-02.md"
+    ]
+  },
+  {
+    "id": "research.self-heal-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Self-heal tab, sweep and portal watch",
+    "where": [
+      "app/admin/research/_tabs/SelfHealTab.tsx",
+      "app/admin/research/_tabs/PortalWatchPanel.tsx",
+      "lib/research/self-heal-sweep.ts",
+      "lib/research/self-heal-planner.ts",
+      "lib/research/self-heal-apply-runner.ts",
+      "lib/research/self-heal-apply-evaluator.ts",
+      "lib/research/portal-watch.ts",
+      "lib/research/announcement-watch.ts",
+      "app/api/admin/research/self-heal/sweep/route.ts"
+    ],
+    "route": "/admin/research?tab=self-heal",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Toggle for automated adapter repair (default OFF), a manual sweep of every registered adapter, repair proposals, and a search for county portal-migration announcements.",
+    "elements": [],
+    "behaviours": [],
+    "data": [
+      "research_self_heal_settings (seed 377)",
+      "adapter proposals",
+      "research_adapter_health_checks (seed 371)"
+    ],
+    "status": "partial",
+    "problems": [
+      "Probes selectors, not answers; the structural monitor reported Bell down for a week because of a bad probe URL and selector (curation plan).",
+      "Canary rows never created."
+    ],
+    "overlaps": [
+      "research.coverage-tab",
+      "research.run-infra"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the sweep and announcement watch (cheap, useful); make proposals draft a profile change for human review rather than auto-apply.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/_tabs/SelfHealTab.tsx:1",
+      "lib/research/self-heal-apply-evaluator.ts:1"
+    ],
+    "nationwide": "Vendor-generic; fine.",
+    "plans": [
+      "docs/planning/completed/research-self-heal-slice-1-manual-sweep-2026-06-22.md"
+    ]
+  },
+  {
+    "id": "research.pipeline-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Pipeline tab (batch, flood zone, chain of title)",
+    "where": [
+      "app/admin/research/_tabs/PipelineTab.tsx",
+      "app/api/admin/research/batch/route.ts",
+      "app/api/admin/research/[projectId]/flood-zone/route.ts",
+      "app/api/admin/research/[projectId]/chain-of-title/route.ts"
+    ],
+    "route": "/admin/research?tab=pipeline",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Dashboard for batch research jobs, ad hoc flood-zone queries and chain-of-title lookups.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "The name collides with the 'pipeline' API route and the worker pipeline; unclear to users."
+    ],
+    "overlaps": [
+      "research.portal",
+      "research.project-hub"
+    ],
+    "verdict": "merge",
+    "rebuild": "Batch becomes 'run for many parcels' on the projects list; flood zone and chain of title are results inside a project, not tools.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/research/_tabs/PipelineTab.tsx:1"
+    ],
+    "nationwide": "FEMA is national; chain of title uses Texas instrument conventions.",
+    "plans": []
+  },
+  {
+    "id": "research.billing-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Billing tab, vendor accounts and purchase log",
+    "where": [
+      "app/admin/research/_tabs/BillingTab.tsx",
+      "app/admin/research/components/VendorAccountsPanel.tsx",
+      "app/api/admin/research/billing/route.ts",
+      "app/api/admin/research/vendor-accounts/route.ts",
+      "worker/src/billing/stripe-billing.ts",
+      "seeds/531_research_document_purchases.sql",
+      "seeds/569_vendor_accounts.sql"
+    ],
+    "route": "/admin/research?tab=billing",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Subscription, usage, invoices and the document-purchase transaction log; per-vendor paid accounts (TexasFile, Kofile, etc.).",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "research_document_purchases had 0 rows when last measured: no run has ever bought a document.",
+      "Stripe (14 root vs 17 worker) and Zod (4 vs 3) major versions differ (RECON_INVENTORY).",
+      "Most vendor credentials were empty."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Single spend ledger per project and per firm (AI, purchases, browser sessions) with a hard ceiling; product billing (Stripe) kept apart from internal cost tracking.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/_tabs/BillingTab.tsx:1",
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md:1"
+    ],
+    "nationwide": "Single Starr TexasFile account; per-firm vendor accounts needed.",
+    "plans": [
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md (open: authorise one paid run; iDocket, Mapbox, Browserbase billing decisions)"
+    ]
+  },
+  {
+    "id": "research.library-tab",
+    "area": "research",
+    "kind": "page",
+    "name": "Global document library",
+    "where": [
+      "app/admin/research/_tabs/LibraryTab.tsx",
+      "app/api/admin/research/library/route.ts",
+      "worker/src/research/document-library.ts"
+    ],
+    "route": "/admin/research?tab=library",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Search every research document across all projects by text, type and county.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "File header records an earlier cast that matched nothing; re-verify rendering."
+    ],
+    "overlaps": [
+      "research.documents-page"
+    ],
+    "verdict": "merge",
+    "rebuild": "Make it the per-firm county records cache (a firm's accumulated plats and deeds become an asset) with dedupe by instrument identity.",
+    "add": [
+      "Dedup across projects by instrument number",
+      "Per-county browse"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/_tabs/LibraryTab.tsx:1"
+    ],
+    "nationwide": "Per-firm isolation needed; private docs seed 669.",
+    "plans": []
+  },
+  {
+    "id": "research.testing-lab",
+    "area": "research",
+    "kind": "tool",
+    "name": "Testing lab (developer tool)",
+    "where": [
+      "app/admin/research/testing/page.tsx",
+      "app/admin/research/testing/components/TestCard.tsx",
+      "app/admin/research/testing/components/FullPipelineTab.tsx",
+      "app/api/admin/research/testing/run/route.ts"
+    ],
+    "route": "/admin/research/testing",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Developer lab: run pipeline stages, AI analyse/chat, git branch pull/push from the browser.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "Web routes for git push, pull and branches and file access under /api/admin/research/testing."
+    ],
+    "overlaps": [],
+    "verdict": "remove",
+    "rebuild": "Delete from the product; keep as a developer-only script or CLI. Git push/pull from an admin web route is a risk.",
+    "add": [],
+    "priority": "P3",
+    "evidence": [
+      "app/admin/research/testing/page.tsx:1",
+      "app/api/admin/research/testing/push/route.ts:1"
+    ],
+    "nationwide": "n/a",
+    "plans": []
+  },
+  {
+    "id": "research.api-project",
+    "area": "research",
+    "kind": "api",
+    "name": "Project API group (/api/admin/research/[projectId]/*)",
+    "where": [
+      "app/api/admin/research/[projectId]/"
+    ],
+    "route": "/api/admin/research/[projectId]/...",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "About 55 route handlers for one project: documents, analyze, pipeline, lite-pipeline, data points, discrepancies, drawings, boundary, offers/purchase, packets, runs, search, share, tax, topo, verify-lot, versions, survey-plan and more.",
+    "elements": [],
+    "behaviours": [
+      "pipeline/ proxies to the worker; lite-pipeline/ runs the in-process Next.js pipeline; verify-lot reads Bell CAD ArcGIS directly and returns 400 for other counties (county-support.ts)."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Two pipelines reachable (worker vs lite).",
+      "Per-county guards hard-coded to Bell (the audit counts 106 single-county references).",
+      "deep-lot-analysis, deep-analyze and full-extract overlap."
+    ],
+    "overlaps": [
+      "research.lite-pipeline",
+      "research.worker-api"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "One run-oriented API: POST /runs, GET /runs/:id/events (SSE), GET /projects/:id/dossier, POST /documents. The rest are views over the dossier.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "app/api/admin/research/[projectId]/pipeline/route.ts:1",
+      "app/api/admin/research/[projectId]/lite-pipeline/route.ts:1",
+      "app/api/admin/research/[projectId]/verify-lot/route.ts:1"
+    ],
+    "nationwide": "Bell-only guards; county key assumes Texas names.",
+    "plans": [
+      "docs/planning/completed/RESEARCH_PIPELINE_COMPLETION_2026-09-03.md"
+    ]
+  },
+  {
+    "id": "research.api-admin",
+    "area": "research",
+    "kind": "api",
+    "name": "Admin API group (coverage, sites, self-heal, county-profiles, egress, worker-status, requests, templates, testing)",
+    "where": [
+      "app/api/admin/research/coverage/",
+      "app/api/admin/research/sites/",
+      "app/api/admin/research/self-heal/",
+      "app/api/admin/research/county-profiles/",
+      "app/api/admin/research/egress/",
+      "app/api/admin/research/worker-status/",
+      "app/api/admin/research/requests/",
+      "app/api/admin/research/templates/",
+      "app/api/admin/research/testing/",
+      "app/api/admin/research/document-access/",
+      "app/api/admin/research/adapter-health/",
+      "app/api/admin/research/portal-watch/",
+      "lib/research/egress-allowlist.ts"
+    ],
+    "route": "/api/admin/research/*",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "The engine-administration endpoints behind the admin tabs, plus egress allow-list, paid document access and request intake.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Historic gap: five of six tab endpoints answered any signed-in account until C11b-0."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Keep behind one operator namespace; check the role in every handler (C11b-0 was needed because five endpoints answered any signed-in user).",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "app/admin/research/page.tsx:1",
+      "lib/research/egress-allowlist.ts:1"
+    ],
+    "nationwide": "Egress allow-list is global, not per firm.",
+    "plans": []
+  },
+  {
+    "id": "research.lite-pipeline",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "In-app 'lite' pipeline (lib/research)",
+    "where": [
+      "lib/research/analysis.service.ts",
+      "lib/research/boundary-fetch.service.ts",
+      "lib/research/property-search.service.ts",
+      "lib/research/browser-scrape.service.ts",
+      "lib/research/bell-cad-arcgis.service.ts",
+      "lib/research/cross-validation.service.ts",
+      "lib/research/ai-client.ts",
+      "lib/research/prompts.ts"
+    ],
+    "route": "(library)",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "The Vercel-side research implementation: about 30 services including Bell CAD ArcGIS, web scraping, AI analysis and cross-validation. A recorded decision says the worker is canonical and lite becomes a thin client.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Duplicates worker Bell logic and the AI client (two AI clients, two pipelines).",
+      "Prompts hard-code 'Texas RPLS' (prompts.ts:34, 92, 188, 264, 294)."
+    ],
+    "overlaps": [
+      "research.worker-pipeline"
+    ],
+    "verdict": "remove",
+    "rebuild": "Delete after the worker owns all gathering and reading; keep a typed client for the worker run API and the UI-side services (drawing, export). One AI client, not two.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "docs/platform/RECON_INVENTORY.md:23",
+      "lib/research/prompts.ts:34",
+      "lib/research/ai-client.ts:1"
+    ],
+    "nationwide": "Texas wording and Bell-only fetchers.",
+    "plans": [
+      "docs/platform/RECON_INVENTORY.md (Phase A: lite becomes thin client; not done)"
+    ]
+  },
+  {
+    "id": "research.worker-api",
+    "area": "research",
+    "kind": "api",
+    "name": "Worker HTTP API (Express)",
+    "where": [
+      "worker/src/index.ts",
+      "worker/src/routes/report-routes.ts",
+      "worker/src/lib/step-gate.ts"
+    ],
+    "route": "worker /research/*, /admin/*, /health",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "One 8,776-line Express file exposing the engine: validate-address, property-lookup, full-pipeline, per-phase endpoints (discover, harvest, analyze, subdivision, adjacent, row, reconcile, confidence, purchase), topo, tax, lidar, cross-county, pause/resume/step/cancel, county-profiles, site health and a deploy trigger.",
+    "elements": [],
+    "behaviours": [
+      "requireAuth plus per-route rateLimit; /admin/deploy lets the app trigger a worker update."
+    ],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "8,776 lines in index.ts; phase endpoints duplicate full-pipeline orchestration."
+    ],
+    "overlaps": [
+      "research.master-orchestrator"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Split into route modules; one 'run' resource with events; each phase a function, not a public endpoint. Keep pause/resume/step for debugging.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/index.ts:4673",
+      "worker/src/index.ts:4525",
+      "worker/src/index.ts:7874",
+      "worker/src/index.ts:4227"
+    ],
+    "nationwide": "No state parameter on most routes.",
+    "plans": []
+  },
+  {
+    "id": "research.router-profiles",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "County router and county profiles",
+    "where": [
+      "worker/src/counties/router.ts",
+      "worker/src/counties/profile.ts",
+      "worker/src/counties/county-module.ts",
+      "worker/src/counties/bell/profile.ts",
+      "worker/src/counties/milam/profile.ts",
+      "worker/src/counties/williamson/profile.ts",
+      "worker/src/lib/county-fips.ts"
+    ],
+    "route": "worker runCountyResearch",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Single entry point: normalises the county, validates the address belongs to it, resolves a profile for all 254 counties (curated, vendor-default, fallback) and dispatches to a dedicated module or the generic pipeline.",
+    "elements": [],
+    "behaviours": [
+      "Curated today: Bell, Milam, Williamson (CURATED list).",
+      "detectCountyFromAddress and per-county city lists (isBellCountyAddress, MILAM_COUNTY_CITIES) verify the county."
+    ],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "The Williamson profile says the appraisal vendor is TrueAutomation at search.wcad.org while county-fips.ts still tags Williamson bis_consultants.",
+      "TEXAS_COUNTIES is a hard-coded 254 table with cadSystem baked in."
+    ],
+    "overlaps": [
+      "research.registries"
+    ],
+    "verdict": "keep",
+    "rebuild": "This is the right spine. Extend profiles to carry state, legal system and source adapters, and make every other registry a derived view of profiles.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/counties/router.ts:519",
+      "worker/src/counties/profile.ts:114",
+      "worker/src/lib/county-fips.ts:1"
+    ],
+    "nationwide": "TEXAS_COUNTIES and state default 'TX'; needs a StateConfig and per-state county tables.",
+    "plans": [
+      "docs/planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md",
+      "docs/planning/completed/MILAM_COUNTY_ADAPTER_2026-09-09.md"
+    ]
+  },
+  {
+    "id": "research.worker-pipeline",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Generic research pipeline (stages 0-5)",
+    "where": [
+      "worker/src/services/pipeline.ts",
+      "worker/src/research/run-phases.ts",
+      "worker/src/research/run-order.ts",
+      "worker/src/research/plats-first.ts",
+      "worker/src/research/research-round.ts"
+    ],
+    "route": "worker pipeline",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "The path every non-curated county takes: normalise address, CAD lookup, visual evidence capture, clerk document retrieval (iterative), OCR and AI extraction, geometric reconciliation, validation, synthesis.",
+    "elements": [
+      {
+        "name": "Stage 0",
+        "does": "Address normalisation and county capability discovery."
+      },
+      {
+        "name": "Stage 1",
+        "does": "Property identification via CAD; falls through to clerk when CAD is unreachable."
+      },
+      {
+        "name": "Stage 1.5",
+        "does": "Visual evidence (aerials, GIS captures) before the document grind."
+      },
+      {
+        "name": "Stage 2",
+        "does": "Document retrieval from clerk and plat sources, iterative discovery loop."
+      },
+      {
+        "name": "Stage 3 / 3.5",
+        "does": "OCR plus AI deep analysis; geometric reconciliation."
+      },
+      {
+        "name": "Stage 4 / 5",
+        "does": "Boundary validation; property validation pipeline and synthesis."
+      }
+    ],
+    "behaviours": [
+      "The progress bar is a duration-weighted clock over 13 rungs (about 1,350 s); only anchored phase names advance it.",
+      "Budgets: gather cost estimate, run ceiling, purchase gate treats unreadable permission as deny."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "A 3,160-line file; the Williamson run spent 12 minutes concluding nothing because the configured CAD host never existed (docs/research/williamson-county-discovery).",
+      "Stage 1 failures surfaced as 'no records', a statement about the property rather than about routing.",
+      "Bell-specific cascade code lives inside the generic pipeline (pipeline.ts:772-905)."
+    ],
+    "overlaps": [
+      "research.bell-module",
+      "research.master-orchestrator"
+    ],
+    "verdict": "improve",
+    "rebuild": "Keep the stage order the owner set (plats/drawings, then overhead views, then other documents); put each stage behind a SourceAdapter interface and make stage results typed outputs with 'unreachable' distinct from 'none found'.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/services/pipeline.ts:593",
+      "worker/src/services/pipeline.ts:955",
+      "worker/src/services/pipeline.ts:1010",
+      "worker/src/services/pipeline.ts:1919",
+      "worker/src/services/pipeline.ts:2642",
+      "worker/src/services/pipeline.ts:2752",
+      "worker/src/services/pipeline.ts:2782",
+      "worker/src/research/run-phases.ts:88"
+    ],
+    "nationwide": "Every stage assumes the Texas CAD plus clerk model, GLO abstracts and Texas legal phrases.",
+    "plans": [
+      "docs/planning/completed/ENGINE_FREEFIRST_STAGES_CAPTURE_QA_2026-09-06.md",
+      "docs/planning/completed/RESEARCH_FLOW_AND_SCOPE_GUARD_2026-08-31.md",
+      "docs/research/williamson-county-discovery-2026-09-21.md"
+    ]
+  },
+  {
+    "id": "research.master-orchestrator",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Nine-phase master orchestrator (phases 1-9)",
+    "where": [
+      "worker/src/orchestrator/master-orchestrator.ts"
+    ],
+    "route": "worker /research/full-pipeline",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Calls each phase endpoint in order (discover, harvest, analyze, subdivision, adjacent, row, reconcile, confidence, purchase) with checkpoint/resume and non-critical phase tolerance, then generates deliverables.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Critical phases 1,2,3,7,8; phases 4,5,6,9 are non-critical.",
+      "Two orchestrations of the same stages."
+    ],
+    "overlaps": [
+      "research.worker-pipeline"
+    ],
+    "verdict": "merge",
+    "rebuild": "A second orchestrator beside pipeline.ts. Choose one; the 9-phase form is cleaner for resumability, the generic pipeline is what runs.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "worker/src/orchestrator/master-orchestrator.ts:45"
+    ],
+    "nationwide": "Texas phases (TxDOT ROW).",
+    "plans": []
+  },
+  {
+    "id": "research.bell-module",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Bell County dedicated module",
+    "where": [
+      "worker/src/counties/bell/",
+      "worker/src/services/bell-clerk.ts",
+      "worker/src/services/bis-cad.ts",
+      "worker/src/services/county-plats.ts",
+      "worker/src/counties/bell/PLAN.md"
+    ],
+    "route": "worker county=Bell",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "The deepest county: BIS CAD plus ArcGIS GIS, Kofile clerk on bell.tx.publicsearch.us (free 2550x3300 previews), a free plat archive (8,077 plats), FEMA/TxDOT/GIS scrapers, deed and plat analysers and a lot correlator.",
+    "elements": [],
+    "behaviours": [
+      "The clerk portal answers from the server; esearch.bellcad.org does not (geo-block), so Bell CAD data is missing from runs until the Browserbase-for-CAD decision is made."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Owner decision pending on Browserbase for CAD only.",
+      "bell-clerk.ts KOFILE_CONFIGS has 72-75 rows; earlier claims about them were wrong."
+    ],
+    "overlaps": [
+      "research.milam-williamson"
+    ],
+    "verdict": "keep",
+    "rebuild": "The template for 'curated' counties. Fix the Bell CAD geo-block (host reachable only through another egress) and move county specifics into a profile plus vendor scrapers.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/counties/bell/orchestrator.ts:1",
+      "worker/src/services/clerk-registry.ts:58",
+      "docs/tx-county-records-survey.html:1"
+    ],
+    "nationwide": "Everything Bell: names, Revize plat archive paths, FM-road variants.",
+    "plans": [
+      "docs/planning/completed/BELL_PLAT_PORTAL_FREE_FIRST_2026-09-08.md",
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md"
+    ]
+  },
+  {
+    "id": "research.milam-williamson",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Milam and Williamson county modules",
+    "where": [
+      "worker/src/counties/milam/",
+      "worker/src/counties/williamson/",
+      "worker/src/playbooks/milam.ts"
+    ],
+    "route": "worker county=Milam|Williamson",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Second and third curated counties built by the 'Milam method': sites driven by hand, a profile with golden parcels, dedicated scrapers (Milam GIS; Williamson WCAD and the Tyler Eagle clerk driver).",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Williamson parcel FeatureServer, free plat source and deed bridge are still to find (curation plan).",
+      "Milam golden parcels exist; no drills are scheduled."
+    ],
+    "overlaps": [
+      "research.bell-module"
+    ],
+    "verdict": "keep",
+    "rebuild": "Proof that a county takes about a day when the method is followed; formalise it as the onboarding checklist and generate the profile from a probe.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/counties/profile.ts:114",
+      "worker/src/counties/williamson/wcad.ts:1",
+      "worker/src/counties/williamson/clerk-driver.ts:1"
+    ],
+    "nationwide": "Texas county names; the Milam volume/page bridge is a Texas-specific idea.",
+    "plans": [
+      "docs/planning/completed/MILAM_COUNTY_ADAPTER_2026-09-09.md",
+      "docs/research/williamson-county-discovery-2026-09-21.md"
+    ]
+  },
+  {
+    "id": "research.cad-layer",
+    "area": "research",
+    "kind": "integration",
+    "name": "Appraisal district (CAD) layer",
+    "where": [
+      "worker/src/services/cad-registry.ts",
+      "worker/src/services/bis-cad.ts",
+      "worker/src/adapters/trueautomation-adapter.ts",
+      "worker/src/adapters/hcad-adapter.ts",
+      "worker/src/adapters/tad-adapter.ts",
+      "worker/src/adapters/tyler-adapter.ts",
+      "worker/src/adapters/generic-cad-adapter.ts",
+      "worker/src/research/cad-directory.ts",
+      "worker/src/lib/county-fips.ts"
+    ],
+    "route": "worker stage 1",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Finds parcel id, owner, legal description, acreage and sometimes coordinates. Vendors: BIS eSearch (about 103 BIS_CONFIGS keys, 104 counties tagged in the FIPS table), TrueAutomation (3 by FIPS table), Harris HCAD, Tarrant TAD, Dallas DCAD, explicit Travis/Williamson/Bexar/Hays/Comal; an AI/Google fallback; and a Comptroller directory of all 254 CADs (241 with websites).",
+    "elements": [],
+    "behaviours": [
+      "FIPS table tags: 104 bis_consultants, 1 hcad, 1 tad, 3 trueautomation, 145 texasfile_fallback.",
+      "Williamson's BIS host esearch.wilcotx.gov was NXDOMAIN; Milam's esearch.milamcad.org was dead; both were found only by driving the sites."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "'Configured' is not 'working': few BIS hosts were ever driven.",
+      "The BIS DOM pattern was verified on one county (2026-03-07) and applied to 100+.",
+      "RECON_INVENTORY lists '15 TrueAutomation counties verified'; the code table has 3.",
+      "RECON_INVENTORY lists Williamson as BIS; it is TrueAutomation/Tyler PublicAccess."
+    ],
+    "overlaps": [
+      "research.registries"
+    ],
+    "verdict": "rebuild",
+    "rebuild": "Use a statewide parcel dataset as the baseline (owner, legal, geometry) and CAD sites as enrichment. Verify each BIS host by driving it, and classify the remaining ~145 counties by vendor from the Comptroller directory.",
+    "add": [
+      "Statewide parcel geometry baseline",
+      "Owner-name and mailing-address search",
+      "Tax-year and value history"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/services/bis-cad.ts:47",
+      "worker/src/services/cad-registry.ts:281",
+      "worker/src/research/cad-directory.ts:23",
+      "worker/src/lib/county-fips.ts:1",
+      "worker/scripts/check-adapter-hosts.mjs:1"
+    ],
+    "nationwide": "Vendor patterns (BIS, TrueAutomation) are national vendors and reusable; CAD names, the FIPS table and the Comptroller directory are Texas.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_01_DISCOVERY.md",
+      "docs/planning/completed/STARR_RECON/PHASE_13_STATEWIDE_ADAPTERS.md"
+    ]
+  },
+  {
+    "id": "research.clerk-layer",
+    "area": "research",
+    "kind": "integration",
+    "name": "County clerk records layer",
+    "where": [
+      "worker/src/services/clerk-registry.ts",
+      "worker/src/adapters/clerk-registry.ts",
+      "worker/src/adapters/kofile-clerk-adapter.ts",
+      "worker/src/adapters/tyler-eagle-adapter.ts",
+      "worker/src/adapters/uslandrecords-adapter.ts",
+      "worker/src/adapters/edoctec-clerk-adapter.ts",
+      "worker/src/adapters/aumentum-clerk-adapter.ts",
+      "worker/src/adapters/idocmarket-adapter.ts",
+      "worker/src/adapters/countyfusion-adapter.ts",
+      "worker/src/adapters/henschen-clerk-adapter.ts",
+      "worker/src/adapters/idocket-clerk-adapter.ts",
+      "worker/src/adapters/fidlar-clerk-adapter.ts",
+      "worker/src/adapters/texasfile-adapter.ts",
+      "worker/src/adapters/remaining-counties-survey.ts",
+      "worker/src/services/bell-clerk.ts"
+    ],
+    "route": "worker stage 2",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Searches the county clerk for deeds, plats, easements and liens. Routing is FIPS to vendor, proven vendors only: Kofile 22 counties, Tyler Eagle 9, Avenu 20/20 about 19, eDocTec 2, Aumentum 1, iDocMarket 1 (53 distinct counties); everything else falls to TexasFile.",
+    "elements": [],
+    "behaviours": [
+      "PROVEN_VENDORS = kofile, texasfile, edoctec, tyler (eagle), uslandrecords, aumentum, idocmarket; countyfusion, henschen, idocket and fidlar are configured but not routed.",
+      "registrySummary derives from getClerkSystem so it cannot disagree with the router.",
+      "The Kofile list was cut from 53 to 22 after probing found 32 dead portals."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Two clerk registries (services/clerk-registry.ts and adapters/clerk-registry.ts) plus KOFILE_CONFIGS in bell-clerk.ts, the Kofile adapter table and the paid-platform registry; adapters/clerk-registry.ts still claims about 80 Kofile and 40 Henschen counties.",
+      "Henschen (16) and Fidlar (6) hosts are ENOTFOUND; CountyFusion hosts are live but need logins.",
+      "Bastrop is located, not driven to results; Lee and San Saba have no online portal; Hays not found.",
+      "TexasFile covers all 254 but is a paywall; no purchase has ever been made."
+    ],
+    "overlaps": [
+      "research.registries",
+      "research.paid-access"
+    ],
+    "verdict": "improve",
+    "rebuild": "One routing table derived from county profiles; per-vendor adapters behind one ClerkAdapter interface; paid-only, login-required and paper-only as explicit states. Keep the rule 'a vendor is proven by driving it, never by a link'.",
+    "add": [
+      "Grantor/grantee name-chain search across vendors",
+      "Instrument-to-image bridge for every vendor"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/services/clerk-registry.ts:58",
+      "worker/src/services/clerk-registry.ts:114",
+      "worker/src/services/clerk-registry.ts:153",
+      "worker/src/services/clerk-registry.ts:244",
+      "worker/src/services/clerk-registry.ts:304",
+      "worker/src/adapters/clerk-registry.ts:1",
+      "worker/src/adapters/remaining-counties-survey.ts:1"
+    ],
+    "nationwide": "Vendors (Kofile/GovOS, Tyler, Avenu, Fidlar, CountyFusion, Henschen) operate in many states, so adapters carry over; county URL tables and TexasFile do not.",
+    "plans": [
+      "docs/planning/completed/RESEARCH_RELIABILITY_AND_COUNTIES_2026-09-02.md",
+      "docs/planning/completed/RESEARCH_PLATFORM_COMPLETION_2_2026-09-04.md",
+      "seeds/541_surveyed_county_portals.sql",
+      "seeds/555_remaining_counties_survey.sql",
+      "seeds/557_last_three_counties.sql"
+    ]
+  },
+  {
+    "id": "research.registries",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Duplicate county registries",
+    "where": [
+      "worker/src/services/clerk-registry.ts",
+      "worker/src/adapters/clerk-registry.ts",
+      "worker/src/services/cad-registry.ts",
+      "worker/src/infra/county-config-registry.ts",
+      "worker/src/services/paid-platform-registry.ts",
+      "worker/src/services/bell-clerk.ts",
+      "lib/research/county-support.ts",
+      "seeds/370_research_adapter_registry.sql"
+    ],
+    "route": "(code)",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Nine overlapping tables name counties and vendors; the curation plan counts BIS_CONFIGS 104, KOFILE_CONFIGS 75, the Kofile adapter table 8, services/clerk-registry 22.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Milam had three registries with three wrong CAD answers; one cost a 147 s run.",
+      "The paid-platform and Kofile sets had drifted six counties apart."
+    ],
+    "overlaps": [
+      "research.clerk-layer",
+      "research.cad-layer"
+    ],
+    "verdict": "merge",
+    "rebuild": "Collapse to county profiles as the only source; generate the rest and fail CI on disagreement (slice 4 of the curation plan).",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "docs/planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md:9",
+      "worker/src/services/clerk-registry.ts:58"
+    ],
+    "nationwide": "All Texas FIPS.",
+    "plans": [
+      "docs/planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md (slice 4 not done)"
+    ]
+  },
+  {
+    "id": "research.free-sources",
+    "area": "research",
+    "kind": "integration",
+    "name": "Federal and state free-data clients",
+    "where": [
+      "worker/src/sources/fema-nfhl-client.ts",
+      "worker/src/sources/txdot-roadways-client.ts",
+      "worker/src/services/txdot-rpam-client.ts",
+      "worker/src/sources/glo-client.ts",
+      "worker/src/adapters/glo-land-grant-adapter.ts",
+      "worker/src/sources/tceq-client.ts",
+      "worker/src/sources/rrc-client.ts",
+      "worker/src/sources/nrcs-soil-client.ts",
+      "worker/src/sources/usgs-client.ts",
+      "worker/src/sources/comptroller-client.ts",
+      "worker/src/sources/tnris-lidar-client.ts"
+    ],
+    "route": "worker /research/topo, /tax, /lidar, flood zone",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Statewide, county-independent sources: FEMA flood zone, TxDOT ROW, GLO land grants, TCEQ, RRC wells and pipelines, NRCS soils, USGS topo, Comptroller tax, TNRIS LiDAR.",
+    "elements": [],
+    "behaviours": [
+      "FEMA is instantiated in the index.ts flood endpoint and the Bell fema-scraper. TxDOT RPAM is used in row-integration-engine and the Bell txdot-scraper. USGS, Comptroller and TNRIS LiDAR are instantiated in index.ts endpoints.",
+      "GLO, TCEQ, RRC and NRCS are imported at index.ts:77-80 and never instantiated (GLO confirmed by a test)."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "research-modes SOURCE_CATALOGUE marks GLO as providing 'original_survey' although nothing queries it (S-6b).",
+      "RECON_INVENTORY: Phase 11 partial, not all clients wired.",
+      "TCEQ, RRC and NRCS return the owner nothing today."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Define each as a SourceAdapter with a capability and a coverage geometry, call all that apply to a parcel in parallel in Stage 1.5, and show 'queried, nothing found' versus 'not queried' on the dossier.",
+    "add": [
+      "Utility locate/811 references",
+      "County road maintenance maps",
+      "Railroad ROW",
+      "Wetlands (NWI) and USFWS"
+    ],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/index.ts:76",
+      "worker/src/index.ts:7180",
+      "worker/src/index.ts:7435",
+      "worker/src/index.ts:7525",
+      "worker/src/index.ts:8371",
+      "worker/src/services/row-integration-engine.ts:267",
+      "worker/src/__tests__/glo-is-planned-but-never-run.test.ts:1",
+      "worker/src/research/research-modes.ts:89"
+    ],
+    "nationwide": "FEMA, USGS, NRCS, NWI are national; TxDOT, GLO, TCEQ, RRC, TNRIS and the Comptroller are Texas; each state needs its DOT, land office, environmental and oil/gas equivalents.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_11_EXPANSION.md",
+      "docs/planning/completed/STARR_RECON/PHASE_06_TXDOT.md",
+      "worker/src/__tests__/glo-is-planned-but-never-run.test.ts"
+    ]
+  },
+  {
+    "id": "research.paid-access",
+    "area": "research",
+    "kind": "integration",
+    "name": "Paid document purchase and access",
+    "where": [
+      "worker/src/services/document-purchase-orchestrator.ts",
+      "worker/src/services/document-access-orchestrator.ts",
+      "worker/src/services/paid-platform-registry.ts",
+      "worker/src/adapters/texasfile-adapter.ts",
+      "worker/src/research/purchase-gate.ts",
+      "worker/src/research/selection-purchases.ts",
+      "app/admin/research/components/PurchaseOffersPanel.tsx",
+      "app/api/admin/research/[projectId]/offers/purchase/route.ts"
+    ],
+    "route": "/admin/research/[projectId] purchases",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Free first, then paid: plans purchases by platform (TexasFile $1/page, Kofile, Tyler and others), shows offers with cost, buys on approval, and files the bought image under identity dedupe.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "research_document_purchases had 0 rows; no real purchase has run.",
+      "The registry marks an iDocket subscription ($50-200/month est.) of unknown billing state.",
+      "The CapSolver key was rejected and the solver has no callers."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Keep free-first and the deny-on-uncertainty gate; add a per-firm payment method and a clear 'we could not buy because X' state.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/research/purchase-gate.ts:30",
+      "worker/src/services/paid-platform-registry.ts:15",
+      "worker/src/research/research-modes.ts:1"
+    ],
+    "nationwide": "Single TexasFile account; LandEx (national API) is in the registry.",
+    "plans": [
+      "docs/planning/completed/RESEARCH_EGRESS_PAID_AND_CAPTURE_2026-09-04.md",
+      "docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md"
+    ]
+  },
+  {
+    "id": "research.address-engine",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Address normalisation and road-variant engine",
+    "where": [
+      "worker/src/services/address-utils.ts",
+      "worker/src/services/address-normalizer.ts",
+      "worker/src/research/address-parts.ts",
+      "worker/src/services/address-lot-resolver.ts",
+      "docs/engine/TEXAS_ROAD_VARIANT_ENGINE.md"
+    ],
+    "route": "worker stage 0",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Generates the exact spellings each CAD indexes (Bell: 'FM 436' works, 'W FM 436' returns 0) so a Texas address can be found; plus structured address parts.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "The AI variant generator returned truncated JSON in both 2026-09-02 runs (plan phase E); salvage-json-array was added."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep; make variants a per-vendor rule (BIS index style) rather than ad hoc, and test against golden parcels.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "docs/engine/TEXAS_ROAD_VARIANT_ENGINE.md:1",
+      "worker/src/research/address-parts.ts:1"
+    ],
+    "nationwide": "Texas road forms (FM, RM, CR, SH, IH); other states need their own (US routes, county roads, PLSS-style addresses).",
+    "plans": [
+      "docs/planning/completed/RESEARCH_RELIABILITY_AND_COUNTIES_2026-09-02.md (phase E)"
+    ]
+  },
+  {
+    "id": "research.extraction",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "OCR and AI document extraction",
+    "where": [
+      "worker/src/services/ai-extraction.ts",
+      "worker/src/services/ai-deed-analyzer.ts",
+      "worker/src/services/ai-plat-analyzer.ts",
+      "worker/src/services/adaptive-vision.ts",
+      "worker/src/services/reading-aggregator.ts",
+      "worker/src/services/ai-document-analyzer.ts",
+      "lib/research/extraction-objectives.ts",
+      "lib/research/document-analysis.service.ts",
+      "lib/research/ocr-quality.ts"
+    ],
+    "route": "worker stage 3 / POST /research/read-documents",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Reads deeds, plats and field notes into structured calls (bearing, distance, curves), monuments, owners and references; multiple readings per call are aggregated.",
+    "elements": [],
+    "behaviours": [
+      "The gather run does no AI; reading is a separate step with an estimate.",
+      "READING_SUSPECT_RATIO 1,000 flags suspect readings."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Two AI clients (lib/research/ai-client.ts, worker ai-extraction.ts).",
+      "No ground-truth set: the regression harness has one synthetic fixture."
+    ],
+    "overlaps": [
+      "research.lite-pipeline"
+    ],
+    "verdict": "improve",
+    "rebuild": "One extraction schema (canonical-schema.ts) shared by app and worker; every extracted value keeps its source crop and reading count so confidence is derived, not asserted.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/services/ai-extraction.ts:1",
+      "worker/src/services/reading-aggregator.ts:1",
+      "lib/research/canonical-schema.ts:1"
+    ],
+    "nationwide": "Prompts say 'Texas RPLS'; varas and abstracts; Texas State Plane zones named in prompts.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_03_EXTRACTION.md",
+      "docs/planning/completed/ITERATIVE_RESEARCH_ANALYSIS_LOOP_2026-09-06.md"
+    ]
+  },
+  {
+    "id": "research.reconciliation",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Subdivision, adjoiners, ROW, geometric reconciliation and closure",
+    "where": [
+      "worker/src/services/subdivision-intelligence.ts",
+      "worker/src/services/adjacent-research.ts",
+      "worker/src/services/row-integration-engine.ts",
+      "worker/src/services/geometric-reconciliation-engine.ts",
+      "worker/src/services/reconciliation-algorithm.ts",
+      "worker/src/services/traverse-closure.ts",
+      "worker/src/lib/closure-tolerance.ts",
+      "worker/src/chain-of-title/chain-builder.ts"
+    ],
+    "route": "worker phases 4-7",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Builds the lot from plat and deeds, researches adjoiners, integrates TxDOT right-of-way, reconciles calls into a closing boundary and builds the chain of title.",
+    "elements": [],
+    "behaviours": [
+      "Closure tiers: excellent >= 1:10,000, acceptable >= 1:5,000, marginal >= 1:2,500, poor < 1:2,500 hard fail (closure-tolerance.ts:8-14).",
+      "Counties may only loosen thresholds within clamps."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "RECON_INVENTORY says worse than 1:5,000 hard-fails; the code hard-fails below 1:2,500 (doc and code drift).",
+      "Reconciliation needs plat or deed data; non-Bell runs rarely reach it."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "The strongest differentiator; protect it with real golden parcels (Bell, Hays, Williamson; one metes-and-bounds, one disputed) before any rebuild.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/lib/closure-tolerance.ts:33",
+      "worker/src/services/traverse-closure.ts:1",
+      "worker/src/chain-of-title/chain-builder.ts:1"
+    ],
+    "nationwide": "TEXAS_MIN_RURAL_RATIO 10,000 and TEXAS_MIN_URBAN_RATIO 25,000 constants; TxDOT ROW; closure standards should be per state and per survey class.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_07_GEOMETRIC_RECONCILIATION.md",
+      "docs/planning/completed/STARR_RECON/PHASE_05_ADJACENT.md",
+      "docs/platform/CLOSURE_TOLERANCE.md"
+    ]
+  },
+  {
+    "id": "research.confidence",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Confidence scoring",
+    "where": [
+      "worker/src/services/call-confidence-scorer.ts",
+      "worker/src/services/lot-confidence-scorer.ts",
+      "worker/src/services/confidence-scoring-engine.ts",
+      "worker/src/services/discrepancy-analyzer.ts",
+      "worker/src/services/purchase-recommender.ts",
+      "worker/src/services/surveyor-decision-matrix.ts",
+      "lib/research/confidence.ts",
+      "lib/research/multi-source-confidence.ts",
+      "lib/research/confidence-scale.ts"
+    ],
+    "route": "worker /research/confidence, boundary page",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Scores every boundary call, lot, side and the whole property 0-100 with a letter grade, flags discrepancies and recommends documents to buy.",
+    "elements": [],
+    "behaviours": [
+      "Worker call score has four factors: sourceMultiplicity (1 source 5 up to 5 sources 25), sourceAgreement (bearing and distance spread thresholds), sourceReliability (txdot_row 25, deed_extraction 22, adjacent_reversed 19, plat_segment 16 down to county_road_default 4) and readingClarity.",
+      "Grades: A >= 93, A- 88, B+ 83, B 78 and so on, F < 43.",
+      "App-side element confidence weights: source_quality .20, extraction_certainty .25, cross_reference_match .25, geometric_consistency .20, closure_contribution .10; document reliability tiers survey 95, plat 88, deed 85, appraisal 55, aerial 50."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Two independent confidence models (worker and lib/research) with different factors.",
+      "Weights and tables are asserted, never calibrated; the regression set is empty."
+    ],
+    "overlaps": [
+      "research.reconciliation"
+    ],
+    "verdict": "improve",
+    "rebuild": "Replace asserted weights with calibration against golden parcels; show the reasons, not just the grade.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/services/call-confidence-scorer.ts:12",
+      "worker/src/services/call-confidence-scorer.ts:149",
+      "lib/research/confidence.ts:16",
+      "worker/src/services/confidence-scoring-engine.ts:172"
+    ],
+    "nationwide": "Document tiers reflect Texas practice; per-state survey-class standards needed.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_08_CONFIDENCE_SCORING.md",
+      "docs/platform/RECON_INVENTORY.md section 11 (ground-truth set: nothing built beyond one fixture)"
+    ]
+  },
+  {
+    "id": "research.reports",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Reports and exports (SVG, PNG, DXF, PDF, legal description, packet)",
+    "where": [
+      "worker/src/reports/svg-renderer.ts",
+      "worker/src/reports/dxf-exporter.ts",
+      "worker/src/reports/pdf-generator.ts",
+      "worker/src/reports/legal-description-generator.ts",
+      "worker/src/services/report-generator.ts",
+      "lib/research/export.service.ts",
+      "lib/research/packet.ts",
+      "lib/research/packet-pdf.ts",
+      "app/admin/research/components/PacketBuilderPanel.tsx",
+      "app/admin/research/components/ExportPanel.tsx"
+    ],
+    "route": "project hub export / packet",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Produces the deliverables: boundary drawing in SVG/PNG/DXF, PDF report, generated legal description, and a field packet.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "Two export paths (worker reports and lib/research/export.service)."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep DXF and packet; add Trimble/Carlson/Leica data-collector formats as planned (rw5, fbk, crd).",
+    "add": [
+      "Data-collector export",
+      "Title-ready exhibit with firm seal block"
+    ],
+    "priority": "P2",
+    "evidence": [
+      "worker/src/reports/dxf-exporter.ts:1",
+      "lib/research/packet.ts:1"
+    ],
+    "nationwide": "Legal description text follows Texas forms.",
+    "plans": [
+      "docs/planning/completed/STARR_RECON/PHASE_10_REPORTS.md",
+      "docs/planning/completed/STARR_RECON/PHASE_12_EXPORT.md"
+    ]
+  },
+  {
+    "id": "research.run-infra",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Run infrastructure (queue, budgets, circuits, health, captcha, browser)",
+    "where": [
+      "worker/src/infra/job-queue.ts",
+      "worker/src/infra/queue-worker.ts",
+      "worker/src/infra/run-budget.ts",
+      "worker/src/infra/host-circuit.ts",
+      "worker/src/infra/dead-host.ts",
+      "worker/src/infra/politeness.ts",
+      "worker/src/infra/site-health-monitor.ts",
+      "worker/src/infra/canary.ts",
+      "worker/src/lib/browser-factory.ts",
+      "worker/src/lib/captcha-solver.ts",
+      "worker/src/lib/rate-limiter.ts",
+      "worker/src/research/abort-reason.ts"
+    ],
+    "route": "worker internals",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Guards that keep a run honest and cheap: BullMQ queue, per-run cost ceilings, host circuit breakers and dead-host gates, politeness gaps, a structural site health monitor, a canary framework, browser backend selection and a captcha solver.",
+    "elements": [],
+    "behaviours": [
+      "Dead host: ENOTFOUND or ECONNREFUSED is one strike, two consecutive timeouts are two; revive after 5 minutes.",
+      "captcha-signatures and a CapSolver HTTP wrapper exist but no adapter invokes the solver."
+    ],
+    "data": [],
+    "status": "partial",
+    "problems": [
+      "The canary table had zero rows; the regression harness has one synthetic fixture.",
+      "The browser backend is local Playwright; Browserbase is paid but had zero sessions; 37 chromium.launch call sites were to be routed through browser-factory (inventory).",
+      "Playwright, Zod and Stripe versions drift between root and worker."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep. Wire the canary framework to golden parcels, and make the browser and captcha choice a per-county policy decision.",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "worker/src/infra/dead-host.ts:34",
+      "worker/src/infra/canary.ts:1",
+      "worker/src/lib/captcha-solver.ts:1"
+    ],
+    "nationwide": "Politeness and legal posture (automation_posture per county) must be per state and per vendor terms.",
+    "plans": [
+      "docs/planning/completed/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md",
+      "docs/platform/RECON_INVENTORY.md"
+    ]
+  },
+  {
+    "id": "research.worker-deploy",
+    "area": "research",
+    "kind": "job",
+    "name": "Worker deploy and operations",
+    "where": [
+      "worker/Dockerfile",
+      "worker/docker-compose.yml",
+      "worker/deploy/auto-update.sh",
+      "worker/deploy/starr-worker-auto-update.timer",
+      "worker/ecosystem.config.cjs",
+      "worker/scripts/check-adapter-hosts.mjs",
+      "worker/research.sh",
+      "worker/relay/server.mjs"
+    ],
+    "route": "(server)",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "A Docker compose worker on a rented box; a systemd timer pulls main, skips while a run is in flight, health-checks and rolls back; shell wrappers per phase; a host DNS sweep script.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "works",
+    "problems": [
+      "Docs disagree on the host (RECON_INVENTORY: Hetzner/droplet; owner-actions: netcup).",
+      "worker/relay/server.mjs is the phone receptionist relay, not research.",
+      "The PM2 ecosystem file and shell scripts still reference the droplet."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Keep the safe auto-update (lock, no deploy over live runs, rollback). Run check-adapter-hosts on a schedule and report into Coverage.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "worker/deploy/auto-update.sh:1",
+      "worker/scripts/check-adapter-hosts.mjs:1"
+    ],
+    "nationwide": "Single-tenant worker; multi-firm needs per-firm queues and credentials.",
+    "plans": []
+  },
+  {
+    "id": "research.county-survey",
+    "area": "research",
+    "kind": "tool",
+    "name": "Texas county records survey (HTML tool)",
+    "where": [
+      "docs/tx-county-records-survey.html"
+    ],
+    "route": "docs/tx-county-records-survey.html",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "Standalone checklist page for all 254 counties: does the county publish plats or deeds as downloadable files, with URL and notes; exports CSV.",
+    "elements": [],
+    "behaviours": [
+      "Pre-filled: Bastrop (plats no), Bell (plats yes, 8,077 plats, 18.9 GB; deeds paywalled), Hays (plats via the CAD, about 8,051 TIFs), Milam (unknown). The other 250 are blank.",
+      "Progress is stored in localStorage key tx-county-records-survey/v1."
+    ],
+    "data": [],
+    "status": "stub",
+    "problems": [
+      "Browser-local state; nothing reaches the database."
+    ],
+    "overlaps": [],
+    "verdict": "keep",
+    "rebuild": "Turn it into data entry for per-county plat and deed availability inside Coverage; only 4 of 254 rows are filled.",
+    "add": [],
+    "priority": "P2",
+    "evidence": [
+      "docs/tx-county-records-survey.html:1"
+    ],
+    "nationwide": "254 Texas slugs.",
+    "plans": []
+  },
+  {
+    "id": "research.graph-and-regression",
+    "area": "research",
+    "kind": "mechanic",
+    "name": "Recon graph schema and ground-truth regression harness",
+    "where": [
+      "seeds/200_recon_graph.sql",
+      "worker/src/__tests__/regression/regression-runner.ts",
+      "worker/src/services/golden-plat.ts",
+      "docs/platform/RECON_INVENTORY.md"
+    ],
+    "route": "(scaffold)",
+    "roles": [
+      "admin",
+      "recon-bundle roles (six, per middleware)"
+    ],
+    "purpose": "A planned graph layer (nodes and edges) beside the relational research tables, and a fixture runner for known-answer properties.",
+    "elements": [],
+    "behaviours": [],
+    "data": [],
+    "status": "stub",
+    "problems": [
+      "No data migrated into the graph; the regression harness has one synthetic fixture; the target is 5, then 15, then 50 properties from Starr job files."
+    ],
+    "overlaps": [],
+    "verdict": "improve",
+    "rebuild": "Skip the graph for now; build the golden-parcel set first (prerequisite for confidence calibration, drills and customer trust).",
+    "add": [],
+    "priority": "P1",
+    "evidence": [
+      "docs/platform/RECON_INVENTORY.md:207",
+      "seeds/200_recon_graph.sql:1"
+    ],
+    "nationwide": "Fixtures must include other states before multi-state claims.",
+    "plans": [
+      "docs/platform/RECON_INVENTORY.md sections 7 and 11 (open)",
+      "docs/planning/pending/COUNTY_CURATION_SYSTEM_2026-09-09.md (slice 2)"
+    ]
+  }
+]
