@@ -40,7 +40,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .from('payout_batch_items')
     // `recovered_cents` is selected because the CSV amount is total − recovered. Omitting it would
     // silently export the gross figure and pay back every advance the batch just withheld.
-    .select('id, user_email, user_name, total_cents, recovered_cents, method, method_handle, status')
+    .select('id, user_email, user_name, total_cents, recovered_cents, fee_cents, method, method_handle, status')
     .eq('batch_id', id)
     .eq('method', 'ach')
     // ── ALREADY-PAID ROWS MUST NOT BE IN THE FILE ───────────────────────────────────────────────

@@ -21,6 +21,7 @@ import { usePageError } from '../../hooks/usePageError';
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from '@/lib/projects/model';
 import { SORT_OPTIONS, sortRows, paginate, formatDate, money, isOverdue, dueBubble, type SortKey } from '@/lib/admin/listing';
 import { useNewJobs } from '@/lib/admin/use-new-jobs';
+import { activityLine } from '@/lib/activity/record-activity';
 import { ListingSearch, ListingFilter, FilterGroup, FilterChip, ListingPager } from '../../components/listing/ListingControls';
 
 interface Rollup {
@@ -41,6 +42,10 @@ interface Project {
   is_priority: boolean;
   created_at: string;
   updated_at: string;
+  /** Last edited or viewed, and which (seeds/676) — the default order. */
+  last_activity_at?: string | null;
+  last_modified_at?: string | null;
+  last_viewed_at?: string | null;
   job_addresses?: string[];
   rollup: Rollup;
 }
@@ -79,14 +84,15 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState('');
   const [status, setStatus] = useState<'all' | ProjectStatus>('all');
-  const [sort, setSort] = useState<SortKey>('newest');
+  // Owner, 2026-10-11: the project last worked on or looked at goes first.
+  const [sort, setSort] = useState<SortKey>('activity');
   const [archived, setArchived] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const activeFilters = (status !== 'all' ? 1 : 0) + (sort !== 'newest' ? 1 : 0) + (archived ? 1 : 0) + (from || to ? 1 : 0);
-  const resetFilters = () => { setStatus('all'); setSort('newest'); setArchived(false); setFrom(''); setTo(''); };
+  const activeFilters = (status !== 'all' ? 1 : 0) + (sort !== 'activity' ? 1 : 0) + (archived ? 1 : 0) + (from || to ? 1 : 0);
+  const resetFilters = () => { setStatus('all'); setSort('activity'); setArchived(false); setFrom(''); setTo(''); };
 
   // The whole list, so sorting by a job-derived deadline and paging both happen here. The API caps
   // a request at 200; the firm has a few dozen projects, and the loop keeps this honest past that.
@@ -285,6 +291,7 @@ export default function ProjectsPage() {
                       <span className={`lst-card__stat${p.rollup.outstanding > 0 ? ' lst-card__stat--owed' : p.rollup.billable > 0 ? ' lst-card__stat--good' : ''}`}>
                         <strong>{money(p.rollup.paid)} / {money(p.rollup.quoted)}</strong> paid
                       </span>
+                      {activityLine(p) ? <span className="lst-card__stat lst-card__stat--activity" data-testid="project-activity">{activityLine(p)}</span> : null}
                       <span className="lst-card__id">{p.project_number ?? '—'}</span>
                     </div>
                   </button>

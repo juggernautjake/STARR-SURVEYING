@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   buildJobDraftFromLead,
+  mapSurveyType,
   EMPTY_JOB_DRAFT,
   type LeadForConversion,
 } from '@/lib/calendar/lead-to-job';
@@ -101,8 +102,31 @@ describe('buildJobDraftFromLead — pure mapper', () => {
   it('maps common survey_type strings to the form enum values', () => {
     expect(buildJobDraftFromLead(fakeLead({ survey_type: 'Boundary' })).survey_type).toBe('boundary');
     expect(buildJobDraftFromLead(fakeLead({ survey_type: 'ALTA/NSPS' })).survey_type).toBe('alta');
-    expect(buildJobDraftFromLead(fakeLead({ survey_type: 'Topographic' })).survey_type).toBe('topo');
-    expect(buildJobDraftFromLead(fakeLead({ survey_type: 'asbuilt' })).survey_type).toBe('asbuilt');
+    // The job form's keys are 'topographic' and 'as_built' (JobCard SURVEY_TYPES). This used to
+    // produce 'topo' and 'asbuilt', which no form option or label knew, so the job showed the raw word.
+    expect(buildJobDraftFromLead(fakeLead({ survey_type: 'Topographic' })).survey_type).toBe('topographic');
+    expect(buildJobDraftFromLead(fakeLead({ survey_type: 'asbuilt' })).survey_type).toBe('as_built');
+  });
+
+  it('keeps a boundary & improvements survey apart from a plain boundary survey, however it is written', () => {
+    // the website's pickers, the calculator's id, and what the phone receptionist writes down
+    for (const s of ['Boundary & Improvements Survey', 'boundary_improvements', 'Boundary and improvements survey for a closing',
+      'boundary survey with improvements', 'Mortgage / Loan Survey']) {
+      expect(mapSurveyType(s), s).toBe('boundary_improvements');
+    }
+    for (const s of ['Boundary Survey', 'boundary survey for a fence', 'boundary']) expect(mapSurveyType(s), s).toBe('boundary');
+    expect(mapSurveyType('ALTA/NSPS Survey')).toBe('alta');   // ALTA shows improvements too, but it is its own type
+  });
+
+  it('every type it can produce is one the job form offers', () => {
+    const src = read('app/admin/components/jobs/JobCard.tsx');
+    const block = src.slice(src.indexOf('const SURVEY_TYPES'), src.indexOf('};', src.indexOf('const SURVEY_TYPES')));
+    const keys = [...block.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]);
+    expect(keys).toContain('boundary_improvements');
+    for (const s of ['Boundary', 'Boundary & Improvements', 'ALTA', 'Topographic Survey', 'Elevation Certificate', 'As-Built Survey',
+      'Construction Staking', 'Subdivision Plat', 'Route / Easement Survey', 'Control', 'something else']) {
+      expect(keys, s).toContain(mapSurveyType(s));
+    }
   });
 
   it('falls back to boundary for unknown survey types', () => {

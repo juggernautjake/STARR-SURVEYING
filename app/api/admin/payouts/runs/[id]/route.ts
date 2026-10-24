@@ -34,7 +34,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: items, error: itemsErr } = await supabaseAdmin
     .from('payout_batch_items')
-    .select('id, user_email, user_name, hours_cents, bonuses_cents, reimbursements_cents, adjustments_cents, total_cents, method, method_handle, status, external_ref, paid_at, failure_reason, notes')
+    .select('id, user_email, user_name, hours_cents, bonuses_cents, reimbursements_cents, adjustments_cents, total_cents, recovered_cents, fee_cents, fee_note, method, method_handle, status, external_ref, paid_at, failure_reason, notes, check_id, rail')
     .eq('batch_id', id)
     .order('user_email', { ascending: true });
   if (itemsErr) return NextResponse.json({ error: itemsErr.message }, { status: 500 });

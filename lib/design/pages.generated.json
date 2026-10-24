@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 288,
+  "count": 291,
   "byArea": {
     "public": 43,
-    "admin": 194,
+    "admin": 197,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -858,6 +858,12 @@
       "file": "app/admin/payouts/ad-hoc"
     },
     {
+      "route": "/admin/payouts/checks",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/checks"
+    },
+    {
       "route": "/admin/payouts/runs",
       "area": "admin",
       "dynamic": false,
@@ -870,6 +876,12 @@
       "file": "app/admin/payouts/runs/[id]"
     },
     {
+      "route": "/admin/payouts/runs/[id]/cash-sheet",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/payouts/runs/[id]/cash-sheet"
+    },
+    {
       "route": "/admin/payouts/runs/[id]/dispatch",
       "area": "admin",
       "dynamic": true,
@@ -880,6 +892,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/payouts/search"
+    },
+    {
+      "route": "/admin/payouts/settings",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/settings"
     },
     {
       "route": "/admin/payouts/tax-report",

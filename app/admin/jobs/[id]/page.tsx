@@ -206,6 +206,12 @@ export default function JobDetailPage() {
   // Opening the job is reviewing it (owner, 2026-09-10): the NEW bubbles and the bell entry clear.
   useEffect(() => { if (jobId) markJobSeen(jobId); }, [jobId]);
 
+  // …and a view moves the job (and its project) to the top of their lists (owner, 2026-10-11).
+  // Fire-and-forget: a list order is never worth failing a page open over.
+  useEffect(() => {
+    if (jobId) void fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/open`, { method: 'POST' }).catch(() => undefined);
+  }, [jobId]);
+
   // Inline-edit save: PUT the single changed field, then patch local
   // state so the UI reflects it without a full reload. Throws on
   // failure so InlineEditField can surface the message + roll back.

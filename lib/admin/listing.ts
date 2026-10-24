@@ -9,9 +9,12 @@
 // Sorting happens in the browser on the full list (the APIs cap a page at 200 rows and the firm
 // has a few dozen projects); a deadline derived from jobs cannot be sorted in SQL anyway.
 
-export type SortKey = 'newest' | 'oldest' | 'due_soonest' | 'name_asc' | 'name_desc' | 'updated';
+export type SortKey = 'activity' | 'newest' | 'oldest' | 'due_soonest' | 'name_asc' | 'name_desc' | 'updated';
 
 export const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  // 2026-10-11 — the Projects default: whatever was last edited (a file, a field, any of its jobs)
+  // or opened, by anybody, first. See lib/activity/record-activity.ts.
+  { key: 'activity', label: 'Recently active' },
   { key: 'newest', label: 'Newest first' },
   { key: 'oldest', label: 'Oldest first' },
   { key: 'due_soonest', label: 'Due soonest' },
@@ -24,6 +27,8 @@ export interface SortableRow {
   name: string;
   created_at: string;
   updated_at?: string | null;
+  /** Last edited or viewed (seeds/676). Rows without one fall back to `updated_at`, then `created_at`. */
+  last_activity_at?: string | null;
   /** ISO date or null — rows without one sort LAST under "Due soonest". */
   due?: string | null;
 }
@@ -34,6 +39,7 @@ export function sortRows<T extends SortableRow>(rows: T[], key: SortKey): T[] {
   const cmpIso = (a?: string | null, b?: string | null) => String(a ?? '').localeCompare(String(b ?? ''));
   const out = [...rows];
   switch (key) {
+    case 'activity': out.sort((a, b) => cmpIso(b.last_activity_at ?? b.updated_at ?? b.created_at, a.last_activity_at ?? a.updated_at ?? a.created_at)); break;
     case 'newest': out.sort((a, b) => cmpIso(b.created_at, a.created_at)); break;
     case 'oldest': out.sort((a, b) => cmpIso(a.created_at, b.created_at)); break;
     case 'updated': out.sort((a, b) => cmpIso(b.updated_at ?? b.created_at, a.updated_at ?? a.created_at)); break;

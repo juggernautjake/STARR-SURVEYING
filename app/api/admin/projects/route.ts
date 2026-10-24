@@ -12,6 +12,8 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
 import { nextProjectNumber, rollUp, isProjectStatus, type JobMoney } from '@/lib/projects/model';
+import { activityInstant, sortByActivity } from '@/lib/activity/record-activity';
+import { projectActivityFor } from '@/lib/activity/record-activity-server';
 
 const COLS =
   'id, project_number, name, description, status, customer_id, client_name, client_email,'
@@ -171,26 +173,41 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  const withMeta = projects.map((p) => {
+  // ── WHEN EACH PROJECT WAS LAST WORKED ON OR LOOKED AT (2026-10-11) ───────────────────────────
+  //
+  // `project_activity` (seeds/676) is kept by triggers: an edit to the project, to any of its jobs,
+  // or any file or folder on them stamps it modified; opening the project or one of its jobs stamps
+  // it viewed. Owner: *"whatever project was last modified should show up first"* and *"it is more
+  // helpful to see jobs that are being actively viewed and modified"* — so the list's default order
+  // is the later of the two, by anybody.
+  const stamps = await projectActivityFor(ids);
+
+  const withMeta = sortByActivity(projects.map((p) => {
     const openedByMe = mine.get(p.id) ?? null;
-    // The three verbs the owner named, reduced to one comparable instant: created (which sets
-    // `updated_at`), worked on (the project row or any of its jobs), and opened.
+    const s = stamps.get(p.id);
+    // The activity table first; a job's own timestamp and the opens table cover anything it has not
+    // seen yet, so no project falls to the bottom for predating it.
     const touched = [
-      String(p.updated_at ?? ''),
+      activityInstant(s, p as { updated_at?: string | null; created_at?: string | null }),
       jobTouched.get(p.id) ?? '',
-      openedByMe ?? anyone.get(p.id) ?? '',
+      anyone.get(p.id) ?? '',
     ].filter(Boolean).sort().pop() ?? String(p.created_at ?? '');
     return {
       ...p,
       rollup: rollUp(byProject.get(p.id) ?? []),
       job_addresses: [...(jobAddresses.get(p.id) ?? [])],
       last_touched_at: touched,
+      last_activity_at: touched,
+      last_modified_at: s?.last_modified_at ?? null,
+      last_modified_by: s?.last_modified_by ?? null,
+      // An open recorded only in `project_opens` (the live site before this change) still counts.
+      last_viewed_at: [s?.last_viewed_at ?? '', anyone.get(p.id) ?? ''].sort().pop() || null,
+      last_viewed_by: s?.last_viewed_by ?? null,
       opened_by_me_at: openedByMe,
     };
-  });
+  }));
 
   if (recent) {
-    withMeta.sort((a, b) => String(b.last_touched_at).localeCompare(String(a.last_touched_at)));
     return NextResponse.json({ projects: withMeta.slice(0, limit), total: withMeta.length });
   }
 
@@ -270,6 +287,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       notes: body.notes ?? null,
       is_priority: body.is_priority === true,
       created_by: session.user.email,
+      // Who, for the change log (seeds/676) — read by the trigger, never stored.
+      change_actor: session.user.email,
     })
     .select(COLS)
     .single();

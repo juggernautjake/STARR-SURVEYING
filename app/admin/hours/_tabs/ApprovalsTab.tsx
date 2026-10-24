@@ -553,7 +553,7 @@ export default function HoursApprovalPage() {
     if (!weekLock || preparingPayout) return;
     if (!confirm(
       'Prepare a payout for everybody who is owed?\n\n'
-      + 'This creates a DRAFT batch — nothing is sent until you dispatch it. It covers everything '
+      + 'This creates a DRAFT batch — nothing is sent until you press Commit payout on it. It covers everything '
       + 'currently owed, not only this week, so nobody with older unpaid hours is missed.',
     )) return;
 
@@ -584,6 +584,9 @@ export default function HoursApprovalPage() {
             payout_batch_id: batchId,
           }),
         }).catch(() => { /* the batch is still findable on /admin/payouts */ });
+        // Straight to the payout, where Commit pays everyone their own way (2026-10-11).
+        window.location.assign(`/admin/payouts/runs/${batchId}`);
+        return;
       }
       await loadData();
     } finally {

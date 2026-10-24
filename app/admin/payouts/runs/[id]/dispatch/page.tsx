@@ -20,6 +20,7 @@ import {
   type PayoutMethod,
 } from '@/lib/payouts/dispatch';
 import { formatDollars } from '@/lib/payments/live';
+import { disbursedCents } from '@/lib/payroll/disbursement';
 import '../../../../payments-admin.css';
 
 interface BatchHeader {
@@ -35,11 +36,11 @@ interface BatchHeader {
 // vocabulary was consolidated, which is the argument for having one.
 const METHOD_TITLES: Record<PayoutMethod | 'unassigned', string> = {
   cash: 'Cash (hand out)',
-  check: 'Check (write and post)',
+  check: 'Check (print from the payout page)',
   venmo: 'Venmo',
   cashapp: 'Cash App',
   zelle: 'Zelle',
-  ach: 'Bank ACH (upload the CSV)',
+  ach: 'Bank ACH (upload the bank file)',
   account: 'Held in their account (nothing to send)',
   other: 'Other — see the reference',
   unassigned: 'Method not assigned',
@@ -80,14 +81,11 @@ export default function PayoutDispatchPage(): React.ReactElement {
   useEffect(() => { load(); }, [load]);
 
   const grouped = useMemo(() => groupItemsByMethod(items), [items]);
-  const buckets: Array<{ key: PayoutMethod | 'unassigned'; label: string; rows: DispatchItem[] }> = [
-    { key: 'venmo', label: METHOD_TITLES.venmo, rows: grouped.venmo },
-    { key: 'cashapp', label: METHOD_TITLES.cashapp, rows: grouped.cashapp },
-    { key: 'zelle', label: METHOD_TITLES.zelle, rows: grouped.zelle },
-    { key: 'ach', label: METHOD_TITLES.ach, rows: grouped.ach },
-    { key: 'cash', label: METHOD_TITLES.cash, rows: grouped.cash },
-    { key: 'unassigned', label: METHOD_TITLES.unassigned, rows: grouped.unassigned },
-  ];
+  // EVERY method gets a bucket (2026-10-11). This list had six of nine — `check`, `account` and
+  // `other` lines were in the batch and on nobody's screen.
+  const buckets: Array<{ key: PayoutMethod | 'unassigned'; label: string; rows: DispatchItem[] }> =
+    (['account', 'venmo', 'ach', 'check', 'cashapp', 'zelle', 'cash', 'other', 'unassigned'] as const)
+      .map((key) => ({ key, label: METHOD_TITLES[key], rows: grouped[key] }));
 
   async function markItem(item: DispatchItem, status: PayoutItemStatus) {
     if (!batch) return;
@@ -141,7 +139,7 @@ export default function PayoutDispatchPage(): React.ReactElement {
         <div>
           <Link href={`/admin/payouts/runs/${batch.id}`} className="dispatch-page__back">← {batch.label}</Link>
           <h1 className="dispatch-page__title">Dispatch</h1>
-          <p className="dispatch-page__lede">Work through each method below. Items auto-roll the batch status forward as you go.</p>
+          <p className="dispatch-page__lede">Work through each method below. Items auto-roll the batch status forward as you go. Most of this is done for you by <Link href={`/admin/payouts/runs/${batch.id}`}>Commit payout</Link> on the payout page.</p>
         </div>
         <div className="dispatch-page__total">
           <span>Batch total</span>
@@ -184,7 +182,8 @@ export default function PayoutDispatchPage(): React.ReactElement {
                       {item.user_email} {item.method_handle && <>· {item.method_handle}</>}
                     </div>
                   </div>
-                  <div className="dispatch-row__amount">{formatDollars(item.total_cents)}</div>
+                  {/* What is SENT — after any advance repayment and method fee — not what the line settles. */}
+                  <div className="dispatch-row__amount">{formatDollars(disbursedCents(item))}</div>
                   <div className="dispatch-row__status">
                     <span className={`dispatch-chip dispatch-chip--${item.status}`}>{STATUS_LABEL[item.status]}</span>
                   </div>

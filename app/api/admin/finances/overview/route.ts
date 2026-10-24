@@ -82,7 +82,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // `recovered_cents` is part of the cash-flow answer: this stream is headed "money that
       // actually moved", and what moved is total − recovered. A payout that repaid a $200 advance
       // sent $800 to the bank, and counting $1,000 overstates the month's outgoings by the recovery.
-      .select('total_cents, recovered_cents, paid_at')
+      .select('total_cents, recovered_cents, fee_cents, paid_at')
       .eq('status', 'paid')
       .gte('paid_at', fromTs)
       .lte('paid_at', toTs),

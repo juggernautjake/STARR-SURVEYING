@@ -256,7 +256,7 @@ Esta llamada es en español. Todo lo anterior se aplica igual.
         email: { type: 'string', description: 'The caller\'s email address in written form, all lowercase, e.g. "jacob@gmail.com". Empty if they declined or never gave one.' },
         property_address: { type: 'string', description: 'The property the call is about, written as an address, e.g. "4557 Briggs Road, Killeen, TX". If rural with no address, the county plus the nearest road or crossroads.' },
         property_id: { type: 'string', description: 'The county appraisal district property ID, digits and letters only, if the caller had one.' },
-        service_wanted: { type: 'string', description: 'The kind of survey or work they asked about, in a few words, e.g. "boundary survey for a fence".' },
+        service_wanted: { type: 'string', description: 'The kind of survey or work they asked about, in a few words, e.g. "boundary survey for a fence" or "boundary and improvements survey for a closing". Write "boundary and improvements survey" whenever they need the house, buildings, fences or other improvements shown (sales, closings, lenders, permits, additions), and "boundary survey" only when they need just the lines and corners.' },
         deadline: { type: 'string', description: 'Any date or deadline they named — a closing, permit, court date or build start — as they said it. Empty if none.' },
         left_message: { type: 'boolean', description: 'True if the caller left a message for the owner during the call.' },
         wants_callback: { type: 'boolean', description: 'True if the caller wants the owner to call them back.' },

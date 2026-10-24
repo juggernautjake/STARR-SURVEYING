@@ -34,7 +34,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('job_team')
-    .insert({ job_id, user_email, user_name, role, notes })
+    .insert({ job_id, user_email, user_name, role, notes, change_actor: session.user.email })
     .select()
     .single();
 
@@ -60,7 +60,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('job_team')
-    .update({ role, notes })
+    .update({ role, notes, change_actor: session.user.email })
     .eq('id', id)
     .select()
     .single();
@@ -79,7 +79,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   const { error } = await supabaseAdmin
     .from('job_team')
-    .update({ removed_at: new Date().toISOString() })
+    .update({ removed_at: new Date().toISOString(), change_actor: session.user.email })
     .eq('id', id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

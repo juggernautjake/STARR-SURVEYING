@@ -3,6 +3,7 @@
 
 import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 import { dueBubble } from '@/lib/admin/listing';
+import { activityLine } from '@/lib/activity/record-activity';
 // The bubbles (.lst-bubble) live with the listing frame; a card can render on a page that never mounted it.
 import '@/app/admin/components/listing/Listing.css';
 
@@ -28,6 +29,9 @@ interface Job {
   job_team?: JobTeamMember[];
   job_tags?: { tag: string }[];
   total_hours?: number;
+  /** Last edited / viewed (seeds/676) — the jobs list's order, shown so the order explains itself. */
+  last_modified_at?: string | null;
+  last_viewed_at?: string | null;
 }
 
 const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
@@ -42,8 +46,12 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string 
   on_hold: { label: 'On Hold', color: '#F97316', icon: '⏸️' },
 };
 
+// The job's survey type: the keys are what is stored in jobs.survey_type, the labels what the
+// new-job / import forms offer and every job card and project page shows. Keep in step with
+// SURVEY_TYPE_RULES in lib/calendar/lead-to-job.ts, which turns a lead's free text into one of these.
 const SURVEY_TYPES: Record<string, string> = {
   boundary: 'Boundary',
+  boundary_improvements: 'Boundary & Improvements',
   topographic: 'Topographic',
   construction: 'Construction',
   subdivision: 'Subdivision',
@@ -106,6 +114,12 @@ export default function JobCard({ job, onClick, isNew = false }: { job: Job; onC
           <span className="job-card__detail">
             <span className="job-card__detail-icon">👥</span>
             {teamCount} member{teamCount !== 1 ? 's' : ''}
+          </span>
+        )}
+        {activityLine(job) && (
+          <span className="job-card__detail" data-testid="job-activity">
+            <span className="job-card__detail-icon">🕓</span>
+            {activityLine(job)}
           </span>
         )}
         {job.total_hours !== undefined && job.total_hours > 0 && (

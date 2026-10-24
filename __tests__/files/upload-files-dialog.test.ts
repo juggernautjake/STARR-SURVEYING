@@ -324,8 +324,8 @@ describe('the folder routes', () => {
   });
 
   it('delete never deletes files: they move up to the folder\'s parent BEFORE the folders go', () => {
-    const moveAt = one.indexOf(".update({ folder_id: folder.parent_id })");
-    const delAt = one.indexOf('.update({ deleted_at: now, updated_at: now })');
+    const moveAt = one.indexOf(".update({ folder_id: folder.parent_id");
+    const delAt = one.indexOf('.update({ deleted_at: now, updated_at: now');
     expect(moveAt).toBeGreaterThan(-1);
     expect(delAt).toBeGreaterThan(moveAt);
     expect(one, 'a hard delete of files crept in').not.toMatch(/from\('job_files'\)[\s\S]{0,80}\.delete\(/);

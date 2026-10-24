@@ -98,7 +98,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   'payments/allocation-reports.ts',
   'payments/customer-snapshot.ts',
   'payments/rls-allowlist.ts',
-  'payments/secrets.ts',
   'payouts/stripe-payout.ts',
   'research/document-segmentation.ts',
   'research/multi-source-confidence.ts',

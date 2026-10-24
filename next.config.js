@@ -47,7 +47,10 @@ const nextConfig = {
     // ~2 MB WebAssembly bundle is required from node_modules at run time instead of being copied into
     // every route bundle that imports an upload helper. The BROWSER converter bundles its own ESM
     // build inside a lazily-loaded Web Worker chunk and is unaffected by this list.
-    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium', '@resvg/resvg-js', 'libheif-js'],
+    // `pdfkit` (2026-10-11): bundled, it looks for its built-in font metrics (data/Helvetica.afm)
+    // beside the BUNDLE and throws ENOENT — every pdfkit route (payroll checks, receipt PDFs, QR
+    // stickers) failed that way. External, it is required from node_modules where data/ lives.
+    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium', '@resvg/resvg-js', 'libheif-js', 'pdfkit'],
   },
   // Note: Per-route body size limits are configured via route segment config
   // exports in individual API route files (e.g., export const maxDuration = 60)

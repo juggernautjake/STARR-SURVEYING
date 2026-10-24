@@ -369,8 +369,10 @@ export default function SurveyCalculator() {
 
   const numImprovements = parseInt(formValues.numImprovements as string) || 0;
   
-  const shouldShowImprovements = selectedSurveyType === 'boundary' && 
-    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string);
+  // A boundary & improvements survey always locates the improvements, whatever the property type;
+  // a plain boundary survey asks about them only on the property types that usually have them.
+  const shouldShowImprovements = selectedSurveyType === 'boundary_improvements' || (selectedSurveyType === 'boundary' &&
+    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string));
 
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null;

@@ -132,8 +132,9 @@ describe('pay advances come back out', () => {
   //
   // Caught by trying the retirement and watching seven tests go red. These are the checks that make
   // the retirement safe when it finally happens.
-  const payOwed = () => code(read('app/api/admin/payroll/pay-owed/route.ts'));
-  const cron = () => code(read('app/api/cron/payout-prepare/route.ts'));
+  // Since 2026-10-11 both routes build through lib/payouts/build-batch.ts, so it is read with them.
+  const payOwed = () => code(read('app/api/admin/payroll/pay-owed/route.ts') + read('lib/payouts/build-batch.ts'));
+  const cron = () => code(read('app/api/cron/payout-prepare/route.ts') + read('lib/payouts/build-batch.ts'));
 
   it('the hand-built payout batch recovers outstanding advances', () => {
     expect(payOwed()).toContain('planAdvanceRecovery({');
@@ -359,7 +360,7 @@ describe('paying what is owed reads the same balance the screen shows', () => {
   // and if it did, the firm would pay an amount nobody was shown.
   it('both the balance endpoint and the payout builder use the one loader', () => {
     expect(code(read('app/api/admin/payroll/owed/route.ts'))).toContain('loadOwed(');
-    expect(code(read('app/api/admin/payroll/pay-owed/route.ts'))).toContain('loadOwed(');
+    expect(code(read('app/api/admin/payroll/pay-owed/route.ts') + read('lib/payouts/build-batch.ts'))).toContain('loadOwed(');
   });
 
   it('neither re-derives the balance itself', () => {
@@ -375,14 +376,14 @@ describe('paying what is owed reads the same balance the screen shows', () => {
   it('a batch is refused rather than built from a balance that could not be read', () => {
     // Building from a partial balance pays wrong amounts, and a payout is much harder to take back
     // than to not make.
-    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts') + read('lib/payouts/build-batch.ts'));
     expect(src).toContain('No payout was created');
   });
 
   it('an empty batch is a refusal, not a success', () => {
     // A 200 with no lines reads as "paid". It must say which of "everyone is paid up" and "everyone
     // was excluded" actually happened.
-    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts') + read('lib/payouts/build-batch.ts'));
     expect(src).toMatch(/status: 409/);
     expect(src).toContain('skipped');
   });
@@ -390,7 +391,7 @@ describe('paying what is owed reads the same balance the screen shows', () => {
   it('the employee is told their pay is QUEUED, not paid', () => {
     // A draft batch has sent nothing. Saying "paid" before the money moves is a promise the
     // platform cannot keep — every method in the vocabulary carries sendsItself: false.
-    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts') + read('lib/payouts/build-batch.ts'));
     expect(src).toContain('payout_queued');
     expect(src.includes("title: `$${(line.total_cents / 100).toFixed(2)} paid`"), 'claims paid').toBe(false);
   });
@@ -477,14 +478,14 @@ describe('the scheduled payout prepares, it does not pay', () => {
   });
 
   it('creates a DRAFT, never a completed batch', () => {
-    const src = code(read(CRON));
+    const src = code(read(CRON) + read('lib/payouts/build-batch.ts'));
     expect(src).toContain("status: 'draft'");
     expect(src.includes("status: 'completed'"), 'the cron marks batches complete').toBe(false);
     expect(src.includes("status: 'paid'"), 'the cron marks money paid').toBe(false);
   });
 
   it('tells the admins it is PREPARED, not paid', () => {
-    const src = code(read(CRON));
+    const src = code(read(CRON) + read('lib/payouts/build-batch.ts'));
     expect(src).toContain('payout_prepared');
     expect(src).toMatch(/Nothing has been sent yet/);
   });
@@ -492,18 +493,18 @@ describe('the scheduled payout prepares, it does not pay', () => {
   it('reuses the shared balance rather than computing its own', () => {
     // A scheduled payout and a hand-pressed one differ only in what triggered them. A second
     // implementation is exactly how the pay formula reached four copies.
-    const src = code(read(CRON));
+    const src = code(read(CRON) + read('lib/payouts/build-batch.ts'));
     expect(src).toContain('loadOwed(');
     expect(src.includes("from('daily_time_logs')"), 'the cron reads hours directly').toBe(false);
   });
 
   it('refuses to build a batch from a balance it could not read', () => {
     // On a timer, with nobody watching, a partial balance pays wrong amounts silently.
-    expect(code(read(CRON))).toContain('No batch prepared');
+    expect(code(read(CRON) + read('lib/payouts/build-batch.ts'))).toContain('No batch prepared');
   });
 
   it('is gated by CRON_SECRET', () => {
-    const src = code(read(CRON));
+    const src = code(read(CRON) + read('lib/payouts/build-batch.ts'));
     expect(src).toContain('CRON_SECRET');
     expect(src).toMatch(/status: 401/);
   });
@@ -514,14 +515,14 @@ describe('employee money accounts are actually credited', () => {
   // flow. Nothing ever credited it, so the balance was permanently $0.00. An account nobody can put
   // money into is a table, not a feature.
   it('marking an account payout paid credits the balance', () => {
-    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts'));
+    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts') + read('lib/payouts/mark-item.ts'));
     expect(src).toContain('planAccountCredit(');
     expect(src).toContain("'balance_transactions'");
   });
 
   it('the credit is keyed to the payout item, so a repeat call cannot double it', () => {
     // This route is called again whenever the office updates an external reference on a paid row.
-    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts'));
+    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts') + read('lib/payouts/mark-item.ts'));
     expect(src).toContain("reference_type: 'payout_batch_item'");
     expect(src).toContain('reference_id: itemId');
   });

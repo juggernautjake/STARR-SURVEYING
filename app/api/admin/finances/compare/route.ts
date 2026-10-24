@@ -41,7 +41,7 @@ async function totalsFor(from: string, to: string): Promise<PeriodTotals> {
     // `recovered_cents` too: what left the bank is total − recovered. Counting the settled figure
     // overstates payouts for any month containing an advance repayment, and understates `net_cents`
     // by the same amount — in the month-to-month comparison the owner reads.
-    supabaseAdmin.from('payout_batch_items').select('total_cents, recovered_cents')
+    supabaseAdmin.from('payout_batch_items').select('total_cents, recovered_cents, fee_cents')
       .eq('status', 'paid').gte('paid_at', fromTs).lte('paid_at', toTs),
     // `superseded_by_receipt_id` (seed 590): the itemised bill for a meal already paid for by its
     // card slip is one purchase across two rows. Counting both inflates the month it falls in.

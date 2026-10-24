@@ -15,6 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
 import '../../../payments-admin.css';
+import PayoutCommitPanel from '../../../components/payouts/PayoutCommitPanel';
 
 interface BatchDetail {
   id: string;
@@ -123,7 +124,7 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
     load();
   }
 
-  if (loading) {
+  if (loading && !batch) {
     return (
       <main className="batch-page" data-payments-admin>
         <p role="status" aria-busy="true" aria-live="polite">Loading…</p>
@@ -172,6 +173,11 @@ export default function PayoutBatchDetailPage(): React.ReactElement {
           {batch.voided_at && <> on {new Date(batch.voided_at).toLocaleString()}</>}
         </div>
       )}
+
+      {/* Commit payout (2026-10-11): approve + send everyone their own way, in one step. */}
+      <div className="batch-page__commit">
+        <PayoutCommitPanel batchId={batch.id} batchStatus={batch.status} onChanged={load} />
+      </div>
 
       <section className="batch-items">
         <h2 className="batch-items__title">Line items ({items.length})</h2>
@@ -292,6 +298,7 @@ const styles = `
   .batch-chip--completed { background: #e2f5e8; color: #1f6d3c; }
   .batch-chip--voided { background: #fdecec; color: #8a0e13; }
 
+  .batch-page__commit { max-width: 1100px; margin: 0 auto 1rem; }
   .batch-items {
     max-width: 1100px; margin: 0 auto;
     background: #fff; border: 1px solid #e4e7ee; border-radius: 14px;

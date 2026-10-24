@@ -52,7 +52,7 @@ describe('sorting and paging are the same for both pages', () => {
     { name: 'Charlie', created_at: '2026-01-01', updated_at: '2026-09-01', due: '2026-10-01' },
   ];
   it('offers the filters the owner named — status is per page; these are the sorts', () => {
-    expect(SORT_OPTIONS.map((o) => o.key)).toEqual(['newest', 'oldest', 'due_soonest', 'name_asc', 'name_desc', 'updated']);
+    expect(SORT_OPTIONS.map((o) => o.key)).toEqual(['activity', 'newest', 'oldest', 'due_soonest', 'name_asc', 'name_desc', 'updated']);
   });
   it('newest / oldest by creation, A→Z case-insensitively, due soonest with no-deadline rows last', () => {
     expect(sortRows(rows, 'newest').map((r) => r.name)).toEqual(['alpha', 'Bravo', 'Charlie']);

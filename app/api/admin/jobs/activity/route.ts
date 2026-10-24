@@ -17,6 +17,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse } from '@/lib/apiErrorHandler';
+import { changeView, isCoveredByChangeLog } from '@/lib/activity/record-activity';
+import { changesForJob, CHANGE_LOG_STARTED_AT } from '@/lib/activity/record-activity-server';
+
+// 2026-10-11 — a third source: `record_changes` (seeds/676), the trigger-written change log. It
+// records every file added, renamed, moved, deleted or restored (the phone's uploads included),
+// every edit to the job's information with the fields that moved, folders and team. The
+// `activity_log` kinds it duplicates are dropped from the moment it went live; older ones stay.
 
 interface ActivityItem {
   type: string;
@@ -24,6 +31,8 @@ interface ActivityItem {
   actor: string;
   at: string;
   detail?: string;
+  /** For an edit: one line per field that moved, "Address: 12 Oak St → 14 Oak St". */
+  fields?: string[];
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -135,7 +144,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ activity: feed.slice(0, limit) });
   }
 
-  const [logRes, stageRes] = await Promise.all([
+  const [logRes, stageRes, changes] = await Promise.all([
     supabaseAdmin
       .from('activity_log')
       .select('user_email, action_type, metadata, created_at')
@@ -149,6 +158,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .eq('job_id', jobId)
       .order('created_at', { ascending: false })
       .limit(200),
+    changesForJob(jobId),
   ]);
 
   if (logRes.error) return dbErrorResponse(logRes.error, 'load the activity log');
@@ -161,6 +171,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // Stage changes also live in job_stages_history with richer data —
     // skip the activity_log copy to avoid duplicates.
     if (action === 'job_stage_changed') continue;
+    if (isCoveredByChangeLog(action, String(row.created_at ?? ''), CHANGE_LOG_STARTED_AT)) continue;
     items.push({
       type: action,
       label: ACTION_LABELS[action] ?? action.replace(/_/g, ' '),
@@ -181,6 +192,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         row.notes || null,
       ].filter(Boolean).join(' · '),
     });
+  }
+
+  for (const row of changes) {
+    // A stage move is a field edit too, and stage history already tells it with its note — skip an
+    // edit whose only change is the stage.
+    const keys = Object.keys(row.changes ?? {});
+    if (row.subject === 'job' && row.action === 'updated' && keys.length > 0 && keys.every((k) => k === 'stage')) continue;
+    const v = changeView(row);
+    items.push({ type: v.type, label: v.label, actor: v.actor, at: v.at, detail: v.detail, fields: v.fields });
   }
 
   items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());

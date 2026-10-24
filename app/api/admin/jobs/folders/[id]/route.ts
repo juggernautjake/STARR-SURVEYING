@@ -50,7 +50,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
 
   const { data: updated, error } = await supabaseAdmin
     .from('job_file_folders')
-    .update({ name: check.value, updated_at: new Date().toISOString() })
+    .update({ name: check.value, updated_at: new Date().toISOString(), change_actor: session.user.email })
     .eq('id', folder.id)
     .select('id, name, parent_key, parent_id')
     .single();
@@ -95,7 +95,7 @@ export const DELETE = withErrorHandler(async (_req: NextRequest, ctx: { params: 
   // window in which the files point at folders that no longer list.
   const { data: moved, error: moveErr } = await supabaseAdmin
     .from('job_files')
-    .update({ folder_id: folder.parent_id })
+    .update({ folder_id: folder.parent_id, change_actor: session.user.email })
     .in('folder_id', ids)
     .select('id');
   if (moveErr) return NextResponse.json({ error: moveErr.message }, { status: 500 });
@@ -103,7 +103,7 @@ export const DELETE = withErrorHandler(async (_req: NextRequest, ctx: { params: 
   const now = new Date().toISOString();
   const { error: delErr } = await supabaseAdmin
     .from('job_file_folders')
-    .update({ deleted_at: now, updated_at: now })
+    .update({ deleted_at: now, updated_at: now, change_actor: session.user.email })
     .in('id', ids);
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
 

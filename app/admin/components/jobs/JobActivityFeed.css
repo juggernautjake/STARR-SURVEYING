@@ -1,0 +1,88 @@
+/* app/admin/components/jobs/JobActivityFeed.css — the job Activity tab and the project History
+   section (2026-10-11). Imported by the component so it looks the same on both routes; every colour
+   is a theme token. */
+
+.jaf__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.jaf__title { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+.jaf__desc { margin: 0.2rem 0 0; font-size: 0.85rem; color: var(--theme-fg-secondary, #475569); }
+.jaf__gap { margin-top: 1rem; }
+
+.jaf__btn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jaf__btn:hover { background: var(--theme-bg-elevated, #F8FAFC); }
+.jaf__btn:focus-visible, .jaf__chip:focus-visible { outline: 2px solid var(--theme-accent, #2563EB); outline-offset: 2px; }
+.jaf__more { margin-top: 0.75rem; }
+
+.jaf__filters { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.jaf__chip {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 999px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jaf__chip--on {
+  border-color: var(--theme-accent, #2563EB);
+  background: var(--theme-accent, #2563EB);
+  color: var(--theme-accent-fg, #FFFFFF);
+}
+
+.jaf__error {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--theme-warning-bg, #FEF3C7);
+  color: var(--theme-danger-fg, #B91C1C);
+  font-size: 0.85rem;
+}
+
+.jaf__empty {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--theme-border, #E2E8F0);
+  border-radius: 10px;
+  color: var(--theme-fg-muted, #64748B);
+}
+.jaf__empty p { margin: 0; }
+
+.jaf__list { list-style: none; padding: 0; margin: 0.75rem 0 0; }
+.jaf__item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--theme-border-subtle, #EEF2F6);
+}
+.jaf__item:last-child { border-bottom: 0; }
+.jaf__icon { font-size: 1.05rem; line-height: 1.35; }
+.jaf__body { flex: 1; min-width: 0; }
+.jaf__line { overflow-wrap: anywhere; }
+.jaf__label { font-weight: 600; color: var(--theme-fg-primary, #0F172A); }
+.jaf__detail { color: var(--theme-fg-secondary, #475569); }
+.jaf__fields {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--theme-fg-secondary, #475569);
+  overflow-wrap: anywhere;
+}
+.jaf__meta { margin-top: 0.15rem; font-size: 0.78rem; color: var(--theme-fg-muted, #64748B); overflow-wrap: anywhere; }
+.jaf__job { color: var(--theme-accent, #1D4ED8); font-weight: 600; text-decoration: none; }
+.jaf__job:hover { text-decoration: underline; }
+
+/* On the project page the feed sits in its own section card. */
+.pd__history { margin-top: 1rem; }

@@ -41,16 +41,16 @@ describe('home page — info email callout', () => {
   });
 });
 
-describe('contact-route EMAIL_RECIPIENTS — Hank gets a copy', () => {
+describe('contact-route EMAIL_RECIPIENTS — one copy to the info@ group', () => {
   const SRC = read('app/api/contact/route.ts');
 
-  it('keeps the info@ + yahoo recipients', () => {
-    expect(SRC).toMatch(/'info@starr-surveying\.com'/);
-    expect(SRC).toMatch(/'starrsurveying@yahoo\.com'/);
+  it('sends the business notification to info@ only (the group delivers it to everyone)', () => {
+    expect(SRC).toMatch(/const EMAIL_RECIPIENTS = \[\s*'info@starr-surveying\.com',\s*\];/);
   });
 
-  it("adds hankmaddux@starr-surveying.com to EMAIL_RECIPIENTS", () => {
-    expect(SRC).toMatch(/const EMAIL_RECIPIENTS = \[[\s\S]{0,400}'hankmaddux@starr-surveying\.com'/);
+  it('does not also send to members directly (no duplicate copies)', () => {
+    expect(SRC).not.toMatch(/const EMAIL_RECIPIENTS = \[[\s\S]{0,400}'hankmaddux@starr-surveying\.com'/);
+    expect(SRC).not.toMatch(/const EMAIL_RECIPIENTS = \[[\s\S]{0,400}'starrsurveying@yahoo\.com'/);
   });
 });
 

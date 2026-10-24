@@ -94,8 +94,9 @@ async function loadJobFile(id: string): Promise<JobFileRow | null> {
   return (data as JobFileRow | null) ?? null;
 }
 
-async function setJobFileDeleted(id: string, deleted: boolean): Promise<string | null> {
-  const a = await supabaseAdmin.from('job_files').update({ is_deleted: deleted }).eq('id', id);
+async function setJobFileDeleted(id: string, deleted: boolean, email?: string): Promise<string | null> {
+  // `change_actor` names the person for the change log (seeds/676); the trigger reads and blanks it.
+  const a = await supabaseAdmin.from('job_files').update({ is_deleted: deleted, change_actor: email ?? null }).eq('id', id);
   if (a.error) return a.error.message;
   // Its backup copy follows it either way, as the original route did.
   const b = await supabaseAdmin.from('job_files').update({ is_deleted: deleted }).eq('backup_of', id);
@@ -108,7 +109,7 @@ const jobFile = {
     const row = await loadJobFile(id);
     if (!row || row.is_deleted) return missing();
     const name = row.file_name ?? row.name ?? undefined;
-    const err = await setJobFileDeleted(id, true);
+    const err = await setJobFileDeleted(id, true, actor.email);
     if (err) return broke(err, name);
     if (row.job_id) {
       await audit(actor, 'job_file_deleted', 'job', row.job_id, { file_id: id, file_name: name, section: row.section });
@@ -121,7 +122,7 @@ const jobFile = {
     if (!row) return missing();
     const name = row.file_name ?? row.name ?? undefined;
     if (!row.is_deleted) return { ok: true, name };
-    const err = await setJobFileDeleted(id, false);
+    const err = await setJobFileDeleted(id, false, actor.email);
     if (err) return broke(err, name);
     if (row.job_id) {
       await audit(actor, 'job_file_restored', 'job', row.job_id, { file_id: id, file_name: name, section: row.section });

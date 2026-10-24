@@ -27,6 +27,9 @@ export interface InlineRenameProps {
   name: string;
   /** Persist it. Throwing (or rejecting) puts the old name back and keeps the box open. */
   onRename: (next: string) => Promise<void>;
+  /** The caller shows the new name itself the moment `onRename` is called, so the box can close at
+   *  once instead of waiting on the save (the file lists, 2026-10-11). Off: the box stays until saved. */
+  optimistic?: boolean;
   /** No control at all when false — a read-only surface shows a plain name. */
   canRename?: boolean;
   /**
@@ -48,7 +51,7 @@ export interface InlineRenameProps {
 }
 
 export default function InlineRename({
-  name, onRename, canRename = true, preserveExtension = true,
+  name, onRename, canRename = true, preserveExtension = true, optimistic = false,
   className, inputClassName, buttonClassName, testId, children,
 }: InlineRenameProps) {
   const [editing, setEditing] = useState(false);
@@ -86,14 +89,18 @@ export default function InlineRename({
     // by putting the extension back on the end.
     const next = fitLabel(preserveExtension ? applyRename(name, draft) : sanitizeFilename(draft, name));
     if (!next || next === name) { setEditing(false); setDraft(name); return; }
+    // `optimistic` closes the box straight away (2026-10-11): the caller shows the new name at once
+    // and saves in the background. A refusal reopens it with what was typed.
     setSaving(true);
+    if (optimistic) setEditing(false);
     try {
       await onRename(next);
       setEditing(false);
     } catch {
-      // The caller has already said what went wrong; all this has to do is not pretend it worked.
-      setDraft(name);
+      // The caller has already said what went wrong; reopen so the name can be fixed and retried.
       doneRef.current = false;
+      setEditing(true);
+      setDraft(draft);
       inputRef.current?.focus();
     } finally {
       setSaving(false);
