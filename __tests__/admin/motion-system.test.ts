@@ -103,7 +103,8 @@ describe('THE RATCHET — keyframes outside motion.css may only go down', () => 
   // that six of the "violations" were prose ABOUT the rule, in six different sheets. The instrument
   // had been over-reporting by 3%, and the real backlog is 194. Same correction the
   // starr-assumptions audit made in August, for the same reason, one file over.
-  const BASELINE = 194;
+  // 194 → 114 (2026-10-24): the D&D and voice-studio stylesheets left the repo (docs/platform/EXTRACTED_PROJECTS.md).
+  const BASELINE = 114;
   it('counts them', () => {
     const files = walkCss(path.join(ROOT, 'app')).filter((f) => !f.endsWith(path.join('styles', 'motion.css')));
     let total = 0;

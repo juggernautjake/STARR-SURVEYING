@@ -35,7 +35,6 @@ const isPrivate = (name) => name.startsWith('_') || name === 'api';
 function areaOf(route) {
   if (route.startsWith('/admin')) return 'admin';
   if (route.startsWith('/platform')) return 'platform';
-  if (route.startsWith('/dnd')) return 'dnd';
   if (/^\/(login|register|signup|forgot|reset|verify|auth)/.test(route)) return 'auth';
   if (/^\/(pay|portal|proposal|share|invoice|customer)/.test(route)) return 'customer';
   return 'public';

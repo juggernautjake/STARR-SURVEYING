@@ -144,24 +144,3 @@ describe('sending', () => {
     expect(await sendPush([], '{}')).toEqual([]);
   });
 });
-
-describe('the studio sender now uses the shared transport', () => {
-  // W4 is only real if the existing caller was rewired. An extracted module with no caller is the
-  // defect this codebase produces most often.
-  const src = require('node:fs').readFileSync(
-    require('node:path').join(process.cwd(), 'lib/voice/notifications.ts'), 'utf8');
-
-  it('imports sendPush rather than re-implementing it', () => {
-    expect(src).toContain("from '@/lib/push/web-push'");
-    expect(src).toContain('sendPush(');
-  });
-
-  it('no longer carries its own copy of the bundler-opaque require', () => {
-    expect(src).not.toContain("load('web-push')");
-  });
-
-  it('keeps its OWN three-strike disable policy, which is not the transport\'s business', () => {
-    expect(src).toContain('failures >= 3');
-    expect(src).toContain('va_push_subscriptions');
-  });
-});

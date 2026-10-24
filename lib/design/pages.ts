@@ -15,7 +15,7 @@ import { isLopsided } from './lopsided';
 import inventory from './pages.generated.json';
 import { dossierState, type DossierState } from './dossier';
 
-export type PageArea = 'admin' | 'public' | 'platform' | 'customer' | 'auth' | 'dnd';
+export type PageArea = 'admin' | 'public' | 'platform' | 'customer' | 'auth';
 export type ReviewStatus = 'not_started' | 'in_progress' | 'done' | 'skipped';
 
 export interface InventoryPage {
@@ -160,7 +160,7 @@ export const STATUS_LABELS: Record<ReviewStatus, string> = {
 };
 
 /** The order the areas are shown in: the ones being reviewed first, the side project last. */
-export const AREA_ORDER: PageArea[] = ['admin', 'customer', 'public', 'auth', 'platform', 'dnd'];
+export const AREA_ORDER: PageArea[] = ['admin', 'customer', 'public', 'auth', 'platform'];
 
 export const AREA_LABELS: Record<PageArea, string> = {
   admin: 'Admin — the employee portal',
@@ -168,7 +168,6 @@ export const AREA_LABELS: Record<PageArea, string> = {
   public: 'Public site',
   auth: 'Sign in and registration',
   platform: 'Platform operator',
-  dnd: 'D&D (side project)',
 };
 
 export function isReviewStatus(value: unknown): value is ReviewStatus {

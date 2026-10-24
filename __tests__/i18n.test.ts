@@ -143,17 +143,3 @@ describe('the sizing scan', () => {
     expect(script).not.toMatch(/\.writeFileSync/);
   });
 });
-
-describe('IT IS ACTUALLY USED — a passthrough nothing calls is a file, not a decision', () => {
-  it('at least one real component renders through it', () => {
-    const footer = read('app/dnd/_ui/DndFooter.tsx');
-    expect(footer).toContain("from '@/lib/i18n'");
-    expect(footer).toMatch(/\{t\('A hidden campaign hub/);
-  });
-
-  it('and the brand name is deliberately NOT wrapped', () => {
-    // A proper noun stays itself in every language, and wrapping one invites a translator to render it.
-    const footer = read('app/dnd/_ui/DndFooter.tsx');
-    expect(footer).toMatch(/>Starr Tabletop</);
-  });
-});

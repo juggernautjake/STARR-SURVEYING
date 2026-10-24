@@ -85,8 +85,6 @@ export function areaOf(file) {
   if (p.startsWith('app/admin/cad')) return 'cad';
   if (p.startsWith('app/admin/research')) return 'research';
   if (p.startsWith('app/admin')) return 'admin';
-  if (p.startsWith('app/dnd')) return 'dnd';
-  if (p.startsWith('app/AndrewAsh')) return 'andrew-ash';
   if (/^app\/(portal|pay|proposal|change-order|share)\b/.test(p)) return 'customer';
   if (/^app\/(register|signup|credentials)\b/.test(p)) return 'auth';
   if (p.startsWith('app/styles/')) return 'shared';

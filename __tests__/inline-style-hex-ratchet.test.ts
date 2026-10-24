@@ -154,9 +154,4 @@ describe('what the ratchet is measuring', () => {
     expect(Object.keys(current).length).toBeGreaterThan(100);
   });
 
-  it('and covers the DND surface, which is the one that gets re-themed', () => {
-    // The sheet has four formats × four systems × every colour skin. It is where an unreachable colour
-    // costs the most, so a scan that somehow skipped it would miss the point of the whole item.
-    expect(Object.keys(current).some((f) => f.startsWith('app/dnd/'))).toBe(true);
-  });
 });
