@@ -487,6 +487,10 @@
         {
           "id": "mileage",
           "label": "Mileage"
+        },
+        {
+          "id": "spending",
+          "label": "Spending"
         }
       ]
     },

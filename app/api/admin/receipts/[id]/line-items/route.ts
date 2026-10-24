@@ -20,6 +20,7 @@
 // The reason is also enforced by a CHECK constraint (seed 597) rather than only here: this route is
 // one caller, and the constraint refuses an unexplained removal on behalf of every caller that has
 // not been written yet.
+import { CATEGORIES } from '@/worker/src/services/receipt-extraction-core';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -34,7 +35,7 @@ export const runtime = 'nodejs';
 const SELECT =
   'id, receipt_id, description, amount_cents, quantity, position, source, '
   + 'is_business_expense, business_expense_note, added_by, added_reason, '
-  + 'removed_at, removed_by, removed_reason, edited_at, edited_by';
+  + 'removed_at, removed_by, removed_reason, edited_at, edited_by, category, category_source';
 
 /** `/api/admin/receipts/{id}/line-items` — the id is the segment before the last. */
 function receiptIdFrom(req: NextRequest): string | null {
@@ -161,6 +162,16 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     const v = validateQuantity(body.quantity);
     if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
     update.quantity = body.quantity;
+    correctsTheReading = true;
+  }
+  // What kind of thing the line is (2026-10-07). A person's choice is recorded as theirs and a
+  // later re-read never changes it (the line is kept by linesToReplaceOnReextract once edited).
+  if (body.category !== undefined) {
+    if (body.category !== null && !(CATEGORIES as readonly string[]).includes(String(body.category))) {
+      return NextResponse.json({ error: `category must be one of: ${CATEGORIES.join(', ')}.` }, { status: 400 });
+    }
+    update.category = body.category;
+    update.category_source = body.category ? 'user' : null;
     correctsTheReading = true;
   }
   if (body.is_business_expense !== undefined) {

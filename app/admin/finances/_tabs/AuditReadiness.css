@@ -1,0 +1,9 @@
+/* app/admin/finances/_tabs/AuditReadiness.css */
+.aud { margin: 12px 0; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--theme-border, #e5e7eb); font-size: .9rem; line-height: 1.45; }
+.aud--ok { background: color-mix(in srgb, var(--theme-success, #059669) 10%, transparent); border-color: color-mix(in srgb, var(--theme-success, #059669) 40%, transparent); }
+.aud--warn { background: color-mix(in srgb, var(--theme-warning, #d97706) 10%, transparent); border-color: color-mix(in srgb, var(--theme-warning, #d97706) 45%, transparent); }
+.aud__title { margin: 0 0 6px; font-weight: 700; }
+.aud__sub { margin: 8px 0 4px; font-weight: 600; }
+.aud__list { margin: 0; padding-left: 1.2rem; }
+.aud__tag { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.aud__link { display: inline-block; margin-top: 8px; font-weight: 700; color: var(--color-brand-navy, #1D3095); }

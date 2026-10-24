@@ -85,6 +85,8 @@ export interface ExtractedReceipt {
   /** Cardholder name as printed on the slip. Read so a card that is not on file can be named. */
   card_holder_name: string | null;
   receipt_number: string | null;
+  /** Store / location number, kept apart from the vendor name so the name is the same every time. */
+  store_number?: string | null;
   category: Category | null;
   tax_deductible_flag: TaxFlag | null;
   /** One line of plain English on what this purchase was and why it is deductible the way it is. */
@@ -96,6 +98,9 @@ export interface ExtractedReceipt {
     description: string | null;
     amount_cents: number | null;
     quantity: number | null;
+    /** What kind of thing this LINE is (owner, 2026-10-07: "we might have supplies and food and who
+     *  knows what all on the same receipt"). One of CATEGORIES; null when the line is not a purchase. */
+    category: Category | null;
   }>;
   /** Free-form per-field 0..1 confidence Claude reports for itself. */
   confidence: Record<string, number>;
@@ -202,6 +207,7 @@ export function buildReceiptUpdate(
       card_brand: extracted.card_brand,
       card_holder_name: extracted.card_holder_name,
       receipt_number: extracted.receipt_number,
+      store_number: extracted.store_number ?? null,
       discount_cents: extracted.discount_cents,
       service_charge_cents: extracted.service_charge_cents,
       currency: extracted.currency,
@@ -268,6 +274,7 @@ export function parseExtraction(raw: string): ExtractedReceipt {
     card_brand: trimOrNull(parsed.card_brand),
     card_holder_name: trimOrNull(parsed.card_holder_name),
     receipt_number: trimOrNull(parsed.receipt_number),
+    store_number: trimOrNull(parsed.store_number),
     category: enumOrNull(parsed.category, CATEGORIES),
     tax_deductible_flag: enumOrNull(parsed.tax_deductible_flag, TAX_FLAGS),
     ai_summary: trimOrNull(parsed.ai_summary),
@@ -284,6 +291,7 @@ export function parseExtraction(raw: string): ExtractedReceipt {
             description: trimOrNull(li.description),
             amount_cents: nonNegIntOrNull(li.amount_cents),
             quantity: typeof li.quantity === 'number' ? li.quantity : null,
+            category: enumOrNull(li.category, CATEGORIES),
           }))
       : [],
     confidence: isObject(parsed.confidence) ? (parsed.confidence as Record<string, number>) : {},
@@ -442,7 +450,8 @@ export const EXTRACTION_PROMPT = `You are a receipt-field extractor for Starr Su
 The user has uploaded a photo of a paper receipt (gas station, hardware store, restaurant, hotel, etc.). Read it and return ONLY a JSON object with exactly these keys:
 
 {
-  "vendor_name":          string | null,    // Business name as printed
+  "vendor_name":          string | null,    // The BUSINESS name only — brand as printed in the header, WITHOUT store/location numbers, "#18", greetings ("Welcome to"), or addresses. E.g. "CEFCO", "Taco Bell", "McDonald's", "Lowe's". Put the store number in store_number.
+  "store_number":         string | null,    // Store / location / restaurant number if printed (e.g. "18", "036308"); null if none
   "vendor_address":       string | null,    // Street address line if visible
   "vendor_phone":         string | null,    // Phone number as printed, digits and separators
   "transaction_at":       string | null,    // ISO-8601 if date+time visible (e.g. "2026-04-26T14:35:00-05:00"); date-only if no time ("2026-04-26"); null if illegible
@@ -457,13 +466,13 @@ The user has uploaded a photo of a paper receipt (gas station, hardware store, r
   "payment_last4":        string | null,    // Last 4 of card number, digits only; null if not visible
   "card_brand":           string | null,    // 'visa' | 'mastercard' | 'amex' | 'discover' | other as printed; null if absent
   "card_holder_name":     string | null,    // Cardholder name as printed on the slip (often ALL CAPS, e.g. "MADDUX/JACOB"); null if absent
-  "receipt_number":       string | null,    // Receipt / invoice / transaction number as printed
+  "receipt_number":       string | null,    // The number that identifies THIS sale, as printed. Prefer, in order: "Invoice #", "Receipt #", "Trans #"/"Transaction #", "Ref #". NOT an order/ticket/table/register/cashier/store number, an auth code, or a card number. Null if none of the preferred labels appears
   "category":             string | null,    // EXACTLY one of: fuel, meals, supplies, equipment, tolls, parking, lodging, professional_services, office_supplies, client_entertainment, other
   "tax_deductible_flag":  string | null,    // EXACTLY one of: full, partial_50, none, review
   "ai_summary":           string | null,    // ONE plain sentence: what was bought and why the tax treatment is what it is. E.g. "Diesel for the field truck — fully deductible fuel."
   "review_flags":         [string],         // Short phrases a bookkeeper should check. Empty array if the receipt is clean.
   "line_items": [
-    { "description": string | null, "amount_cents": int | null, "quantity": number | null }
+    { "description": string | null, "amount_cents": int | null, "quantity": number | null, "category": string | null }   // category: EXACTLY one of the receipt categories above, for THIS line
   ],
   "confidence": {
     "vendor_name":  0..1,
@@ -522,6 +531,15 @@ Rules:
     subtotal). A gap far outside that range is a misread or a second transaction — flag it instead.
   * If only the total is legible, return the total and leave the parts null. A null is honest; a
     fabricated breakdown is not.
+- Line-item categories must be CONSISTENT receipt to receipt — the same item always gets the same category:
+    * food, snacks, coffee, soft drinks, energy drinks, bottled water, juice → meals
+    * bagged ice, cups, coolers, sunscreen, bug spray, batteries, zip ties, stakes, lath, paint, flagging, nails, rebar caps, gloves, safety vests, bags → supplies
+    * gasoline, diesel, DEF → fuel;  car wash, oil, wiper fluid → other
+    * hand tools, instruments, prisms, tripods, radios, chargers, anything durable over $100 → equipment
+    * paper, ink, toner, pens, postage, shipping, binders → office_supplies
+    * tolls → tolls; parking → parking; hotel room nights → lodging
+    * a modifier line with no price ("No Tomatoes", "Avo Salsa Packet") takes the category of the item it modifies
+- Give EVERY line item its own \`category\` from the same list as the receipt's. One receipt can mix kinds: a gas-station run with fuel, bottled water and a bag of zip ties is fuel + meals + supplies, line by line. Food and drink for the crew is meals; consumables used on the job (stakes, paint, flagging, batteries, zip ties, water for the crew in the field counts as meals) is supplies; tools and instruments are equipment; paper, ink, postage is office_supplies. The receipt-level \`category\` is the category of the largest share of the money.
 - Transcribe EVERY line item you can read, in the order printed. This is the part a bookkeeper cannot reconstruct later from the photo alone, so it is worth the tokens. If the receipt has no itemised lines (a fuel pump slip, a toll), return an empty array.
 - Category guidelines:
     * fuel              — gas pump, fuel cards

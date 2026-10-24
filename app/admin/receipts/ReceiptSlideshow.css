@@ -852,3 +852,5 @@
   line-height: 1.5;
   font-weight: 500;
 }
+/* Kind of item (2026-10-07). 16px so iOS does not zoom on focus. */
+.rli__cat { min-height: 34px; max-width: 12rem; padding: 0 6px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 6px; background: var(--theme-bg-surface, #fff); color: inherit; font-size: 16px; }

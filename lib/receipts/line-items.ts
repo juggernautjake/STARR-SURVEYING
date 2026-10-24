@@ -35,6 +35,9 @@
 export type LineItemSource = 'ai' | 'user';
 
 export interface LineItem {
+  /** What kind of thing this line is (2026-10-07) — set by the reader, or by a person. */
+  category?: string | null;
+  category_source?: 'ai' | 'user' | null;
   id: string;
   receipt_id?: string;
   description: string | null;

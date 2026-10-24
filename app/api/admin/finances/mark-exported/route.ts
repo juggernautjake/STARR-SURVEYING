@@ -35,6 +35,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { auditBlockers } from '@/lib/receipts/audit-readiness';
 
 interface MarkExportedBody {
   from?: unknown;
@@ -81,6 +82,21 @@ export const POST = withErrorHandler(
     const window = resolveWindow(body);
     if (!window.ok) {
       return NextResponse.json({ error: window.error }, { status: 400 });
+    }
+
+    // ── NOTHING DOUBTFUL GOES INTO A LOCKED PERIOD (owner, 2026-10-07) ─────────────────────────
+    // "It should flag all such uploads and should make it where they must be checked before a full
+    // audit can be done for taxes." Open duplicate pairs and readings that could not be confirmed
+    // must each be decided by a person first; the refusal names every one.
+    const blockers = await auditBlockers(window.fromIso, window.toIso);
+    if (!blockers.ok) {
+      return NextResponse.json(
+        {
+          error: `This period cannot be locked yet: ${blockers.duplicates.length} possible duplicate${blockers.duplicates.length === 1 ? '' : 's'} and ${blockers.needsReview.length} receipt${blockers.needsReview.length === 1 ? '' : 's'} with an unconfirmed reading must be checked first.`,
+          blockers,
+        },
+        { status: 409 },
+      );
     }
 
     const periodLabel =
