@@ -8,6 +8,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "next build",
+    "check": "npm run type-check && npm run lint && npm test && npm run build",
     "build:desktop": "node scripts/prepare-desktop-build.mjs run -- next build",
     "build:desktop:stash": "node scripts/prepare-desktop-build.mjs stash",
     "build:desktop:restore": "node scripts/prepare-desktop-build.mjs restore",
@@ -58,7 +59,8 @@
     "verify:worker": "node --experimental-strip-types --no-warnings scripts/verify-worker.mjs",
     "verify:unmerged": "node scripts/verify-unmerged.mjs",
     "e2e:research-responsive": "playwright test e2e/research-responsive.spec.ts",
-    "audit:public-access": "node scripts/audit-public-access.mjs"
+    "audit:public-access": "node scripts/audit-public-access.mjs",
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",

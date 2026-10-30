@@ -7,6 +7,7 @@
 #   2. Type-check TypeScript (tsc --noEmit)
 #   3. Lint (next lint)
 #   4. Run all Vitest unit tests
+#   5. Deploy to Vercel (built here, uploaded prebuilt): production from main, previews for PRs
 
 name: CI
 
@@ -15,6 +16,8 @@ on:
     branches: [main, develop, 'feature/**', 'copilot/**']
   pull_request:
     branches: [main, develop]
+  # "Run workflow" button on the Actions tab: redeploys main to production without a new commit.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -112,3 +115,75 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: 'placeholder'
           ANTHROPIC_API_KEY: 'placeholder'
           WORKER_API_KEY: 'placeholder'
+
+  # Deploy: the app is built here on GitHub (free for this public repo) and uploaded to Vercel
+  # already built, so Vercel bills no build minutes. Vercel's own Git builds are switched off in
+  # vercel.json (git.deploymentEnabled: false).
+  #   push to main            → production, after the type-check/lint/test job passes
+  #   pull request (this repo) → a preview deployment; the URL is in the run summary
+  #   "Run workflow" on main   → production redeploy
+  # Needs one repository secret, VERCEL_TOKEN (Vercel → Account Settings → Tokens).
+  # `vercel build` is run here on Linux; it fails on this Windows laptop ("Unable to find lambda").
+  deploy:
+    name: Deploy to Vercel
+    needs: test
+    if: >-
+      ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: vercel-${{ github.event_name == 'pull_request' && github.head_ref || 'production' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      # Ids from .vercel/repo.json (not secret).
+      VERCEL_ORG_ID: team_AbTh2UwNUJ2dn6dZbak91dcQ
+      VERCEL_PROJECT_ID: prj_xmBHXuDbeSoMDFHekWn1Nmjx4dz0
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TARGET: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+      PROD_FLAG: ${{ github.event_name != 'pull_request' && '--prod' || '' }}
+
+    steps:
+      - name: Check for the deploy token
+        id: token
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ "$TARGET" = production ]; then
+            echo "::error::The VERCEL_TOKEN repository secret is missing, so main was not deployed. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "::warning::No VERCEL_TOKEN secret, so no preview was deployed."
+
+      - name: Checkout repository
+        if: steps.token.outputs.ok == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: steps.token.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          # Matches the project's Node.js version on Vercel (24.x).
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies and the Vercel CLI
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          npm ci --legacy-peer-deps
+          npm install --global vercel@54.5.1
+
+      - name: Pull Vercel project settings and environment variables
+        if: steps.token.outputs.ok == 'true'
+        run: vercel pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN"
+
+      - name: Build
+        if: steps.token.outputs.ok == 'true'
+        run: vercel build $PROD_FLAG --token="$VERCEL_TOKEN"
+
+      - name: Upload the build to Vercel
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          url=$(vercel deploy --prebuilt $PROD_FLAG --token="$VERCEL_TOKEN")
+          echo "Deployed ($TARGET): $url"
+          echo "### Deployed to Vercel ($TARGET)" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"

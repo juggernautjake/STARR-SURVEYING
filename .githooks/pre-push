@@ -1,0 +1,4 @@
+#!/bin/sh
+# Checks the code before it leaves this computer (scripts/pre-push-check.mjs).
+# Skip once with: git push --no-verify
+exec node scripts/pre-push-check.mjs "$@"
