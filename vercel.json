@@ -120,7 +120,7 @@
     },
     {
       "path": "/api/cron/receipt-extraction",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/worker-health",
