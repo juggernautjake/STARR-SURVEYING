@@ -1,4 +1,7 @@
 {
+  "git": {
+    "deploymentEnabled": false
+  },
   "functions": {
     "app/api/admin/research/[projectId]/browser-fetch/route.ts": {
       "memory": 1024,
@@ -117,7 +120,7 @@
     },
     {
       "path": "/api/cron/receipt-extraction",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/worker-health",

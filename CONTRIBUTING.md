@@ -92,6 +92,30 @@ cd worker && npm run dev   # worker on its own port (see worker/README)
 WS_TICKET_SECRET=$(openssl rand -hex 32) npm run ws   # serves on :3001
 ```
 
+## Builds and deploys (keep Vercel build minutes at zero)
+
+Vercel does **not** build this repo: `vercel.json` sets `git.deploymentEnabled: false`. The app is
+built on GitHub Actions (free for a public repo) and uploaded to Vercel already built:
+
+- **Push to `main`** → CI runs type-check, lint and tests, then the `deploy` job runs
+  `vercel build --prod` and `vercel deploy --prebuilt --prod`.
+- **Pull request** → the same, as a preview. The preview URL is in the run's summary.
+- The job needs the repository secret `VERCEL_TOKEN`. Without it, main fails loudly and isn't deployed.
+
+Check locally before pushing (free and fastest):
+
+```bash
+npm run check          # type-check, lint, tests, next build
+```
+
+`npm install` switches on a **pre-push hook** (`.githooks/pre-push`). It runs the type-check on
+every push, plus lint and `next build` on pushes to `main`. Skip it once with `git push --no-verify`.
+
+- **Redeploy main without a new commit:** Actions → CI → **Run workflow** on `main`.
+- **Vercel's packaging step (`vercel build`) only runs in CI, on Linux.** On Windows it fails with
+  "Unable to find lambda for route", even though `next build` succeeds.
+- **Emergency only:** if GitHub Actions is down, `npx vercel --prod` builds on Vercel, which bills build minutes.
+
 ## Local development setup (Phase A integrations)
 
 The Phase A integrations (Browserbase, CapSolver, Cloudflare R2,

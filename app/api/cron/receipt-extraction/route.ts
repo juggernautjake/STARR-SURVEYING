@@ -10,8 +10,9 @@
 //   * every receipt already sitting in the backlog from the months when nothing ran the worker —
 //     which is the reason this route exists at all, and is the first thing it will clear.
 //
-// Hourly rather than nightly: a receipt whose fields appear the same afternoon can be approved in
-// the same sitting, and a bookkeeper who has to come back tomorrow tends not to.
+// Every 10 minutes (vercel.json; every 2 until 2026-10-30, slowed to cut Vercel function memory
+// cost): a receipt whose fields appear the same afternoon can be approved in the same sitting.
+// Web-capture uploads are still extracted immediately; this only bounds the mobile/backlog wait.
 //
 // Auth: `Authorization: Bearer <CRON_SECRET>`, matching every other cron here.
 
