@@ -7,3 +7,6 @@
 *.sh text eol=lf
 *.service text eol=lf
 *.timer text eol=lf
+
+# Git hooks run under sh; keep LF.
+.githooks/* text eol=lf
