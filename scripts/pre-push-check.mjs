@@ -3,7 +3,7 @@
 // broken build fails here (free) instead of in CI or on Vercel.
 //
 //   any branch  → npm run type-check
-//   main        → npm run type-check, npm run lint, npm run build  (the same build CI deploys)
+//   main        → npm run type-check, npm run lint, npm run build  (the same build Vercel runs for main)
 //
 // Skip once:  git push --no-verify     or     SKIP_PREPUSH=1 git push
 // Hooks are switched on by `npm install` (scripts/install-git-hooks.mjs).

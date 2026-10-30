@@ -92,15 +92,15 @@ cd worker && npm run dev   # worker on its own port (see worker/README)
 WS_TICKET_SECRET=$(openssl rand -hex 32) npm run ws   # serves on :3001
 ```
 
-## Builds and deploys (keep Vercel build minutes at zero)
+## Builds and deploys
 
-Vercel does **not** build this repo: `vercel.json` sets `git.deploymentEnabled: false`. The app is
-built on GitHub Actions (free for a public repo) and uploaded to Vercel already built:
+Vercel builds **only `main`**: `vercel.json` sets `git.deploymentEnabled` to `{"**": false, "main": true}`.
+Other branches and pull requests get no Vercel build, which is what used to run up the build-minutes bill
+(about 900 commits across 67 branches in one month).
 
-- **Push to `main`** → CI runs type-check, lint and tests, then the `deploy` job runs
-  `vercel build --prod` and `vercel deploy --prebuilt --prod`.
-- **Pull request** → the same, as a preview. The preview URL is in the run's summary.
-- The job needs the repository secret `VERCEL_TOKEN`. Without it, main fails loudly and isn't deployed.
+- **Merge or push to `main`** → Vercel builds it with the project's environment variables and puts it live.
+- **Pull requests** → GitHub Actions runs type-check, lint and tests. No preview deployment.
+- **Try changes before `main`:** run the app locally (`npm run dev`), see below.
 
 Check locally before pushing (free and fastest):
 
@@ -111,10 +111,10 @@ npm run check          # type-check, lint, tests, next build
 `npm install` switches on a **pre-push hook** (`.githooks/pre-push`). It runs the type-check on
 every push, plus lint and `next build` on pushes to `main`. Skip it once with `git push --no-verify`.
 
-- **Redeploy main without a new commit:** Actions → CI → **Run workflow** on `main`.
-- **Vercel's packaging step (`vercel build`) only runs in CI, on Linux.** On Windows it fails with
-  "Unable to find lambda for route", even though `next build` succeeds.
-- **Emergency only:** if GitHub Actions is down, `npx vercel --prod` builds on Vercel, which bills build minutes.
+**Don't build on GitHub and upload a prebuilt app.** That was tried on 2026-10-30 and took production
+down: `vercel pull` returns this project's environment variables with **empty values**, so the build
+inlined the `https://placeholder.supabase.co` fallback from `lib/supabase.ts` and every database call
+failed with "fetch failed". Production was rolled back to the Oct 24 deployment.
 
 ## Local development setup (Phase A integrations)
 
