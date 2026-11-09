@@ -34,6 +34,8 @@ import FileExplorerDialog from './FileExplorerDialog';
 import SheetPreview from './SheetPreview';
 import { sheetFormat } from '@/lib/files/sheet-preview';
 import { fetchFileForPreview } from '@/lib/files/fetch-file';
+import VideoPlayer from '@/app/admin/components/media/VideoPlayer';
+import { videoKey } from '@/lib/viewers/video-memory';
 import './FileViewer.css';
 
 export interface FileViewerProps {
@@ -149,8 +151,15 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     }));
   }, [collection.files]);
   const [currentId, setCurrentId] = useState(fileId);
+  // ── FOLLOW THE CALLER; TELL IT ONLY ABOUT OUR OWN STEPS (2026-11-09) ──────────────────────────
+  // This used to report every change of `currentId` back through onCurrentChange — including the
+  // change that came FROM the caller. Two files clicked in quick succession then ping-ponged: the
+  // caller said B, the viewer (still on A) reported A, the caller said A, the viewer (now on B)
+  // reported B … until React gave up with "Maximum update depth exceeded" (error #185, a job's Files
+  // tab, 2026-11-04). Following the prop is silent now; `select` — the arrows, a move, a delete —
+  // is what reports.
   useEffect(() => { setCurrentId(fileId); }, [fileId]);
-  useEffect(() => { onCurrentChange?.(currentId); }, [currentId, onCurrentChange]);
+  const select = useCallback((id: string) => { setCurrentId(id); onCurrentChange?.(id); }, [onCurrentChange]);
   const index = files.findIndex((f) => f.id === currentId);
   const file = files[index] ?? files[0] ?? null;
   const kind = file ? fileKind(file.name, file.mime) : 'other';
@@ -263,8 +272,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const goTo = useCallback((step: 1 | -1) => {
     if (!file) return;
     const j = neighbourIndex(files, file.id, step);
-    if (j !== null) setCurrentId(files[j].id);
-  }, [files, file]);
+    if (j !== null) select(files[j].id);
+  }, [files, file, select]);
   const prevIndex = file ? neighbourIndex(files, file.id, -1) : null;
   const nextIndex = file ? neighbourIndex(files, file.id, 1) : null;
 
@@ -331,6 +340,11 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      // ── A VIDEO CLOSES ONLY ON THE X (owner, 2026-11-09) ──────────────────────────────────────
+      // "I need the video player to stay open and keep its place in the video until the user clicks
+      // the x button on the modal." Escape is also how people leave fullscreen, so it must not take
+      // the video away; and ← / → belong to the player (seek 5 s), not to the next file.
+      if (kind === 'video' && (e.key === 'Escape' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       if (e.key === 'Escape') { e.preventDefault(); close(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(-1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); goTo(1); }
@@ -354,7 +368,9 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   // ── pan by dragging, zoom by wheel ──
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    // A video or audio player is not panned — and capturing the pointer here took the drag away
+    // from the player's own scrub bar.
+    if (e.button !== 0 || kind === 'video' || kind === 'audio') return;
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -479,7 +495,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             if (action === 'copy' && capabilities.copy) {
               void run('Copy', async () => { await capabilities.copy!(file, d); setNotice(`Copied to ${d.label}.`); window.setTimeout(() => setNotice(null), 4000); });
             } else if (action === 'move' && capabilities.move) {
-              void run('Move', async () => { await capabilities.move!(file, d); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else setCurrentId(next[Math.min(index, next.length - 1)].id); });
+              void run('Move', async () => { await capabilities.move!(file, d); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else select(next[Math.min(index, next.length - 1)].id); });
             }
           }}
         />
@@ -559,7 +575,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
 
         {/* ── Toolbar ──────────────────────────────────────────────────── */}
         <div className="fv-tools">
-          <div className="fv-tools__group">
+          {/* Zoom does nothing to a video or audio player; its own bar has the controls that do. */}
+          <div className="fv-tools__group" hidden={kind === 'video' || kind === 'audio'}>
             <button type="button" className="fv-tool" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out (−)"><ZoomOut size={16} aria-hidden="true" /></button>
             <span className="fv-tools__zoom">{fit ? 'Fit' : `${Math.round(zoom * 100)}%`}</span>
             <button type="button" className="fv-tool" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in (+)"><ZoomIn size={16} aria-hidden="true" /></button>
@@ -588,7 +605,8 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             </div>
           ) : null}
           <div className="fv-tools__group fv-tools__hint">
-            {kind === 'image' || kind === 'pdf' ? 'Drag to pan · Ctrl + scroll or pinch to zoom at the cursor' : null}
+            {kind === 'image' || kind === 'pdf' ? 'Drag to pan · Ctrl + scroll or pinch to zoom at the cursor'
+              : kind === 'video' ? 'Space play/pause · ← → 5 s · J L 10 s · , . one frame · < > speed · closes only on ✕' : null}
           </div>
         </div>
 
@@ -632,13 +650,13 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
                 duration and the dimensions, a few hundred kilobytes; the rest arrives by range
                 request once somebody actually presses play. The poster gives it something to show
                 in the meantime instead of a black rectangle. */}
+            {/* One player per file (`key`), so each video keeps — and comes back to — its own place. */}
             {kind === 'video' && file.url ? (
-              <video
-                className="fv-media"
+              <VideoPlayer
+                key={file.id}
                 src={file.url}
+                storageKey={videoKey(file.id, file.url)}
                 poster={file.posterUrl ?? undefined}
-                preload="metadata"
-                controls
               />
             ) : null}
             {kind === 'audio' && file.url ? <audio className="fv-media" src={file.url} controls /> : null}
@@ -702,7 +720,7 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
               ) : null}
 
               {capabilities.delete ? (
-                <button type="button" className="fv-btn fv-btn--danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Delete "${file.name}"? This cannot be undone.`)) void run('Delete', async () => { await capabilities.delete!(file); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else setCurrentId(next[Math.min(index, next.length - 1)].id); }); }}>
+                <button type="button" className="fv-btn fv-btn--danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Delete "${file.name}"? This cannot be undone.`)) void run('Delete', async () => { await capabilities.delete!(file); onFileRemoved?.(file.id); const next = files.filter((f) => f.id !== file.id); setFiles(next); if (next.length === 0) close(); else select(next[Math.min(index, next.length - 1)].id); }); }}>
                   <Trash2 size={14} aria-hidden="true" /> Delete file
                 </button>
               ) : null}

@@ -1,6 +1,6 @@
 // app/admin/jobs/[id]/page.tsx — Job detail view with tabs
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
@@ -291,6 +291,25 @@ export default function JobDetailPage() {
     }
     setActiveTab(tab);
   }, []);
+
+  // ── THE TAB IS IN THE ADDRESS (owner, 2026-11-09) ─────────────────────────────────────────────
+  // A video open on the Files tab has to survive the page being rebuilt behind it (see
+  // FolderExplorer's OPEN_KEY). The page always started on Overview, so a reload lost the tab and,
+  // with it, the explorer that reopens the video. `?tab=` is read once on arrival and kept current
+  // with replaceState — no navigation, no history entry per click, and a link to a tab now works.
+  const tabFromUrl = useRef(false);
+  useEffect(() => {
+    if (tabFromUrl.current) return;
+    tabFromUrl.current = true;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t && (t === 'research' || t === 'cad' || t === 'photos' || t === 'videos' || TABS.some((x) => x.key === t))) openTab(t);
+  }, [openTab]);
+  useEffect(() => {
+    if (!tabFromUrl.current) return;
+    const url = new URL(window.location.href);
+    if (activeTab === 'overview') url.searchParams.delete('tab'); else url.searchParams.set('tab', activeTab);
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url.href);
+  }, [activeTab]);
 
   // Load tab-specific data on tab change
   useEffect(() => {
