@@ -9,10 +9,10 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  searchTranscript, queryTokens, normalizeToken, activeWordIndex, hitContext, transcriptLines, parseDeepgram,
+  searchTranscript, queryTokens, normalizeToken, activeWordIndex, hitContext, transcriptLines, parseScribe,
   SURVEY_KEYTERMS, type TranscriptWord,
 } from '@/lib/transcripts/model';
-import { deepgramUrl } from '@/lib/transcripts/deepgram';
+import { scribeForm } from '@/lib/transcripts/elevenlabs';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
@@ -84,43 +84,50 @@ describe('reading along', () => {
   });
 });
 
-describe('parseDeepgram', () => {
-  it('takes the punctuated word, its times and confidence, and the duration', () => {
-    const t = parseDeepgram({
-      metadata: { duration: 25.93 },
-      results: { channels: [{ alternatives: [{ transcript: 'Power pole here.', words: [
-        { word: 'power', punctuated_word: 'Power', start: 1.04, end: 1.36, confidence: 0.99 },
-        { word: 'pole', punctuated_word: 'pole', start: 1.36, end: 1.6, confidence: 0.97 },
-        { word: 'here', start: 1.7, end: 2.0, confidence: 0.91 },
-      ] }] }] },
+describe('parseScribe (ElevenLabs)', () => {
+  it('keeps only the words — not the spaces or tagged sounds — with times and a 0–1 confidence', () => {
+    const t = parseScribe({
+      text: 'Power pole here.', audio_duration_secs: 25.93,
+      words: [
+        { text: 'Power', type: 'word', start: 1.04, end: 1.36, logprob: 0 },
+        { text: ' ', type: 'spacing', start: 1.36, end: 1.36, logprob: 0 },
+        { text: 'pole', type: 'word', start: 1.36, end: 1.6, logprob: -0.05 },
+        { text: '(wind)', type: 'audio_event', start: 1.6, end: 1.7 },
+        { text: 'here.', type: 'word', start: 1.7, end: 2.0 },
+        { text: 'lost', type: 'word', start: null, end: null },
+      ],
     });
     expect(t.duration).toBe(25.93);
     expect(t.text).toBe('Power pole here.');
     expect(t.words).toEqual([
-      { w: 'Power', s: 1.04, e: 1.36, c: 0.99 },
-      { w: 'pole', s: 1.36, e: 1.6, c: 0.97 },
-      { w: 'here', s: 1.7, e: 2, c: 0.91 },
+      { w: 'Power', s: 1.04, e: 1.36, c: 1 },
+      { w: 'pole', s: 1.36, e: 1.6, c: 0.951 },
+      { w: 'here.', s: 1.7, e: 2 },
     ]);
   });
 
   it('refuses something that is not a transcript', () => {
-    expect(() => parseDeepgram({ error: 'nope' })).toThrow();
+    expect(() => parseScribe({ detail: { message: 'nope' } })).toThrow();
   });
 });
 
-describe('the Deepgram request', () => {
-  it('Nova-3, formatted, with the survey terms as repeated keyterm parameters', () => {
-    const u = new URL(deepgramUrl());
-    expect(u.origin + u.pathname).toBe('https://api.deepgram.com/v1/listen');
-    expect(u.searchParams.get('model')).toBe('nova-3');
-    expect(u.searchParams.get('smart_format')).toBe('true');
-    expect(u.searchParams.getAll('keyterm')).toContain('power pole');
-    expect(u.searchParams.getAll('keyterm').length).toBe(SURVEY_KEYTERMS.length);
+describe('the ElevenLabs request', () => {
+  it('Scribe, by URL, word timestamps, English, the survey terms one field each', () => {
+    const f = scribeForm('https://storage.example/v.mp4?token=x');
+    expect(f.get('model_id')).toBe('scribe_v2');
+    expect(f.get('source_url')).toBe('https://storage.example/v.mp4?token=x');
+    expect(f.get('timestamps_granularity')).toBe('word');
+    expect(f.getAll('keyterms')).toContain('power pole');
+    expect(f.getAll('keyterms').length).toBe(SURVEY_KEYTERMS.length);
   });
 
-  it('stays well inside the documented 100-term / 500-token keyterm limits', () => {
-    expect(SURVEY_KEYTERMS.length).toBeLessThanOrEqual(50);
-    expect(SURVEY_KEYTERMS.join(' ').split(/\s+/).length).toBeLessThan(150);
+  it('every key term fits the documented limits: 50 characters, 5 words, no brackets; under 100 terms', () => {
+    expect(SURVEY_KEYTERMS.length).toBeLessThan(100);
+    for (const k of SURVEY_KEYTERMS) {
+      expect(k.length).toBeLessThanOrEqual(50);
+      expect(k.split(/\s+/).length).toBeLessThanOrEqual(5);
+      expect(k).not.toMatch(/[<>{}[\]\\]/);
+    }
   });
 });
 
@@ -136,7 +143,7 @@ describe('the wiring', () => {
   });
 
   it('without a key it says transcription is not set up, rather than failing elsewhere', () => {
-    expect(ROUTE).toContain('if (!deepgramConfigured())');
+    expect(ROUTE).toContain('if (!transcriptionConfigured())');
   });
 
   it('the viewer shows the transcript beside a video and seeks the player from it', () => {

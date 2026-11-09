@@ -67,7 +67,7 @@ async function mockApi(page: Page, opts: { downloadDelayMs?: number } = {}) {
         ],
       } });
     }
-    // The transcript: none at first; a POST "transcribes" (Deepgram is not called — this is the
+    // The transcript: none at first; a POST "transcribes" (ElevenLabs is not called — this is the
     // shape the route answers with).
     if (/^\/api\/admin\/files\/.+\/transcript$/.test(p)) {
       if (route.request().method() === 'POST') { transcribed.value = true; return route.fulfill({ json: { transcript: DONE, configured: true } }); }

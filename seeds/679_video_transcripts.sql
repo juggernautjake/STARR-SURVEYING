@@ -24,7 +24,7 @@ create table if not exists public.video_transcripts (
   file_id text not null,
   file_name text,
   status text not null default 'processing' check (status in ('processing', 'done', 'failed')),
-  provider text not null default 'deepgram',
+  provider text not null default 'elevenlabs',
   model text,
   words jsonb not null default '[]'::jsonb,
   transcript text,

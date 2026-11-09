@@ -6,7 +6,7 @@
 // buildings, where utilities and features and improvements are, and other anomalies. We need to be
 // able to search the transcript for each instance of a word/phrase."
 //
-// Pure: no fetching, no React. The speech-to-text call is lib/transcripts/deepgram.ts; the panel is
+// Pure: no fetching, no React. The speech-to-text call is lib/transcripts/elevenlabs.ts; the panel is
 // app/admin/components/media/TranscriptPanel.tsx. Tested in __tests__/files/transcripts.test.ts.
 
 /** One spoken word: its text as shown (punctuated), and when it starts and ends, in seconds. */
@@ -33,9 +33,10 @@ export interface TranscriptHit {
 }
 
 /**
- * Words the recogniser is told to listen for (Deepgram "keyterm", Nova-3 only). Field talk is full of
- * terms a general model mishears — "guy wire" as "guy wear", "T-post" as "tea post". Kept to the
- * terms most worth getting right: the docs advise 20–50, and cap a request at 500 tokens.
+ * Words the recogniser is told to listen for (ElevenLabs Scribe `keyterms`). Field talk is full of
+ * terms a general model mishears — "guy wire" as "guy wear", "T-post" as "tea post". Each must be at
+ * most 50 characters and 5 words; past 100 terms every request bills a 20-second minimum, so the list
+ * stays well short of that.
  */
 export const SURVEY_KEYTERMS = [
   'chain link', 'barbed wire', 'T-post', 'pipe fence', 'privacy fence', 'wrought iron', 'pipe rail',
@@ -131,22 +132,24 @@ export function transcriptLines(words: TranscriptWord[], gap = 1.2, max = 28): A
   return lines;
 }
 
-/** Deepgram's pre-recorded response → our shape. Throws if it is not one. */
-export function parseDeepgram(json: unknown): Transcript {
+/** ElevenLabs Scribe's response → our shape. Only `type: "word"` items are words (the others are
+ *  the spaces between them and tagged sounds); confidence is the word's log-probability, exponentiated.
+ *  Throws if it is not a transcript. */
+export function parseScribe(json: unknown): Transcript {
   const j = json as {
-    metadata?: { duration?: number };
-    results?: { channels?: Array<{ alternatives?: Array<{ transcript?: string; words?: Array<{ word?: string; punctuated_word?: string; start?: number; end?: number; confidence?: number }> }> }> };
+    text?: string;
+    audio_duration_secs?: number;
+    words?: Array<{ text?: string; type?: string; start?: number | null; end?: number | null; logprob?: number }>;
   };
-  const alt = j?.results?.channels?.[0]?.alternatives?.[0];
-  if (!alt || !Array.isArray(alt.words)) throw new Error('The transcription service returned no words.');
-  const words: TranscriptWord[] = alt.words
-    .filter((w) => typeof w.start === 'number' && typeof w.end === 'number' && (w.punctuated_word || w.word))
+  if (!j || !Array.isArray(j.words)) throw new Error('The transcription service returned no words.');
+  const words: TranscriptWord[] = j.words
+    .filter((w) => (w.type ?? 'word') === 'word' && typeof w.start === 'number' && typeof w.end === 'number' && (w.text ?? '').trim())
     .map((w) => ({
-      w: String(w.punctuated_word || w.word),
-      s: Math.round(w.start! * 1000) / 1000,
-      e: Math.round(w.end! * 1000) / 1000,
-      ...(typeof w.confidence === 'number' ? { c: Math.round(w.confidence * 1000) / 1000 } : {}),
+      w: String(w.text).trim(),
+      s: Math.round((w.start as number) * 1000) / 1000,
+      e: Math.round((w.end as number) * 1000) / 1000,
+      ...(typeof w.logprob === 'number' ? { c: Math.round(Math.min(1, Math.exp(w.logprob)) * 1000) / 1000 } : {}),
     }));
-  const duration = typeof j.metadata?.duration === 'number' ? j.metadata.duration : null;
-  return { words, text: alt.transcript ?? words.map((w) => w.w).join(' '), duration };
+  const duration = typeof j.audio_duration_secs === 'number' ? j.audio_duration_secs : null;
+  return { words, text: (j.text ?? words.map((w) => w.w).join(' ')).trim(), duration };
 }

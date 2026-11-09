@@ -15,9 +15,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { FileUser } from '@/lib/files/permissions';
 import { fileKind } from '@/lib/files/viewer-model';
 import { mediaForTranscript } from '@/lib/transcripts/media-url';
-import { transcribeUrl, deepgramConfigured, DEEPGRAM_MODEL } from '@/lib/transcripts/deepgram';
+import { transcribeUrl, transcriptionConfigured, SCRIBE_MODEL } from '@/lib/transcripts/elevenlabs';
 
-// Deepgram works through a long video in well under this, but it is the ceiling the request has.
+// The ceiling this request has. Scribe is quick, but an hour-long video may need the webhook mode.
 export const maxDuration = 300;
 
 const DEFAULT_ORG = '00000000-0000-0000-0000-000000000001';
@@ -42,15 +42,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const { data, error } = await supabaseAdmin
     .from('video_transcripts').select(COLUMNS).eq('org_id', me.org).eq('file_id', id).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ transcript: data ?? null, configured: deepgramConfigured() });
+  return NextResponse.json({ transcript: data ?? null, configured: transcriptionConfigured() });
 }
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const me = await who();
   if (!me) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const id = decodeURIComponent(params.id);
-  if (!deepgramConfigured()) {
-    return NextResponse.json({ error: 'Transcription is not set up yet: the DEEPGRAM_API_KEY setting is missing on the server.' }, { status: 503 });
+  if (!transcriptionConfigured()) {
+    return NextResponse.json({ error: 'Transcription is not set up yet: no ElevenLabs key (ELEVENLABS_STT_API_KEY or ELEVENLABS_API_KEY) on the server.' }, { status: 503 });
   }
   const media = await mediaForTranscript(id, me.user, me.admin, true);
   if (!media.ok) return NextResponse.json({ error: media.error }, { status: media.status });
@@ -67,7 +67,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const now = new Date().toISOString();
   const { error: upErr } = await supabaseAdmin.from('video_transcripts').upsert({
-    org_id: me.org, file_id: id, file_name: media.name, status: 'processing', provider: 'deepgram', model: DEEPGRAM_MODEL,
+    org_id: me.org, file_id: id, file_name: media.name, status: 'processing', provider: 'elevenlabs', model: SCRIBE_MODEL,
     error: null, requested_by: me.user.email, updated_at: now,
   }, { onConflict: 'org_id,file_id' });
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });

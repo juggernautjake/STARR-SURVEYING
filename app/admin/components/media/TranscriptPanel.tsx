@@ -145,7 +145,7 @@ export default function TranscriptPanel({ fileId, currentTime, onSeek }: Transcr
           <button type="button" className="tp__btn" onClick={() => void transcribe()} disabled={!configured || busy} data-testid="tp-transcribe">
             {row?.status === 'failed' ? 'Try again' : 'Transcribe this video'}
           </button>
-          {!configured ? <p className="tp__hint">Transcription isn&apos;t set up on the server yet (DEEPGRAM_API_KEY).</p> : null}
+          {!configured ? <p className="tp__hint">Transcription isn&apos;t set up on the server yet (no ElevenLabs key).</p> : null}
         </div>
       ) : null}
 
