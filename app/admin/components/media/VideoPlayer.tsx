@@ -220,7 +220,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
         onTimeUpdate={onTime}
         onPlay={() => setPlaying(true)}
         onPause={() => { setPlaying(false); save(); }}
-        onSeeked={save}
+        // A seek while paused should show its new time (and light the transcript's word) at once.
+        onSeeked={() => { onTime(); save(); }}
         onRateChange={() => { const r = videoRef.current?.playbackRate; if (r && r !== speed && (SPEEDS as readonly number[]).includes(r)) { setSpeedState(r); saveSpeed(r); } }}
         onError={onError}
       />

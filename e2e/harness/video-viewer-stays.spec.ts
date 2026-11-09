@@ -27,7 +27,16 @@ const FILES = [
   { id: 'jf1', name: 'IMG_5792.jpg', mime: 'image/jpeg', size: 90_000 },
 ];
 
+/** A transcript for the 6-second clip: a word every 0.4 s from 0.2 s. */
+const SPOKEN = 'North side has a chain-link fence. The power pole by the barn has a guy wire. Another power pole, then the meter.'.split(' ');
+const DONE = {
+  status: 'done', duration_seconds: 6, error: null, completed_at: '2026-11-09T12:00:00Z',
+  words: SPOKEN.map((w, i) => ({ w, s: Math.round((0.2 + i * 0.25) * 100) / 100, e: Math.round((0.4 + i * 0.25) * 100) / 100, c: 0.98 })),
+};
+const transcribed = { value: false };
+
 async function mockApi(page: Page, opts: { downloadDelayMs?: number } = {}) {
+  transcribed.value = false;
   await page.route(/supabase\.co/, (r) => r.abort());
   await page.route('**/stored/**', (r) => {
     const video = r.request().url().includes('.mp4');
@@ -57,6 +66,12 @@ async function mockApi(page: Page, opts: { downloadDelayMs?: number } = {}) {
           { id: PHOTOS, name: 'Photos', path: ['Photos'], depth: 1, parent_id: ROOT, folder_key: 'photos', files },
         ],
       } });
+    }
+    // The transcript: none at first; a POST "transcribes" (Deepgram is not called — this is the
+    // shape the route answers with).
+    if (/^\/api\/admin\/files\/.+\/transcript$/.test(p)) {
+      if (route.request().method() === 'POST') { transcribed.value = true; return route.fulfill({ json: { transcript: DONE, configured: true } }); }
+      return route.fulfill({ json: { transcript: transcribed.value ? DONE : null, configured: true } });
     }
     const dl = /^\/api\/admin\/files\/(.+)\/download$/.exec(p);
     if (dl) {
@@ -150,4 +165,52 @@ test('two files opened in quick succession settle on the second — no "Maximum 
   await page.waitForTimeout(1500);
   await expect(page.locator('.fv-head__title')).toContainText('pole-line.mp4');
   expect(errors.filter((e) => /185|Maximum update depth/.test(e))).toEqual([]);
+});
+
+test('the transcript: transcribe, search every instance of a phrase, and jump the video to each', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await mockApi(page);
+  await page.addInitScript(() => { try { localStorage.removeItem('fv-transcript-open'); } catch { /* fresh */ } });
+  await openGrid(page);
+  await page.locator('.fe__card', { hasText: 'fence-walk.mp4' }).hover();
+  await openButton(page, 'fence-walk.mp4').click();
+  await expect.poll(() => videoReady(page), { timeout: 30_000 }).toBeGreaterThan(0);
+
+  await page.getByTestId('fv-transcript').click();
+  await page.getByTestId('tp-transcribe').click();
+  const search = page.getByTestId('tp-search');
+  await expect(search).toBeVisible();
+
+  await search.fill('power pole');
+  await expect(page.getByTestId('tp-count')).toHaveText('1 of 2 matches');
+  const second = DONE.words.findIndex((w, i) => i > 10 && w.w === 'power');
+  await page.locator('.tp__hit').nth(1).click();
+  await expect.poll(() => videoTime(page)).toBeCloseTo(DONE.words[second].s - 0.4, 1);
+  await expect(page.getByTestId('tp-count')).toHaveText('2 of 2 matches');
+  // The player's clock and the lit word follow the jump.
+  await expect(page.locator('.vp__time')).toContainText('0:04 /');
+  await expect(page.locator('.tp__w--now')).toHaveText('wire.');   // a jump starts 0.4 s early, inside the word before
+  await page.screenshot({ path: 'test-results/video-transcript-search.png' });
+
+  // Hyphenated in the transcript, spaced in the search — still found.
+  await search.fill('chain link');
+  await expect(page.getByTestId('tp-count')).toHaveText('1 of 1 match');
+  await search.press('Enter');
+  const chain = DONE.words.findIndex((w) => w.w === 'chain-link');
+  await expect.poll(() => videoTime(page)).toBeCloseTo(Math.max(0, DONE.words[chain].s - 0.4), 1);
+
+  // Typing in the search box must not drive the player (Space, J, L are player keys).
+  const before = await videoTime(page);
+  await search.fill('');
+  await search.type('j l k');
+  expect(await videoTime(page)).toBeCloseTo(before, 1);
+
+  // Any word in the transcript is a link to its moment.
+  const meter = DONE.words.findIndex((w) => w.w.startsWith('meter'));
+  await page.locator(`.tp__w[data-w="${meter}"]`).click();
+  await expect.poll(() => videoTime(page)).toBeCloseTo(DONE.words[meter].s, 1);
+  await page.screenshot({ path: 'test-results/video-transcript.png' });
+
+  expect(errors).toEqual([]);
 });

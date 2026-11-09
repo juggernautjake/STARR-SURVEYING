@@ -105,7 +105,7 @@ describe('the wiring', () => {
   const JOB = read('app/admin/jobs/[id]/page.tsx');
 
   it('both viewers play video through the one player, one player per file', () => {
-    expect(VIEWER).toMatch(/<VideoPlayer\s+key=\{file\.id\}/);
+    expect(VIEWER).toMatch(/<VideoPlayer[^>]*?key=\{file\.id\}/);
     expect(MEDIA).toMatch(/<VideoPlayer\s+key=\{videoKey\(/);
     expect(VIEWER).not.toMatch(/<video\b/);
     expect(MEDIA).not.toMatch(/<video\b/);

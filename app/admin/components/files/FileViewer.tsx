@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, RotateCw, Download, Info,
   FileText, Image as ImageIcon, File as FileIcon, Loader2, Check, Pencil, Tag, StickyNote,
-  FolderInput, Copy, Trash2, AlertTriangle,
+  FolderInput, Copy, Trash2, AlertTriangle, FileAudio,
 } from 'lucide-react';
 import {
   fileKind, neighbourIndex, applyRename, normalizeTags,
@@ -34,7 +34,8 @@ import FileExplorerDialog from './FileExplorerDialog';
 import SheetPreview from './SheetPreview';
 import { sheetFormat } from '@/lib/files/sheet-preview';
 import { fetchFileForPreview } from '@/lib/files/fetch-file';
-import VideoPlayer from '@/app/admin/components/media/VideoPlayer';
+import VideoPlayer, { type VideoPlayerHandle } from '@/app/admin/components/media/VideoPlayer';
+import TranscriptPanel from '@/app/admin/components/media/TranscriptPanel';
 import { videoKey } from '@/lib/viewers/video-memory';
 import './FileViewer.css';
 
@@ -176,6 +177,16 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  // ── TRANSCRIPT (owner, 2026-11-09) ── a video's timed, searchable transcript beside it. Open or
+  // closed is remembered, so somebody working through a job's videos keeps it open.
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  useEffect(() => { try { setTranscriptOpen(localStorage.getItem('fv-transcript-open') === '1'); } catch { /* default closed */ } }, []);
+  const toggleTranscript = useCallback(() => {
+    setTranscriptOpen((o) => { try { localStorage.setItem('fv-transcript-open', o ? '0' : '1'); } catch { /* not remembered */ } return !o; });
+  }, []);
+  const playerRef = useRef<VideoPlayerHandle>(null);
+  const [videoTime, setVideoTime] = useState(0);
+  useEffect(() => { setVideoTime(0); }, [currentId]);
   const [closing, setClosing] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -562,6 +573,11 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
               {downloading ? <Loader2 size={15} className="fv-spin motion-essential" aria-hidden="true" /> : <Download size={15} aria-hidden="true" />}
               {canChooseWhereToSave() ? 'Save as…' : 'Download'}
             </button>
+            {kind === 'video' && file.url ? (
+              <button type="button" className={`fv-btn${transcriptOpen ? ' fv-btn--on' : ''}`} onClick={toggleTranscript} aria-pressed={transcriptOpen} title="What was said, word by word — search it and jump to any moment" data-testid="fv-transcript">
+                <FileAudio size={15} aria-hidden="true" /> Transcript
+              </button>
+            ) : null}
             {canEdit || (file.meta && file.meta.length > 0) || file.notes || (file.tags && file.tags.length > 0) ? (
               <button type="button" className={`fv-btn${infoOpen ? ' fv-btn--on' : ''}`} onClick={() => setInfoOpen((o) => !o)} aria-pressed={infoOpen} title="Details, notes and tags">
                 <Info size={15} aria-hidden="true" /> Details
@@ -653,7 +669,9 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
             {/* One player per file (`key`), so each video keeps — and comes back to — its own place. */}
             {kind === 'video' && file.url ? (
               <VideoPlayer
+                ref={playerRef}
                 key={file.id}
+                onTimeUpdate={setVideoTime}
                 src={file.url}
                 storageKey={videoKey(file.id, file.url)}
                 poster={file.posterUrl ?? undefined}
@@ -667,6 +685,10 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
               </div>
             ) : null}
           </div>
+
+          {kind === 'video' && file.url && transcriptOpen ? (
+            <TranscriptPanel key={file.id} fileId={file.id} currentTime={videoTime} onSeek={(t) => playerRef.current?.seekTo(t)} />
+          ) : null}
 
           {/* ── Info panel ────────────────────────────────────────────── */}
           {infoOpen ? (
