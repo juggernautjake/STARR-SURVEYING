@@ -123,7 +123,7 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
   return (
     <div className="pay-card-form" data-testid="pay-card-form">
       <div className="pay-card-form__head">
-        <span className="pay-card-form__title">Pay securely by card</span>
+        <span className="pay-card-form__title">Pay by card or bank account</span>
         <span className="pay-card-form__secure" aria-hidden="true">🔒 Encrypted by Stripe</span>
       </div>
       <Elements stripe={stripePromise} options={{ clientSecret, appearance: STRIPE_APPEARANCE }}>
@@ -183,7 +183,8 @@ function CardFields({
         </button>
       </div>
       <p className="pay-card-form__foot">
-        Powered by Stripe — your card details are encrypted and never touch our servers.
+        Powered by Stripe — your card and bank details are encrypted and never touch our servers.
+        Paying from a bank account saves us card fees — thank you!
       </p>
     </form>
   );

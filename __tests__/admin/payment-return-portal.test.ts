@@ -155,7 +155,7 @@ describe('public invoice route — P8 payments array', () => {
   const SRC = read('app/api/public/invoice/[number]/route.ts');
 
   it("selects the receipt columns (method / cleared_at / external_id / payer_email)", () => {
-    expect(SRC).toMatch(/\.select\('amount_cents, method, status, cleared_at, external_id, payer_email'\)/);
+    expect(SRC).toMatch(/\.select\('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents'\)/);
   });
 
   it("maps to PublicPaymentSummary via describePaymentForReceipt", () => {

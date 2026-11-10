@@ -44,9 +44,16 @@ describe('buildPaymentIntentParams (pure)', () => {
         public_slug: 'slug-x',
       },
       payment_method_types: ['card', 'us_bank_account'],
-      automatic_payment_methods: { enabled: true },
       receipt_email: 'mary@example.com',
     });
+  });
+
+  it('never sets automatic_payment_methods beside payment_method_types (Stripe refuses both)', () => {
+    const params = buildPaymentIntentParams({
+      id: 'i', invoice_number: 'N', public_slug: 's', balance_cents: 100,
+    }) as unknown as Record<string, unknown>;
+    expect(params.payment_method_types).toEqual(['card', 'us_bank_account']);
+    expect(params).not.toHaveProperty('automatic_payment_methods');
   });
 
   it("omits receipt_email when the customer has none", () => {
@@ -217,19 +224,20 @@ describe('app/api/webhooks/stripe/route.ts — invoice routing', () => {
 
   it("imports the P5 helpers + gates the new path behind paymentsAreLive", () => {
     expect(SRC).toMatch(/extractInvoiceFromStripeEvent/);
-    expect(SRC).toMatch(/nextInvoiceStatusAfterPayment/);
+    // 2026-11-10: the status is re-derived from ALL payments (lib/payments/stripe-lifecycle.ts),
+    // so refunds, chargebacks and bounced bank payments land right too.
+    expect(SRC).toMatch(/invoiceStatusFromPayments/);
     expect(SRC).toMatch(/stripeEventIsUsd/);
-    expect(SRC).toMatch(/sumSucceededPayments/);
     expect(SRC).toMatch(/paymentsAreLive/);
   });
 
   it("routes intents with metadata.invoice_id to the new clearance helper", () => {
-    expect(SRC).toMatch(/typeof metadata\.invoice_id === 'string'/);
-    expect(SRC).toMatch(/handleInvoicePaymentIntentSucceeded/);
+    expect(SRC).toMatch(/typeof meta\.invoice_id === 'string'/);
+    expect(SRC).toMatch(/handleInvoiceIntent\(paymentIntent, 'succeeded'\)/);
   });
 
   it("dedupes by external_id so retried webhooks don't double-charge", () => {
-    expect(SRC).toMatch(/\.eq\('external_id', key\.external_intent_id\)/);
+    expect(SRC).toMatch(/\.eq\('external_provider', 'stripe'\)\.eq\('external_id', intentId\)/);
     expect(SRC).toMatch(/already recorded/);
   });
 
@@ -239,12 +247,11 @@ describe('app/api/webhooks/stripe/route.ts — invoice routing', () => {
 
   it("INSERTs the payment row with method='stripe' + cleared_at", () => {
     expect(SRC).toMatch(/method: 'stripe'/);
-    expect(SRC).toMatch(/cleared_at: new Date\(\)\.toISOString\(\)/);
+    expect(SRC).toMatch(/status: 'succeeded',[\s\S]{0,160}cleared_at: now/);
   });
 
-  it("UPDATEs the invoice status via nextInvoiceStatusAfterPayment", () => {
-    expect(SRC).toMatch(/status: nextStatus/);
-    expect(SRC).toMatch(/paid_at: nextStatus === 'paid' \? new Date\(\)\.toISOString\(\) : null/);
+  it("UPDATEs the invoice status, re-derived from all its payments", () => {
+    expect(SRC).toMatch(/paid_at: status === 'paid' \? \(invoice\.paid_at \?\? new Date\(\)\.toISOString\(\)\) : null/);
   });
 });
 
