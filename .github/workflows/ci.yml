@@ -74,7 +74,10 @@ jobs:
   # Worker package tests (Phase 1-11 backend pipeline)
   worker-test:
     name: Worker Tests
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, where the worker's Playwright (1.58) cannot install
+    # Chromium ("Playwright does not support chromium on ubuntu26.04-x64"). Move back to latest
+    # when the worker's Playwright is upgraded to a release that supports it.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
