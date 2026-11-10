@@ -179,8 +179,10 @@ export default function FileViewer({ collection, fileId, capabilities = {}, onCl
   const [infoOpen, setInfoOpen] = useState(false);
   // ── TRANSCRIPT (owner, 2026-11-09) ── a video's timed, searchable transcript beside it. Open or
   // closed is remembered, so somebody working through a job's videos keeps it open.
-  const [transcriptOpen, setTranscriptOpen] = useState(false);
-  useEffect(() => { try { setTranscriptOpen(localStorage.getItem('fv-transcript-open') === '1'); } catch { /* default closed */ } }, []);
+  // Open by default, so the Transcribe button and the words are in sight beside every video; closing
+  // it is remembered (owner, 2026-11-10: "make sure we can see the transcribe button for videos").
+  const [transcriptOpen, setTranscriptOpen] = useState(true);
+  useEffect(() => { try { setTranscriptOpen(localStorage.getItem('fv-transcript-open') !== '0'); } catch { /* default open */ } }, []);
   const toggleTranscript = useCallback(() => {
     setTranscriptOpen((o) => { try { localStorage.setItem('fv-transcript-open', o ? '0' : '1'); } catch { /* not remembered */ } return !o; });
   }, []);
