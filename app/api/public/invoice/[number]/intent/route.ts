@@ -32,6 +32,7 @@ import {
 } from '@/lib/payments/stripe';
 import { PUBLIC_BLOCKED_STATUSES, sumSucceededPayments } from '@/lib/payments/invoice-public';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
+import { pendingCents } from '@/lib/payments/stripe-lifecycle';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -80,12 +81,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, status')
+    .select('amount_cents, status, refunded_cents')
     .eq('invoice_id', invoice.id);
-  const paid = sumSucceededPayments(payments ?? []);
+  const paidOnly = sumSucceededPayments(payments ?? []);
+  if (paidOnly >= (invoice.total_cents ?? 0)) {
+    return NextResponse.json({ error: 'Invoice is already paid in full.' }, { status: 409 });
+  }
+  // A bank payment still clearing counts as on its way: it is not owed again (seeds/680).
+  const paid = paidOnly + pendingCents(payments ?? []);
   const balance = Math.max(0, (invoice.total_cents ?? 0) - paid);
   if (balance <= 0) {
-    return NextResponse.json({ error: 'Invoice is already paid in full.' }, { status: 409 });
+    return NextResponse.json({ error: 'A bank payment for the rest of this invoice is already clearing. It usually takes about 4 business days.' }, { status: 409 });
   }
 
   // Customer may pay a partial amount (defaults to the full balance), but it

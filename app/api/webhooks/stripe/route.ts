@@ -9,6 +9,17 @@
 //   invoice.payment_failed          → Notify user + retry logic
 //   checkout.session.completed      → Fulfill checkout (wallet funding or doc purchase)
 //
+// Customer invoice payments (/pay, owner 2026-11-10: "set up online payments … however it makes
+// the most sense") — every event updates the payment, then the invoice's status is worked out
+// again from ALL its payments (lib/payments/stripe-lifecycle.ts):
+//   payment_intent.processing       → bank (ACH) payment clearing: payment `pending`
+//   payment_intent.succeeded        → payment `succeeded` (a pending one is promoted, not duplicated)
+//   payment_intent.payment_failed   → a pending bank payment that bounced → `failed`; office told
+//   charge.refunded                 → `refunded_cents` (+ `refunded` when whole); balance reopens
+//   charge.dispute.*                → chargeback: `disputed` until won; office told
+// A failure while handling one of these answers 500 and forgets the event, so Stripe sends it again
+// rather than the payment being lost.
+//
 // Security: All requests verified via Stripe-Signature header using
 //           STRIPE_WEBHOOK_SECRET environment variable.
 //
@@ -25,11 +36,14 @@ import { registerAllEvents } from '@/lib/saas/notifications/events';
 import { paymentsAreLive } from '@/lib/payments/live';
 import {
   extractInvoiceFromStripeEvent,
-  nextInvoiceStatusAfterPayment,
   stripeEventIsUsd,
 } from '@/lib/payments/stripe';
 import type { StripeEventLike } from '@/lib/payments/stripe';
-import { sumSucceededPayments } from '@/lib/payments/invoice-public';
+import {
+  invoiceStatusFromPayments, refundState, paymentStatusForDispute, stripeCents, intentIdOf,
+} from '@/lib/payments/stripe-lifecycle';
+import { sendEmailViaResend } from '@/lib/saas/notifications/email';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
 
 // Idempotent — runs on first webhook hit then short-circuits.
 // The notifications service needs to know about its events before
@@ -97,8 +111,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Webhook] Event processing failed for ${event.type}:`, msg);
-    // Return 200 even on processing errors so Stripe doesn't retry
-    // (log the error internally for investigation)
+    // A customer's money: forget the event and answer 500, so Stripe sends it again (it retries for
+    // three days) instead of the payment being lost to one database hiccup. Every invoice handler is
+    // safe to run twice.
+    if (isInvoiceMoneyEvent(event)) {
+      try {
+        await supabaseAdmin.from('processed_webhook_events').delete().eq('stripe_event_id', event.id);
+      } catch { /* the retry still runs; dedup is best-effort */ }
+      return NextResponse.json({ received: false, error: msg }, { status: 500 });
+    }
+    // Everything else keeps its old answer — logged, 200, no retry — because the wallet handlers
+    // are not safe to run twice.
     return NextResponse.json({ received: true, error: msg });
   }
 }
@@ -223,12 +246,27 @@ async function processStripeEvent(event: StripeEvent): Promise<void> {
       await handleCheckoutCompleted(event.data.object);
       break;
 
+    case 'payment_intent.processing':
+      if (isInvoiceIntent(event.data.object)) await handleInvoiceIntent(event.data.object, 'pending');
+      break;
+
     case 'payment_intent.succeeded':
       await handlePaymentIntentSucceeded(event.data.object);
       break;
 
     case 'payment_intent.payment_failed':
-      await handlePaymentFailed(event.data.object);
+      if (isInvoiceIntent(event.data.object)) await handleInvoiceIntent(event.data.object, 'failed');
+      else await handlePaymentFailed(event.data.object);
+      break;
+
+    case 'charge.refunded':
+      await handleChargeRefunded(event.data.object);
+      break;
+
+    case 'charge.dispute.created':
+    case 'charge.dispute.updated':
+    case 'charge.dispute.closed':
+      await handleDispute(event.data.object, event.type);
       break;
 
     case 'customer.subscription.updated':
@@ -331,25 +369,56 @@ async function handlePaymentIntentSucceeded(paymentIntent: Record<string, unknow
   // `/pay` portal stamp `metadata.invoice_id`. Route those to the
   // invoice-clearance helper; everything else is the legacy
   // subscription / wallet path and just gets logged.
-  const metadata = (paymentIntent.metadata as Record<string, unknown> | undefined) ?? {};
-  if (typeof metadata.invoice_id === 'string' && metadata.invoice_id.length > 0) {
-    if (!paymentsAreLive()) {
-      console.warn('[Webhook] invoice payment intent received but PAYMENTS_LIVE=false');
-      return;
-    }
-    await handleInvoicePaymentIntentSucceeded(paymentIntent);
+  if (isInvoiceIntent(paymentIntent)) {
+    await handleInvoiceIntent(paymentIntent, 'succeeded');
     return;
   }
   // Legacy / SaaS path — audit log only.
   console.log(`[Webhook] PaymentIntent succeeded: ${paymentIntent.id as string}`);
 }
 
-/** payment-infrastructure-2026-06-18 P5 — clear the invoice, write
- *  the payment row, update the shadow row. Idempotent via dedupe on
- *  `payments.external_id`. */
-async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string, unknown>): Promise<void> {
+// ── Customer invoice payments ─────────────────────────────────────────────────
+
+const PAYMENT_COLUMNS = 'id, invoice_id, amount_cents, status, refunded_cents';
+type PaymentRow = { id: string; invoice_id: string; amount_cents: number; status: string; refunded_cents: number | null };
+
+function isInvoiceIntent(obj: Record<string, unknown>): boolean {
+  const meta = (obj.metadata as Record<string, unknown> | undefined) ?? {};
+  return typeof meta.invoice_id === 'string' && meta.invoice_id.length > 0;
+}
+
+/** Events that move a customer's money — the ones worth a Stripe retry when handling fails. */
+function isInvoiceMoneyEvent(event: StripeEvent): boolean {
+  if (event.type.startsWith('charge.')) return true;
+  return event.type.startsWith('payment_intent.') && isInvoiceIntent(event.data.object);
+}
+
+async function paymentForIntent(intentId: string): Promise<PaymentRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from('payments').select(PAYMENT_COLUMNS)
+    .eq('external_provider', 'stripe').eq('external_id', intentId).maybeSingle();
+  if (error) throw new Error(`payments lookup failed: ${error.message}`);
+  return (data as PaymentRow | null) ?? null;
+}
+
+function bankReason(paymentIntent: Record<string, unknown>): string {
+  return (paymentIntent.last_payment_error as { message?: string } | null)?.message ?? 'not given';
+}
+
+/**
+ * A PaymentIntent for an invoice reached `pending` (a bank payment clearing), `succeeded`, or
+ * `failed`. Writes or moves the one payment row for the intent, then re-derives the invoice. Safe
+ * out of order and twice: a late `processing` never demotes a succeeded payment, a repeated
+ * `succeeded` writes nothing, and a decline with no payment row (a card typed wrong at checkout)
+ * writes nothing.
+ */
+async function handleInvoiceIntent(paymentIntent: Record<string, unknown>, outcome: 'pending' | 'succeeded' | 'failed'): Promise<void> {
+  if (!paymentsAreLive()) {
+    console.warn(`[Webhook] invoice payment intent (${outcome}) received but PAYMENTS_LIVE=false`);
+    return;
+  }
   const event: StripeEventLike = {
-    type: 'payment_intent.succeeded',
+    type: `payment_intent.${outcome}`,
     data: { object: paymentIntent as NonNullable<StripeEventLike['data']>['object'] },
   };
   if (!stripeEventIsUsd(event)) {
@@ -359,27 +428,11 @@ async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string,
   const key = extractInvoiceFromStripeEvent(event);
   if (!key.external_intent_id) return;
 
-  // Dedupe — Stripe can retry; we already wrote this payment if
-  // there's a row with external_id = intent.id.
-  const { data: existing } = await supabaseAdmin
-    .from('payments')
-    .select('id')
-    .eq('external_id', key.external_intent_id)
-    .eq('external_provider', 'stripe')
-    .maybeSingle();
-  if (existing) {
-    console.log(`[Webhook] invoice payment intent ${key.external_intent_id} already recorded`);
-    return;
-  }
-
   // Find the invoice — metadata first, shadow row second.
   let invoiceId = key.invoice_id;
   if (!invoiceId) {
     const { data: shadow } = await supabaseAdmin
-      .from('payment_intents')
-      .select('invoice_id')
-      .eq('external_intent_id', key.external_intent_id)
-      .maybeSingle();
+      .from('payment_intents').select('invoice_id').eq('external_intent_id', key.external_intent_id).maybeSingle();
     invoiceId = shadow?.invoice_id ?? null;
   }
   if (!invoiceId) {
@@ -387,50 +440,158 @@ async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string,
     return;
   }
 
-  const { data: invoice } = await supabaseAdmin
-    .from('customer_invoices')
-    .select('id, total_cents, status')
-    .eq('id', invoiceId)
-    .maybeSingle();
-  if (!invoice) return;
+  const now = new Date().toISOString();
+  const existing = await paymentForIntent(key.external_intent_id);
+  const amount = outcome === 'succeeded' ? key.amount_received : stripeCents(paymentIntent, 'amount');
+  let bounced = false;
 
-  const { data: existingPayments } = await supabaseAdmin
-    .from('payments')
-    .select('amount_cents, status')
-    .eq('invoice_id', invoice.id);
-  const alreadyPaid = sumSucceededPayments(existingPayments ?? []);
-  const nextStatus = nextInvoiceStatusAfterPayment({
-    totalCents: invoice.total_cents ?? 0,
-    alreadyPaidCents: alreadyPaid,
-    newPaymentCents: key.amount_received,
-    currentStatus: invoice.status,
-  });
+  if (outcome === 'pending') {
+    if (!existing) {
+      const { error } = await supabaseAdmin.from('payments').insert({
+        invoice_id: invoiceId, amount_cents: amount, method: 'stripe', status: 'pending',
+        external_id: key.external_intent_id, external_provider: 'stripe', payer_email: key.receipt_email,
+        notes: 'Bank payment clearing (about 4 business days).',
+      });
+      if (error) throw new Error(`pending payment insert failed: ${error.message}`);
+    }
+  } else if (outcome === 'succeeded') {
+    if (!existing) {
+      const { error } = await supabaseAdmin.from('payments').insert({
+        invoice_id: invoiceId, amount_cents: amount, method: 'stripe', status: 'succeeded',
+        external_id: key.external_intent_id, external_provider: 'stripe', payer_email: key.receipt_email, cleared_at: now,
+      });
+      if (error) throw new Error(`payment insert failed: ${error.message}`);
+    } else if (existing.status === 'pending' || existing.status === 'failed') {
+      const { error } = await supabaseAdmin.from('payments')
+        .update({ status: 'succeeded', amount_cents: amount, cleared_at: now, notes: null, updated_at: now }).eq('id', existing.id);
+      if (error) throw new Error(`payment update failed: ${error.message}`);
+    } else {
+      console.log(`[Webhook] invoice payment intent ${key.external_intent_id} already recorded (${existing.status})`);
+    }
+  } else if (existing && existing.status === 'pending') {
+    const { error } = await supabaseAdmin.from('payments')
+      .update({ status: 'failed', notes: `Bank payment failed: ${bankReason(paymentIntent)}`, updated_at: now }).eq('id', existing.id);
+    if (error) throw new Error(`payment update failed: ${error.message}`);
+    bounced = true;
+  }
 
-  await supabaseAdmin.from('payments').insert({
-    invoice_id: invoice.id,
-    amount_cents: key.amount_received,
-    method: 'stripe',
-    status: 'succeeded',
-    external_id: key.external_intent_id,
-    external_provider: 'stripe',
-    payer_email: key.receipt_email,
-    cleared_at: new Date().toISOString(),
-  });
+  await supabaseAdmin.from('payment_intents')
+    .update({ status: outcome === 'pending' ? 'processing' : outcome }).eq('external_intent_id', key.external_intent_id);
 
-  await supabaseAdmin
-    .from('customer_invoices')
-    .update({
-      status: nextStatus,
-      paid_at: nextStatus === 'paid' ? new Date().toISOString() : null,
-    })
-    .eq('id', invoice.id);
+  const inv = await rederiveInvoice(invoiceId);
+  console.log(`[Webhook] invoice ${invoiceId} → ${inv?.status ?? '?'} (intent ${key.external_intent_id} ${outcome})`);
 
-  await supabaseAdmin
-    .from('payment_intents')
-    .update({ status: 'succeeded' })
-    .eq('external_intent_id', key.external_intent_id);
+  if (bounced && inv) {
+    await tellOffice(inv.org_id, `Bank payment failed — invoice ${inv.invoice_number}`, [
+      `A bank (ACH) payment of ${dollars(amount)} on invoice ${inv.invoice_number}${inv.customer_name ? ` (${inv.customer_name})` : ''} did not clear.`,
+      `Reason from the bank: ${bankReason(paymentIntent)}.`,
+      `The invoice is back to "${inv.status}" and shows that amount as owed again. Reach out to the customer to arrange payment.`,
+    ]);
+  }
+}
 
-  console.log(`[Webhook] invoice ${invoice.id} → ${nextStatus} (intent ${key.external_intent_id})`);
+/** A refund, whole or part (issued from the Stripe dashboard). */
+async function handleChargeRefunded(charge: Record<string, unknown>): Promise<void> {
+  const intentId = intentIdOf(charge);
+  if (!intentId) return;
+  const payment = await paymentForIntent(intentId);
+  if (!payment) return; // not an invoice payment (a wallet or subscription charge)
+  if (payment.status !== 'succeeded' && payment.status !== 'refunded') {
+    console.log(`[Webhook] refund on a ${payment.status} payment ${payment.id} — left as is`);
+    return;
+  }
+  const next = refundState(payment.amount_cents, stripeCents(charge, 'amount_refunded'));
+  const { error } = await supabaseAdmin.from('payments')
+    .update({ ...next, updated_at: new Date().toISOString() }).eq('id', payment.id);
+  if (error) throw new Error(`refund update failed: ${error.message}`);
+  const inv = await rederiveInvoice(payment.invoice_id);
+  console.log(`[Webhook] refund ${dollars(next.refunded_cents)} on payment ${payment.id}; invoice → ${inv?.status ?? '?'}`);
+}
+
+/** A chargeback: opened, moving, or decided. */
+async function handleDispute(dispute: Record<string, unknown>, type: string): Promise<void> {
+  const intentId = intentIdOf(dispute);
+  if (!intentId) return;
+  const payment = await paymentForIntent(intentId);
+  if (!payment) return;
+  const disputeStatus = typeof dispute.status === 'string' ? dispute.status : 'needs_response';
+  const status = payment.status === 'succeeded' || payment.status === 'disputed'
+    ? paymentStatusForDispute(disputeStatus)
+    : payment.status;
+  const { error } = await supabaseAdmin.from('payments').update({
+    status, dispute_id: typeof dispute.id === 'string' ? dispute.id : null, dispute_status: disputeStatus,
+    updated_at: new Date().toISOString(),
+  }).eq('id', payment.id);
+  if (error) throw new Error(`dispute update failed: ${error.message}`);
+  const inv = await rederiveInvoice(payment.invoice_id);
+  if (!inv) return;
+
+  const amount = dollars(stripeCents(dispute, 'amount'));
+  const who = inv.customer_name ? ` (${inv.customer_name})` : '';
+  if (type === 'charge.dispute.created') {
+    const due = (dispute.evidence_details as { due_by?: number } | undefined)?.due_by;
+    const by = due ? ` by ${new Date(due * 1000).toLocaleDateString('en-US', { timeZone: 'America/Chicago', dateStyle: 'long' })}` : '';
+    await tellOffice(inv.org_id, `Chargeback opened — invoice ${inv.invoice_number}`, [
+      `A customer disputed a card payment of ${amount} on invoice ${inv.invoice_number}${who}.`,
+      `Reason given: ${typeof dispute.reason === 'string' ? dispute.reason.replace(/_/g, ' ') : 'not given'}.`,
+      `Respond in the Stripe dashboard (Payments → Disputes)${by}, with the signed proposal, the invoice, and proof the work was delivered.`,
+      `Until it is decided the money is held back, and the invoice shows "${inv.status}".`,
+    ]);
+  } else if (type === 'charge.dispute.closed') {
+    await tellOffice(inv.org_id, `Chargeback ${disputeStatus === 'won' ? 'won' : 'closed'} — invoice ${inv.invoice_number}`, [
+      `The dispute over ${amount} on invoice ${inv.invoice_number}${who} closed: ${disputeStatus.replace(/_/g, ' ')}.`,
+      `The invoice now shows "${inv.status}".`,
+    ]);
+  }
+}
+
+/** Work the invoice's status out again from all its payments, and save it if it changed. */
+async function rederiveInvoice(invoiceId: string): Promise<{ status: string; invoice_number: string; customer_name: string | null; org_id: string | null } | null> {
+  const { data: invoice, error } = await supabaseAdmin
+    .from('customer_invoices').select('id, org_id, invoice_number, customer_name, total_cents, status, paid_at').eq('id', invoiceId).maybeSingle();
+  if (error) throw new Error(`invoice lookup failed: ${error.message}`);
+  if (!invoice) return null;
+  const { data: payments, error: pErr } = await supabaseAdmin
+    .from('payments').select('amount_cents, status, refunded_cents').eq('invoice_id', invoiceId);
+  if (pErr) throw new Error(`payments lookup failed: ${pErr.message}`);
+  const status = invoiceStatusFromPayments({ totalCents: invoice.total_cents ?? 0, currentStatus: invoice.status, payments: payments ?? [] });
+  if (status !== invoice.status || (status === 'paid') !== Boolean(invoice.paid_at)) {
+    const { error: uErr } = await supabaseAdmin.from('customer_invoices').update({
+      status, paid_at: status === 'paid' ? (invoice.paid_at ?? new Date().toISOString()) : null,
+    }).eq('id', invoiceId);
+    if (uErr) throw new Error(`invoice update failed: ${uErr.message}`);
+  }
+  return { status, invoice_number: invoice.invoice_number, customer_name: invoice.customer_name ?? null, org_id: invoice.org_id ?? null };
+}
+
+function dollars(cents: number): string {
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** An email to the office about money that needs a person: a bounced bank payment, a chargeback.
+ *  Goes to PAYMENTS_ALERT_EMAIL if set, else the firm's own contact email (its tenant profile).
+ *  Never fails the webhook — the payment record is already right. */
+async function tellOffice(orgId: string | null, subject: string, lines: string[]): Promise<void> {
+  let to = process.env.PAYMENTS_ALERT_EMAIL || '';
+  if (!to) {
+    try { to = (await getTenantProfile(orgId)).contactEmail; } catch { /* below */ }
+  }
+  if (!to) {
+    console.error('[Webhook] office alert NOT SENT — no PAYMENTS_ALERT_EMAIL and no firm contact email', subject);
+    return;
+  }
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+  try {
+    await sendEmailViaResend({
+      to,
+      subject,
+      html: lines.map((l) => `<p style="font-family:system-ui,sans-serif;font-size:15px">${esc(l)}</p>`).join(''),
+      text: lines.join('\n\n'),
+      tags: { kind: 'payment_alert' },
+    });
+  } catch (err) {
+    console.error('[Webhook] office alert failed', subject, err);
+  }
 }
 
 async function handlePaymentFailed(paymentIntent: Record<string, unknown>): Promise<void> {

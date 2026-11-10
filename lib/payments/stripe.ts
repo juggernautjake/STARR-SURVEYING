@@ -29,10 +29,10 @@ export interface StripePaymentIntentParams {
     public_slug: string;
   };
   receipt_email?: string;
+  /** Card and US bank account (ACH), and nothing else. Stripe refuses a request that also sets
+   *  `automatic_payment_methods` ("You may only specify one of these parameters"), so this list is
+   *  the whole choice — which also keeps Klarna, Affirm and the like off a surveying invoice. */
   payment_method_types: ReadonlyArray<'card' | 'us_bank_account'>;
-  // Allow automatic confirmation of payment methods Stripe enables
-  // for the account.
-  automatic_payment_methods?: { enabled: boolean };
 }
 
 export interface InvoiceForIntent {
@@ -59,7 +59,6 @@ export function buildPaymentIntentParams(invoice: InvoiceForIntent): StripePayme
       public_slug: invoice.public_slug,
     },
     payment_method_types: ['card', 'us_bank_account'],
-    automatic_payment_methods: { enabled: true },
   };
   const email = typeof invoice.customer_email === 'string' ? invoice.customer_email.trim() : '';
   if (email) params.receipt_email = email;

@@ -34,6 +34,7 @@ import {
   type PublicPaymentSummary,
 } from '@/lib/payments/invoice-public';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
+import { pendingCents } from '@/lib/payments/stripe-lifecycle';
 
 interface PublicInvoice {
   invoice_number: string;
@@ -44,6 +45,9 @@ interface PublicInvoice {
   tax_cents: number;
   total_cents: number;
   balance_cents: number;
+  /** A bank (ACH) payment still clearing (about 4 business days): owed no longer, paid not yet.
+   *  The pay page says so, and the next payment is capped at balance − pending, so nobody pays twice. */
+  pending_cents: number;
   // S4 — upfront/deposit so /pay can show the banner + clamp the amount input.
   deposit_amount_cents: number;
   /** Smallest the next payment may be (cents): the outstanding upfront, or 1. */
@@ -118,7 +122,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // load in its own right.
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, method, status, cleared_at, external_id, payer_email')
+    .select('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents')
     .eq('invoice_id', invoice?.id ?? '00000000-0000-0000-0000-000000000000')
     .order('cleared_at', { ascending: false });
 
@@ -135,14 +139,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .filter((s: PublicPaymentSummary | null): s is PublicPaymentSummary => s !== null);
   const total = typeof invoice.total_cents === 'number' ? invoice.total_cents : 0;
   const balance = Math.max(0, total - paid);
+  const pending = Math.min(balance, pendingCents(payments ?? []));
 
   // Upfront/deposit envelope for the next payment — reuse the same rule the
   // payment routes enforce so the UI clamp matches server validation exactly.
+  // Money already clearing counts as on its way (the intent route does the same).
   const deposit = typeof invoice.deposit_amount_cents === 'number' ? invoice.deposit_amount_cents : 0;
   const envelope = decideUpfrontAcceptance({
     deposit_amount_cents: deposit,
-    prior_paid_cents: paid,
-    intended_amount_cents: balance, // a known-valid amount → returns min/max
+    prior_paid_cents: paid + pending,
+    intended_amount_cents: Math.max(1, balance - pending), // a known-valid amount → returns min/max
     total_cents: total,
   });
 
@@ -155,6 +161,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     tax_cents: invoice.tax_cents ?? 0,
     total_cents: total,
     balance_cents: balance,
+    pending_cents: pending,
     deposit_amount_cents: deposit,
     min_payment_cents: envelope.min_cents,
     max_payment_cents: envelope.max_cents,

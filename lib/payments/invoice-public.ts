@@ -5,6 +5,8 @@
 // import them without dragging in the next-auth shell of the route
 // file.
 
+import { netPaidCents } from './stripe-lifecycle';
+
 export interface LineItemPublic {
   description: string;
   quantity: number;
@@ -28,13 +30,12 @@ export function sanitizeLineItems(raw: unknown): LineItemPublic[] {
 }
 
 /** Pure helper — total paid against an invoice from its payments
- *  array (only `succeeded` rows count toward balance). */
+ *  array (only `succeeded` rows count toward balance, less anything
+ *  refunded on them — seeds/680, lib/payments/stripe-lifecycle.ts). */
 export function sumSucceededPayments(
-  payments: ReadonlyArray<{ amount_cents?: number; status?: string }>,
+  payments: ReadonlyArray<{ amount_cents?: number; status?: string; refunded_cents?: number | null }>,
 ): number {
-  return payments
-    .filter((p) => p.status === 'succeeded')
-    .reduce((acc, p) => acc + (typeof p.amount_cents === 'number' ? p.amount_cents : 0), 0);
+  return netPaidCents(payments);
 }
 
 export const PUBLIC_BLOCKED_STATUSES: ReadonlySet<string> = new Set(['draft', 'voided']);

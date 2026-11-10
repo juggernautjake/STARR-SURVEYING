@@ -57,6 +57,8 @@ interface PublicInvoice {
   tax_cents: number;
   total_cents: number;
   balance_cents: number;
+  /** A bank payment still clearing — not owed again (seeds/680). */
+  pending_cents?: number;
   deposit_amount_cents: number;
   min_payment_cents: number;
   max_payment_cents: number;
@@ -102,6 +104,13 @@ export default function PayInvoicePage(): React.ReactElement {
   // G1 — when true, the Stripe Elements card form is shown in place of the
   // method picker's stub. Only opened when a publishable key is configured.
   const [cardOpen, setCardOpen] = useState(false);
+  // Back from Stripe: it adds ?redirect_status= — `succeeded` (a card), `processing` (a bank
+  // payment, about 4 business days), or `requires_payment_method` (it did not go through). The
+  // invoice may not show the payment yet (the webhook can land a moment later), so say what happened.
+  const [returned, setReturned] = useState<string | null>(null);
+  useEffect(() => {
+    try { setReturned(new URLSearchParams(window.location.search).get('redirect_status')); } catch { /* no banner */ }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,7 +124,8 @@ export default function PayInvoicePage(): React.ReactElement {
       const json = await res.json();
       const inv = json.invoice as PublicInvoice;
       setInvoice(inv);
-      setAmountStr((Math.max(0, inv.balance_cents) / 100).toFixed(2));
+      // What can be paid now: the balance, less any bank payment already clearing.
+      setAmountStr((Math.max(0, inv.balance_cents - (inv.pending_cents ?? 0)) / 100).toFixed(2));
       setLoading(false);
     }
     if (invoiceKey) load();
@@ -159,7 +169,10 @@ export default function PayInvoicePage(): React.ReactElement {
   // S4 — the chosen payment amount (cents) + the same rule the server enforces,
   // so the UI clamp/message matches /attempt + /intent exactly.
   const chosenCents = Math.round((parseFloat(amountStr) || 0) * 100);
-  const priorPaidCents = Math.max(0, invoice.total_cents - invoice.balance_cents);
+  const clearingCents = Math.min(invoice.balance_cents, invoice.pending_cents ?? 0);
+  const payableCents = Math.max(0, invoice.balance_cents - clearingCents);
+  // Money clearing counts as already on its way, as the server's rule does.
+  const priorPaidCents = Math.max(0, invoice.total_cents - invoice.balance_cents) + clearingCents;
   const amountDecision = decideUpfrontAcceptance({
     deposit_amount_cents: invoice.deposit_amount_cents,
     prior_paid_cents: priorPaidCents,
@@ -310,6 +323,28 @@ export default function PayInvoicePage(): React.ReactElement {
             </div>
           </article>
 
+          {returned === 'succeeded' && !isPaid ? (
+            <article className="pay-card" data-testid="pay-returned" role="status">
+              <h2 className="pay-card__title">Thank you — payment received</h2>
+              <p>Your payment went through. It can take a minute to show on this invoice; your receipt is on its way by email.</p>
+            </article>
+          ) : null}
+          {returned === 'requires_payment_method' ? (
+            <article className="pay-card" data-testid="pay-returned" role="alert">
+              <h2 className="pay-card__title">The payment didn&rsquo;t go through</h2>
+              <p>Nothing was charged. Please try again below, or use another way to pay.</p>
+            </article>
+          ) : null}
+          {clearingCents > 0 || (returned === 'processing' && !isPaid) ? (
+            <article className="pay-card" data-testid="pay-clearing" role="status">
+              <h2 className="pay-card__title">Bank payment on its way</h2>
+              <p>
+                {clearingCents > 0 ? <>A bank payment of <strong>{formatDollars(clearingCents)}</strong> is clearing. </> : <>Your bank payment is clearing. </>}
+                Bank transfers usually take about 4 business days. There&rsquo;s no need to pay it again — we&rsquo;ll email you when it clears.
+              </p>
+            </article>
+          ) : null}
+
           {/* P22 QA — zero-dollar invoice gets its own card; the
               method picker is hidden because there's nothing to
               pay. */}
@@ -320,7 +355,7 @@ export default function PayInvoicePage(): React.ReactElement {
             </article>
           )}
 
-          {!isPaid && !isZeroDollar && (
+          {!isPaid && !isZeroDollar && payableCents > 0 && (
             <article className="pay-card pay-card--methods" data-testid="pay-methods">
               <h2 className="pay-card__title">How would you like to pay?</h2>
               <p className="pay-card__hint">
