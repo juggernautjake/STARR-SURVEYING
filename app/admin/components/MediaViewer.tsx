@@ -2,13 +2,17 @@
 // Reusable full-screen media viewer/player. Open it with a single media item.
 //   - images: zoom (wheel / buttons / double-click) + pan (drag) + pinch (touch)
 //     + fit-to-screen; works on desktop, tablet, and phone.
-//   - video: native <video controls> player (mp4/webm/…).
+//   - video: the shared VideoPlayer (speed, skip, frame step, loop, picture-in-picture; keeps its place).
 //   - audio: native <audio controls> player (mp3/…).
-// Close via the ✕ button, backdrop click, or Escape. No external deps.
+// Close via the ✕ button, backdrop click, or Escape — except a VIDEO, which closes only on the ✕
+// (owner, 2026-11-09: "I need the video player to stay open and keep its place in the video until
+// the user clicks the x button on the modal").
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2, Download, RotateCw, RotateCcw } from 'lucide-react';
+import VideoPlayer from '@/app/admin/components/media/VideoPlayer';
+import { videoKey } from '@/lib/viewers/video-memory';
 // Shared with the two research viewers and the jobs file viewer. Four viewers turn a page in this
 // admin; each having its own idea of what that means is how "rotate" ends up with four behaviours.
 import { nextRotation, rotationFit, type Rotation } from '@/lib/viewers/viewer-fit';
@@ -94,7 +98,7 @@ export default function MediaViewer({ media, onClose }: { media: MediaItem | nul
   // Escape to close; lock body scroll while open.
   useEffect(() => {
     if (!media) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && kind(media) !== 'video') onClose(); };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -157,7 +161,7 @@ export default function MediaViewer({ media, onClose }: { media: MediaItem | nul
   const onTouchEnd = () => { pinch.current = null; drag.current = null; if (scale <= baseScale) { setTx(0); setTy(0); } };
 
   return (
-    <div className="media-viewer" onClick={onClose} role="dialog" aria-modal="true" aria-label={media.name || 'Media viewer'}>
+    <div className="media-viewer" onClick={k === 'video' ? undefined : onClose} role="dialog" aria-modal="true" aria-label={media.name || 'Media viewer'}>
       <div className="media-viewer__bar" onClick={(e) => e.stopPropagation()}>
         <span className="media-viewer__name">{media.name || ''}</span>
         <div className="media-viewer__actions">
@@ -204,7 +208,7 @@ export default function MediaViewer({ media, onClose }: { media: MediaItem | nul
           />
         )}
         {k === 'video' && (
-          <video className="media-viewer__video" src={media.url} controls autoPlay playsInline />
+          <VideoPlayer key={videoKey(null, media.url)} src={media.url} storageKey={videoKey(null, media.url)} autoPlay />
         )}
         {k === 'audio' && (
           <div className="media-viewer__audio-wrap">

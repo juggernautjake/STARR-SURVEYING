@@ -243,6 +243,23 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
 
   useEffect(() => { setLoading(true); void load(); }, [load, refreshKey]);
 
+  // ── THE OPEN FILE OUTLIVES A REDRAW (owner, 2026-11-09) ────────────────────────────────────────
+  // "whenever I click somewhere else or open another program, the video player closes, and in order
+  // to go back to the video and where I was in it, I have to reopen it and scroll." Whatever rebuilds
+  // the page behind the viewer (a reload, the session being re-checked when the window comes back),
+  // the explorer is mounted fresh and its state is gone. So the open file, its folder and the mode are
+  // written down for this tab (sessionStorage) and reopened on the next mount; the video player keeps
+  // its own place (lib/viewers/video-memory.ts). Closing the viewer with its ✕ forgets it.
+  const OPEN_KEY = `fe-open:${rootId}`;
+  const OPEN_TTL_MS = 30 * 60 * 1000;
+  const restoredOpen = useRef(false);
+  const writeOpen = useCallback((v: { fileId: string; folderId: string; mode: Mode } | null) => {
+    try {
+      if (v) sessionStorage.setItem(OPEN_KEY, JSON.stringify({ ...v, at: Date.now() }));
+      else sessionStorage.removeItem(OPEN_KEY);
+    } catch { /* no storage: a redraw closes the viewer, as before */ }
+  }, [OPEN_KEY]);
+
   // ── the structure, indexed ──
   const byId = useMemo(() => new Map((tree?.folders ?? []).map((f) => [f.id, f])), [tree]);
   const fileById = useMemo(() => {
@@ -391,6 +408,26 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     setUrls((m) => ({ ...m, [n.id]: url }));
     setViewerId(n.id);
   }, [urls]);
+
+  // Reopen what was open before a redraw (see OPEN_KEY above) — once, when the tree first arrives.
+  useEffect(() => {
+    if (!tree || restoredOpen.current) return;
+    restoredOpen.current = true;
+    let saved: { fileId?: string; folderId?: string; mode?: Mode; at?: number } | null = null;
+    try { saved = JSON.parse(sessionStorage.getItem(OPEN_KEY) ?? 'null'); } catch { saved = null; }
+    if (!saved?.fileId || !saved.at || Date.now() - saved.at > OPEN_TTL_MS) { writeOpen(null); return; }
+    const node = fileById.get(saved.fileId);
+    if (!node) { writeOpen(null); return; }
+    if (saved.mode === 'all' || saved.mode === 'folder') setMode(saved.mode);
+    if (saved.folderId && byId.has(saved.folderId)) setCurrentId(saved.folderId);
+    void openFile(node);
+  }, [tree, fileById, byId, openFile, OPEN_KEY, OPEN_TTL_MS, writeOpen]);
+
+  // …and keep the note current while a file is open; the ✕ (viewerId → null) clears it.
+  useEffect(() => {
+    if (!restoredOpen.current) return;
+    writeOpen(viewerId ? { fileId: viewerId, folderId: currentId, mode } : null);
+  }, [viewerId, currentId, mode, writeOpen]);
 
   // ── ONLY THE FILES YOU COULD REACH NEXT ───────────────────────────────────────────────────────
   //

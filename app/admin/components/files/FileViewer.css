@@ -156,6 +156,7 @@
   color: var(--theme-fg-secondary, #475569);
 }
 .fv-tools__group { display: inline-flex; align-items: center; gap: 0.25rem; }
+.fv-tools__group[hidden] { display: none; }
 .fv-tools__hint { margin-left: auto; color: var(--theme-fg-muted, #64748B); font-size: 0.75rem; }
 .fv-tool {
   display: inline-flex;
