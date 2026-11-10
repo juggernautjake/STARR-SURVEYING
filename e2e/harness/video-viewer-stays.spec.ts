@@ -177,7 +177,10 @@ test('the transcript: transcribe, search every instance of a phrase, and jump th
   await openButton(page, 'fence-walk.mp4').click();
   await expect.poll(() => videoReady(page), { timeout: 30_000 }).toBeGreaterThan(0);
 
-  await page.getByTestId('fv-transcript').click();
+  // The panel is open from the start: the Transcribe button is in sight beside the video.
+  await expect(page.getByTestId('fv-transcript')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('tp-transcribe')).toBeVisible();
+  await page.screenshot({ path: 'test-results/video-transcribe-button.png' });
   await page.getByTestId('tp-transcribe').click();
   const search = page.getByTestId('tp-search');
   await expect(search).toBeVisible();
@@ -211,6 +214,13 @@ test('the transcript: transcribe, search every instance of a phrase, and jump th
   await page.locator(`.tp__w[data-w="${meter}"]`).click();
   await expect.poll(() => videoTime(page)).toBeCloseTo(DONE.words[meter].s, 1);
   await page.screenshot({ path: 'test-results/video-transcript.png' });
+
+  // Closing the panel is remembered; the header button brings it back.
+  await page.getByTestId('fv-transcript').click();
+  await expect(page.locator('.tp')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('fv-transcript-open'))).toBe('0');
+  await page.getByTestId('fv-transcript').click();
+  await expect(page.getByTestId('tp-search')).toBeVisible();
 
   expect(errors).toEqual([]);
 });
