@@ -76,9 +76,11 @@ export interface FolderExplorerProps {
   className?: string;
   /** Bump to re-list — a page that uploaded through its own Upload button asks for the new files. */
   refreshKey?: number;
-  /** `media` (owner, 2026-11-11, the job hub's Photos & Videos): every picture and every video under
-   *  the root, wherever it is filed, in two sections — Photos, then Videos — as thumbnails. No folder
-   *  browsing; the sort, preview-size, viewer, selection and delete are the explorer's own. */
+  /** `media` (owner, 2026-11-11, the job hub's Photos & Videos): the pictures and videos under the
+   *  root as thumbnails, in two sections — Photos, then Videos. The folders here are the ones people
+   *  make (named folders, nested as deep as they like); everything not in one of those shows at the
+   *  top. A Photos | Videos switch filters either kind off (never both), and a folder with none of
+   *  the kinds being shown is hidden. Sort, preview size, viewer, selection and delete are shared. */
   layout?: 'explorer' | 'media';
 }
 
@@ -325,6 +327,35 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   }, [byId, foldersIn]);
   const countUnder = useCallback((id: string) => subtreeOf(id).reduce((n, f) => n + f.files.length, 0), [subtreeOf]);
 
+  // ── PHOTOS & VIDEOS: the kind switch and the folders people make (owner, 2026-11-11) ──────────────
+  // "two buttons that look kind of like one button split in two, one for photos and one for videos,
+  // by default both selected … it will not be possible to turn both off." And: "the user should be
+  // able to create sub folders with photos and videos in them. If only photos are selected, then any
+  // folders with only photos in them will still be shown, but all folders with no photos will not."
+  const [kinds, setKinds] = useState<{ image: boolean; video: boolean }>({ image: true, video: true });
+  const toggleKind = useCallback((k: 'image' | 'video') => {
+    setKinds((prev) => {
+      const next = { ...prev, [k]: !prev[k] };
+      return next.image || next.video ? next : prev; // the last one on stays on
+    });
+  }, []);
+  const wantKind = useCallback((n: MountNode) => {
+    const k = kindOfNode(n.mime_type, n.name);
+    return (k === 'image' && kinds.image) || (k === 'video' && kinds.video);
+  }, [kinds]);
+  const isNamed = (id: string) => parseNamedFolderId(id) !== null;
+  /** Where a folder sits in Photos & videos: its nearest folder-someone-made above it, or the root. */
+  const mediaParentOf = useCallback((f: MountTreeFolder): string => {
+    let p = f.parent_id ? byId.get(f.parent_id) : undefined;
+    while (p && p.id !== rootId) {
+      if (isNamed(p.id)) return p.id;
+      p = p.parent_id ? byId.get(p.parent_id) : undefined;
+    }
+    return rootId;
+  }, [byId, rootId]);
+  /** The Photos & videos place a folder's files show in: the folder itself when someone made it. */
+  const mediaHomeOf = useCallback((f: MountTreeFolder) => (f.id !== rootId && isNamed(f.id) ? f.id : mediaParentOf(f)), [rootId, mediaParentOf]);
+
   const q = query.trim().toLowerCase();
   const matches = (n: MountNode) => !q || n.name.toLowerCase().includes(q) || (n.tags ?? []).some((t) => t.includes(q));
 
@@ -332,19 +363,62 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const groups = useMemo(() => {
     if (!current) return [];
     if (media) {
-      // Two sections instead of one per folder: every image, then every video, wherever filed.
-      const all = subtreeOf(current.id).flatMap((f) => f.files).filter(matches);
+      // Two sections instead of one per folder: the images, then the videos, that live HERE — in this
+      // folder, or (at the top) anywhere that is not inside a folder someone made.
+      const all = subtreeOf(current.id).filter((f) => mediaHomeOf(f) === current.id).flatMap((f) => f.files).filter(matches);
       const section = (key: 'photos' | 'videos', name: string, kind: string): { folder: MountTreeFolder; files: MountNode[] } => ({
         folder: { id: `${current.id}::media-${key}`, name, path: [...current.path, name], depth: current.depth + 1, parent_id: current.id, folder_key: key, files: [] },
         files: sortFileNodes(all.filter((n) => kindOfNode(n.mime_type, n.name) === kind), sort),
       });
-      return [section('photos', 'Photos', 'image'), section('videos', 'Videos', 'video')];
+      return [
+        ...(kinds.image ? [section('photos', 'Photos', 'image')] : []),
+        ...(kinds.video ? [section('videos', 'Videos', 'video')] : []),
+      ];
     }
     return subtreeOf(current.id).map((f) => ({ folder: f, files: sortFileNodes(f.files.filter(matches), sort) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, subtreeOf, q, sort, media]);
+  }, [current, subtreeOf, q, sort, media, kinds, mediaHomeOf]);
 
   const folderFiles = useMemo(() => sortFileNodes((current?.files ?? []).filter(matches), sort), [current, q, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Photos & videos: the folders inside this one, each with how many of the shown kinds it holds.
+   *  A brand-new empty folder stays visible while both kinds are on, so it can be filled. */
+  const mediaFolders = useMemo(() => {
+    if (!media || !tree || !current) return [];
+    const here = sortFileNodes(tree.folders
+      .filter((f) => f.id !== current.id && isNamed(f.id) && mediaParentOf(f) === current.id)
+      .map((f) => ({ ...f, node_type: 'folder' as const })));
+    return here
+      .map((f) => {
+        const files = subtreeOf(f.id).flatMap((x) => x.files);
+        return { folder: f, count: files.filter((n) => wantKind(n) && matches(n)).length, total: files.length };
+      })
+      .filter(({ count, total }) => count > 0 || (!q && kinds.image && kinds.video && total === 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media, tree, current, mediaParentOf, subtreeOf, wantKind, q, kinds]);
+  /** Photos & videos: the path from the top to this folder (folders people made only). */
+  const mediaCrumbs = useMemo(() => {
+    if (!media || !current) return [];
+    const out: MountTreeFolder[] = [];
+    let f: MountTreeFolder | undefined = current;
+    while (f && f.id !== rootId) { out.unshift(f); f = byId.get(mediaParentOf(f)); }
+    return out;
+  }, [media, current, rootId, byId, mediaParentOf]);
+  /** "34 photos · 3 videos" for the top of Photos & videos. */
+  const mediaSummary = useMemo(() => {
+    if (!media || !current) return '';
+    let img = 0; let vid = 0;
+    for (const f of subtreeOf(current.id)) for (const n of f.files) {
+      const k = kindOfNode(n.mime_type, n.name);
+      if (k === 'image') img += 1; else if (k === 'video') vid += 1;
+    }
+    return `${img} photo${img === 1 ? '' : 's'} · ${vid} video${vid === 1 ? '' : 's'}`;
+  }, [media, current, subtreeOf]);
+
+  // Photos & videos only ever stands at the top or in a folder someone made.
+  useEffect(() => {
+    if (media && tree && currentId !== rootId && !parseNamedFolderId(currentId)) setCurrentId(rootId);
+  }, [media, tree, currentId, rootId]);
 
   /** What the viewer walks: the folder's files, or every file in the subtree in "All files". */
   const viewerNodes = useMemo(() => (mode === 'all' ? groups.flatMap((g) => g.files) : folderFiles), [mode, groups, folderFiles]);
@@ -534,9 +608,11 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     setNotice(`Uploaded ${count} file${count === 1 ? '' : 's'}.`);
     void load().then(() => {
       // One destination: open it, so the person sees the files they just put there.
-      if (destinationIds.length === 1) { setCurrentId(destinationIds[0]); setMode('folder'); }
+      if (destinationIds.length !== 1) return;
+      if (!media) { setCurrentId(destinationIds[0]); setMode('folder'); }
+      else if (parseNamedFolderId(destinationIds[0])) setCurrentId(destinationIds[0]);
     });
-  }, [load]);
+  }, [load, media]);
 
   // ── named folders: new / rename / remove ──
   async function saveFolderForm() {
@@ -798,104 +874,163 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
 
   return (
     <section className={`fe${className ? ` ${className}` : ''}${selection.count > 0 ? ' fe--selecting' : ''}`} aria-label={title ?? current?.name ?? 'Files'} data-testid="folder-explorer">
-      {/* ── the folder path (Photos & videos has none — the hub already titles it) ── */}
-      {!media && (
-        <header className="fe__head">
-          <nav className="fe__crumbs" aria-label="Folder path">
-            {crumbs.map((c, i) => (
-              <span key={c.id} className="fe__crumb-wrap">
-                {i > 0 && <ChevronRight size={14} className="fe__crumb-sep" aria-hidden="true" />}
-                <button type="button" className={`fe__crumb${c.id === currentId ? ' fe__crumb--here' : ''}`} onClick={() => setCurrentId(c.id)} aria-current={c.id === currentId ? 'location' : undefined}>
-                  {i === 0 ? <FolderOpen size={15} aria-hidden="true" /> : null}
-                  {i === 0 && title ? title : c.name}
-                </button>
-              </span>
-            ))}
-          </nav>
-        </header>
-      )}
-
-      {/* ── ONE TOOLBAR ROW (owner, 2026-11-11): "move the viewing options and the download button and
-          the open files and the upload files and the new folder buttons down on the same row as the
-          select all button. this will compact everything." Select all and search on the left, how
-          to look at the files in the middle, adding files on the right; it wraps on a narrow screen. ── */}
+      {/* ── THE TOOLBAR: TWO ROWS (owner, 2026-11-11) ───────────────────────────────────────────────
+          "no more than two rows, and everything should look really clean and organized."
+          Row 1 — where you are, and adding to it: the path (or the counts), Open in Files, the folder's
+          own Rename / Remove, New folder, Scan, Upload files.
+          Row 2 — how you look at the list: Select all, search, what to show, sort, tile size; and
+          what to do with all of it: Download .zip, Refresh. ── */}
       <div className="fe__bar" data-testid="fe-toolbar">
-        <div className="fe__bar-group">
-          <SelectAllCheckbox selection={selection} total={viewerNodes.length} />
-          <label className="fe__search">
-            <Search size={14} aria-hidden="true" />
-            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={media ? 'Search photos and videos…' : mode === 'all' ? 'Search every file below…' : 'Search this folder…'} aria-label="Search files" />
-            {query && <button type="button" className="fe__search-clear" onClick={() => setQuery('')} aria-label="Clear search"><X size={13} aria-hidden="true" /></button>}
-          </label>
-          {!media && <div className="fe__mode" role="group" aria-label="View">
-            <button type="button" className={`fe__mode-btn${mode === 'folder' ? ' fe__mode-btn--on' : ''}`} onClick={() => setMode('folder')} aria-pressed={mode === 'folder'} title="Browse folder by folder">
-              <Folder size={14} aria-hidden="true" /> This folder
-            </button>
-            <button type="button" className={`fe__mode-btn${mode === 'all' ? ' fe__mode-btn--on' : ''}`} onClick={() => setMode('all')} aria-pressed={mode === 'all'} title="View all files in this folder and its subfolders" data-testid="fe-all-files">
-              <Layers size={14} aria-hidden="true" /> All files{current ? ` (${countUnder(current.id)})` : ''}
-            </button>
-          </div>}
-          <div className="fe__mode" role="group" aria-label="Sort by">
-            {([['name', 'A–Z', 'Sort A–Z, numbers in number order'], ['uploaded', 'Newest', 'Newest uploaded first']] as const).map(([id, label, hint]) => (
-              <button
-                key={id}
-                type="button"
-                className={`fe__mode-btn${sort === id ? ' fe__mode-btn--on' : ''}`}
-                onClick={() => setSort(id)}
-                aria-pressed={sort === id}
-                title={hint}
-                data-testid={`fe-sort-${id}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="fe__views" role="group" aria-label="Preview size">
-            {VIEWS.map((v) => {
-              const Icon = v.id === 'list' ? ListIcon : v.id === 'small' ? Rows3 : v.id === 'medium' ? Grid2x2 : LayoutGrid;
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  className={`fe__view-btn${view === v.id ? ' fe__view-btn--on' : ''}`}
-                  onClick={() => chooseView(v.id)}
-                  aria-pressed={view === v.id}
-                  title={`${v.label} — ${v.hint}`}
-                  data-testid={`fe-view-${v.id}`}
-                >
-                  <Icon size={14} aria-hidden="true" />
-                  <span className="fe__view-label">{v.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <DownloadAllButton
-            className="fe__btn"
-            title={current?.name ?? 'files'}
-            label="Download .zip"
-            getEntries={zipEntries}
-            disabled={loading || viewerNodes.filter((n) => !n.open_href).length === 0}
-          />
-          <button type="button" className="fe__icon-btn fe__icon-btn--ghost" onClick={() => { setLoading(true); void load(); }} title="Refresh" aria-label="Refresh"><RefreshCw size={15} aria-hidden="true" className={loading ? 'fe__spin motion-essential' : undefined} /></button>
-          <Link href={openInFiles} className="fe__link" title="Open this folder in the File Explorer" aria-label="Open in Files" data-testid="fe-open-in-files"><FolderOpen size={14} aria-hidden="true" /><span className="fe__btn-label">Open in Files</span></Link>
-        </div>
-        {uploadRoot && tree && (
-          <div className="fe__bar-group fe__bar-add" data-testid="fe-upload-bar">
-            {newFolderPlace && (
-              <button type="button" className="fe__btn" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} title="New folder" aria-label="New folder" data-testid="fe-new-folder">
-                <FolderPlus size={15} aria-hidden="true" /><span className="fe__btn-label">New folder</span>
-              </button>
+        <div className="fe__bar-row">
+          <div className="fe__bar-where">
+            {media ? (
+              mediaCrumbs.length === 0 ? <span className="fe__bar-summary" data-testid="fe-media-summary">{mediaSummary}</span> : (
+                <nav className="fe__crumbs" aria-label="Folder path" data-testid="fe-media-crumbs">
+                  <span className="fe__crumb-wrap">
+                    <button type="button" className="fe__crumb" onClick={() => setCurrentId(rootId)}>
+                      <FolderOpen size={15} aria-hidden="true" /> All photos &amp; videos
+                    </button>
+                  </span>
+                  {mediaCrumbs.map((c) => (
+                    <span key={c.id} className="fe__crumb-wrap">
+                      <ChevronRight size={14} className="fe__crumb-sep" aria-hidden="true" />
+                      <button type="button" className={`fe__crumb${c.id === currentId ? ' fe__crumb--here' : ''}`} onClick={() => setCurrentId(c.id)} aria-current={c.id === currentId ? 'location' : undefined}>
+                        {c.name}
+                      </button>
+                    </span>
+                  ))}
+                </nav>
+              )
+            ) : (
+              <nav className="fe__crumbs" aria-label="Folder path">
+                {crumbs.map((c, i) => (
+                  <span key={c.id} className="fe__crumb-wrap">
+                    {i > 0 && <ChevronRight size={14} className="fe__crumb-sep" aria-hidden="true" />}
+                    <button type="button" className={`fe__crumb${c.id === currentId ? ' fe__crumb--here' : ''}`} onClick={() => setCurrentId(c.id)} aria-current={c.id === currentId ? 'location' : undefined}>
+                      {i === 0 ? <FolderOpen size={15} aria-hidden="true" /> : null}
+                      {i === 0 && title ? title : c.name}
+                    </button>
+                  </span>
+                ))}
+              </nav>
             )}
-            <button type="button" className="fe__btn" onClick={() => setScanOpen(true)} disabled={busy !== null} title="Scan a document" aria-label="Scan a document" data-testid="fe-scan">
-              <ScanLine size={15} aria-hidden="true" /><span className="fe__btn-label">Scan</span>
-            </button>
-            {/* "Make sure we can clearly see the buttons for uploading files" (owner, 2026-09-15) — still
-                the brightest thing on the row. Dropping files anywhere on the list works too. */}
-            <button type="button" className="fe__btn fe__btn--primary" onClick={() => openUpload()} disabled={busy !== null} title={`${media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'} — or drag files anywhere onto the list`} data-testid="fe-upload">
-              <Upload size={15} aria-hidden="true" /> Upload files
-            </button>
           </div>
-        )}
+          <div className="fe__bar-group fe__bar-add" data-testid="fe-upload-bar">
+            <Link href={openInFiles} className="fe__link" title="Open this folder in the File Explorer" aria-label="Open in Files" data-testid="fe-open-in-files"><FolderOpen size={14} aria-hidden="true" /><span className="fe__btn-label">Open in Files</span></Link>
+            {media && namedHere && (
+              <>
+                <button type="button" className="fe__btn" onClick={() => setFolderForm({ mode: 'rename', name: current?.name ?? '', busy: false, error: null })} disabled={busy !== null} data-testid="fe-media-rename-folder">
+                  <Pencil size={15} aria-hidden="true" /><span className="fe__btn-label">Rename</span>
+                </button>
+                <button type="button" className="fe__btn fe__btn--danger" onClick={() => setConfirmRemove(true)} disabled={busy !== null} data-testid="fe-media-remove-folder">
+                  <Trash2 size={15} aria-hidden="true" /><span className="fe__btn-label">Remove folder</span>
+                </button>
+              </>
+            )}
+            {uploadRoot && tree && (
+              <>
+                {newFolderPlace && (
+                  <button type="button" className="fe__btn" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} title="New folder" aria-label="New folder" data-testid="fe-new-folder">
+                    <FolderPlus size={15} aria-hidden="true" /><span className="fe__btn-label">New folder</span>
+                  </button>
+                )}
+                {/* Scanning makes a document — not something Photos & videos holds. */}
+                {!media && (
+                  <button type="button" className="fe__btn" onClick={() => setScanOpen(true)} disabled={busy !== null} title="Scan a document" aria-label="Scan a document" data-testid="fe-scan">
+                    <ScanLine size={15} aria-hidden="true" /><span className="fe__btn-label">Scan</span>
+                  </button>
+                )}
+                {/* "Make sure we can clearly see the buttons for uploading files" (owner, 2026-09-15) — still
+                    the brightest thing on the row. Dropping files anywhere on the list works too. */}
+                <button type="button" className="fe__btn fe__btn--primary" onClick={() => openUpload()} disabled={busy !== null} title={`${media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'} — or drag files anywhere onto the list`} data-testid="fe-upload">
+                  <Upload size={15} aria-hidden="true" /> Upload files
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="fe__bar-row">
+          <div className="fe__bar-group">
+            <SelectAllCheckbox selection={selection} total={viewerNodes.length} />
+            <label className="fe__search">
+              <Search size={14} aria-hidden="true" />
+              <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={media ? 'Search photos and videos…' : mode === 'all' ? 'Search every file below…' : 'Search this folder…'} aria-label="Search files" />
+              {query && <button type="button" className="fe__search-clear" onClick={() => setQuery('')} aria-label="Clear search"><X size={13} aria-hidden="true" /></button>}
+            </label>
+            {media && (
+              <div className="fe__mode fe__kinds" role="group" aria-label="Show">
+                {([['image', 'Photos', Camera], ['video', 'Videos', Video]] as const).map(([k, label, Icon]) => {
+                  const only = kinds[k] && !kinds[k === 'image' ? 'video' : 'image'];
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`fe__mode-btn${kinds[k] ? ' fe__mode-btn--on' : ''}`}
+                      onClick={() => toggleKind(k)}
+                      aria-pressed={kinds[k]}
+                      title={only ? `${label} stay on — at least one kind is always shown` : kinds[k] ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                      data-testid={`fe-kind-${k}`}
+                    >
+                      <Icon size={14} aria-hidden="true" /> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {!media && <div className="fe__mode" role="group" aria-label="View">
+              <button type="button" className={`fe__mode-btn${mode === 'folder' ? ' fe__mode-btn--on' : ''}`} onClick={() => setMode('folder')} aria-pressed={mode === 'folder'} title="Browse folder by folder">
+                <Folder size={14} aria-hidden="true" /> This folder
+              </button>
+              <button type="button" className={`fe__mode-btn${mode === 'all' ? ' fe__mode-btn--on' : ''}`} onClick={() => setMode('all')} aria-pressed={mode === 'all'} title="View all files in this folder and its subfolders" data-testid="fe-all-files">
+                <Layers size={14} aria-hidden="true" /> All files{current ? ` (${countUnder(current.id)})` : ''}
+              </button>
+            </div>}
+            <div className="fe__mode" role="group" aria-label="Sort by">
+              {([['name', 'A–Z', 'Sort A–Z, numbers in number order'], ['uploaded', 'Newest', 'Newest uploaded first']] as const).map(([id, label, hint]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`fe__mode-btn${sort === id ? ' fe__mode-btn--on' : ''}`}
+                  onClick={() => setSort(id)}
+                  aria-pressed={sort === id}
+                  title={hint}
+                  data-testid={`fe-sort-${id}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="fe__views" role="group" aria-label="Preview size">
+              {VIEWS.map((v) => {
+                const Icon = v.id === 'list' ? ListIcon : v.id === 'small' ? Rows3 : v.id === 'medium' ? Grid2x2 : LayoutGrid;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={`fe__view-btn${view === v.id ? ' fe__view-btn--on' : ''}`}
+                    onClick={() => chooseView(v.id)}
+                    aria-pressed={view === v.id}
+                    title={`${v.label} — ${v.hint}`}
+                    data-testid={`fe-view-${v.id}`}
+                  >
+                    <Icon size={14} aria-hidden="true" />
+                    <span className="fe__view-label">{v.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="fe__bar-group fe__bar-end">
+            <DownloadAllButton
+              className="fe__btn"
+              title={current?.name ?? 'files'}
+              label="Download .zip"
+              getEntries={zipEntries}
+              disabled={loading || viewerNodes.filter((n) => !n.open_href).length === 0}
+            />
+            <button type="button" className="fe__icon-btn fe__icon-btn--ghost" onClick={() => { setLoading(true); void load(); }} title="Refresh" aria-label="Refresh"><RefreshCw size={15} aria-hidden="true" className={loading ? 'fe__spin motion-essential' : undefined} /></button>
+          </div>
+        </div>
       </div>
 
       {error && <div className="fe__error" role="alert">{error} <button type="button" className="fe__btn" onClick={() => { setLoading(true); void load(); }}>Retry</button></div>}
@@ -1011,9 +1146,24 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
           <div className="fe__all" data-testid="fe-all-view">
             {tree.truncated && <p className="fe__note">This view is capped; open a folder to see the rest.</p>}
             {selectHead}
+            {media && mediaFolders.length > 0 && (
+              <ul className="fe__tiles m-enter" aria-label="Folders" data-testid="fe-media-folders">
+                {mediaFolders.map(({ folder: f, count }, i) => (
+                  <li key={f.id} className="m-stagger" style={{ '--i': i } as React.CSSProperties}>
+                    <button type="button" className="fe__tile fe__tile--named m-pressable" onClick={() => setCurrentId(f.id)} data-testid="fe-media-folder">
+                      <span className="fe__tile-icon">{folderIcon('named')}</span>
+                      <span className="fe__tile-body"><span className="fe__tile-name">{f.name}</span></span>
+                      <span className="fe__tile-count" aria-label={`${count} shown`}>{count}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             {groups.every((g) => g.files.length === 0) ? (
-              <p className="fe__empty">{q ? 'Nothing below matches.' : media ? 'No photos or videos yet — press Upload files to add some.' : 'No files in this folder or its subfolders yet.'}</p>
-            ) : groups.map((g) => ((q && g.files.length === 0) || (g.folder.id === current.id && g.files.length === 0) ? null : (
+              media && mediaFolders.length > 0 ? null : (
+                <p className="fe__empty">{q ? 'Nothing below matches.' : media ? (mediaCrumbs.length ? 'Nothing in this folder yet — press Upload files to add some.' : 'No photos or videos yet — press Upload files to add some.') : 'No files in this folder or its subfolders yet.'}</p>
+              )
+            ) : groups.map((g) => ((q && g.files.length === 0) || (g.folder.id === current.id && g.files.length === 0) || (media && g.files.length === 0 && mediaFolders.length > 0) ? null : (
               <section key={g.folder.id} className="fe__group m-enter" aria-label={g.folder.name}>
                 <header className="fe__group-head">
                   <span className="fe__group-icon">{folderIcon(g.folder.folder_key, 16)}</span>
