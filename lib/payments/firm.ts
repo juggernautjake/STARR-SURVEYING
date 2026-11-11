@@ -19,5 +19,5 @@ import type { FirmIdentity } from './invoice-email';
 /** The sending firm for a document belonging to `orgId`. */
 export async function firmForOrg(orgId: string | null | undefined): Promise<FirmIdentity> {
   const profile = await getTenantProfile(orgId);
-  return { name: profile.name, phone: profile.phone, phoneE164: profile.phoneE164 };
+  return { name: profile.name, phone: profile.phone, phoneE164: profile.phoneE164, reviewUrl: profile.reviewUrl };
 }
