@@ -27,12 +27,11 @@ import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, HardHat, Folder, Camera, DollarSign, Activity,
-  MessageSquare, Trash2, Download, Files, Circle, Upload, Map as MapIcon, ArrowLeft,
+  MessageSquare, Trash2, Download, Files, Circle, Map as MapIcon, ArrowLeft,
   MapPin, User, Phone, FileText, ArrowUpRight, type LucideIcon,
 } from 'lucide-react';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
-import UploadFilesDialog from '../../components/files/UploadFilesDialog';
 import { markJobSeen } from '@/lib/admin/use-new-jobs';
 import { usePageTitle } from '@/lib/admin/page-title';
 import { useBackTarget } from '@/lib/admin/back-target';
@@ -180,10 +179,6 @@ export default function JobDetailPage() {
   const [filesTotal, setFilesTotal] = useState<number | null>(null);
   /** The folder the Files widget should open on (an upload into one folder shows that folder). */
   const [filesFolder, setFilesFolder] = useState<string | null>(null);
-  // The Upload files pop-up (owner, 2026-09-15), and the folder it opens with when a quick action
-  // already said which ("Add photos" → Photos). `filesRefresh` re-lists the Files tab afterwards.
-  const [upload, setUpload] = useState<{ open: boolean; folder: string | null }>({ open: false, folder: null });
-  const [filesRefresh, setFilesRefresh] = useState(0);
   /** Every tab's count, fetched once on load so the strip is informative before anything is opened. */
   const [tabCountsLoaded, setTabCountsLoaded] = useState<Record<string, number>>({});
   /** Does this job have an interactive property map yet, and how many points are on it? The whole
@@ -604,17 +599,7 @@ export default function JobDetailPage() {
               {job.name}
             </h1>
           </div>
-          {/* Upload stays one press from anywhere on the job (owner, 2026-09-15): "make sure we
-              can clearly see the buttons for uploading files." */}
-          <button
-            type="button"
-            onClick={() => setUpload({ open: true, folder: view === 'documents' ? `mnt:jobs:${jobId}:documents` : view === 'research' ? `mnt:jobs:${jobId}:research` : null })}
-            className="jh__upload"
-            title="Upload files to this job — you choose the folder for each file"
-            data-testid="job-upload-files"
-          >
-            <Upload size={16} strokeWidth={2.25} aria-hidden /> Upload files
-          </button>
+          {/* No Upload button here (owner, 2026-11-11) — it lives in Files and Photos & videos. */}
         </div>
         <dl className="jh__facts">
           <div className="jh__fact jh__fact--address">
@@ -645,21 +630,6 @@ export default function JobDetailPage() {
           </div>
         </dl>
       </header>
-
-      <UploadFilesDialog
-        open={upload.open}
-        onClose={() => setUpload({ open: false, folder: null })}
-        rootId={`mnt:jobs:${jobId}`}
-        title={jobTitle}
-        initialDestinationId={upload.folder}
-        onUploaded={({ destinationIds }) => {
-          setFilesRefresh((n) => n + 1);
-          void loadCounts();
-          // Already looking at files? Stay, and see them arrive. Otherwise show where they went.
-          if (view === 'media' || view === 'documents' || view === 'research' || view === 'files') return;
-          openView('files', destinationIds.length === 1 ? destinationIds[0] : null);
-        }}
-      />
 
       {view === 'home' || !current ? (
         /* ── JOB HOME ── */
@@ -714,18 +684,18 @@ export default function JobDetailPage() {
                   rootId={`mnt:jobs:${jobId}`}
                   title={jobTitle}
                   initialFolder="research"
-                  refreshKey={filesRefresh}
+                  uploads={false}
                   folderExtras={{ research: <JobResearchPanel research={research} onAdd={addResearch} onDelete={deleteResearch} /> }}
                 />
               </div>
             )}
 
             {view === 'media' && (
-              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title="Photos & videos" layout="media" refreshKey={filesRefresh} />
+              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title="Photos & videos" layout="media" />
             )}
 
             {view === 'documents' && (
-              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title={jobTitle} initialFolder="documents" refreshKey={filesRefresh} />
+              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title={jobTitle} initialFolder="documents" uploads={false} />
             )}
 
             {view === 'files' && (
@@ -734,7 +704,6 @@ export default function JobDetailPage() {
                 title={jobTitle}
                 initialFolder={filesFolder}
                 onTotalChange={setFilesTotal}
-                refreshKey={filesRefresh}
                 folderExtras={{
                   research: <JobResearchPanel research={research} onAdd={addResearch} onDelete={deleteResearch} />,
                   cad: (
@@ -962,7 +931,7 @@ export default function JobDetailPage() {
                 </section>
                 {/* Everything that has happened on the job — uploads, renames, payments, edits —
                     newest first. */}
-                <JobActivityFeed jobId={jobId} key={filesRefresh} />
+                <JobActivityFeed jobId={jobId} />
               </div>
             )}
 

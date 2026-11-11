@@ -226,7 +226,7 @@ describe('the FolderExplorer', () => {
     expect(code).toContain('section: spec.uploadSection, fileType: spec.uploadFileType');
     expect(src).toContain('data-testid="fe-upload"');
     expect(code).toContain('initialDestinationId={target ? current?.id ?? null : null}');
-    expect(code).toContain('onDrop={uploadRoot ?');
+    expect(code).toContain('onDrop={canUpload ?');
   });
 
   it('keeps what the retired panels could do: attach from Files here; the cut and background hand-off in the pop-up', () => {

@@ -82,6 +82,9 @@ export interface FolderExplorerProps {
    *  top. A Photos | Videos switch filters either kind off (never both), and a folder with none of
    *  the kinds being shown is hidden. Sort, preview size, viewer, selection and delete are shared. */
   layout?: 'explorer' | 'media';
+  /** false hides Upload files and the drop-to-upload (owner, 2026-11-11: on a job, uploading lives in
+   *  Files and Photos & videos only). New folder and Scan stay. */
+  uploads?: boolean;
 }
 
 type Mode = 'folder' | 'all';
@@ -191,7 +194,7 @@ async function downloadEntry(id: string): Promise<{ url: string; name: string; m
   return { url: json.url, name: typeof json.name === 'string' ? json.name : id, mime: typeof json.mime_type === 'string' ? json.mime_type : null };
 }
 
-export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className, refreshKey, layout = 'explorer' }: FolderExplorerProps) {
+export default function FolderExplorer({ rootId, initialFolder, folderExtras, onTotalChange, title, className, refreshKey, layout = 'explorer', uploads = true }: FolderExplorerProps) {
   const media = layout === 'media';
   const [tree, setTree] = useState<MountTree | null>(null);
   const [loading, setLoading] = useState(true);
@@ -596,6 +599,8 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
   const jobUnderCurrent = current ? (parseJobFolderId(current.id)?.jobId ?? parseNamedFolderId(current.id)?.jobId ?? null) : null;
   /** Uploads are offered on a job's or a project's files — the roots the pop-up knows the folders of. */
   const uploadRoot = /^mnt:(jobs|projects):[^:]+$/.test(rootId) || Boolean(parseJobNodeId(rootId));
+  /** The Upload button and dropping files — off where the page wants uploads elsewhere. */
+  const canUpload = uploadRoot && uploads;
   const newFolderPlace = current ? newFolderPlaceFor(current.id) : null;
   const namedHere = current ? parseNamedFolderId(current.id) : null;
 
@@ -942,9 +947,9 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                 )}
                 {/* "Make sure we can clearly see the buttons for uploading files" (owner, 2026-09-15) — still
                     the brightest thing on the row. Dropping files anywhere on the list works too. */}
-                <button type="button" className="fe__btn fe__btn--primary" onClick={() => openUpload()} disabled={busy !== null} title={`${media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'} — or drag files anywhere onto the list`} data-testid="fe-upload">
+                {canUpload && <button type="button" className="fe__btn fe__btn--primary" onClick={() => openUpload()} disabled={busy !== null} title={`${media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'} — or drag files anywhere onto the list`} data-testid="fe-upload">
                   <Upload size={15} aria-hidden="true" /> Upload files
-                </button>
+                </button>}
               </>
             )}
           </div>
@@ -1044,10 +1049,10 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
       {/* ── the body: a drop target when the folder takes uploads ── */}
       <div
         className={`fe__body${dragOver ? ' fe__body--drop' : ''}`}
-        onDragEnter={uploadRoot ? (e) => { if (!Array.from(e.dataTransfer.types).includes('Files')) return; e.preventDefault(); dragDepth.current += 1; setDragOver(true); } : undefined}
-        onDragOver={uploadRoot ? (e) => { if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault(); } : undefined}
-        onDragLeave={uploadRoot ? () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragOver(false); } : undefined}
-        onDrop={uploadRoot ? (e) => { e.preventDefault(); dragDepth.current = 0; setDragOver(false); openUpload(Array.from(e.dataTransfer.files)); } : undefined}
+        onDragEnter={canUpload ? (e) => { if (!Array.from(e.dataTransfer.types).includes('Files')) return; e.preventDefault(); dragDepth.current += 1; setDragOver(true); } : undefined}
+        onDragOver={canUpload ? (e) => { if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault(); } : undefined}
+        onDragLeave={canUpload ? () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragOver(false); } : undefined}
+        onDrop={canUpload ? (e) => { e.preventDefault(); dragDepth.current = 0; setDragOver(false); openUpload(Array.from(e.dataTransfer.files)); } : undefined}
       >
         {confirmRemove && namedHere && current && (
           <div className="fe__folderform fe__folderform--danger" role="alertdialog" aria-label="Remove folder" data-testid="fe-confirm-remove">
@@ -1183,7 +1188,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
           </div>
         )}
 
-        {dragOver && uploadRoot && <div className="fe__drop-hint" aria-hidden="true"><Upload size={22} /> Drop to upload{target ? ` into ${target.label}` : ''} — you will choose the folder next</div>}
+        {dragOver && canUpload && <div className="fe__drop-hint" aria-hidden="true"><Upload size={22} /> Drop to upload{target ? ` into ${target.label}` : ''} — you will choose the folder next</div>}
       </div>
 
       {extra ? <div className="fe__extra">{extra}</div> : null}
