@@ -709,8 +709,8 @@ export default function NewInvoicePage(): React.ReactElement {
               off. <Link href="/admin/invoices/calculator">Quote calculator →</Link>
             </span>
           </label>
-          <div className="invoice-section--totals" style={{ marginTop: '0.75rem', gridTemplateColumns: 'minmax(12rem, auto) 8rem 1fr' }}>
-            <label>
+          <div className="invoice-fields" style={{ marginTop: '0.9rem' }}>
+            <label className="invoice-field">
               <span>Sales tax</span>
               <select
                 value={taxMode}
@@ -723,7 +723,7 @@ export default function NewInvoicePage(): React.ReactElement {
               </select>
             </label>
             {taxMode === 'rate' ? (
-              <label className="invoice-row__small">
+              <label className="invoice-field invoice-field--narrow">
                 <span>Rate (%)</span>
                 <input
                   type="number"
@@ -736,7 +736,7 @@ export default function NewInvoicePage(): React.ReactElement {
                 />
               </label>
             ) : (
-              <label className="invoice-row__small">
+              <label className="invoice-field invoice-field--narrow">
                 <span>Tax ($)</span>
                 <input
                   type="number"
@@ -748,14 +748,15 @@ export default function NewInvoicePage(): React.ReactElement {
                 />
               </label>
             )}
-            <p className="invoice-taxhint">
-              8.25% in most cities, 6.25% outside city limits, 0 for topographic and construction surveys (not taxable).
-            </p>
           </div>
+          <p className="invoice-taxhint">
+            The rate follows the job site: 8.25% in most cities, 6.25% outside city limits, 0% for topographic and
+            construction surveys (not taxable).
+          </p>
         </section>
 
-        <section className="invoice-section invoice-section--totals">
-          <label>
+        <section className="invoice-section invoice-fields">
+          <label className="invoice-field">
             <span>Due date</span>
             <input
               type="date"
@@ -763,7 +764,7 @@ export default function NewInvoicePage(): React.ReactElement {
               onChange={(e) => setDueAt(e.target.value)}
             />
           </label>
-          <label className="invoice-section__notes">
+          <label className="invoice-field invoice-field--wide">
             <span>Notes for the customer (optional)</span>
             <textarea
               rows={3}
@@ -780,14 +781,13 @@ export default function NewInvoicePage(): React.ReactElement {
             How much the customer must pay on their first payment. Leave as
             &ldquo;None&rdquo; to let them pay any amount up to the total.
           </p>
-          <div className="invoice-section--totals">
-            <label>
+          <div className="invoice-fields">
+            <label className="invoice-field">
               <span>Upfront type</span>
               <select
                 value={depositType}
                 onChange={(e) => setDepositType(e.target.value as DepositType)}
                 data-testid="invoice-deposit-type"
-                style={{ font: 'inherit', padding: '0.55rem 0.7rem', border: '1px solid #d6d9e3', borderRadius: 8 }}
               >
                 <option value="none">None (any amount)</option>
                 <option value="percent">Percentage of total</option>
@@ -795,7 +795,7 @@ export default function NewInvoicePage(): React.ReactElement {
               </select>
             </label>
             {depositType !== 'none' && (
-              <label className="invoice-row__small">
+              <label className="invoice-field invoice-field--narrow">
                 <span>{depositType === 'percent' ? 'Percent (%)' : 'Amount ($)'}</span>
                 <input
                   type="number"
@@ -949,15 +949,37 @@ const styles = `
   .invoice-totals > div { display: flex; gap: 1rem; align-items: baseline; }
   .invoice-totals__total strong { color: #BD1218; font-family: 'Sora', sans-serif; font-size: 1.2rem; }
   /* Card pricing (2026-11-10): both prices under the totals, and the pricing box above them. */
-  .invoice-totals { flex-wrap: wrap; row-gap: 0.4rem; }
-  .invoice-totals > p { flex-basis: 100%; text-align: right; }
-  .invoice-totals__noncard { flex-basis: 100%; justify-content: flex-end; color: #1F5A33; }
+  /* The totals are a stacked summary on the right: one row per figure, label left, amount right. */
+  .invoice-totals { flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+  .invoice-totals > div { width: min(100%, 28rem); justify-content: space-between; }
+  .invoice-totals > p { width: min(100%, 28rem); text-align: right; }
+  .invoice-totals__total { padding-top: 0.4rem; border-top: 1px solid #e4e7ee; }
+  .invoice-totals__noncard { color: #1F5A33; }
   .invoice-totals__noncard strong { color: #1F7A3E; font-family: 'Sora', sans-serif; font-size: 1.1rem; }
   .invoice-cardpricing { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.7rem 0.85rem; border: 1px solid #A9D9B8; background: #EEF8F1; border-radius: 10px; font-size: 0.9rem; color: #1F3A2A; line-height: 1.45; }
-  .invoice-cardpricing input { margin-top: 0.2rem; width: auto; }
+  .invoice-cardpricing input { margin: 0.2rem 0 0; width: auto; padding: 0; flex: none; }
   .invoice-cardpricing a { color: #1D3095; font-weight: 600; }
-  .invoice-select { font: inherit; padding: 0.55rem 0.7rem; border: 1px solid #d6d9e3; border-radius: 8px; }
-  .invoice-taxhint { align-self: end; margin: 0; font-size: 0.82rem; color: #4a5470; max-width: 22rem; }
+  /* UI pass (owner, 2026-11-10: "some of the fields and stuff are in weird places"). Every field is
+   * the same shape — label on top, the box filling its column — whatever the admin's global form
+   * styles do to a bare <label>. */
+  .invoice-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.85rem 1rem; align-items: end; }
+  .invoice-field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; font-size: 0.85rem; color: #4a5470; }
+  .invoice-field > span { font-weight: 600; }
+  .invoice-field input, .invoice-field select, .invoice-field textarea,
+  .invoice-row input, .invoice-row textarea {
+    width: 100%; min-width: 0; box-sizing: border-box; margin: 0;
+    font: inherit; font-size: 0.95rem; color: #152050; background: #fff;
+    padding: 0.55rem 0.7rem; border: 1px solid #d6d9e3; border-radius: 8px;
+  }
+  .invoice-field input, .invoice-field select { height: var(--button-height, 2.5rem); }
+  .invoice-field input:focus, .invoice-field select:focus, .invoice-field textarea:focus { outline: 2px solid rgba(29, 48, 149, 0.25); border-color: #1D3095; }
+  .invoice-field--narrow { max-width: 10rem; }
+  .invoice-field--wide { grid-column: 1 / -1; }
+  .invoice-taxhint { margin: 0.6rem 0 0; font-size: 0.82rem; color: #4a5470; }
+  .invoice-items__head, .invoice-items__row { grid-template-columns: minmax(0, 1fr) 5rem 8.5rem 7rem 2.5rem !important; }
+  .invoice-items__row input { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; height: var(--button-height, 2.5rem); }
+  .invoice-items__head span:nth-child(4), .invoice-items__total { text-align: right; }
+  .invoice-row__small { max-width: none; }
   .invoice-totals__explain { margin: 0.35rem 0 0; font-size: 0.8rem; color: #4a5470; }
   .invoice-page__actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
   .invoice-btn {
@@ -980,7 +1002,13 @@ const styles = `
   .invoice-page__pay-link label { display: block; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.35rem; }
   .invoice-page__pay-link a { color: #1D3095; word-break: break-all; font-weight: 600; }
   @media (max-width: 700px) {
-    .invoice-row, .invoice-section--totals { grid-template-columns: 1fr; }
+    .invoice-row, .invoice-section--totals, .invoice-fields { grid-template-columns: 1fr; }
+    .invoice-field--narrow { max-width: none; }
+    /* Phone: the description on its own line, then qty · unit · total · remove on one row. */
+    .invoice-items__row { grid-template-columns: 4.5rem minmax(0, 1fr) auto auto !important; row-gap: 0.4rem; padding-bottom: 0.6rem; border-bottom: 1px solid #eef0f5; }
+    .invoice-items__row > input:first-child { grid-column: 1 / -1; }
+    .invoice-page__actions { flex-direction: column-reverse; }
+    .invoice-page__actions > * { width: 100%; text-align: center; }
     .invoice-items__head { display: none; }
     .invoice-items__row { grid-template-columns: 1fr; }
     .invoice-items__total { text-align: left; }
