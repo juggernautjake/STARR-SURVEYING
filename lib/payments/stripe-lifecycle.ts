@@ -12,20 +12,23 @@ export interface PaymentLike {
   amount_cents?: number | null;
   status?: string | null;
   refunded_cents?: number | null;
+  /** Non-card discount credited on top of the money (seeds/681, lib/payments/pay-discount.ts). */
+  discount_cents?: number | null;
 }
 
 const n = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
-/** Money the business has and keeps: succeeded payments, less anything refunded on them. */
+/** How much of the invoice is settled: succeeded payments plus any non-card discount credited with
+ *  them, less anything refunded. (Revenue reports count money — `amount_cents` — not this.) */
 export function netPaidCents(payments: ReadonlyArray<PaymentLike>): number {
   return payments
     .filter((p) => p.status === 'succeeded')
-    .reduce((acc, p) => acc + Math.max(0, n(p.amount_cents) - n(p.refunded_cents)), 0);
+    .reduce((acc, p) => acc + Math.max(0, n(p.amount_cents) + n(p.discount_cents) - n(p.refunded_cents)), 0);
 }
 
-/** Money on its way: bank payments still clearing. Not paid yet, but not owed again either. */
+/** On its way: bank payments still clearing (with their discount). Not paid yet, not owed again. */
 export function pendingCents(payments: ReadonlyArray<PaymentLike>): number {
-  return payments.filter((p) => p.status === 'pending').reduce((acc, p) => acc + n(p.amount_cents), 0);
+  return payments.filter((p) => p.status === 'pending').reduce((acc, p) => acc + n(p.amount_cents) + n(p.discount_cents), 0);
 }
 
 /** What the customer can still be asked to pay now: the total, less what is paid and what is clearing. */

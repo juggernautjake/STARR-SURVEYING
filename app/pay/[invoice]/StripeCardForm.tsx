@@ -61,11 +61,17 @@ const STRIPE_APPEARANCE: Appearance = {
 
 interface Props {
   invoiceNumber: string;
+  /** How much of the invoice this settles. */
   amountCents: number;
+  /** 'card' (the invoice price) or 'bank' (US bank account, at the non-card discount). */
+  payMethod?: 'card' | 'bank';
+  /** What the customer is charged — less than amountCents for a discounted bank payment. */
+  chargeCents?: number;
   onCancel: () => void;
 }
 
-export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }: Props): ReactElement {
+export default function StripeCardForm({ invoiceNumber, amountCents, payMethod = 'card', chargeCents, onCancel }: Props): ReactElement {
+  const charge = typeof chargeCents === 'number' ? chargeCents : amountCents;
   const stripePromise = useMemo(() => getStripe(), []);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -80,7 +86,7 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
         const res = await fetch(`/api/public/invoice/${encodeURIComponent(invoiceNumber)}/intent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount_cents: amountCents }),
+          body: JSON.stringify({ amount_cents: amountCents, method: payMethod }),
         });
         const body = await res.json().catch(() => ({}));
         if (cancelled) return;
@@ -97,7 +103,7 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
     return () => {
       cancelled = true;
     };
-  }, [invoiceNumber, amountCents]);
+  }, [invoiceNumber, amountCents, payMethod]);
 
   if (loading) {
     return (
@@ -123,11 +129,11 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
   return (
     <div className="pay-card-form" data-testid="pay-card-form">
       <div className="pay-card-form__head">
-        <span className="pay-card-form__title">Pay by card or bank account</span>
+        <span className="pay-card-form__title">{payMethod === 'bank' ? 'Pay from your bank account' : 'Pay by credit or debit card'}</span>
         <span className="pay-card-form__secure" aria-hidden="true">🔒 Encrypted by Stripe</span>
       </div>
       <Elements stripe={stripePromise} options={{ clientSecret, appearance: STRIPE_APPEARANCE }}>
-        <CardFields invoiceNumber={invoiceNumber} amountCents={amountCents} onCancel={onCancel} />
+        <CardFields invoiceNumber={invoiceNumber} amountCents={charge} payMethod={payMethod} onCancel={onCancel} />
       </Elements>
     </div>
   );
@@ -136,10 +142,13 @@ export default function StripeCardForm({ invoiceNumber, amountCents, onCancel }:
 function CardFields({
   invoiceNumber,
   amountCents,
+  payMethod,
   onCancel,
 }: {
   invoiceNumber: string;
+  /** The amount charged. */
   amountCents: number;
+  payMethod: 'card' | 'bank';
   onCancel: () => void;
 }): ReactElement {
   const stripe = useStripe();
@@ -183,8 +192,7 @@ function CardFields({
         </button>
       </div>
       <p className="pay-card-form__foot">
-        Powered by Stripe — your card and bank details are encrypted and never touch our servers.
-        Paying from a bank account saves us card fees — thank you!
+        Powered by Stripe — your {payMethod === 'bank' ? 'bank' : 'card'} details are encrypted and never touch our servers.
       </p>
     </form>
   );

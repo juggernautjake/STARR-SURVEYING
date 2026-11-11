@@ -26,9 +26,11 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('lib/payments/live — PAYMENT_METHODS catalog', () => {
-  it("exposes Stripe, Venmo, CashApp, Zelle, cash, check (six methods)", () => {
+  it("exposes bank, card, Venmo, CashApp, Zelle, cash, check (seven methods; bank first)", () => {
+    // 2026-11-10: bank (ACH) and card are separate choices, because they are priced differently —
+    // card carries the processing fee, every other way is discounted (lib/payments/pay-discount.ts).
     const ids = PAYMENT_METHODS.map((m) => m.id);
-    expect(ids).toEqual(['stripe', 'venmo', 'cashapp', 'zelle', 'cash', 'check']);
+    expect(ids).toEqual(['ach', 'stripe', 'venmo', 'cashapp', 'zelle', 'cash', 'check']);
   });
 
   it("NEVER invites a customer to mail cash", () => {

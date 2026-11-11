@@ -33,7 +33,7 @@ export function sanitizeLineItems(raw: unknown): LineItemPublic[] {
  *  array (only `succeeded` rows count toward balance, less anything
  *  refunded on them — seeds/680, lib/payments/stripe-lifecycle.ts). */
 export function sumSucceededPayments(
-  payments: ReadonlyArray<{ amount_cents?: number; status?: string; refunded_cents?: number | null }>,
+  payments: ReadonlyArray<{ amount_cents?: number; status?: string; refunded_cents?: number | null; discount_cents?: number | null }>,
 ): number {
   return netPaidCents(payments);
 }
@@ -51,14 +51,16 @@ export interface PublicPaymentSummary {
   cleared_at: string | null;
   external_id_tail: string | null;  // last-4 of external_id
   payer_email_mask: string | null;  // m***@example.com
+  /** Non-card discount credited with this payment (seeds/681); 0 when none. */
+  discount_cents?: number;
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  stripe: 'Card or bank',
+  stripe: 'Card',
   venmo: 'Venmo',
   cashapp: 'Cash App',
   zelle: 'Zelle',
-  ach: 'Bank ACH',
+  ach: 'Bank account (ACH)',
   cash: 'Cash in office',
   check: 'Check',
   other: 'Other',
@@ -97,6 +99,7 @@ export function describePaymentForReceipt(row: {
   cleared_at?: string | null;
   external_id?: string | null;
   payer_email?: string | null;
+  discount_cents?: number | null;
 }): PublicPaymentSummary | null {
   if (row.status !== 'succeeded') return null;
   const method = typeof row.method === 'string' ? row.method : 'other';
@@ -107,6 +110,7 @@ export function describePaymentForReceipt(row: {
     cleared_at: row.cleared_at ?? null,
     external_id_tail: lastFour(row.external_id),
     payer_email_mask: maskPayerEmail(row.payer_email),
+    discount_cents: typeof row.discount_cents === 'number' && row.discount_cents > 0 ? row.discount_cents : 0,
   };
 }
 

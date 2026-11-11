@@ -21,6 +21,7 @@
 // Required means the compiler names every place that has to decide.
 
 import { formatDollars } from './live';
+import { discountFor, type CardFee } from './pay-discount';
 
 /** The sending firm's identity, as these templates need it. A narrow subset of
  *  `TenantProfile` (lib/saas/tenant-profile-shape.ts) rather than the whole
@@ -47,6 +48,17 @@ export interface InvoiceEmailInput {
   total_cents: number;
   due_at: string | null;
   notes: string | null;
+  /** The card fee every other way of paying is spared (lib/payments/pay-discount.ts). The total
+   *  above is the card price; omitted or null = no discount line. */
+  card_fee?: CardFee | null;
+}
+
+/** "Pay by bank, Zelle, cash, check, Venmo or Cash App: $1,000.00 — no card processing fee." */
+function discountLine(input: InvoiceEmailInput): string | null {
+  if (!input.card_fee || input.total_cents <= 0) return null;
+  const noncard = input.total_cents - discountFor(input.total_cents, input.card_fee);
+  if (noncard >= input.total_cents) return null;
+  return `Pay by bank account, Zelle, cash, check, Venmo or Cash App and pay ${formatDollars(noncard)}: no card processing fee. The total above is the card price.`;
 }
 
 const SAFE_TAG_RE = /[&<>"]/g;
@@ -149,6 +161,7 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
               <div style="text-align:center;margin:32px 0 8px;">
                 <a href="${escape(input.pay_link)}" data-testid="pay-link" style="display:inline-block;background:#BD1218;color:#ffffff;text-decoration:none;font-weight:700;font-family:'Sora','Inter',sans-serif;padding:14px 28px;border-radius:10px;font-size:16px;">Pay this invoice online</a>
               </div>
+              ${discountLine(input) ? `<p data-testid="discount-line" style="margin:0 0 14px;text-align:center;color:#1F5A33;font-size:14px;background:#EEF8F1;border:1px solid #A9D9B8;border-radius:8px;padding:10px 12px;">${escape(discountLine(input) as string)}</p>` : ''}
               <p style="margin:0;text-align:center;color:#6b7280;font-size:13px;">Or paste this link into your browser:<br /><a href="${escape(input.pay_link)}" style="color:#1D3095;word-break:break-all;">${escape(input.pay_link)}</a></p>
 
               ${notesBlock}
@@ -401,6 +414,8 @@ export function buildInvoiceEmailText(input: InvoiceEmailInput): string {
   ];
   if (input.tax_cents > 0) lines.push(`Tax:      ${formatDollars(input.tax_cents)}`);
   lines.push(`Total:    ${formatDollars(input.total_cents)}`);
+  const discount = discountLine(input);
+  if (discount) lines.push('', discount);
   if (input.due_at) lines.push('', `Due by ${new Date(input.due_at).toLocaleDateString()}`);
   if (input.notes) lines.push('', input.notes);
   const call = callUsText(input.firm);

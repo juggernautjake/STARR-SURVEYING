@@ -153,6 +153,32 @@ describe('the Stripe webhook, end to end', () => {
     expect(invoice().status).toBe('paid');
   });
 
+  it('a bank payment at the non-card price settles the card-price invoice (2026-11-10)', async () => {
+    invoice().total_cents = 103017; // the card price of a $1,000 quote
+    const bank = (extra: Record<string, unknown> = {}) => pi('pi_ach', {
+      amount: 100000, amount_received: 100000, payment_method_types: ['us_bank_account'],
+      metadata: { invoice_id: INV, invoice_number: 'SS-1', public_slug: 's', pay_method: 'bank', credit_cents: '103017', discount_cents: '3017' },
+      ...extra,
+    });
+    await send('payment_intent.processing', bank({ amount_received: 0 }));
+    expect(payments()[0]).toMatchObject({ status: 'pending', method: 'ach', amount_cents: 100000, discount_cents: 3017 });
+    expect(invoice().status).toBe('issued');
+    await send('payment_intent.succeeded', bank());
+    expect(payments()).toHaveLength(1);
+    expect(payments()[0]).toMatchObject({ status: 'succeeded', method: 'ach', discount_cents: 3017 });
+    expect(invoice().status).toBe('paid');
+  });
+
+  it('a card payment never gets the discount, whatever the metadata says', async () => {
+    invoice().total_cents = 103017;
+    await send('payment_intent.succeeded', pi('pi_card2', {
+      amount: 100000, amount_received: 100000, payment_method_types: ['card'],
+      metadata: { invoice_id: INV, invoice_number: 'SS-1', public_slug: 's', pay_method: 'card', discount_cents: '3017' },
+    }));
+    expect(payments()[0]).toMatchObject({ method: 'stripe', discount_cents: 0 });
+    expect(invoice().status).toBe('partial');
+  });
+
   it('the same event twice records one payment', async () => {
     const a = await send('payment_intent.succeeded', pi('pi_dup'));
     expect(await resend(a.body)).toBe(200);

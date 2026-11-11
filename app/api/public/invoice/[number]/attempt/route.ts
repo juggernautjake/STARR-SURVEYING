@@ -44,6 +44,8 @@ import { getTenantProfile } from '@/lib/saas/tenant-profile';
 import { outboundIdentity } from '@/lib/email/sender';
 import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
+import { cardFee, chargeFor, methodGetsDiscount } from '@/lib/payments/pay-discount';
+import { pendingCents } from '@/lib/payments/stripe-lifecycle';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -86,16 +88,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // customer doesn't have to type it on a phone.
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, status')
+    .select('amount_cents, status, refunded_cents, discount_cents')
     .eq('invoice_id', invoice.id);
-  const paid = sumSucceededPayments(payments ?? []);
+  // A bank payment still clearing is on its way, not owed again.
+  const paid = sumSucceededPayments(payments ?? []) + pendingCents(payments ?? []);
   const balance = Math.max(0, (invoice.total_cents ?? 0) - paid);
   if (balance === 0) {
     return NextResponse.json({ error: 'Invoice is already paid in full.' }, { status: 409 });
   }
+  // `intended_amount_cents` from the pay page is how much of the INVOICE this settles (the credit).
   const intended = typeof body.intended_amount_cents === 'number'
     ? Math.max(0, Math.round(body.intended_amount_cents))
     : balance;
+  // Every method here is spared the card fee (lib/payments/pay-discount.ts). The pledge records the
+  // MONEY to send, and the credit it buys at the fee in force now.
+  const fee = methodGetsDiscount(method) ? cardFee() : null;
+  const money = chargeFor(intended, method, fee);
 
   // Enforce the upfront/total rule on the pledged amount too — a Venmo/cash
   // pledge below the required upfront (or above the balance) is rejected.
@@ -115,7 +123,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const row = {
     invoice_id: invoice.id,
     method,
-    intended_amount_cents: intended,
+    intended_amount_cents: money,
+    credit_cents: intended,
+    discount_bps: fee?.bps ?? 0,
+    discount_fixed_cents: fee?.fixedCents ?? 0,
     status,
     external_ref: typeof body.external_ref === 'string' ? body.external_ref.slice(0, 200) : null,
     payer_email: typeof body.payer_email === 'string' ? body.payer_email.trim().slice(0, 200) || null : null,
@@ -151,7 +162,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       method: method as 'cash' | 'check',
       invoice_number: invoice.invoice_number,
       customer_name: invoice.customer_name,
-      amount_cents: intended,
+      amount_cents: money,
       office_address_line1: profile.addressLine1,
       office_address_line2: profile.addressLine2,
       pay_link: buildInvoicePayLink(host, invoice.public_slug),

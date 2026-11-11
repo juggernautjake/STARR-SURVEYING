@@ -69,6 +69,9 @@ const PAGES: Record<string, ComponentType> = {
   // The job page's file grid (2026-09-27): delete, multi-select and HEIC tiles.
   'job-files': nextDynamic(() => import('./FolderExplorerHarnessMount'), { ssr: false }),
   leads: nextDynamic(() => import('@/app/admin/marketing/_tabs/LeadsTab'), { ssr: false }),
+  // Card pricing (2026-11-10): the quote calculator and the invoice builder's pricing.
+  'quote-calculator': nextDynamic(() => import('@/app/admin/invoices/calculator/page'), { ssr: false }),
+  'invoice-new': nextDynamic(() => import('@/app/admin/invoices/new/page'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),
   // C5: the harness shoots page BODIES, and `/admin/receipts` is a portal shell now. Pointed at the
   // QUEUE, which is what this entry has always been a picture of — shooting the shell would replace a

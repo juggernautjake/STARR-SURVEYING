@@ -401,6 +401,19 @@ async function paymentForIntent(intentId: string): Promise<PaymentRow | null> {
   return (data as PaymentRow | null) ?? null;
 }
 
+/**
+ * Card or bank, and the non-card discount the payment carries (lib/payments/pay-discount.ts). The
+ * intent route stamps `pay_method` and `discount_cents` in the metadata; a bank-only intent is ACH.
+ * The discount is honoured only for a bank payment — it is what the customer was shown and charged.
+ */
+function payKind(paymentIntent: Record<string, unknown>): { method: 'stripe' | 'ach'; discount: number } {
+  const meta = (paymentIntent.metadata as Record<string, unknown> | undefined) ?? {};
+  const types = Array.isArray(paymentIntent.payment_method_types) ? paymentIntent.payment_method_types : [];
+  const bank = meta.pay_method === 'bank' || (types.length === 1 && types[0] === 'us_bank_account');
+  const d = Number(meta.discount_cents);
+  return { method: bank ? 'ach' : 'stripe', discount: bank && Number.isFinite(d) && d > 0 ? Math.round(d) : 0 };
+}
+
 function bankReason(paymentIntent: Record<string, unknown>): string {
   return (paymentIntent.last_payment_error as { message?: string } | null)?.message ?? 'not given';
 }
@@ -443,12 +456,13 @@ async function handleInvoiceIntent(paymentIntent: Record<string, unknown>, outco
   const now = new Date().toISOString();
   const existing = await paymentForIntent(key.external_intent_id);
   const amount = outcome === 'succeeded' ? key.amount_received : stripeCents(paymentIntent, 'amount');
+  const { method, discount } = payKind(paymentIntent);
   let bounced = false;
 
   if (outcome === 'pending') {
     if (!existing) {
       const { error } = await supabaseAdmin.from('payments').insert({
-        invoice_id: invoiceId, amount_cents: amount, method: 'stripe', status: 'pending',
+        invoice_id: invoiceId, amount_cents: amount, discount_cents: discount, method, status: 'pending',
         external_id: key.external_intent_id, external_provider: 'stripe', payer_email: key.receipt_email,
         notes: 'Bank payment clearing (about 4 business days).',
       });
@@ -457,13 +471,13 @@ async function handleInvoiceIntent(paymentIntent: Record<string, unknown>, outco
   } else if (outcome === 'succeeded') {
     if (!existing) {
       const { error } = await supabaseAdmin.from('payments').insert({
-        invoice_id: invoiceId, amount_cents: amount, method: 'stripe', status: 'succeeded',
+        invoice_id: invoiceId, amount_cents: amount, discount_cents: discount, method, status: 'succeeded',
         external_id: key.external_intent_id, external_provider: 'stripe', payer_email: key.receipt_email, cleared_at: now,
       });
       if (error) throw new Error(`payment insert failed: ${error.message}`);
     } else if (existing.status === 'pending' || existing.status === 'failed') {
       const { error } = await supabaseAdmin.from('payments')
-        .update({ status: 'succeeded', amount_cents: amount, cleared_at: now, notes: null, updated_at: now }).eq('id', existing.id);
+        .update({ status: 'succeeded', amount_cents: amount, discount_cents: discount, method, cleared_at: now, notes: null, updated_at: now }).eq('id', existing.id);
       if (error) throw new Error(`payment update failed: ${error.message}`);
     } else {
       console.log(`[Webhook] invoice payment intent ${key.external_intent_id} already recorded (${existing.status})`);
@@ -552,7 +566,7 @@ async function rederiveInvoice(invoiceId: string): Promise<{ status: string; inv
   if (error) throw new Error(`invoice lookup failed: ${error.message}`);
   if (!invoice) return null;
   const { data: payments, error: pErr } = await supabaseAdmin
-    .from('payments').select('amount_cents, status, refunded_cents').eq('invoice_id', invoiceId);
+    .from('payments').select('amount_cents, status, refunded_cents, discount_cents').eq('invoice_id', invoiceId);
   if (pErr) throw new Error(`payments lookup failed: ${pErr.message}`);
   const status = invoiceStatusFromPayments({ totalCents: invoice.total_cents ?? 0, currentStatus: invoice.status, payments: payments ?? [] });
   if (status !== invoice.status || (status === 'paid') !== Boolean(invoice.paid_at)) {

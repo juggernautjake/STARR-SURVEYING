@@ -122,7 +122,8 @@ describe('/pay/[invoice] detail — skeleton loader + a11y', () => {
   });
 
   it("method picker cards have an aria-label with the amount + method", () => {
-    expect(SRC).toMatch(/aria-label={`Pay \$\{formatDollars\(chosenCents\)\} with \$\{method\.label\}`}/);
+    // 2026-11-10: the amount is that method's own price (card vs. the non-card discount).
+    expect(SRC).toMatch(/aria-label={`Pay \$\{formatDollars\(price\)\} with \$\{method\.label\}`}/);
     // glyph stays aria-hidden so the screen reader doesn't say "💳"
     expect(SRC).toMatch(/aria-hidden="true">{method\.glyph}/);
   });

@@ -1,0 +1,35 @@
+/* app/admin/components/payments/QuoteCalculator.css — the quote calculator and its page. */
+
+.qc-page { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--theme-fg-primary, #152050); }
+.qc-page__title { font-size: 1.6rem; margin: 0 0 0.35rem; color: #1D3095; }
+.qc-page__lede { margin: 0 0 1.25rem; color: #4a5470; line-height: 1.5; }
+.qc-page__lede a { color: #1D3095; font-weight: 600; }
+
+.qc { background: var(--theme-bg-surface, #fff); border: 1px solid #d6d9e3; border-radius: 12px; padding: 1.1rem 1.2rem; }
+.qc__inputs { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; margin-bottom: 1rem; }
+.qc__inputs > label { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.9rem; color: #4a5470; }
+.qc__money { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 1.1rem; color: #152050; }
+.qc__money input { font: inherit; width: 10rem; padding: 0.5rem 0.65rem; border: 1px solid #c9cedc; border-radius: 8px; }
+.qc__money input:focus { outline: 2px solid #1D3095; outline-offset: 1px; }
+.qc__quick { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.qc__quick button { font: inherit; font-size: 0.78rem; font-weight: 500; padding: 0.2rem 0.55rem; border: 1px solid #c9cedc; border-radius: 999px; background: #f4f6fb; color: #1D3095; cursor: pointer; }
+
+.qc__table { width: 100%; border-collapse: collapse; font-size: 0.98rem; }
+.qc__table th, .qc__table td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #e3e6ef; text-align: right; }
+.qc__table th:first-child, .qc__table td:first-child { text-align: left; color: #4a5470; }
+.qc__table th { font-size: 0.82rem; color: #4a5470; font-weight: 600; vertical-align: bottom; }
+.qc__table th small { font-weight: 500; }
+.qc__total td { font-weight: 800; font-size: 1.12rem; color: #152050; border-bottom: 2px solid #1D3095; }
+.qc__total td:first-child { color: #152050; }
+
+.qc__net { margin: 0.9rem 0 0; font-size: 0.9rem; color: #4a5470; line-height: 1.5; }
+.qc__copy { display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 0.9rem; flex-wrap: wrap; }
+.qc__copy pre { flex: 1 1 320px; margin: 0; white-space: pre-wrap; font: 0.9rem/1.45 ui-monospace, Consolas, monospace; background: #f4f6fb; border: 1px solid #e3e6ef; border-radius: 8px; padding: 0.6rem 0.75rem; }
+.qc__copy button { font: inherit; font-weight: 600; padding: 0.5rem 0.9rem; border: 0; border-radius: 8px; background: #1D3095; color: #fff; cursor: pointer; }
+.qc__note { margin: 1rem 0 0; font-size: 0.8rem; color: #6b7280; line-height: 1.5; }
+
+@media (max-width: 560px) {
+  .qc { padding: 0.9rem; }
+  .qc__table { font-size: 0.9rem; }
+  .qc__money input { width: 8rem; }
+}

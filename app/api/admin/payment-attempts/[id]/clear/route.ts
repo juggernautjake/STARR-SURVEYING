@@ -26,7 +26,8 @@ import {
   describePaymentForReceipt,
   sumSucceededPayments,
 } from '@/lib/payments/invoice-public';
-import { nextInvoiceStatusAfterPayment } from '@/lib/payments/stripe';
+import { invoiceStatusFromPayments } from '@/lib/payments/stripe-lifecycle';
+import { creditForMoney } from '@/lib/payments/pay-discount';
 import {
   buildReceiptResendHtml,
   buildReceiptResendSubject,
@@ -59,7 +60,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: attempt } = await supabaseAdmin
     .from('payment_attempts')
-    .select('id, invoice_id, method, status, intended_amount_cents, payer_email, resulted_in_payment_id')
+    .select('id, invoice_id, method, status, intended_amount_cents, credit_cents, discount_bps, discount_fixed_cents, payer_email, resulted_in_payment_id')
     .eq('id', attemptId)
     .maybeSingle();
   if (!attempt) {
@@ -74,7 +75,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, total_cents, customer_name, customer_email')
+    .select('id, org_id, invoice_number, public_slug, status, total_cents, paid_at, customer_name, customer_email')
     .eq('id', attempt.invoice_id)
     .maybeSingle();
   if (!invoice) {
@@ -110,14 +111,27 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: existingPayments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, status')
+    .select('amount_cents, status, refunded_cents, discount_cents')
     .eq('invoice_id', invoice.id);
   const alreadyPaid = sumSucceededPayments(existingPayments ?? []);
-  const nextStatus = nextInvoiceStatusAfterPayment({
+
+  // The non-card discount the customer was promised for Zelle / cash / check (seeds/681). The money
+  // as pledged → exactly the credit the pay page showed; a different amount (a round number) → the
+  // credit that money buys at the same rate, never more than the balance.
+  const bps = typeof attempt.discount_bps === 'number' ? attempt.discount_bps : 0;
+  const fixed = typeof attempt.discount_fixed_cents === 'number' ? attempt.discount_fixed_cents : 0;
+  let discount = 0;
+  if (bps > 0 || fixed > 0) {
+    if (amount === attempt.intended_amount_cents && typeof attempt.credit_cents === 'number') {
+      discount = Math.max(0, attempt.credit_cents - amount);
+    } else {
+      discount = creditForMoney(amount, { bps, fixedCents: fixed }, Math.max(0, (invoice.total_cents ?? 0) - alreadyPaid)).discount;
+    }
+  }
+  const nextStatus = invoiceStatusFromPayments({
     totalCents: invoice.total_cents ?? 0,
-    alreadyPaidCents: alreadyPaid,
-    newPaymentCents: amount,
     currentStatus: invoice.status,
+    payments: [...(existingPayments ?? []), { amount_cents: amount, discount_cents: discount, status: 'succeeded' }],
   });
 
   // Write the payment row first so the receipt-fetch reflects it.
@@ -126,6 +140,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .insert({
       invoice_id: invoice.id,
       amount_cents: amount,
+      discount_cents: discount,
       method: attempt.method,
       status: 'succeeded',
       external_id: externalRef?.slice(0, 200) ?? null,
@@ -155,7 +170,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .from('customer_invoices')
     .update({
       status: nextStatus,
-      paid_at: nextStatus === 'paid' ? new Date().toISOString() : null,
+      paid_at: nextStatus === 'paid' ? (invoice.paid_at ?? new Date().toISOString()) : null,
     })
     .eq('id', invoice.id);
 
@@ -166,7 +181,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (recipient && recipient.includes('@')) {
     const { data: allPayments } = await supabaseAdmin
       .from('payments')
-      .select('amount_cents, method, status, cleared_at, external_id, payer_email')
+      .select('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents, discount_cents')
       .eq('invoice_id', invoice.id)
       .order('cleared_at', { ascending: false });
     type PaymentSummary = NonNullable<ReturnType<typeof describePaymentForReceipt>>;

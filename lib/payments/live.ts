@@ -41,9 +41,17 @@ export const STARR_ZELLE_EMAIL = 'info@starr-surveying.com';
 
 export const PAYMENT_METHODS: ReadonlyArray<PaymentMethodConfig> = [
   {
+    // 2026-11-10: bank first — it is the discounted way to pay (lib/payments/pay-discount.ts).
+    id: 'ach',
+    label: 'Bank account',
+    blurb: 'Pay from your checking or savings account through Stripe. Clears in about 4 business days.',
+    glyph: '🏦',
+    action: 'form',
+  },
+  {
     id: 'stripe',
-    label: 'Card or bank (Stripe)',
-    blurb: 'Credit / debit card or US bank account. Receipt emailed instantly.',
+    label: 'Credit or debit card',
+    blurb: 'Pay securely by card through Stripe. Receipt emailed instantly.',
     glyph: '💳',
     action: 'form',
   },
@@ -69,7 +77,7 @@ export const PAYMENT_METHODS: ReadonlyArray<PaymentMethodConfig> = [
     id: 'zelle',
     label: 'Zelle',
     blurb: `Send through your bank's Zelle app to ${STARR_ZELLE_EMAIL}.`,
-    glyph: '🏦',
+    glyph: '⚡',
     action: 'deeplink',
     handle: STARR_ZELLE_EMAIL,
   },

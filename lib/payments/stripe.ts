@@ -27,6 +27,12 @@ export interface StripePaymentIntentParams {
     invoice_id: string;
     invoice_number: string;
     public_slug: string;
+    /** 'card' or 'bank' when the customer chose one (2026-11-10, non-card discount). */
+    pay_method?: 'card' | 'bank';
+    /** How much of the invoice this payment settles, and the discount in it (cents, as strings —
+     *  Stripe metadata values are strings). credit = amount + discount. */
+    credit_cents?: string;
+    discount_cents?: string;
   };
   receipt_email?: string;
   /** Card and US bank account (ACH), and nothing else. Stripe refuses a request that also sets
@@ -42,13 +48,19 @@ export interface InvoiceForIntent {
   balance_cents: number;
   customer_email?: string | null;
   customer_name?: string | null;
+  /** 'card' charges `balance_cents` by card only; 'bank' charges `charge_cents` by US bank account
+   *  only. Omitted: both methods, at `balance_cents` (the original behaviour). */
+  pay_method?: 'card' | 'bank';
+  /** The money to take, when it differs from the credit (a bank payment's discounted price). */
+  charge_cents?: number;
 }
 
 /** Pure helper — build the PaymentIntent body. Description is
  *  customer-friendly ("Invoice SS-260618-A1B2 — Starr Surveying")
  *  so it reads well on a credit-card statement. */
 export function buildPaymentIntentParams(invoice: InvoiceForIntent): StripePaymentIntentParams {
-  const amount = Math.max(0, Math.floor(invoice.balance_cents));
+  const credit = Math.max(0, Math.floor(invoice.balance_cents));
+  const amount = typeof invoice.charge_cents === 'number' ? Math.max(0, Math.floor(invoice.charge_cents)) : credit;
   const params: StripePaymentIntentParams = {
     amount,
     currency: 'usd',
@@ -58,8 +70,15 @@ export function buildPaymentIntentParams(invoice: InvoiceForIntent): StripePayme
       invoice_number: invoice.invoice_number,
       public_slug: invoice.public_slug,
     },
-    payment_method_types: ['card', 'us_bank_account'],
+    payment_method_types: invoice.pay_method === 'card' ? ['card']
+      : invoice.pay_method === 'bank' ? ['us_bank_account']
+      : ['card', 'us_bank_account'],
   };
+  if (invoice.pay_method) {
+    params.metadata.pay_method = invoice.pay_method;
+    params.metadata.credit_cents = String(credit);
+    params.metadata.discount_cents = String(Math.max(0, credit - amount));
+  }
   const email = typeof invoice.customer_email === 'string' ? invoice.customer_email.trim() : '';
   if (email) params.receipt_email = email;
   return params;
