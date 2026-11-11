@@ -73,7 +73,7 @@
   "app/admin/hours/_tabs/AssignmentsTab.tsx": 3,
   "app/admin/hours/_tabs/TeamTab.tsx": 25,
   "app/admin/hours/_tabs/TimeOffTab.tsx": 12,
-  "app/admin/invoices/new/page.tsx": 5,
+  "app/admin/invoices/new/page.tsx": 4,
   "app/admin/invoicing/_tabs/CategoriesTab.tsx": 34,
   "app/admin/invoicing/_tabs/InvoicesTab.tsx": 17,
   "app/admin/jobs/_tabs/ActivityTab.tsx": 12,
