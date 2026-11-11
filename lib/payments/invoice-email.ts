@@ -35,6 +35,22 @@ export interface FirmIdentity {
   /** As a `tel:` link wants it. Null for the same reason — a tel: href with no
    *  digits is a button that does nothing when a customer taps it. */
   phoneE164: string | null;
+  /** The firm's Google review link (seeds/682). Omitted or null → no review line. */
+  reviewUrl?: string | null;
+}
+
+/** "Happy with our work? Leave us a Google review" — the HTML block, or '' when the firm has no link.
+ *  Owner, 2026-11-10: "include a link to the review page so they can review us on google". */
+function reviewHtml(firm: FirmIdentity): string {
+  if (!firm.reviewUrl || !/^https:\/\//.test(firm.reviewUrl)) return '';
+  return `<div data-testid="review-link" style="margin:28px 0 0;padding:16px 18px;border:1px solid #e4e7ee;border-radius:10px;background:#fafbfd;text-align:center;">
+                <p style="margin:0 0 10px;color:#152050;font-size:15px;font-weight:600;">Happy with our work? We&rsquo;d be grateful for a Google review.</p>
+                <a href="${escape(firm.reviewUrl)}" style="display:inline-block;background:#ffffff;color:#1D3095;border:1px solid #1D3095;text-decoration:none;font-weight:700;padding:9px 18px;border-radius:8px;font-size:14px;">&#9733; Leave us a review on Google</a>
+              </div>`;
+}
+
+function reviewText(firm: FirmIdentity): string | null {
+  return firm.reviewUrl && /^https:\/\//.test(firm.reviewUrl) ? `Happy with our work? Leave us a Google review: ${firm.reviewUrl}` : null;
 }
 
 export interface InvoiceEmailInput {
@@ -165,6 +181,8 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
               <p style="margin:0;text-align:center;color:#6b7280;font-size:13px;">Or paste this link into your browser:<br /><a href="${escape(input.pay_link)}" style="color:#1D3095;word-break:break-all;">${escape(input.pay_link)}</a></p>
 
               ${notesBlock}
+
+              ${reviewHtml(input.firm)}
 
               <p style="margin:32px 0 0;color:#4a5470;font-size:14px;line-height:1.55;">
                 ${callUsHtml(input.firm, ' or reply to this email.')}
@@ -361,6 +379,8 @@ export function buildReceiptResendHtml(input: ReceiptResendInput): string {
               <a href="${escape(input.pay_link)}" data-testid="receipt-link" style="display:inline-block;background:#1D3095;color:#ffffff;text-decoration:none;font-weight:700;font-family:'Sora','Inter',sans-serif;padding:12px 22px;border-radius:10px;font-size:15px;">View your invoice</a>
             </div>
 
+            ${reviewHtml(input.firm)}
+
             <p style="margin:24px 0 0;color:#4a5470;font-size:14px;line-height:1.55;">
               ${callUsHtml(input.firm)}
             </p>
@@ -390,6 +410,7 @@ export function buildReceiptResendText(input: ReceiptResendInput): string {
     '',
     `View your invoice: ${input.pay_link}`,
     '',
+    ...(reviewText(input.firm) ? [reviewText(input.firm) as string, ''] : []),
     ...(callUsText(input.firm) ? [callUsText(input.firm) as string] : []),
     `— ${input.firm.name}`,
   ];
@@ -418,6 +439,8 @@ export function buildInvoiceEmailText(input: InvoiceEmailInput): string {
   if (discount) lines.push('', discount);
   if (input.due_at) lines.push('', `Due by ${new Date(input.due_at).toLocaleDateString()}`);
   if (input.notes) lines.push('', input.notes);
+  const review = reviewText(input.firm);
+  if (review) lines.push('', review);
   const call = callUsText(input.firm);
   lines.push('', ...(call ? [call] : []), `— ${input.firm.name}`);
   return lines.join('\n');

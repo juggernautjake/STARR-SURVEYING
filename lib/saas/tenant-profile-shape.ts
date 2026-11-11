@@ -34,6 +34,8 @@ export interface TenantProfile {
   website: string;
   brandColor: string | null;
   logoUrl: string | null;
+  /** Where customers review the firm on Google — invoice and receipt emails link it. seeds/682. */
+  reviewUrl: string | null;
 }
 
 /** What an unresolved tenant looks like.
@@ -57,6 +59,7 @@ export const EMPTY_PROFILE: TenantProfile = {
   website: '',
   brandColor: null,
   logoUrl: null,
+  reviewUrl: null,
 };
 
 /** "(833) 842-6971" → "+18338426971". Returns null when there are not enough digits to dial, because
@@ -70,6 +73,7 @@ export function toE164(phone: string | null | undefined, country = '1'): string 
 }
 
 export interface OrgRow {
+  google_review_url?: string | null;
   id: string;
   name: string | null;
   state: string | null;
@@ -103,6 +107,7 @@ export function profileFromRow(row: OrgRow | null | undefined): TenantProfile {
     website: row.website ?? '',
     brandColor: row.brand_color,
     logoUrl: row.logo_url,
+    reviewUrl: row.google_review_url && /^https:\/\//.test(row.google_review_url) ? row.google_review_url : null,
   };
 }
 

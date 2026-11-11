@@ -58,7 +58,7 @@ export async function getTenantProfile(orgId: string | null | undefined): Promis
 
   const { data, error } = await supabaseUnscoped
     .from('organizations')
-    .select('id, name, state, phone, logo_url, brand_color, domain_restriction, primary_admin_email, billing_contact_email, address_line1, address_line2, website')
+    .select('id, name, state, phone, logo_url, brand_color, domain_restriction, primary_admin_email, billing_contact_email, address_line1, address_line2, website, google_review_url')
     .eq('id', orgId)
     .maybeSingle();
 
