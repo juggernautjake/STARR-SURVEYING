@@ -45,7 +45,7 @@ export default function DownloadAllButton({ getEntries, title, className, label,
     <span className="fv-dl-all">
       <button type="button" className={className ?? 'fv-btn'} onClick={run} disabled={disabled || progress !== null} title={canChooseWhereToSave() ? 'Choose where to save a .zip of every file in this folder' : 'Download every file in this folder as one .zip'}>
         {progress ? <Loader2 size={15} className="fv-spin motion-essential" aria-hidden="true" /> : <Archive size={15} aria-hidden="true" />}
-        {progress && progress.total > 0 ? `Zipping ${progress.done}/${progress.total}…` : (label ?? 'Download all')}
+        <span className="fv-dl-all__label">{progress && progress.total > 0 ? `Zipping ${progress.done}/${progress.total}…` : (label ?? 'Download all')}</span>
       </button>
       {note ? <span className="fv-dl-all__note" role="status">{note}</span> : null}
     </span>

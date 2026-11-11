@@ -339,25 +339,7 @@
   .fe__all { max-height: none; }
 }
 
-/* ── Upload bar + named folders (owner, 2026-09-15) ──
- * "Make sure we can clearly see the buttons for uploading files." A full-width bar at the top of
- * every job and project folder, with the one button that opens the Upload files pop-up. */
-.fe__cta {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.9rem;
-  padding: 0.85rem 1rem;
-  border: 2px dashed color-mix(in srgb, var(--theme-accent, #1D3095) 40%, var(--theme-border, #E2E8F0));
-  border-radius: 14px;
-  background: var(--theme-brand-tint, #EEF2FF);
-}
-.fe__cta-icon { display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; background: var(--theme-accent, #1D3095); color: var(--theme-accent-fg, #FFFFFF); flex: 0 0 auto; }
-.fe__cta-text { display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 16rem; min-width: 0; }
-.fe__cta-text strong { font-size: 1rem; }
-.fe__cta-text span { font-size: 0.82rem; color: var(--theme-fg-secondary, #475569); }
-.fe__cta-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+/* ── Named folders (owner, 2026-09-15) ── */
 .fe__btn--big { min-height: 44px; padding: 0 1.15rem; font-size: 0.95rem; font-weight: 700; }
 .fe__btn--danger { color: var(--theme-danger-fg, #B91C1C); }
 .fe__btn--danger:hover:not(:disabled) { border-color: var(--theme-danger-fg, #B91C1C); background: var(--theme-danger-bg, #FEE2E2); }
@@ -371,10 +353,6 @@
 .fe__folderform-error { flex-basis: 100%; margin: 0; font-size: 0.8rem; color: var(--theme-danger-fg, #B91C1C); }
 .fe__tile--named .fe__tile-icon { background: var(--theme-bg-elevated, #F1F5F9); color: var(--theme-fg-secondary, #475569); }
 
-@media (max-width: 720px) {
-  .fe__cta-actions { width: 100%; }
-  .fe__cta-actions .fe__btn { flex: 1 1 auto; justify-content: center; }
-}
 
 /* ── PREVIEW SIZE (owner, 2026-09-19) ─────────────────────────────────────────────────────────
  * "a way to choose different tiles sizes for each file preview so that we can see a thumbnail of
@@ -404,7 +382,17 @@
 .fe__view-btn--on:hover { background: var(--theme-brand-hover, #172775); }
 /* The words go first when the toolbar is tight — the icons carry the meaning and four labels is
  * what pushes this row onto a second line on a laptop. */
-.fe__view-label { display: inline; }
+.fe__view-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ── THE TILES ────────────────────────────────────────────────────────────────────────────────
  * `auto-fill` with a minimum rather than a fixed column count, so the same three sizes work in the
@@ -492,8 +480,6 @@
 }
 
 @media (max-width: 640px) {
-  /* The labels go, not the control: four icons still fit and still switch. */
-  .fe__view-label { display: none; }
   .fe__grid--large { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
 }
 
@@ -505,7 +491,6 @@
  * themselves are DeleteFiles.css, shared with every other file list. */
 .fe__rows--select .fe__row { grid-template-columns: auto 2rem minmax(0, 1fr) 5.5rem 7.5rem auto; }
 .fe__row--selected { background: var(--color-info-bg); }
-.fe__select-head { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-2); }
 .fe__icon-btn--danger:hover,
 .fe__icon-btn--danger:focus-visible { color: var(--color-error); }
 .fe__card--selected { border-color: var(--color-brand-navy); box-shadow: 0 0 0 2px var(--color-brand-navy); }
@@ -531,5 +516,45 @@
   .fe__rows--select .fe__row { grid-template-columns: auto 1.5rem minmax(0, 1fr) auto; }
 }
 
-/* Photos & Videos (layout="media", owner 2026-11-11): a plain title where the folder path would be. */
-.fe__media-title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--theme-fg-primary, #0F172A); }
+/* ── ONE TOOLBAR ROW (owner, 2026-11-11) ─────────────────────────────────────────────────────────
+ * "move the viewing options and the download button and the open files and the upload files and
+ * the new folder buttons down on the same row as the select all button. this will compact
+ * everything and make it easier to see everything."
+ * Left: Select all, search, how to look at the files. Right: New folder, Scan, Upload files.
+ * Wraps (right group first drops to its own line) when the screen is too narrow for one row. */
+.fe__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.fe__bar-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
+.fe { container-type: inline-size; }
+.fe__bar-group .fsel__all { margin-right: 0.25rem; white-space: nowrap; font-size: 0.83rem; font-weight: 600; }
+.fe__bar-group .fe__search { flex: 1 1 11rem; max-width: 18rem; min-width: 9rem; }
+.fe__bar .fe__btn-label { display: inline; }
+/* Narrower than a wide monitor, the bar still fits on one row: first Download and Open in Files
+ * drop their words (icon + tooltip stay), then on a small laptop New folder and Scan do too.
+ * Upload files always keeps its label. */
+@container (max-width: 1400px) {
+  .fe__bar .fv-dl-all__label,
+  .fe__link .fe__btn-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .fe__bar .fv-dl-all .fe__btn { padding: 0 0.6rem; }
+}
+@container (max-width: 1100px) {
+  .fe__bar .fe__btn-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .fe__bar .fe__btn:not(.fe__btn--primary) { padding: 0 0.6rem; }
+}
+.fe__bar > .fe__bar-group:first-child { flex: 1 1 auto; }
+.fe__bar-add { margin-left: auto; flex: 0 0 auto; }
+@media (max-width: 720px) {
+  .fe__bar-group .fe__search { flex: 1 1 100%; }
+  .fe__bar-add { width: 100%; }
+  .fe__bar-add .fe__btn { flex: 1 1 auto; justify-content: center; }
+}

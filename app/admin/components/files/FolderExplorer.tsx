@@ -783,10 +783,9 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
     </li>
   );
 
-  /** Select all + the "3 selected · Delete · Download · Clear" bar, above whichever list is shown. */
+  /** The "3 selected · Delete · Download · Clear" bar, above whichever list is shown (Select all is in the toolbar). */
   const selectHead = viewerNodes.length > 0 ? (
     <>
-      <div className="fe__select-head"><SelectAllCheckbox selection={selection} total={viewerNodes.length} /></div>
       <SelectionBar
         selection={selection}
         busy={deleter.busy}
@@ -799,20 +798,30 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
 
   return (
     <section className={`fe${className ? ` ${className}` : ''}${selection.count > 0 ? ' fe--selecting' : ''}`} aria-label={title ?? current?.name ?? 'Files'} data-testid="folder-explorer">
-      {/* ── header: crumbs + the view switch ── */}
-      <header className="fe__head">
-        {media ? <h3 className="fe__media-title">{title ?? 'Photos & videos'}</h3> : <nav className="fe__crumbs" aria-label="Folder path">
-          {crumbs.map((c, i) => (
-            <span key={c.id} className="fe__crumb-wrap">
-              {i > 0 && <ChevronRight size={14} className="fe__crumb-sep" aria-hidden="true" />}
-              <button type="button" className={`fe__crumb${c.id === currentId ? ' fe__crumb--here' : ''}`} onClick={() => setCurrentId(c.id)} aria-current={c.id === currentId ? 'location' : undefined}>
-                {i === 0 ? <FolderOpen size={15} aria-hidden="true" /> : null}
-                {i === 0 && title ? title : c.name}
-              </button>
-            </span>
-          ))}
-        </nav>}
-        <div className="fe__tools">
+      {/* ── the folder path (Photos & videos has none — the hub already titles it) ── */}
+      {!media && (
+        <header className="fe__head">
+          <nav className="fe__crumbs" aria-label="Folder path">
+            {crumbs.map((c, i) => (
+              <span key={c.id} className="fe__crumb-wrap">
+                {i > 0 && <ChevronRight size={14} className="fe__crumb-sep" aria-hidden="true" />}
+                <button type="button" className={`fe__crumb${c.id === currentId ? ' fe__crumb--here' : ''}`} onClick={() => setCurrentId(c.id)} aria-current={c.id === currentId ? 'location' : undefined}>
+                  {i === 0 ? <FolderOpen size={15} aria-hidden="true" /> : null}
+                  {i === 0 && title ? title : c.name}
+                </button>
+              </span>
+            ))}
+          </nav>
+        </header>
+      )}
+
+      {/* ── ONE TOOLBAR ROW (owner, 2026-11-11): "move the viewing options and the download button and
+          the open files and the upload files and the new folder buttons down on the same row as the
+          select all button. this will compact everything." Select all and search on the left, how
+          to look at the files in the middle, adding files on the right; it wraps on a narrow screen. ── */}
+      <div className="fe__bar" data-testid="fe-toolbar">
+        <div className="fe__bar-group">
+          <SelectAllCheckbox selection={selection} total={viewerNodes.length} />
           <label className="fe__search">
             <Search size={14} aria-hidden="true" />
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={media ? 'Search photos and videos…' : mode === 'all' ? 'Search every file below…' : 'Search this folder…'} aria-label="Search files" />
@@ -827,13 +836,14 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
             </button>
           </div>}
           <div className="fe__mode" role="group" aria-label="Sort by">
-            {([['name', 'A–Z'], ['uploaded', 'Newest uploaded']] as const).map(([id, label]) => (
+            {([['name', 'A–Z', 'Sort A–Z, numbers in number order'], ['uploaded', 'Newest', 'Newest uploaded first']] as const).map(([id, label, hint]) => (
               <button
                 key={id}
                 type="button"
                 className={`fe__mode-btn${sort === id ? ' fe__mode-btn--on' : ''}`}
                 onClick={() => setSort(id)}
                 aria-pressed={sort === id}
+                title={hint}
                 data-testid={`fe-sort-${id}`}
               >
                 {label}
@@ -850,7 +860,7 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
                   className={`fe__view-btn${view === v.id ? ' fe__view-btn--on' : ''}`}
                   onClick={() => chooseView(v.id)}
                   aria-pressed={view === v.id}
-                  title={v.hint}
+                  title={`${v.label} — ${v.hint}`}
                   data-testid={`fe-view-${v.id}`}
                 >
                   <Icon size={14} aria-hidden="true" />
@@ -862,14 +872,31 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
           <DownloadAllButton
             className="fe__btn"
             title={current?.name ?? 'files'}
-            label={mode === 'all' ? 'Download all as .zip' : 'Download folder as .zip'}
+            label="Download .zip"
             getEntries={zipEntries}
             disabled={loading || viewerNodes.filter((n) => !n.open_href).length === 0}
           />
           <button type="button" className="fe__icon-btn fe__icon-btn--ghost" onClick={() => { setLoading(true); void load(); }} title="Refresh" aria-label="Refresh"><RefreshCw size={15} aria-hidden="true" className={loading ? 'fe__spin motion-essential' : undefined} /></button>
-          <Link href={openInFiles} className="fe__link" title="Open this folder in the File Explorer" data-testid="fe-open-in-files"><FolderOpen size={14} aria-hidden="true" /> Open in Files</Link>
+          <Link href={openInFiles} className="fe__link" title="Open this folder in the File Explorer" aria-label="Open in Files" data-testid="fe-open-in-files"><FolderOpen size={14} aria-hidden="true" /><span className="fe__btn-label">Open in Files</span></Link>
         </div>
-      </header>
+        {uploadRoot && tree && (
+          <div className="fe__bar-group fe__bar-add" data-testid="fe-upload-bar">
+            {newFolderPlace && (
+              <button type="button" className="fe__btn" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} title="New folder" aria-label="New folder" data-testid="fe-new-folder">
+                <FolderPlus size={15} aria-hidden="true" /><span className="fe__btn-label">New folder</span>
+              </button>
+            )}
+            <button type="button" className="fe__btn" onClick={() => setScanOpen(true)} disabled={busy !== null} title="Scan a document" aria-label="Scan a document" data-testid="fe-scan">
+              <ScanLine size={15} aria-hidden="true" /><span className="fe__btn-label">Scan</span>
+            </button>
+            {/* "Make sure we can clearly see the buttons for uploading files" (owner, 2026-09-15) — still
+                the brightest thing on the row. Dropping files anywhere on the list works too. */}
+            <button type="button" className="fe__btn fe__btn--primary" onClick={() => openUpload()} disabled={busy !== null} title={`${media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'} — or drag files anywhere onto the list`} data-testid="fe-upload">
+              <Upload size={15} aria-hidden="true" /> Upload files
+            </button>
+          </div>
+        )}
+      </div>
 
       {error && <div className="fe__error" role="alert">{error} <button type="button" className="fe__btn" onClick={() => { setLoading(true); void load(); }}>Retry</button></div>}
       {(busy || notice) && (
@@ -887,32 +914,6 @@ export default function FolderExplorer({ rootId, initialFolder, folderExtras, on
         onDragLeave={uploadRoot ? () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setDragOver(false); } : undefined}
         onDrop={uploadRoot ? (e) => { e.preventDefault(); dragDepth.current = 0; setDragOver(false); openUpload(Array.from(e.dataTransfer.files)); } : undefined}
       >
-        {/* ── THE UPLOAD BUTTON, WHERE NOBODY CAN MISS IT (owner, 2026-09-15) ──
-            "Make sure we can clearly see the buttons for uploading files." It used to exist only
-            inside a standard folder, so a job opened at its top level had no way to upload at all. */}
-        {uploadRoot && tree && (mode === 'folder' || media) && (
-          <div className="fe__cta" data-testid="fe-upload-bar">
-            <span className="fe__cta-icon" aria-hidden="true"><Upload size={22} /></span>
-            <div className="fe__cta-text">
-              <strong>{media ? 'Add photos or videos' : target ? `Add files to ${target.label}` : 'Add files'}</strong>
-              <span>Drag files anywhere here, or press Upload files and pick them from your computer. You choose the folder for each one.</span>
-            </div>
-            <div className="fe__cta-actions">
-              <button type="button" className="fe__btn fe__btn--primary fe__btn--big" onClick={() => openUpload()} disabled={busy !== null} data-testid="fe-upload">
-                <Upload size={16} aria-hidden="true" /> Upload files
-              </button>
-              <button type="button" className="fe__btn fe__btn--big" onClick={() => setScanOpen(true)} disabled={busy !== null} data-testid="fe-scan">
-                <ScanLine size={16} aria-hidden="true" /> Scan
-              </button>
-              {newFolderPlace && (
-                <button type="button" className="fe__btn fe__btn--big" onClick={() => setFolderForm({ mode: 'new', name: '', busy: false, error: null })} disabled={busy !== null} data-testid="fe-new-folder">
-                  <FolderPlus size={16} aria-hidden="true" /> New folder
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {confirmRemove && namedHere && current && (
           <div className="fe__folderform fe__folderform--danger" role="alertdialog" aria-label="Remove folder" data-testid="fe-confirm-remove">
             <p className="fe__folderform-text">Remove the folder <strong>{current.name}</strong>? No files are deleted — anything inside moves up a level.</p>
