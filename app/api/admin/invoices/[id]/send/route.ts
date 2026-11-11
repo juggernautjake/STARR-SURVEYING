@@ -24,6 +24,7 @@ import {
   buildInvoiceEmailText,
 } from '@/lib/payments/invoice-email';
 import { firmForOrg } from '@/lib/payments/firm';
+import { cardFee } from '@/lib/payments/pay-discount';
 import { getTenantProfile } from '@/lib/saas/tenant-profile';
 import { outboundIdentity } from '@/lib/email/sender';
 
@@ -80,6 +81,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     total_cents: invoice.total_cents ?? 0,
     due_at: invoice.due_at,
     notes: invoice.notes,
+    card_fee: cardFee(),
   });
   const text = buildInvoiceEmailText({
     firm,
@@ -92,6 +94,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     total_cents: invoice.total_cents ?? 0,
     due_at: invoice.due_at,
     notes: invoice.notes,
+    card_fee: cardFee(),
   });
 
   let resendId: string | null = null;

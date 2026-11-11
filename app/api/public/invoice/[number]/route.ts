@@ -35,6 +35,7 @@ import {
 } from '@/lib/payments/invoice-public';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import { pendingCents } from '@/lib/payments/stripe-lifecycle';
+import { cardFee } from '@/lib/payments/pay-discount';
 
 interface PublicInvoice {
   invoice_number: string;
@@ -48,6 +49,9 @@ interface PublicInvoice {
   /** A bank (ACH) payment still clearing (about 4 business days): owed no longer, paid not yet.
    *  The pay page says so, and the next payment is capped at balance − pending, so nobody pays twice. */
   pending_cents: number;
+  /** The card processing fee every other way of paying is spared (lib/payments/pay-discount.ts):
+   *  the balance is the card price. null when the discount is switched off. */
+  card_fee: { bps: number; fixed_cents: number } | null;
   // S4 — upfront/deposit so /pay can show the banner + clamp the amount input.
   deposit_amount_cents: number;
   /** Smallest the next payment may be (cents): the outstanding upfront, or 1. */
@@ -122,7 +126,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // load in its own right.
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents')
+    .select('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents, discount_cents')
     .eq('invoice_id', invoice?.id ?? '00000000-0000-0000-0000-000000000000')
     .order('cleared_at', { ascending: false });
 
@@ -162,6 +166,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     total_cents: total,
     balance_cents: balance,
     pending_cents: pending,
+    card_fee: (() => { const f = cardFee(); return f ? { bps: f.bps, fixed_cents: f.fixedCents } : null; })(),
     deposit_amount_cents: deposit,
     min_payment_cents: envelope.min_cents,
     max_payment_cents: envelope.max_cents,

@@ -14,6 +14,8 @@ import { useRouter } from 'next/navigation';
 import { computeInvoiceTotals, lineItemTotal } from '@/lib/payments/invoice-number';
 import { formatDollars } from '@/lib/payments/live';
 import { resolveDepositAmountCents, type DepositType } from '@/lib/payments/upfront-rule';
+import { quoteBreakdown, cardPriceLines, salesTax } from '@/lib/payments/pay-discount';
+import { useCardFee, DEFAULT_TAX_RATE } from '@/app/admin/components/payments/QuoteCalculator';
 import '../../payments-admin.css';
 
 interface LineItemDraft {
@@ -61,6 +63,14 @@ export default function NewInvoicePage(): React.ReactElement {
   });
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([{ ...EMPTY_ROW }]);
   const [taxDollars, setTaxDollars] = useState('');
+  // Sales tax by RATE (the job site's, computed on each price) or as a typed dollar AMOUNT.
+  const [taxMode, setTaxMode] = useState<'rate' | 'amount'>('rate');
+  const [taxRateStr, setTaxRateStr] = useState(DEFAULT_TAX_RATE);
+  // Card pricing (owner, 2026-11-10): the prices typed are what we charge when paid any way but card;
+  // the invoice is saved at the CARD price, and every other way of paying gets the card fee off as a
+  // discount (lib/payments/pay-discount.ts — Texas allows a discount, not a card surcharge).
+  const [cardPricing, setCardPricing] = useState(true);
+  const { fee } = useCardFee();
   const [dueAt, setDueAt] = useState('');
   const [notes, setNotes] = useState('');
   // invoice-composer-job-picker-2026-06-22 — link this invoice to an
@@ -98,13 +108,26 @@ export default function NewInvoicePage(): React.ReactElement {
     notSentByChoice?: boolean;
   } | null>(null);
 
-  const totals = useMemo(() => {
-    const taxCents = Math.round((parseFloat(taxDollars) || 0) * 100);
+  // `typed` = the prices as typed (the non-card price) with their tax. `pricing` = both prices.
+  // `totals` = what the invoice will say: the card price when card pricing is on.
+  const { typed, pricing, taxBps } = useMemo(() => {
     const rows = lineItems
       .filter((r) => r.description.trim().length > 0)
       .map((r) => ({ total_cents: lineItemTotal(r.quantity, r.unit_price_cents) }));
-    return computeInvoiceTotals(rows, taxCents);
-  }, [lineItems, taxDollars]);
+    const subtotal = computeInvoiceTotals(rows, 0).subtotal_cents;
+    const rateBps = Math.max(0, Math.round((parseFloat(taxRateStr) || 0) * 100));
+    const taxCents = taxMode === 'rate' ? salesTax(subtotal, rateBps) : Math.round((parseFloat(taxDollars) || 0) * 100);
+    // A typed tax amount carries its own effective rate onto the card price.
+    const bps = taxMode === 'rate' ? rateBps : (subtotal > 0 ? (taxCents * 10000) / subtotal : 0);
+    return {
+      typed: computeInvoiceTotals(rows, taxCents),
+      pricing: cardPricing && fee && subtotal > 0 ? quoteBreakdown(subtotal, bps, fee) : null,
+      taxBps: bps,
+    };
+  }, [lineItems, taxDollars, taxMode, taxRateStr, cardPricing, fee]);
+  const totals = pricing
+    ? { subtotal_cents: pricing.card.subtotal, tax_cents: pricing.card.tax, total_cents: pricing.card.total }
+    : typed;
 
   const depositValue = parseFloat(depositValueStr) || 0;
   const depositPreviewCents = resolveDepositAmountCents({
@@ -286,13 +309,22 @@ export default function NewInvoicePage(): React.ReactElement {
         state: customer.billing_state || null,
         zip: customer.billing_zip || null,
       },
-      line_items: populatedRows.map((r) => ({
-        description: r.description.trim(),
-        quantity: r.quantity,
-        unit_price_cents: r.unit_price_cents,
-        total_cents: lineItemTotal(r.quantity, r.unit_price_cents),
-      })),
-      tax_cents: Math.round((parseFloat(taxDollars) || 0) * 100),
+      // With card pricing, each line is saved at its card price (scaled together so the lines add up
+      // to the card subtotal exactly) and the tax is the card price's tax.
+      line_items: (() => {
+        const typedLines = populatedRows.map((r) => ({
+          description: r.description.trim(),
+          quantity: r.quantity,
+          unit_price_cents: r.unit_price_cents,
+          total_cents: lineItemTotal(r.quantity, r.unit_price_cents),
+        }));
+        if (!pricing) return typedLines;
+        return cardPriceLines(typedLines, pricing.card.subtotal).map((l) => ({
+          ...l,
+          unit_price_cents: l.quantity > 0 ? Math.round(l.total_cents / l.quantity) : l.total_cents,
+        }));
+      })(),
+      tax_cents: totals.tax_cents,
       deposit_type: depositType,
       deposit_value: depositType === 'none' ? null : depositValue,
       due_at: dueAt || null,
@@ -401,7 +433,7 @@ export default function NewInvoicePage(): React.ReactElement {
             <button
               type="button"
               className="invoice-btn invoice-btn--ghost"
-              onClick={() => { setSuccess(null); setLineItems([{ ...EMPTY_ROW }]); setNotes(''); setTaxDollars(''); setDepositType('none'); setDepositValueStr(''); }}
+              onClick={() => { setSuccess(null); setLineItems([{ ...EMPTY_ROW }]); setNotes(''); setTaxDollars(''); setTaxMode('rate'); setTaxRateStr(DEFAULT_TAX_RATE); setCardPricing(true); setDepositType('none'); setDepositValueStr(''); }}
             >
               Create another
             </button>
@@ -667,18 +699,62 @@ export default function NewInvoicePage(): React.ReactElement {
           </div>
         </section>
 
-        <section className="invoice-section invoice-section--totals">
-          <label className="invoice-row__small">
-            <span>Tax ($)</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={taxDollars}
-              onChange={(e) => setTaxDollars(e.target.value)}
-              placeholder="0.00"
-            />
+        <section className="invoice-section">
+          <h2 className="invoice-section__title">Pricing and sales tax</h2>
+          <label className="invoice-cardpricing" data-testid="invoice-card-pricing">
+            <input type="checkbox" checked={cardPricing} onChange={(e) => setCardPricing(e.target.checked)} />
+            <span>
+              <strong>The prices above are what we charge when paid by bank, Zelle, cash, check, Venmo or Cash App.</strong>{' '}
+              The invoice shows the card price, which covers the card processing fee; paying any other way takes the fee
+              off. <Link href="/admin/invoices/calculator">Quote calculator →</Link>
+            </span>
           </label>
+          <div className="invoice-section--totals" style={{ marginTop: '0.75rem', gridTemplateColumns: 'minmax(12rem, auto) 8rem 1fr' }}>
+            <label>
+              <span>Sales tax</span>
+              <select
+                value={taxMode}
+                onChange={(e) => setTaxMode(e.target.value as 'rate' | 'amount')}
+                data-testid="invoice-tax-mode"
+                className="invoice-select"
+              >
+                <option value="rate">Rate at the job site (%)</option>
+                <option value="amount">A dollar amount</option>
+              </select>
+            </label>
+            {taxMode === 'rate' ? (
+              <label className="invoice-row__small">
+                <span>Rate (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxRateStr}
+                  onChange={(e) => setTaxRateStr(e.target.value)}
+                  placeholder="8.25"
+                  data-testid="invoice-tax-rate"
+                />
+              </label>
+            ) : (
+              <label className="invoice-row__small">
+                <span>Tax ($)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={taxDollars}
+                  onChange={(e) => setTaxDollars(e.target.value)}
+                  placeholder="0.00"
+                />
+              </label>
+            )}
+            <p className="invoice-taxhint">
+              8.25% in most cities, 6.25% outside city limits, 0 for topographic and construction surveys (not taxable).
+            </p>
+          </div>
+        </section>
+
+        <section className="invoice-section invoice-section--totals">
           <label>
             <span>Due date</span>
             <input
@@ -760,10 +836,22 @@ export default function NewInvoicePage(): React.ReactElement {
         </section>
 
         <section className="invoice-totals" data-testid="invoice-totals">
-          <div><span>Subtotal</span><strong>{formatDollars(totals.subtotal_cents)}</strong></div>
-          {totals.tax_cents > 0 && <div><span>Tax</span><strong>{formatDollars(totals.tax_cents)}</strong></div>}
+          <div><span>Subtotal{pricing ? ' (card price)' : ''}</span><strong>{formatDollars(totals.subtotal_cents)}</strong></div>
+          {totals.tax_cents > 0 && <div><span>Sales tax{taxMode === 'rate' ? ` (${(taxBps / 100).toString()}%)` : ''}</span><strong>{formatDollars(totals.tax_cents)}</strong></div>}
           {depositPreviewCents > 0 && <div><span>Upfront</span><strong>{formatDollars(depositPreviewCents)}</strong></div>}
-          <div className="invoice-totals__total"><span>Total</span><strong>{formatDollars(totals.total_cents)}</strong></div>
+          <div className="invoice-totals__total"><span>{pricing ? 'Total by card' : 'Total'}</span><strong data-testid="invoice-total-card">{formatDollars(totals.total_cents)}</strong></div>
+          {pricing ? (
+            <div className="invoice-totals__noncard" data-testid="invoice-total-noncard">
+              <span>Total by bank, Zelle, cash, check, Venmo or Cash App</span>
+              <strong>{formatDollars(pricing.noncard.total)}</strong>
+            </div>
+          ) : null}
+          {pricing ? (
+            <p className="invoice-totals__explain">
+              {formatDollars(typed.subtotal_cents)} + {formatDollars(pricing.noncard.tax)} tax when not paid by card; the card price
+              adds {formatDollars(pricing.cardFeeCents)} to cover the processing fee.
+            </p>
+          ) : null}
         </section>
 
         {error && <p className="invoice-page__error" data-testid="invoice-create-error" role="alert">{error}</p>}
@@ -860,6 +948,17 @@ const styles = `
   .invoice-totals { display: flex; justify-content: flex-end; gap: 2rem; padding: 1rem 0; border-top: 2px solid #152050; }
   .invoice-totals > div { display: flex; gap: 1rem; align-items: baseline; }
   .invoice-totals__total strong { color: #BD1218; font-family: 'Sora', sans-serif; font-size: 1.2rem; }
+  /* Card pricing (2026-11-10): both prices under the totals, and the pricing box above them. */
+  .invoice-totals { flex-wrap: wrap; row-gap: 0.4rem; }
+  .invoice-totals > p { flex-basis: 100%; text-align: right; }
+  .invoice-totals__noncard { flex-basis: 100%; justify-content: flex-end; color: #1F5A33; }
+  .invoice-totals__noncard strong { color: #1F7A3E; font-family: 'Sora', sans-serif; font-size: 1.1rem; }
+  .invoice-cardpricing { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.7rem 0.85rem; border: 1px solid #A9D9B8; background: #EEF8F1; border-radius: 10px; font-size: 0.9rem; color: #1F3A2A; line-height: 1.45; }
+  .invoice-cardpricing input { margin-top: 0.2rem; width: auto; }
+  .invoice-cardpricing a { color: #1D3095; font-weight: 600; }
+  .invoice-select { font: inherit; padding: 0.55rem 0.7rem; border: 1px solid #d6d9e3; border-radius: 8px; }
+  .invoice-taxhint { align-self: end; margin: 0; font-size: 0.82rem; color: #4a5470; max-width: 22rem; }
+  .invoice-totals__explain { margin: 0.35rem 0 0; font-size: 0.8rem; color: #4a5470; }
   .invoice-page__actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
   .invoice-btn {
     font: inherit; font-weight: 700; padding: 0.7rem 1.4rem;

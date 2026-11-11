@@ -29,6 +29,7 @@ import {
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import { cardPaymentConfigured } from '@/lib/payments/stripe-elements';
 import StripeCardForm from './StripeCardForm';
+import { chargeFor, methodGetsDiscount } from '@/lib/payments/pay-discount';
 import PaySkeleton from '../PaySkeleton';
 import '../../styles/Pay.css';
 
@@ -46,6 +47,7 @@ interface PublicPaymentSummary {
   cleared_at: string | null;
   external_id_tail: string | null;
   payer_email_mask: string | null;
+  discount_cents?: number;
 }
 
 interface PublicInvoice {
@@ -59,6 +61,8 @@ interface PublicInvoice {
   balance_cents: number;
   /** A bank payment still clearing — not owed again (seeds/680). */
   pending_cents?: number;
+  /** The card fee every other way of paying is spared (seeds/681, lib/payments/pay-discount.ts). */
+  card_fee?: { bps: number; fixed_cents: number } | null;
   deposit_amount_cents: number;
   min_payment_cents: number;
   max_payment_cents: number;
@@ -104,6 +108,8 @@ export default function PayInvoicePage(): React.ReactElement {
   // G1 — when true, the Stripe Elements card form is shown in place of the
   // method picker's stub. Only opened when a publishable key is configured.
   const [cardOpen, setCardOpen] = useState(false);
+  // Which Stripe form is open: by card (the invoice price) or by bank (the non-card discount).
+  const [stripeMethod, setStripeMethod] = useState<'card' | 'bank'>('card');
   // Back from Stripe: it adds ?redirect_status= — `succeeded` (a card), `processing` (a bank
   // payment, about 4 business days), or `requires_payment_method` (it did not go through). The
   // invoice may not show the payment yet (the webhook can land a moment later), so say what happened.
@@ -181,6 +187,12 @@ export default function PayInvoicePage(): React.ReactElement {
   });
   const amountValid = amountDecision.accepted;
 
+  // ── Non-card discount (owner, 2026-11-10; Texas §604A.0021 allows a discount, not a card surcharge).
+  // The amount above is how much of the INVOICE to pay; bank, Zelle, cash and check pay less for it.
+  const fee = invoice.card_fee ? { bps: invoice.card_fee.bps, fixedCents: invoice.card_fee.fixed_cents } : null;
+  const priceFor = (methodId: string) => chargeFor(chosenCents, methodId, fee);
+  const noncardPrice = priceFor('ach');
+
   function onMethodClick(method: typeof PAYMENT_METHODS[number]) {
     setAttemptError(null);
     setAttemptRecorded(false);
@@ -192,7 +204,7 @@ export default function PayInvoicePage(): React.ReactElement {
       // method has a deep-link template. Zelle doesn't (the customer
       // sends through their bank's Zelle app — the info card shows
       // the recipient email instead).
-      const link = buildDeepLink(method, invoice.invoice_number, chosenCents);
+      const link = buildDeepLink(method, invoice.invoice_number, priceFor(method.id));
       if (link) {
         window.open(link, '_blank', 'noopener,noreferrer');
       }
@@ -212,6 +224,7 @@ export default function PayInvoicePage(): React.ReactElement {
     // configured; otherwise fall back to the not-yet-wired toast (pre-go-live,
     // no NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY set).
     setAttemptMethod(null);
+    setStripeMethod(method.id === 'ach' ? 'bank' : 'card');
     if (cardPaymentConfigured()) {
       setPendingMethod(null);
       setCardOpen(true);
@@ -373,7 +386,7 @@ export default function PayInvoicePage(): React.ReactElement {
                 </div>
               )}
               <label className="pay-methods__amount" data-testid="pay-amount-field">
-                <span className="pay-methods__amount-label">How much would you like to pay?</span>
+                <span className="pay-methods__amount-label">How much of the invoice would you like to pay?</span>
                 <span className="pay-methods__amount-input">
                   <span aria-hidden="true">$</span>
                   <input
@@ -398,9 +411,18 @@ export default function PayInvoicePage(): React.ReactElement {
                 </p>
               )}
 
+              {noncardPrice < chosenCents && (
+                <div className="pay-methods__discount" data-testid="pay-discount-banner" role="note">
+                  Pay <strong>{formatDollars(noncardPrice)}</strong> by bank account, Zelle, cash, check, Venmo or Cash App:
+                  no card processing fee. The invoice amount, {formatDollars(chosenCents)}, is the card price.
+                </div>
+              )}
+
               <div className="pay-methods__grid">
                 {PAYMENT_METHODS.map((method) => {
-                  const deepLink = buildDeepLink(method, invoice.invoice_number, chosenCents);
+                  const price = priceFor(method.id);
+                  const saving = chosenCents - price;
+                  const deepLink = buildDeepLink(method, invoice.invoice_number, price);
                   return (
                     <button
                       key={method.id}
@@ -409,10 +431,14 @@ export default function PayInvoicePage(): React.ReactElement {
                       data-testid={`pay-method-${method.id}`}
                       onClick={() => onMethodClick(method)}
                       disabled={!amountValid}
-                      aria-label={`Pay ${formatDollars(chosenCents)} with ${method.label}`}
+                      aria-label={`Pay ${formatDollars(price)} with ${method.label}`}
                     >
                       <span className="pay-methods__glyph" aria-hidden="true">{method.glyph}</span>
                       <span className="pay-methods__label">{method.label}</span>
+                      <span className="pay-methods__price" data-testid={`pay-price-${method.id}`}>
+                        {formatDollars(price)}
+                        {saving > 0 && methodGetsDiscount(method.id) ? <span className="pay-methods__save"> · you save {formatDollars(saving)}</span> : null}
+                      </span>
                       <span className="pay-methods__blurb">{method.blurb}</span>
                       {deepLink && (
                         <span className="pay-methods__hint">Tap to open</span>
@@ -424,8 +450,11 @@ export default function PayInvoicePage(): React.ReactElement {
 
               {cardOpen && (
                 <StripeCardForm
+                  key={stripeMethod}
                   invoiceNumber={invoice.invoice_number}
                   amountCents={chosenCents}
+                  payMethod={stripeMethod}
+                  chargeCents={priceFor(stripeMethod === 'bank' ? 'ach' : 'stripe')}
                   onCancel={() => setCardOpen(false)}
                 />
               )}
@@ -441,9 +470,9 @@ export default function PayInvoicePage(): React.ReactElement {
                   <div className="pay-methods__confirm" data-testid={isPledge ? 'pay-pledge-confirm' : 'pay-attempt-confirm'} role="status">
                     <p className="pay-methods__confirm-lede">
                       {isPledge ? (
-                        <>Pay <strong>{formatDollars(chosenCents)}</strong> in {attemptMethod === 'check' ? 'check' : 'cash'}?</>
+                        <>Pay <strong>{formatDollars(priceFor(attemptMethod))}</strong> in {attemptMethod === 'check' ? 'check' : 'cash'}?</>
                       ) : (
-                        <>Did you send <strong>{formatDollars(chosenCents)}</strong> via {methodLabel}?</>
+                        <>Did you send <strong>{formatDollars(priceFor(attemptMethod))}</strong> via {methodLabel}?</>
                       )}
                     </p>
                     {isPledge && (
@@ -577,6 +606,7 @@ export default function PayInvoicePage(): React.ReactElement {
                       <div className="pay-paid__payment-meta">
                         {p.cleared_at && <span>{new Date(p.cleared_at).toLocaleDateString()}</span>}
                         <span className="pay-paid__payment-amt">{formatDollars(p.amount_cents)}</span>
+                        {p.discount_cents ? <span className="pay-paid__payment-discount"> + {formatDollars(p.discount_cents)} discount</span> : null}
                       </div>
                     </li>
                   ))}

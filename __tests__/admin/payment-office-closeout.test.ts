@@ -73,10 +73,16 @@ describe('POST /api/admin/payment-attempts/[id]/clear — source-lock', () => {
     expect(SRC).toMatch(/resulted_in_payment_id: payment\.id/);
   });
 
-  it("UPDATEs the invoice status via nextInvoiceStatusAfterPayment", () => {
-    expect(SRC).toMatch(/nextInvoiceStatusAfterPayment/);
+  it("UPDATEs the invoice status, re-derived from all payments including this one", () => {
+    // 2026-11-10: invoiceStatusFromPayments, so a non-card discount and earlier refunds count too.
+    expect(SRC).toMatch(/invoiceStatusFromPayments\(/);
     expect(SRC).toMatch(/status: nextStatus/);
-    expect(SRC).toMatch(/paid_at: nextStatus === 'paid' \? new Date\(\)\.toISOString\(\) : null/);
+    expect(SRC).toMatch(/paid_at: nextStatus === 'paid' \? \(invoice\.paid_at \?\? new Date\(\)\.toISOString\(\)\) : null/);
+  });
+
+  it("credits the non-card discount the pay page promised", () => {
+    expect(SRC).toMatch(/discount = Math\.max\(0, attempt\.credit_cents - amount\)/);
+    expect(SRC).toMatch(/discount_cents: discount/);
   });
 
   it("fires the receipt email via the pure receipt builders + Resend HTTP API", () => {

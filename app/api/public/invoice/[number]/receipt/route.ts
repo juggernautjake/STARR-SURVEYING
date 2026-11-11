@@ -76,7 +76,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, method, status, cleared_at, external_id, payer_email')
+    .select('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents, discount_cents')
     .eq('invoice_id', invoice.id)
     .order('cleared_at', { ascending: false });
   const paidCents = sumSucceededPayments(payments ?? []);

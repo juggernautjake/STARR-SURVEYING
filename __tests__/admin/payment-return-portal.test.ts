@@ -73,10 +73,12 @@ describe('describePaymentForReceipt (pure)', () => {
     })).toEqual({
       amount_cents: 12500,
       method: 'stripe',
-      method_label: 'Card or bank',
+      // 2026-11-10: card and bank are now separate methods ('stripe' = card, 'ach' = bank).
+      method_label: 'Card',
       cleared_at: '2026-06-18T12:00:00Z',
       external_id_tail: '3XYZ',
       payer_email_mask: 'm***@example.com',
+      discount_cents: 0,
     });
   });
 
@@ -155,7 +157,7 @@ describe('public invoice route — P8 payments array', () => {
   const SRC = read('app/api/public/invoice/[number]/route.ts');
 
   it("selects the receipt columns (method / cleared_at / external_id / payer_email)", () => {
-    expect(SRC).toMatch(/\.select\('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents'\)/);
+    expect(SRC).toMatch(/\.select\('amount_cents, method, status, cleared_at, external_id, payer_email, refunded_cents, discount_cents'\)/);
   });
 
   it("maps to PublicPaymentSummary via describePaymentForReceipt", () => {

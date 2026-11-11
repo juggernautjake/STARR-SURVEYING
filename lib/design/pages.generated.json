@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 226,
+  "count": 227,
   "byArea": {
     "public": 13,
-    "admin": 197,
+    "admin": 198,
     "customer": 5,
     "platform": 9,
     "auth": 2
@@ -399,6 +399,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/invites"
+    },
+    {
+      "route": "/admin/invoices/calculator",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/invoices/calculator"
     },
     {
       "route": "/admin/invoices/new",

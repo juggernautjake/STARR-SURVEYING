@@ -33,6 +33,7 @@ import {
 import { PUBLIC_BLOCKED_STATUSES, sumSucceededPayments } from '@/lib/payments/invoice-public';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import { pendingCents } from '@/lib/payments/stripe-lifecycle';
+import { cardFee, chargeFor } from '@/lib/payments/pay-discount';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -81,7 +82,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: payments } = await supabaseAdmin
     .from('payments')
-    .select('amount_cents, status, refunded_cents')
+    .select('amount_cents, status, refunded_cents, discount_cents')
     .eq('invoice_id', invoice.id);
   const paidOnly = sumSucceededPayments(payments ?? []);
   if (paidOnly >= (invoice.total_cents ?? 0)) {
@@ -96,7 +97,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // Customer may pay a partial amount (defaults to the full balance), but it
   // must clear the upfront on the first payment and never exceed the balance.
+  // `amount_cents` is how much of the INVOICE to settle (the credit). `method` 'bank' pays it at the
+  // non-card discount (lib/payments/pay-discount.ts — Texas allows a discount, not a card surcharge);
+  // 'card' pays it in full. Older clients that send no method get both, at full price.
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const payMethod = body.method === 'bank' ? 'bank' : body.method === 'card' ? 'card' : undefined;
   const intended = typeof body.amount_cents === 'number'
     ? Math.round(body.amount_cents)
     : balance;
@@ -120,6 +125,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     balance_cents: intended,
     customer_email: invoice.customer_email,
     customer_name: invoice.customer_name,
+    ...(payMethod ? { pay_method: payMethod, charge_cents: chargeFor(intended, payMethod === 'bank' ? 'ach' : 'stripe', cardFee()) } : {}),
   };
 
   // Pin to the same apiVersion the rest of the app uses (see
@@ -140,15 +146,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       invoice_id: invoice.id,
       provider: 'stripe',
       external_intent_id: intent.id,
-      amount_cents: intended,
+      amount_cents: params.amount,
       currency: 'usd',
       status: intent.status,
       client_secret: intent.client_secret,
-      metadata: { invoice_number: invoice.invoice_number, public_slug: invoice.public_slug },
+      metadata: { ...params.metadata },
     });
 
   return NextResponse.json({
     client_secret: intent.client_secret,
     public_intent_id: intent.id,
+    amount_cents: params.amount,
   });
 });
