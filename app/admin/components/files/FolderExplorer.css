@@ -516,45 +516,48 @@
   .fe__rows--select .fe__row { grid-template-columns: auto 1.5rem minmax(0, 1fr) auto; }
 }
 
-/* ── ONE TOOLBAR ROW (owner, 2026-11-11) ─────────────────────────────────────────────────────────
- * "move the viewing options and the download button and the open files and the upload files and
- * the new folder buttons down on the same row as the select all button. this will compact
- * everything and make it easier to see everything."
- * Left: Select all, search, how to look at the files. Right: New folder, Scan, Upload files.
- * Wraps (right group first drops to its own line) when the screen is too narrow for one row. */
+/* ── THE TOOLBAR: TWO ROWS (owner, 2026-11-11) ───────────────────────────────────────────────────
+ * "no more than two rows, and everything should look really clean and organized."
+ * Row 1: where you are (path, or the counts) | Open in Files, folder actions, New folder, Scan, Upload.
+ * Row 2: Select all, search, what to show, sort, tile size | Download .zip, Refresh.
+ * One bordered card, a hairline between the rows. On a phone each group takes its own line. */
+.fe { container-type: inline-size; }
 .fe__bar {
+  display: flex;
+  flex-direction: column;
+  margin: 0.25rem 0 0.85rem;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.fe__bar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 0.75rem;
   flex-wrap: wrap;
-  margin: 0.25rem 0 0.75rem;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--theme-border, #E2E8F0);
-  border-radius: 12px;
-  background: var(--theme-bg-surface, #FFFFFF);
+  min-height: 3rem;
+  padding: 0.45rem 0.65rem;
 }
+.fe__bar-row + .fe__bar-row { border-top: 1px solid var(--theme-border, #E2E8F0); }
+.fe__bar-where { display: flex; align-items: center; min-width: 0; flex: 1 1 auto; }
+.fe__bar-summary { font-size: 0.88rem; font-weight: 600; color: var(--theme-fg-secondary, #475569); }
 .fe__bar-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
-.fe { container-type: inline-size; }
+.fe__bar-row > .fe__bar-group:first-child { flex: 1 1 auto; }
+.fe__bar-add, .fe__bar-end { margin-left: auto; flex: 0 0 auto; }
+.fe__bar-add .fe__link { margin-right: 0.35rem; }
 .fe__bar-group .fsel__all { margin-right: 0.25rem; white-space: nowrap; font-size: 0.83rem; font-weight: 600; }
-.fe__bar-group .fe__search { flex: 1 1 11rem; max-width: 18rem; min-width: 9rem; }
+.fe__bar-group .fe__search { flex: 1 1 12rem; max-width: 20rem; min-width: 9rem; }
 .fe__bar .fe__btn-label { display: inline; }
-/* Narrower than a wide monitor, the bar still fits on one row: first Download and Open in Files
- * drop their words (icon + tooltip stay), then on a small laptop New folder and Scan do too.
- * Upload files always keeps its label. */
-@container (max-width: 1400px) {
-  .fe__bar .fv-dl-all__label,
-  .fe__link .fe__btn-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .fe__bar .fv-dl-all .fe__btn { padding: 0 0.6rem; }
-}
-@container (max-width: 1100px) {
-  .fe__bar .fe__btn-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Photos | Videos — one control split in two; each half lights up while its kind is shown. */
+.fe__kinds .fe__mode-btn { gap: 0.35rem; }
+@container (max-width: 900px) {
+  .fe__bar .fe__btn-label,
+  .fe__bar .fv-dl-all__label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .fe__bar .fe__btn:not(.fe__btn--primary) { padding: 0 0.6rem; }
 }
-.fe__bar > .fe__bar-group:first-child { flex: 1 1 auto; }
-.fe__bar-add { margin-left: auto; flex: 0 0 auto; }
 @media (max-width: 720px) {
-  .fe__bar-group .fe__search { flex: 1 1 100%; }
+  .fe__bar-group .fe__search { flex: 1 1 100%; max-width: none; }
   .fe__bar-add { width: 100%; }
-  .fe__bar-add .fe__btn { flex: 1 1 auto; justify-content: center; }
+  .fe__bar-add .fe__btn--primary { flex: 1 1 auto; justify-content: center; }
 }
