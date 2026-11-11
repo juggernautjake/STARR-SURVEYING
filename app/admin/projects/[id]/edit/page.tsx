@@ -22,7 +22,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { FolderKanban, ArrowLeft, Check, Archive, ArchiveRestore } from 'lucide-react';
+import { FolderKanban, Check, Archive, ArchiveRestore } from 'lucide-react';
+import { useBackTarget } from '@/lib/admin/back-target';
 import { usePageError } from '../../../hooks/usePageError';
 import { usePageTitle } from '@/lib/admin/page-title';
 
@@ -47,6 +48,8 @@ export default function EditProjectPage() {
   const [form, setForm] = useState<Form>(EMPTY);
   const [number, setNumber] = useState<string>('');
   usePageTitle(number ? `Edit ${number}${form.name ? ` — ${form.name}` : ''}` : null);
+  // Back to the project being edited, by name rather than "Project Detail" (2026-11-11).
+  useBackTarget({ href: `/admin/projects/${id}`, label: [number, form.name].filter(Boolean).join(' — ') || 'the project' });
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -115,11 +118,6 @@ export default function EditProjectPage() {
       <div className="proj-page__header">
         <div className="proj-page__header-left">
           <h1 className="proj-page__title"><FolderKanban size={20} aria-hidden /> Edit {number || 'project'}</h1>
-        </div>
-        <div className="proj-page__header-actions">
-          <Link href={`/admin/projects/${id}`} className="proj-page__btn proj-page__btn--secondary">
-            <ArrowLeft size={15} aria-hidden /> Back to project
-          </Link>
         </div>
       </div>
 

@@ -33,9 +33,10 @@ const PROJECTPAGE = 'app/admin/projects/[id]/page.tsx';
 // ── the vocabulary ───────────────────────────────────────────────────────────────────────────────
 
 describe('the standard folders of a job', () => {
-  it('are Research, CAD, Photos, Videos — always — with Documents and Receipts as catch-alls', () => {
+  // Documents became always-listed on 2026-11-11: the job hub has a Documents widget that opens it.
+  it('are Research, CAD, Photos, Videos, Documents — always — with Receipts as the catch-all', () => {
     expect(JOB_FOLDER_KEYS).toEqual(['research', 'cad', 'photos', 'videos', 'documents', 'receipts']);
-    expect(JOB_FOLDERS.filter((f) => f.standard).map((f) => f.key)).toEqual(['research', 'cad', 'photos', 'videos']);
+    expect(JOB_FOLDERS.filter((f) => f.standard).map((f) => f.key)).toEqual(['research', 'cad', 'photos', 'videos', 'documents']);
   });
 
   it('each takes uploads into a section the job page always used, except Receipts', () => {
@@ -207,7 +208,7 @@ describe('the FolderExplorer', () => {
     expect(src).toContain('title="View all files in this folder and its subfolders"');
     expect(src).toContain('data-testid="fe-all-view"');
     expect(code).toContain("mode === 'all' ? groups.flatMap((g) => g.files) : folderFiles");
-    expect(src).toContain("placeholder={mode === 'all' ? 'Search every file below…' : 'Search this folder…'}");
+    expect(src).toContain("mode === 'all' ? 'Search every file below…' : 'Search this folder…'}");
   });
 
   it('opens files in the ONE shared viewer, with the mount adapter\'s capabilities', () => {
@@ -258,39 +259,40 @@ describe('the FolderExplorer', () => {
   });
 });
 
-describe('the job page: one Files tab instead of five bubbles', () => {
+// 2026-11-11: the tab strip became a hub — a header, then one tile per part of the job.
+describe('the job page: a hub of widgets', () => {
   const src = read(JOBPAGE);
   const code = stripJs(src);
 
-  it('the tabs are Overview, Schedule, Files, Field Work, Property Map, Financial, Activity, Messages', () => {
-    const keys = [...code.matchAll(/\{ key: '([a-z]+)', label: '/g)].map((m) => m[1]);
-    // `propertymap` joined the row when the interactive map was built. It sits after Field Work
-    // because that is when a crew wants it — you come back from the parcel and place what you shot.
-    expect(keys).toEqual(['overview', 'schedule', 'files', 'fieldwork', 'propertymap', 'financial', 'activity', 'messages']);
+  it('job home offers Research, Interactive map, Documents, Photos & videos, Files, Job info, Job status, Financial', () => {
+    const at = code.indexOf('const WIDGETS: Widget[] = [');
+    const block = code.slice(at, code.indexOf('];', at));
+    const keys = [...block.matchAll(/\{ key: '([a-z]+)', label: '/g)].map((m) => m[1]);
+    expect(keys).toEqual(['research', 'map', 'documents', 'media', 'files', 'info', 'status', 'financial']);
   });
 
-  it('mounts the explorer on the job\'s own mount and reads the badge from it', () => {
+  it("mounts the explorer on the job's own mount and reads the badge from it", () => {
     expect(code).toMatch(/<FolderExplorer[\s\S]{0,120}rootId=\{`mnt:jobs:\$\{jobId\}`\}/);
     expect(code).toContain('onTotalChange={setFilesTotal}');
-    expect(code).toContain('...(filesTotal !== null ? { files: filesTotal } : {})');
   });
 
-  it('the research records and the research start live under Research; New Drawing under CAD', () => {
-    const at = code.indexOf('folderExtras={{');
-    const extras = code.slice(at, code.indexOf('\n          />', at));
-    expect(extras).toMatch(/research: \([\s\S]*?job-research-start[\s\S]*?<JobResearchPanel/);
+  it('Photos & videos is the explorer in its media layout; Documents opens the Documents folder', () => {
+    expect(code).toMatch(/<FolderExplorer rootId=\{`mnt:jobs:\$\{jobId\}`\} title="Photos & videos" layout="media"/);
+    expect(code).toContain('initialFolder="documents"');
+  });
+
+  it('the research records live under Research; New Drawing under CAD', () => {
+    const at = code.indexOf('onTotalChange={setFilesTotal}');
+    const extras = code.slice(at, code.indexOf('{view === \'info\'', at));
+    expect(extras).toMatch(/research: <JobResearchPanel/);
     expect(extras).toMatch(/cad: \([\s\S]*?data-testid="job-new-drawing"/);
     expect(extras).toMatch(/root: \([\s\S]*?data-testid="job-all-files-link"/);
   });
 
-  it('the old tab keys still land somewhere: the stage timeline and the quick actions go through openTab', () => {
-    expect(code).toContain("if (tab === 'research' || tab === 'cad' || tab === 'photos' || tab === 'videos') {");
-    expect(code).toContain('onOpen={openTab}');
-    expect(code).toContain("onClick={() => openTab('research')}");
-    expect(code).toContain("onClick={() => openTab('cad')}");
-    // "Add photos" opens the Upload files pop-up on Photos (2026-09-15) rather than the tab.
-    expect(code).toContain("setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })");
-    expect(code, 'a quick action still targets a tab that no longer exists').not.toMatch(/setActiveTab\('(research|cad|photos|videos)'\)/);
+  it('the old tab keys still land somewhere', () => {
+    expect(code).toContain("case 'photos': case 'videos': return { view: 'media' };");
+    expect(code).toContain("case 'cad': return { view: 'files', folder: 'cad' };");
+    expect(code).toContain("case 'overview': case 'propertymap': return { view: 'home' };");
   });
 
   it('the retired components are gone, and nothing imports them', () => {

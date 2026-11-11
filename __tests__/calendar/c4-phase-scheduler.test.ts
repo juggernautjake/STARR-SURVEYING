@@ -213,15 +213,13 @@ describe('job detail page — Schedule tab wired in', () => {
     expect(SRC).toMatch(/import JobPhaseScheduler from '\.\/JobPhaseScheduler';/);
   });
 
-  it("declares a 'schedule' tab option between Overview and Files", () => {
-    // 2026-09-10: Research / CAD / Photos / Videos folded into the Files tab (the standard folders).
-    expect(SRC).toMatch(
-      /key: 'overview'[\s\S]*?key: 'schedule'[\s\S]*?key: 'files'/,
-    );
+  // 2026-11-11: the job page became a hub; Schedule is one of the quieter "More" views.
+  it("offers Schedule under More on job home", () => {
+    expect(SRC).toMatch(/const MORE: Widget\[\] = \[[\s\S]*?key: 'schedule'/);
   });
 
-  it('renders the panel when activeTab === schedule', () => {
-    expect(SRC).toMatch(/activeTab === 'schedule' && \(/);
+  it("renders the panel when the Schedule view is open", () => {
+    expect(SRC).toMatch(/view === 'schedule' && \(/);
     expect(SRC).toMatch(/<JobPhaseScheduler[\s\S]*?jobId=\{jobId\}[\s\S]*?jobName=\{job\.name\}/);
   });
 });

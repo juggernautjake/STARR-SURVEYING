@@ -33,6 +33,7 @@ import RecentBadge from '@/app/admin/components/files/RecentBadge';
 import { useDeleteFiles, type DeletableItem } from '@/app/admin/components/files/useDeleteFiles';
 import { toggle as toggleInSelection } from '@/lib/files/selection';
 import { uploadScopeFor } from '@/lib/files/upload-destinations';
+import { sortFileNodes, DEFAULT_FILE_SORT, type FileSort } from '@/lib/files/sort';
 import {
   Folder,
   FileText,
@@ -300,6 +301,8 @@ export default function FilesPage(): React.ReactElement {
   // not fall back to showing the folder.
   const [query, setQuery] = useState('');
   const [kinds, setKinds] = useState<string[]>([]);
+  // A–Z (numbers as numbers) unless the person picks newest-uploaded first — lib/files/sort.ts.
+  const [sort, setSort] = useState<FileSort>(DEFAULT_FILE_SORT);
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchNote, setSearchNote] = useState<string | null>(null);
@@ -345,10 +348,10 @@ export default function FilesPage(): React.ReactElement {
 
   /** What the table shows: search results when searching, otherwise the current folder. Kind
    *  filters apply to browsing too, so the control means the same thing in both modes. */
-  const visibleNodes: FileNode[] = searchHits
+  const visibleNodes: FileNode[] = sortFileNodes(searchHits
     ?? (kinds.length === 0
       ? nodes
-      : nodes.filter((n) => n.node_type === 'file' && kinds.includes(kindOf(n.mime_type, n.name))));
+      : nodes.filter((n) => n.node_type === 'file' && kinds.includes(kindOf(n.mime_type, n.name)))), sort);
 
   const canWriteHere = canEdit(parentAccess);
 
@@ -457,10 +460,10 @@ export default function FilesPage(): React.ReactElement {
   const viewerCollection = useMemo(() => ({
     id: parentId ?? 'root',
     title: breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : 'Files',
-    files: nodes
+    files: sortFileNodes(nodes, sort)
       .filter((n) => n.node_type === 'file' && !n.open_href)
       .map((n) => explorerNodeToViewerFile(n, viewerUrls[n.id] ?? (viewer?.node.id === n.id ? viewer.url : null))),
-  }), [nodes, viewerUrls, viewer, parentId, breadcrumb]);
+  }), [nodes, sort, viewerUrls, viewer, parentId, breadcrumb]);
   const viewerCapabilities = useMemo(() => explorerCapabilities({
     canEdit: (n) => canEdit(n.access as AccessLevel),
     nodeFor: (id) => nodes.find((n) => n.id === id),
@@ -960,6 +963,20 @@ export default function FilesPage(): React.ReactElement {
               </button>
             );
           })}
+        </div>
+        <div className="fx__kinds" role="group" aria-label="Sort by">
+          {([['name', 'A–Z'], ['uploaded', 'Newest uploaded']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`fx__kind${sort === id ? ' fx__kind--on' : ''}`}
+              aria-pressed={sort === id}
+              onClick={() => setSort(id)}
+              data-testid={`fx-sort-${id}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 

@@ -32,6 +32,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useBackTarget } from '@/lib/admin/back-target';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
   ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
@@ -182,6 +183,8 @@ export default function GlobalPropertyMapPage() {
 
   // ── work mode ─────────────────────────────────────────────────────────────────────────────────
   const [job, setJob] = useState<JobPlace | null>(null);
+  // Opened from a job, the way back is that job (the page header's "Back to …", 2026-11-11).
+  useBackTarget(job ? { href: `/admin/jobs/${job.jobId}`, label: [job.jobNumber, job.name].filter(Boolean).join(' — ') || 'the job' } : null);
   const [payload, setPayload] = useState<MapPayload | null>(null);
   const [library, setLibrary] = useState<LibraryFile[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1815,9 +1818,6 @@ export default function GlobalPropertyMapPage() {
     <div className="gmap" data-testid="gmap" data-mode={workMode ? 'work' : 'browse'}>
       {/* ── the bar ──────────────────────────────────────────────────────────────────────────── */}
       <div className="gmap__bar">
-        <Link className="gmap__back" href={job ? `/admin/jobs/${job.jobId}` : '/admin/jobs'}>
-          <ChevronLeft size={14} aria-hidden /> {job ? 'Back to the job' : 'Jobs'}
-        </Link>
 
         <span className="gmap__search">
           <Search size={14} aria-hidden />

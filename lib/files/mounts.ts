@@ -568,7 +568,7 @@ async function jobFolderListing(jobId: string, jobNode: string, user: FileUser, 
   return { ok: true, byFolder, named, byNamed };
 }
 
-/** The folder nodes under a job: the standard four always, the catch-alls when they hold something
+/** The folder nodes under a job: the standard five always, the catch-alls when they hold something
  *  — files, or a named folder somebody made inside them. */
 function jobFolderNodes(jobNode: string, folders: JobFolderSpec[], byFolder: Map<JobFolderKey, MountNode[]>, named: readonly NamedFolder[] = []): MountNode[] {
   const holdsFolders = new Set<string>(named.filter((f) => !f.parent_id).map((f) => f.root));

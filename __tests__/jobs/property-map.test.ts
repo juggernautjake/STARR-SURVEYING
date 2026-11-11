@@ -329,52 +329,25 @@ describe('a person can actually find it', () => {
   // got fixed the same way. Four doors now, and this test is what keeps them open.
   const job = read('app/admin/jobs/[id]/page.tsx');
 
-  it('is a header action, visible from every tab', () => {
-    expect(job).toContain('data-testid="job-property-map-header"');
-    expect(job, 'and it says the one thing it does').toContain('View interactive map');
+  // 2026-11-11: the job page became a hub, and the map is one of its tiles — a link straight to the
+  // map page, plus an icon in the strip beside "Job home" so it is one press from any widget.
+  it('is a tile on job home, and a link to the map page', () => {
+    expect(job).toContain("{ key: 'map', label: 'Interactive map'");
+    expect(job).toContain('data-testid="job-widget-map"');
+    expect(job).toContain('href={`/admin/map?job=${jobId}`}');
   });
 
-  it('is at the top of the job’s files, and in the Photos folder where the question comes up', () => {
-    expect(job).toContain('data-testid="job-property-map-files-btn"');
-    expect(job).toContain('data-testid="job-property-map-photos-btn"');
-    expect(job, 'the owner’s own words, 2026-09-21').toContain("{'View Interactive Map'}");
+  it('is in the strip beside Job home, from every widget', () => {
+    const at = job.indexOf('className="jh__switch"');
+    expect(job.slice(at, at + 600)).toContain("w.key === 'map'");
   });
 
-  it('ALL FOUR doors say the same thing, and none of them offers to create anything', () => {
-    // Owner, 2026-09-21: "now that we are using google maps for the interactive map, it should just
-    // say 'View interactive map' instead of 'Create interactive map'."
-    //
-    // The conditional label made sense when arriving without a map meant uploading an aerial and
-    // georeferencing it — there was an act of creation to name. On Google imagery there is not.
-    //
-    // This asserts the absence rather than the presence, because the failure being guarded is a
-    // fifth door added later that reintroduces the old wording, or three doors updated and one
-    // missed — which is exactly what had happened here: the header said "Create interactive map"
-    // while the files and photos buttons said "Create Interactive Map" in different capitals.
-    // Comments are stripped first. The owner's instruction is QUOTED in two of them, and a ratchet
-    // that counts the reasoning as a violation is a ratchet that gets deleted the first time it
-    // cries wolf — the same correction the keyframe ratchet needed on 2026-09-20.
-    const code = job
-      // Block comments first, so a JSX `{/* … */}` quoting the owner's instruction across several
-      // lines is removed whole. Line-prefix filtering alone missed those: the continuation lines
-      // start with a quote mark, not with a comment token.
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .split('\n')
-      .filter((l) => !/^\s*\/\//.test(l))
-      .join('\n');
-
-    expect(code, 'no door offers to CREATE a map any more').not.toMatch(/Create [Ii]nteractive [Mm]ap'/);
-    expect((code.match(/View [Ii]nteractive [Mm]ap/g) ?? []).length,
-      'four doors: header, files, photos, and the property panel tab').toBeGreaterThanOrEqual(4);
+  it('no door offers to CREATE a map any more', () => {
+    const code = job.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    expect(code).not.toMatch(/Create [Ii]nteractive [Mm]ap'/);
   });
 
-  it('still has its own tab', () => {
-    expect(job).toContain("key: 'propertymap'");
-    expect(job).toContain("label: 'Property Map'");
-  });
-
-  it('knows whether a map exists before you open its tab, or the header would lie', () => {
-    expect(job).toMatch(/activeTab === 'propertymap' \|\| activeTab === 'files' \|\| activeTab === 'overview'/);
+  it('knows the point count before anything is opened', () => {
     expect(job, 'the summary endpoint exists so this costs nothing').toContain('property-map?summary=1');
   });
 });

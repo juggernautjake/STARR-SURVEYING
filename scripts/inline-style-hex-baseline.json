@@ -82,7 +82,7 @@
   "app/admin/jobs/_tabs/WeatherTab.tsx": 25,
   "app/admin/jobs/[id]/field/page.tsx": 25,
   "app/admin/jobs/[id]/JobOriginatingLead.tsx": 8,
-  "app/admin/jobs/[id]/page.tsx": 12,
+  "app/admin/jobs/[id]/page.tsx": 8,
   "app/admin/jobs/new/page.tsx": 1,
   "app/admin/leads/[id]/LeadNotesCard.tsx": 3,
   "app/admin/leads/[id]/page.tsx": 4,

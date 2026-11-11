@@ -1,5 +1,9 @@
 // app/admin/projects/[id]/page.tsx — one project: its jobs, its money, its files.
 //
+// 2026-11-11 — a hub, like the job page: the project header (number, name, address, customer, jobs,
+// quoted), five tiles (Files, Photos & videos, Financial, Status & history, Project info), and the
+// jobs list right under them, because the jobs are what somebody comes back to a project for.
+//
 // This is the page the owner asked for: *"within the project we can create a new job. We would then
 // be able to have multiple jobs within a project."* The primary action on it is therefore **New job
 // in this project** — not an edit form. A container whose main affordance is editing the container
@@ -17,8 +21,10 @@ import '@/app/admin/components/listing/Listing.css';
 import { useParams, useRouter } from 'next/navigation';
 import {
   FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, Trash2, Briefcase, Check, Pencil,
-  CalendarDays, Ruler, DollarSign, ChevronRight, Star, Upload,
+  CalendarDays, Ruler, DollarSign, ChevronRight, Star, Upload, Folder, Camera, Activity, ClipboardList,
+  type LucideIcon,
 } from 'lucide-react';
+import '../../components/hub/Hub.css';
 import { formatDate, dueBubble } from '@/lib/admin/listing';
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
@@ -54,6 +60,15 @@ interface Rollup {
   quoted: number; billable: number; paid: number; outstanding: number;
 }
 
+type ProjectViewKey = 'home' | 'files' | 'media' | 'financial' | 'status' | 'info';
+const PROJECT_VIEWS: Array<{ key: Exclude<ProjectViewKey, 'home'>; label: string; Icon: LucideIcon; blurb: string }> = [
+  { key: 'files', label: 'Files', Icon: Folder, blurb: 'Project documents and every job’s folders.' },
+  { key: 'media', label: 'Photos & videos', Icon: Camera, blurb: 'Every picture and video across the project.' },
+  { key: 'financial', label: 'Financial', Icon: DollarSign, blurb: 'Quoted, billed, paid and owed across the jobs.' },
+  { key: 'status', label: 'Status & history', Icon: Activity, blurb: 'Where the project stands, and everything that happened.' },
+  { key: 'info', label: 'Project info', Icon: ClipboardList, blurb: 'Client, description, notes — and editing the project.' },
+];
+
 const money = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
@@ -75,6 +90,19 @@ export default function ProjectDetailPage() {
   // The Upload files pop-up (owner, 2026-09-15): any of this project's folders, or its jobs' folders.
   const [uploadOpen, setUploadOpen] = useState(false);
   const [filesRefresh, setFilesRefresh] = useState(0);
+  /** Project home, or the tile that is open — kept in `?tab=` so a reload or a link lands there. */
+  const [view, setView] = useState<ProjectViewKey>('home');
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t && PROJECT_VIEWS.some((w) => w.key === t)) setView(t as ProjectViewKey);
+  }, []);
+  const openView = useCallback((next: ProjectViewKey) => {
+    setView(next);
+    const url = new URL(window.location.href);
+    if (next === 'home') url.searchParams.delete('tab'); else url.searchParams.set('tab', next);
+    window.history.replaceState(window.history.state, '', url.href);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,72 +172,101 @@ export default function ProjectDetailPage() {
   }
 
   const hasClient = Boolean(project.client_company || project.client_name || project.client_email || project.client_phone);
+  const label = projectLabel(project);
+  const street = [project.address, project.city].filter(Boolean).join(', ');
+  const locale = [project.state, project.zip].filter(Boolean).join(' ');
+  const customer = project.client_company || project.client_name || null;
+  const current = PROJECT_VIEWS.find((w) => w.key === view) ?? null;
+  const tileMeta: Partial<Record<ProjectViewKey, string>> = {
+    files: 'This project and all of its jobs',
+    media: 'From every job in the project',
+    financial: rollup ? `${money(rollup.paid)} paid of ${money(rollup.billable || rollup.quoted)}` : '',
+    status: PROJECT_STATUS_LABELS[project.status],
+    info: hasClient ? (customer ?? '') : 'No client details yet',
+  };
 
   return (
-    <div className="proj-page">
-      <div className="proj-page__header">
-        <div className="proj-page__header-left">
-          <h1 className="proj-page__title"><FolderKanban size={20} aria-hidden /> {projectLabel(project)}</h1>
-        </div>
-        <div className="proj-page__header-actions">
-          {/* Upload, first and brightest (owner, 2026-09-15): "a button … that says upload files …
-              that when clicked brings up the pop up modal with the drop box area and the input for
-              where the file(s) should go … work for projects and jobs." */}
-          <button
-            type="button"
-            className="proj-page__btn proj-page__btn--primary proj-page__btn--upload"
-            onClick={() => setUploadOpen(true)}
-            title="Upload files to this project or any of its jobs — you choose the folder for each file"
-            data-testid="project-upload-files"
-          >
-            <Upload size={16} aria-hidden /> Upload files
-          </button>
-          <Link href="/admin/projects" className="proj-page__btn proj-page__btn--secondary">
-            <ArrowLeft size={15} aria-hidden /> All Projects
-          </Link>
-          <Link href={`/admin/projects/${project.id}/edit`} className="proj-page__btn proj-page__btn--secondary" data-testid="project-edit">
-            <Pencil size={15} aria-hidden /> Edit
-          </Link>
-          {/* The point of the page. `?project=` prefills and preselects the picker on the job form. */}
-          <Link
-            href={`/admin/jobs/new?project=${project.id}`}
-            className="proj-page__btn proj-page__btn--primary"
-            data-testid="project-new-job"
-          >
-            <Plus size={15} aria-hidden /> New job
-          </Link>
-        </div>
-      </div>
-
-      <div className="pd">
-        {error && <div className="proj-page__error" role="alert">{error}</div>}
-
-        {/* ── Status ──────────────────────────────────────────────────────────────────────────── */}
-        <div className="pd__statusbar">
-          {PROJECT_STATUSES.map((s) => (
+    <div className="jh proj-page">
+      {/* ── THE PROJECT HEADER ── */}
+      <header className="jh__header" data-testid="project-header">
+        <div className="jh__title-row">
+          <div className="jh__title">
+            {project.project_number && <span className="jh__number">{project.project_number}</span>}
+            <h1 className="jh__name">{project.name}</h1>
+          </div>
+          <div className="jh__header-actions">
+            {/* Upload, first and brightest (owner, 2026-09-15). */}
             <button
-              key={s}
               type="button"
-              disabled={savingStatus}
-              onClick={() => setStatus(s)}
-              className={`pd__status${project.status === s ? ' is-on' : ''}`}
-              style={project.status === s
-                ? { background: `${PROJECT_STATUS_COLORS[s]}18`, color: PROJECT_STATUS_COLORS[s], borderColor: PROJECT_STATUS_COLORS[s] }
-                : undefined}
-              data-testid={`project-status-${s}`}
+              className="jh__upload"
+              onClick={() => setUploadOpen(true)}
+              title="Upload files to this project or any of its jobs — you choose the folder for each file"
+              data-testid="project-upload-files"
             >
-              {project.status === s && <Check size={13} aria-hidden />} {PROJECT_STATUS_LABELS[s]}
+              <Upload size={16} aria-hidden /> Upload files
             </button>
-          ))}
+            {/* The point of the page. `?project=` prefills and preselects the picker on the job form. */}
+            <Link href={`/admin/jobs/new?project=${project.id}`} className="jh__btn" data-testid="project-new-job">
+              <Plus size={15} aria-hidden /> New job
+            </Link>
+          </div>
         </div>
+        <dl className="jh__facts">
+          <div className="jh__fact jh__fact--address">
+            <dt><MapPin size={13} aria-hidden /> Address</dt>
+            <dd>{street || locale ? <>{street}{street && locale ? ', ' : ''}{locale}</> : <span className="jh__muted">Each job carries its own address</span>}</dd>
+          </div>
+          <div className="jh__fact">
+            <dt><User size={13} aria-hidden /> Customer</dt>
+            <dd>
+              {customer ?? <span className="jh__muted">—</span>}
+              {project.client_company && project.client_name && <span className="jh__sub">{project.client_name}</span>}
+              {project.client_phone && <a href={`tel:${project.client_phone}`} className="jh__fact-link"><Phone size={12} aria-hidden /> {project.client_phone}</a>}
+            </dd>
+          </div>
+          <div className="jh__fact">
+            <dt><Briefcase size={13} aria-hidden /> Jobs</dt>
+            <dd>{jobs.length}{rollup && rollup.active !== jobs.length ? <span className="jh__sub">{rollup.active} active</span> : null}</dd>
+          </div>
+          <div className="jh__fact">
+            <dt><DollarSign size={13} aria-hidden /> Quoted</dt>
+            <dd className="jh__money">{rollup ? money(rollup.quoted) : '—'}</dd>
+          </div>
+        </dl>
+      </header>
 
-        <div className="pd__cols">
-          {/* ── The jobs, which are the reason the project exists ─────────────────────────────── */}
-          <section className="pd__main">
+      {error && <div className="proj-page__error" role="alert">{error}</div>}
+
+      <UploadFilesDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        rootId={`mnt:projects:${project.id}`}
+        title={label}
+        onUploaded={() => setFilesRefresh((n) => n + 1)}
+      />
+
+      {view === 'home' || !current ? (
+        <div className="jh__home pd">
+          <ul className="jh__tiles jh__tiles--five" aria-label="Project sections">
+            {PROJECT_VIEWS.map((w) => (
+              <li key={w.key}>
+                <button type="button" className="jh__tile" onClick={() => openView(w.key)} data-testid={`project-widget-${w.key}`}>
+                  <span className={`jh__tile-icon jh__tile-icon--${w.key}`} aria-hidden><w.Icon size={22} strokeWidth={1.9} /></span>
+                  <span className="jh__tile-body">
+                    <span className="jh__tile-name">{w.label}</span>
+                    <span className="jh__tile-blurb">{w.blurb}</span>
+                    {tileMeta[w.key] && <span className="jh__tile-meta">{tileMeta[w.key]}</span>}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {/* ── The jobs, which are the reason the project exists — always on project home ── */}
+          <section className="pd__main" data-testid="project-jobs-section">
             <div className="pd__section-head">
               <h2><Briefcase size={16} aria-hidden /> Jobs<span className="pd__badge">{jobs.length}</span></h2>
             </div>
-
             {jobs.length === 0 ? (
               <div className="pd__empty" data-testid="project-jobs-empty">
                 <p>No jobs in this project yet.</p>
@@ -303,69 +360,101 @@ export default function ProjectDetailPage() {
               </ul>
             )}
           </section>
-
-
-          {/* ── The facts every job inherits, plus the totals ─────────────────────────────────── */}
-          <aside className="pd__side">
-            {/* Replaced the read-only roll-up (2026-08-19): the same totals, plus a straightforward
-                way to record a payment — including a partial one — against the engagement itself. */}
-            <ProjectMoneyPanel projectId={project.id} onChanged={load} />
-
-            <div className="pd__card">
-              <h3>Client</h3>
-              {project.client_company && <p className="pd__line"><User size={13} aria-hidden /> {project.client_company}</p>}
-              {project.client_name && <p className="pd__line"><User size={13} aria-hidden /> {project.client_name}</p>}
-              {project.client_email && <p className="pd__line"><Mail size={13} aria-hidden /> <a href={`mailto:${project.client_email}`}>{project.client_email}</a></p>}
-              {project.client_phone && <p className="pd__line"><Phone size={13} aria-hidden /> <a href={`tel:${project.client_phone}`}>{project.client_phone}</a></p>}
-              {!hasClient && <p className="pd__note">No client details on this project.</p>}
-            </div>
-
-            {project.description && (
-              <div className="pd__card"><h3>About</h3><p className="pd__line">{project.description}</p></div>
-            )}
-            {project.notes && (
-              <div className="pd__card"><h3>Notes</h3><p className="pd__line">{project.notes}</p></div>
-            )}
-
-            <div className="pd__card">
-              <h3>Danger zone</h3>
-              <button type="button" className="proj-page__btn proj-page__btn--danger" onClick={remove} data-testid="project-delete">
-                <Trash2 size={15} aria-hidden /> Delete project
-              </button>
-              <p className="pd__note">Only possible once its jobs have been removed.</p>
-            </div>
-          </aside>
         </div>
-
-        {/* ── The project's files, in the standard structure (owner, 2026-09-10) ─────────────
-            Project documents beside the job folders, each job holding Research / CAD / Photos /
-            Videos — the same folders the File Explorer shows under Job Projects. Replaced the
-            documents panel in the sidebar, which could hold the contract but could not show a
-            job's photos. */}
-        <section className="pd__main pd__files" data-testid="project-files">
-          <div className="pd__section-head">
-            <h2><FolderKanban size={16} aria-hidden /> Files</h2>
+      ) : (
+        <section className="jh__open" aria-label={current.label}>
+          <div className="jh__viewbar">
+            <button type="button" className="jh__back" onClick={() => openView('home')} data-testid="project-home">
+              <ArrowLeft size={16} aria-hidden /> Project home
+            </button>
+            <h2 className="jh__viewtitle"><current.Icon size={18} aria-hidden /> {current.label}</h2>
+            <nav className="jh__switch" aria-label="Go to">
+              {PROJECT_VIEWS.map((w) => (
+                <button key={w.key} type="button" className={`jh__switch-btn${view === w.key ? ' jh__switch-btn--on' : ''}`} onClick={() => openView(w.key)} title={w.label} aria-label={w.label} aria-current={view === w.key ? 'page' : undefined}>
+                  <w.Icon size={16} aria-hidden />
+                </button>
+              ))}
+            </nav>
           </div>
-          <FolderExplorer
-            rootId={`mnt:projects:${project.id}`}
-            title={projectLabel(project)}
-            refreshKey={filesRefresh}
-          />
-          <UploadFilesDialog
-            open={uploadOpen}
-            onClose={() => setUploadOpen(false)}
-            rootId={`mnt:projects:${project.id}`}
-            title={projectLabel(project)}
-            onUploaded={() => setFilesRefresh((n) => n + 1)}
-          />
-        </section>
 
-        {/* ── History (owner, 2026-10-11): every file added or changed and every edit, on the
-            project and all of its jobs. Re-reads after an upload from this page. */}
-        <section className="pd__main pd__history" data-testid="project-history">
-          <JobActivityFeed projectId={project.id} key={filesRefresh} />
+          <div className="jh__view pd">
+            {/* The project's files, in the standard structure (owner, 2026-09-10): project documents
+                beside the job folders, each job holding Research / CAD / Photos / Videos / Documents. */}
+            {view === 'files' && (
+              <section className="pd__files" data-testid="project-files">
+                <FolderExplorer
+                  rootId={`mnt:projects:${project.id}`}
+                  title={label}
+                  refreshKey={filesRefresh}
+                />
+              </section>
+            )}
+
+            {view === 'media' && (
+              <FolderExplorer rootId={`mnt:projects:${project.id}`} title="Photos & videos" layout="media" refreshKey={filesRefresh} />
+            )}
+
+            {/* The totals, plus recording a payment — including a partial one — against the project. */}
+            {view === 'financial' && <ProjectMoneyPanel projectId={project.id} onChanged={load} />}
+
+            {view === 'status' && (
+              <div className="jh__stack">
+                <section className="jh__card">
+                  <h3 className="jh__card-title">Project status</h3>
+                  <div className="pd__statusbar">
+                    {PROJECT_STATUSES.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={savingStatus}
+                        onClick={() => setStatus(s)}
+                        className={`pd__status${project.status === s ? ' is-on' : ''}`}
+                        style={project.status === s
+                          ? { background: `${PROJECT_STATUS_COLORS[s]}18`, color: PROJECT_STATUS_COLORS[s], borderColor: PROJECT_STATUS_COLORS[s] }
+                          : undefined}
+                        data-testid={`project-status-${s}`}
+                      >
+                        {project.status === s && <Check size={13} aria-hidden />} {PROJECT_STATUS_LABELS[s]}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                {/* History (owner, 2026-10-11): every file added or changed and every edit, on the
+                    project and all of its jobs. */}
+                <section className="pd__history" data-testid="project-history">
+                  <JobActivityFeed projectId={project.id} key={filesRefresh} />
+                </section>
+              </div>
+            )}
+
+            {view === 'info' && (
+              <div className="jh__stack">
+                <div className="pd__card">
+                  <div className="jh__section-head">
+                    <h3>Client</h3>
+                    <Link href={`/admin/projects/${project.id}/edit`} className="jh__btn" data-testid="project-edit">
+                      <Pencil size={14} aria-hidden /> Edit project
+                    </Link>
+                  </div>
+                  {project.client_company && <p className="pd__line"><User size={13} aria-hidden /> {project.client_company}</p>}
+                  {project.client_name && <p className="pd__line"><User size={13} aria-hidden /> {project.client_name}</p>}
+                  {project.client_email && <p className="pd__line"><Mail size={13} aria-hidden /> <a href={`mailto:${project.client_email}`}>{project.client_email}</a></p>}
+                  {project.client_phone && <p className="pd__line"><Phone size={13} aria-hidden /> <a href={`tel:${project.client_phone}`}>{project.client_phone}</a></p>}
+                  {!hasClient && <p className="pd__note">No client details on this project.</p>}
+                </div>
+                <div className="pd__card"><h3>About</h3><p className="pd__line">{project.description || <span className="jh__muted">No description.</span>}</p></div>
+                <div className="pd__card"><h3>Notes</h3><p className="pd__line">{project.notes || <span className="jh__muted">No notes.</span>}</p></div>
+                <div className="jh__footer-actions">
+                  <button type="button" className="jh__btn jh__btn--danger" onClick={remove} data-testid="project-delete">
+                    <Trash2 size={14} aria-hidden /> Delete project
+                  </button>
+                </div>
+                <p className="pd__note" style={{ textAlign: 'right' }}>A project can only be deleted once its jobs have been removed.</p>
+              </div>
+            )}
+          </div>
         </section>
-      </div>
+      )}
     </div>
   );
 }
