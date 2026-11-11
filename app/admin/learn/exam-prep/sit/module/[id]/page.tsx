@@ -316,7 +316,6 @@ export default function FSModulePage() {
   return (
     <>
       <div className="admin-learn__header">
-        <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">&larr; Back to FS Prep</Link>
         <h2 className="admin-learn__title">{module.icon} Module {module.module_number}: {module.title}</h2>
         <p className="admin-learn__subtitle">{module.description}</p>
         <div className="fs-module__meta">

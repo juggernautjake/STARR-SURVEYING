@@ -6,7 +6,6 @@
 // /admin/me?tab=fieldbook (admin-nav redesign Phase 2 slice 2b/6).
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import AudioPlayer from '../../components/fieldbook/AudioPlayer';
 
 /* ─── Types ─── */
@@ -332,7 +331,6 @@ export default function FieldbookPanel() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn" className="learn__back">← Back to Learning Hub</Link>
         <h2 className="learn__title">📓 My Fieldbook</h2>
         <p className="learn__subtitle">All your field notes, study notes, and observations in one place.</p>
       </div>

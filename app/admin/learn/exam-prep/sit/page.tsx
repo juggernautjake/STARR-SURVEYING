@@ -134,7 +134,6 @@ export default function FSPrepHubPage() {
   return (
     <>
       <div className="admin-learn__header">
-        <Link href="/admin/learn/exam-prep" className="admin-module-detail__back">&larr; Back to Exam Prep</Link>
         <h2 className="admin-learn__title"><Target size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />FS Exam Prep</h2>
         <p className="admin-learn__subtitle">
           Comprehensive preparation for the NCEES Fundamentals of Surveying (FS) exam.

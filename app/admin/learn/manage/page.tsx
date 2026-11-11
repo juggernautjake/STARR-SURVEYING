@@ -614,7 +614,6 @@ export default function ManageContentPage() {
     <>
       <SmallScreenBanner storageKey="manage-content-banner" />
       <div className="learn__header">
-        <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
         <h2 className="learn__title">Manage Content</h2>
         <p className="learn__subtitle">Create and manage modules, lessons, articles, question bank, flashcards, assignments, and monitor activity.</p>
       </div>

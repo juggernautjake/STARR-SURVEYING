@@ -5,7 +5,6 @@ import { Mail, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
-import Link from 'next/link';
 import ContactPicker from '../../components/messaging/ContactPicker';
 import ComposeBox from '../../components/messaging/ComposeBox';
 
@@ -79,7 +78,6 @@ export default function NewMessagePage() {
 
       <div className="msg-new">
         <div className="msg-new__header">
-          <Link href="/admin/messages" className="learn__back">&larr; Back to Messages</Link>
           <h2 className="msg-new__title">New Message</h2>
         </div>
 

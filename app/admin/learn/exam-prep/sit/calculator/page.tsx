@@ -24,9 +24,8 @@
 // question nobody has.
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
-  Calculator, Search, ChevronRight, AlertTriangle, Hammer, ArrowLeft, BookOpen, Info,
+  Calculator, Search, ChevronRight, AlertTriangle, Hammer, BookOpen, Info,
 } from 'lucide-react';
 import { TI_30XA_CATALOGUE, type KeyDoc } from '@/lib/calculators/models/ti-30xa/catalogue';
 import { TI_30XA_GUIDED } from '@/lib/calculators/models/ti-30xa/guided';
@@ -82,9 +81,6 @@ export default function CalculatorReferencePage() {
   return (
     <div className="admin-page calcref">
       <header className="calcref__head">
-        <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">
-          <ArrowLeft size={14} aria-hidden /> Back to SIT Exam Prep
-        </Link>
         <h1 className="calcref__title">
           <Calculator size={22} aria-hidden /> Calculator
         </h1>

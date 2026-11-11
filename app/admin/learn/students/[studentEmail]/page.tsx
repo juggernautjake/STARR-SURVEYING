@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 
 interface ModuleCompletion {
   module_id: string;
@@ -114,10 +113,7 @@ export default function StudentDetailPage() {
     <div style={{ padding: '0' }}>
       {/* Header */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/admin/learn/students" style={{ fontFamily: "'Inter',sans-serif", fontSize: '.82rem', color: 'var(--color-text-tertiary)', textDecoration: 'none' }}>
-          &larr; Back to Student List
-        </Link>
-        <h2 className="admin-learn__title" style={{ marginTop: '.5rem' }}>
+        <h2 className="admin-learn__title">
           {studentEmail}
         </h2>
       </div>

@@ -6,6 +6,7 @@ import { Loader2, FileX, Clock, Tag, CheckCircle2, ChevronDown, Check, X, Film, 
 import { Paperclip, FileText, Globe, Calculator } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useBackTarget } from '@/lib/admin/back-target';
 import Image from 'next/image';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
 import DeeperLearningTutor from '@/app/admin/components/learn/DeeperLearningTutor';
@@ -79,6 +80,8 @@ export default function LessonViewerPage() {
   const params = useParams();
   const router = useRouter();
   const moduleId = params.id as string;
+  // A lesson goes back to its module, not to the list of every module.
+  useBackTarget({ href: `/admin/learn/modules/${moduleId}`, label: 'Module' });
   const lessonId = params.lessonId as string;
 
   const [lesson, setLesson] = useState<any>(null);
@@ -357,7 +360,6 @@ export default function LessonViewerPage() {
       {/* Navigation */}
       <div className="admin-lesson__header" role="banner" aria-label="Lesson header">
         <div className="admin-lesson__nav" role="navigation" aria-label="Lesson navigation">
-          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link" aria-label="Back to module">&larr; Back to Module</Link>
           {quizCount > 0 && canTakeQuiz && (
             <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary admin-btn--sm">
               Take Quiz ({quizCount} questions)

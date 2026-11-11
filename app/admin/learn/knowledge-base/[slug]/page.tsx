@@ -25,7 +25,6 @@ export default function ArticleDetailPage() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn/knowledge-base" className="learn__back">← Back to Knowledge Base</Link>
         <div className="kb__article-category">{article.category}</div>
         <h2 className="learn__title">{article.title}</h2>
         <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.8rem', color: 'var(--color-text-muted)' }}>

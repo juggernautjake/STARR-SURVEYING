@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import QuestionBody, { isAnswered, type DragLabelOptions, type HotspotOptions } from './QuestionBody';
+import { useBackTarget } from '@/lib/admin/back-target';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'drag_label' | 'hotspot' | 'numeric_input' | 'math_template' | 'essay';
 
@@ -72,6 +73,8 @@ interface QuizRunnerProps {
 }
 
 export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel, nextLessonUrl, nextLessonLabel, onComplete }: QuizRunnerProps) {
+  // The header's "Back to …" goes where this quiz came from (its lesson, module or exam prep page).
+  useBackTarget({ href: backUrl, label: backLabel.replace(/^Back to /, '') });
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [results, setResults] = useState<{
@@ -384,7 +387,6 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
   return (
     <div className="quiz">
       <div className="quiz__header">
-        <a href={backUrl} className="admin-lesson__nav-link">&larr; {backLabel}</a>
         <h2 className="quiz__title">{title}</h2>
         <p className="quiz__subtitle">{questions.length} questions &mdash; Answer all to submit</p>
       </div>

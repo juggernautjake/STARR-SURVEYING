@@ -116,10 +116,6 @@ export default function ThreadDetailPage() {
 
   return (
     <>
-      <Link href="/admin/discussions" style={{ fontFamily: 'Inter,sans-serif', fontSize: '.82rem', color: 'var(--color-brand-navy)', textDecoration: 'none', marginBottom: '.75rem', display: 'inline-block' }}>
-        ← Back to Discussions
-      </Link>
-
       {/* Thread header */}
       <div className="thread-detail__header">
         <h1 className="thread-detail__title">{thread.title}</h1>

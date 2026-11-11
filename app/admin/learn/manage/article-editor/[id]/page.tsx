@@ -5,12 +5,15 @@ import { useEffect, useState } from 'react';
 import { Loader2, FileX } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useBackTarget } from '@/lib/admin/back-target';
 import ArticleEditor from '@/app/admin/components/ArticleEditor';
 import SmallScreenBanner from '@/app/admin/components/SmallScreenBanner';
 
 export default function ArticleEditorPage() {
   const params = useParams();
   const articleId = params.id as string;
+  // You open an article from the Articles tab of Manage Content — go back to that tab.
+  useBackTarget({ href: '/admin/learn/manage?tab=articles', label: 'Articles' });
   const [article, setArticle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,7 +76,6 @@ export default function ArticleEditorPage() {
     <>
       <SmallScreenBanner storageKey="article-editor-banner" />
       <div className="learn__header">
-        <Link href="/admin/learn/manage?tab=articles" className="learn__back">&larr; Back to Articles</Link>
         <h2 className="learn__title">Edit Article: {article.title}</h2>
         <p className="learn__subtitle">Edit article content, metadata, and media. Use Source mode for HTML and Preview to see the rendered result.</p>
       </div>

@@ -12,6 +12,7 @@ import { useParams, useRouter } from 'next/navigation';
 import SmartSearch from '../../../components/SmartSearch';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useBackTarget } from '@/lib/admin/back-target';
 import dynamic from 'next/dynamic';
 import { usePageError } from '../../../../hooks/usePageError';
 import { useToast } from '../../../../components/Toast';
@@ -36,6 +37,12 @@ export default function LessonBuilderPage() {
   const { safeFetch, safeAction } = usePageError('LessonBuilderPage');
   const { addToast } = useToast();
   const [lesson, setLesson] = useState<LessonMeta | null>(null);
+  // A lesson in a module goes back to that module; a loose one to the Lessons tab.
+  useBackTarget(lesson
+    ? (lesson.module_id
+      ? { href: `/admin/learn/modules/${lesson.module_id}`, label: 'Module' }
+      : { href: '/admin/learn/manage?tab=lessons', label: 'Lessons' })
+    : null);
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -696,11 +703,6 @@ export default function LessonBuilderPage() {
       {/* Builder Header */}
       <div className="lesson-builder__header">
         <div className="lesson-builder__header-left">
-          {lesson.module_id ? (
-            <Link href={`/admin/learn/modules/${lesson.module_id}`} className="learn__back">&larr; Back to Module</Link>
-          ) : (
-            <Link href="/admin/learn/manage?tab=lessons" className="learn__back">&larr; Back to Lessons</Link>
-          )}
           <h2 className="lesson-builder__title">{lesson.title}</h2>
           {lesson.module_id && (
             <Link href={`/admin/learn/modules/${lesson.module_id}`} style={{ fontSize: '.72rem', color: 'var(--color-brand-navy)', textDecoration: 'none' }}>

@@ -23,7 +23,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
+import { useBackTarget } from '@/lib/admin/back-target';
 import {
   toCards, formatBytes, statusLabel, type DocumentCard, type DocumentKind,
 } from './document-rows';
@@ -65,6 +65,8 @@ export default function ProjectDocumentsPage() {
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
   const projectId = params?.projectId ?? '';
+  // The document library belongs to one research project — go back to it.
+  useBackTarget(projectId ? { href: `/admin/research/${projectId}`, label: 'Project' } : null);
 
   const [documents, setDocuments] = useState<DocumentCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,9 +215,6 @@ export default function ProjectDocumentsPage() {
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <Link href={`/admin/research/${projectId}`} className="text-gray-400 hover:text-white text-sm">
-              ← Back to Project
-            </Link>
             <h1 className="text-xl font-bold text-gray-100">📁 Document Library</h1>
           </div>
           {/* Counts that are actually derivable. The old header promised "purchased" and "used in

@@ -167,7 +167,6 @@ export default function ModuleDetailPage() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn/modules" className="learn__back">&larr; Back to Modules</Link>
         <h2 className="learn__title">{mod.title}</h2>
         <p className="learn__subtitle">{mod.description}</p>
         <div className="module-detail__meta">
