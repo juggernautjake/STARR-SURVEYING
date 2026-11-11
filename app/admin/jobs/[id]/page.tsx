@@ -1,4 +1,24 @@
-// app/admin/jobs/[id]/page.tsx — Job detail view with tabs
+// app/admin/jobs/[id]/page.tsx — one job, as a hub (owner, 2026-11-11).
+//
+// "I want to get rid of the workflow model for the jobs and projects. Instead, I want it to just be a
+// hub. The hub will have a job home with … widgets that the user can click … at the top you will have
+// a bar with the job number, … the address, the customer, the deadline, and the quote … I am trying to
+// remove UI elements and put the most important things up front and put the less important things in
+// places where they can be found, but don't take visual precedence over the important stuff."
+//
+// So the page is two things:
+//   1. The job header — who, where, when, how much. Always on screen.
+//   2. Job home — one tile per part of the job. A tile opens that part in place; "Job home" (or any
+//      icon in the strip beside it) goes back or across. The less-used parts — Schedule, Field work,
+//      Messages — are a quiet "More" row under the tiles, and Export PDF / Delete sit at the foot of
+//      Job info.
+//
+// The stage timeline and the ten-tab strip are gone. The stage still exists (the jobs list and the
+// calendar read it); it is changed from the Job status widget. Every panel inside a widget is one
+// that already existed — this page rearranges them, it does not re-implement them.
+//
+// The open widget is in the address as `?tab=` (the name it has always had), so a reload, a link, or
+// the explorer's reopen-the-video memory lands back in the same place. Old tab names still resolve.
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
@@ -6,16 +26,18 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
-  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
-  Camera, Video, DollarSign, History, MessageSquare, Trash2, Download, Files,
-  Circle, Upload, Map as MapIcon, type LucideIcon,
+  ClipboardList, CalendarDays, Search, HardHat, Folder, Camera, DollarSign, Activity,
+  MessageSquare, Trash2, Download, Files, Circle, Upload, Map as MapIcon, ArrowLeft,
+  MapPin, User, Phone, FileText, ArrowUpRight, type LucideIcon,
 } from 'lucide-react';
-import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
 import UploadFilesDialog from '../../components/files/UploadFilesDialog';
 import { markJobSeen } from '@/lib/admin/use-new-jobs';
 import { usePageTitle } from '@/lib/admin/page-title';
+import { useBackTarget } from '@/lib/admin/back-target';
+import { formatDate, dueBubble } from '@/lib/admin/listing';
+import '@/app/admin/components/listing/Listing.css';
 // LR6 of lead-reply-expansion-2026-06-18.md — back-link card to the
 // originating lead so the running conversation isn't lost after
 // conversion.
@@ -43,8 +65,8 @@ import JobInstructionsPanel from '../../components/jobs/JobInstructionsPanel';
 import JobFieldMediaPanel from '../../components/jobs/JobFieldMediaPanel';
 import JobNotesPanel from '../../components/jobs/JobNotesPanel';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
-import Tooltip from '../../research/components/Tooltip';
 import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
+import '../../components/hub/Hub.css';
 
 interface Job {
   id: string;
@@ -90,36 +112,55 @@ interface Job {
   total_hours: number;
 }
 
-const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
-  { key: 'overview', label: 'Overview', Icon: ClipboardList, tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
-  { key: 'schedule', label: 'Schedule', Icon: CalendarDays, tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
-  // ── ONE Files tab (owner, 2026-09-10) ─────────────────────────────────────────────────────
-  // Research, CAD, Files, Photos and Videos were five bubbles holding five arrangements of the
-  // same job. They are the standard folders of one explorer now — the same folders the backend
-  // File Explorer shows under Job Projects — with the research records under Research and the
-  // drawing tools under CAD. Old tab keys still land somewhere: see `openTab`.
-  { key: 'files', label: 'Files', Icon: Folder, tip: 'Every file for this job in its standard folders — Research, CAD, Photos, Videos, Documents. Upload into a folder, open anything in the viewer, or view all files across the folders at once. Research notes live under Research; drawings under CAD.' },
-  { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
-  // ── Property Map (interactive-property-map-2026-09-16) ────────────────────────────────────
-  // Owner, 2026-09-16: *"There should just be a button in each job page that first says, 'Create
-  // Interactive Map' and then once it has been created, it can say, 'View Interactive Map'."*
-  //
-  // SUPERSEDED 2026-09-21: *"now that we are using google maps for the interactive map, it should
-  // just say 'View interactive map' instead of 'Create interactive map'."*
-  //
-  // The two labels made sense when arriving without a map meant uploading an aerial photograph and
-  // georeferencing it against two anchors — there was a real act of creation to name. The Google
-  // rebuild removed it: the imagery is already there, and a job with no map row gets one the moment
-  // somebody drops a point. All four doors now say the same thing.
-  //
-  // The summary endpoint stays. It no longer decides which of two words to say, but it still
-  // carries the point count, and it exists so this never pays for the whole map, its points and
-  // sixty signed URLs to render a badge.
-  { key: 'propertymap', label: 'Property Map', Icon: MapIcon, tip: 'The property on satellite imagery, with points of interest on it. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.' },
-  { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
-  { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
-  { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
+
+/** What can be open: job home, one of the widgets, or one of the "More" views. */
+type ViewKey =
+  | 'home' | 'info' | 'status' | 'research' | 'media' | 'documents' | 'files' | 'financial'
+  | 'schedule' | 'fieldwork' | 'messages';
+
+interface Widget {
+  /** `map` is not a view: the interactive map is its own page, so its tile is a link straight there. */
+  key: Exclude<ViewKey, 'home'> | 'map';
+  label: string;
+  Icon: LucideIcon;
+  blurb: string;
+}
+
+/** The tiles on job home, in the order a person reaches for them. */
+const WIDGETS: Widget[] = [
+  { key: 'research', label: 'Research', Icon: Search, blurb: 'Deeds, plats, prior surveys and research runs for this property.' },
+  { key: 'map', label: 'Interactive map', Icon: MapIcon, blurb: 'The property on satellite, with points, photos and notes pinned to it.' },
+  { key: 'documents', label: 'Documents', Icon: FileText, blurb: 'Contracts, legal, delivery and general job paperwork.' },
+  { key: 'media', label: 'Photos & videos', Icon: Camera, blurb: 'Every picture and video from this job, as thumbnails.' },
+  { key: 'files', label: 'Files', Icon: Folder, blurb: 'Every file for this job, in its folders — the full file explorer.' },
+  { key: 'info', label: 'Job info', Icon: ClipboardList, blurb: 'Property, client, contacts, notes, team and equipment.' },
+  { key: 'status', label: 'Job status', Icon: Activity, blurb: 'Where the job stands, and everything that has happened on it.' },
+  { key: 'financial', label: 'Financial', Icon: DollarSign, blurb: 'Money made and money spent on this job.' },
 ];
+
+/** Found, not featured: a quiet row under the tiles. */
+const MORE: Widget[] = [
+  { key: 'schedule', label: 'Schedule', Icon: CalendarDays, blurb: 'Pick the days for research, field work and drawing.' },
+  { key: 'fieldwork', label: 'Field work', Icon: HardHat, blurb: 'Crew instructions, field notes, captured media and the shot log.' },
+  { key: 'messages', label: 'Messages', Icon: MessageSquare, blurb: 'The message thread for this job.' },
+];
+
+const VIEWS: Widget[] = [...WIDGETS, ...MORE];
+
+/** `?tab=` → the view, including every name the old tab strip used, so old links still land. */
+function viewFromTab(tab: string | null): { view: ViewKey; folder?: string } | null {
+  switch (tab) {
+    case null: case '': return null;
+    case 'overview': case 'propertymap': return { view: 'home' };
+    case 'photos': case 'videos': return { view: 'media' };
+    case 'activity': return { view: 'status' };
+    case 'cad': return { view: 'files', folder: 'cad' };
+    default: return VIEWS.some((w) => w.key === tab && w.key !== 'map') ? { view: tab as ViewKey } : null;
+  }
+}
+
+const money = (n: number | null | undefined) =>
+  n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 export default function JobDetailPage() {
   const { data: session } = useSession();
@@ -133,10 +174,11 @@ export default function JobDetailPage() {
   // The bar says which job this is, not "Job Detail" (owner, 2026-09-10).
   usePageTitle(job ? [job.job_number, job.name].filter(Boolean).join(' — ') : null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  /** Job home, or the widget that is open. */
+  const [view, setView] = useState<ViewKey>('home');
   /** Every file under the job, reported by the explorer after each load — the Files badge. */
   const [filesTotal, setFilesTotal] = useState<number | null>(null);
-  /** The standard folder the Files tab should open on (the stage timeline asks for Research / CAD). */
+  /** The folder the Files widget should open on (an upload into one folder shows that folder). */
   const [filesFolder, setFilesFolder] = useState<string | null>(null);
   // The Upload files pop-up (owner, 2026-09-15), and the folder it opens with when a quick action
   // already said which ("Add photos" → Photos). `filesRefresh` re-lists the Files tab afterwards.
@@ -158,6 +200,10 @@ export default function JobDetailPage() {
   /** The project this job belongs to (2026-08-19). Loaded separately so a slow projects query can
    *  never delay the job itself — the header simply shows no parent until it arrives. */
   const [project, setProject] = useState<{ id: string; project_number: string | null; name: string } | null>(null);
+  // You reach a job from its project, so "Back to …" goes to the jobs in that project (owner,
+  // 2026-11-11: "whenever I click the back to jobs button, it takes me back to the projects listing
+  // page, not the jobs in that project page"). A job with no project keeps the address parent.
+  useBackTarget(project ? { href: `/admin/projects/${project.id}`, label: project.project_number ? `${project.project_number} — ${project.name}` : project.name } : null);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
   const [payments, setPayments] = useState<{ id: string; amount: number; payment_type: string; payment_method?: string; reference_number?: string; notes?: string; paid_at: string; recorded_by: string }[]>([]);
@@ -281,37 +327,38 @@ export default function JobDetailPage() {
     }
   }, [job, jobId, router, reportPageError]);
 
-  /** Open a tab by its key — the old Research / CAD / Photos / Videos keys land on the Files tab's
-   *  matching folder, so the stage timeline and every old link still arrive somewhere sensible. */
-  const openTab = useCallback((tab: string) => {
-    if (tab === 'research' || tab === 'cad' || tab === 'photos' || tab === 'videos') {
-      setFilesFolder(tab);
-      setActiveTab('files');
-      return;
-    }
-    setActiveTab(tab);
+  /** Open a view. The Files widget can be asked to open on one of its folders. */
+  const openView = useCallback((next: ViewKey, folder?: string | null) => {
+    if (folder !== undefined) setFilesFolder(folder);
+    setView(next);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
   }, []);
 
-  // ── THE TAB IS IN THE ADDRESS (owner, 2026-11-09) ─────────────────────────────────────────────
-  // A video open on the Files tab has to survive the page being rebuilt behind it (see
-  // FolderExplorer's OPEN_KEY). The page always started on Overview, so a reload lost the tab and,
-  // with it, the explorer that reopens the video. `?tab=` is read once on arrival and kept current
-  // with replaceState — no navigation, no history entry per click, and a link to a tab now works.
+  // ── THE OPEN WIDGET IS IN THE ADDRESS (owner, 2026-11-09, kept for the hub) ─────────────────
+  // A video open in an explorer has to survive the page being rebuilt behind it (see
+  // FolderExplorer's OPEN_KEY), so `?tab=` is read once on arrival and kept current with
+  // replaceState — no navigation, no history entry per click, and a link to a widget works.
   const tabFromUrl = useRef(false);
   useEffect(() => {
     if (tabFromUrl.current) return;
     tabFromUrl.current = true;
-    const t = new URLSearchParams(window.location.search).get('tab');
-    if (t && (t === 'research' || t === 'cad' || t === 'photos' || t === 'videos' || TABS.some((x) => x.key === t))) openTab(t);
-  }, [openTab]);
+    const v = viewFromTab(new URLSearchParams(window.location.search).get('tab'));
+    if (v) { if (v.folder) setFilesFolder(v.folder); setView(v.view); }
+  }, []);
   useEffect(() => {
     if (!tabFromUrl.current) return;
     const url = new URL(window.location.href);
-    if (activeTab === 'overview') url.searchParams.delete('tab'); else url.searchParams.set('tab', activeTab);
+    if (view === 'home') url.searchParams.delete('tab'); else url.searchParams.set('tab', view);
     if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url.href);
-  }, [activeTab]);
+  }, [view]);
 
-  // Load tab-specific data on tab change
+  // The map tile carries the point count, so the (tiny) summary is fetched once, wherever you land.
+  useEffect(() => {
+    if (!jobId) return;
+    fetch(`/api/admin/jobs/${jobId}/property-map?summary=1`).then(r => r.json()).then(d => setPropertyMap(d)).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load property map summary' }); });
+  }, [jobId, reportPageError]);
+
+  // Load what the open view needs, when it opens.
   useEffect(() => {
     if (!jobId) return;
 
@@ -319,25 +366,21 @@ export default function JobDetailPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element });
     }
 
-    if (activeTab === 'overview') {
-      fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch((err: unknown) => { handleError(err, 'load stage history'); });
+    if (view === 'info') {
       fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch((err: unknown) => { handleError(err, 'load checklists'); });
       // contacts plan Slice 6 — linked contacts for the Contacts panel.
       fetch(`/api/admin/jobs/contacts?job_id=${jobId}`).then(r => r.json()).then(d => setContactLinks(d.links || [])).catch((err: unknown) => { handleError(err, 'load contacts'); });
     }
-    if (activeTab === 'files') {
+    if (view === 'status') {
+      fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch((err: unknown) => { handleError(err, 'load stage history'); });
+    }
+    if (view === 'research') {
       fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { handleError(err, 'load research'); });
     }
-    if (activeTab === 'fieldwork') {
+    if (view === 'fieldwork') {
       fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { handleError(err, 'load field data'); });
     }
-    // The header button and the Files tab both name the map and carry its point count, so the
-    // summary is fetched wherever you land, not only on its own tab. It is two small columns and a
-    // count — the endpoint exists precisely so this costs nothing.
-    if (activeTab === 'propertymap' || activeTab === 'files' || activeTab === 'overview') {
-      fetch(`/api/admin/jobs/${jobId}/property-map?summary=1`).then(r => r.json()).then(d => setPropertyMap(d)).catch((err: unknown) => { handleError(err, 'load property map summary'); });
-    }
-    if (activeTab === 'financial') {
+    if (view === 'financial') {
       fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch((err: unknown) => { handleError(err, 'load payments'); });
       fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch((err: unknown) => { handleError(err, 'load time entries'); });
       // Receipts/expenses linked to this job (admin/bookkeeper only — the
@@ -347,7 +390,7 @@ export default function JobDetailPage() {
         fetch(`/api/admin/receipts?jobId=${jobId}&limit=200`).then(r => r.ok ? r.json() : { receipts: [] }).then(d => setJobReceipts(d.receipts || [])).catch((err: unknown) => { handleError(err, 'load job receipts'); });
       }
     }
-  }, [activeTab, jobId, isAdmin, reportPageError]);
+  }, [view, jobId, isAdmin, reportPageError]);
 
   async function advanceStage(toStage: string) {
     try {
@@ -495,789 +538,531 @@ export default function JobDetailPage() {
   if (!job) return <div style={{ padding: '2rem', textAlign: 'center' }}>Job not found. <Link href="/admin/jobs">Back to Jobs</Link></div>;
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
+  const jobTitle = job.job_number ? `${job.job_number} — ${job.name}` : job.name;
 
-  // ── EVERY BADGE, ON LOAD (2026-08-19) ────────────────────────────────────────────────────────
-  //
-  // Owner: *"we need to make sure that we are displaying the numbers associated with each button
-  // immediately on page load if there is anything… if there is nothing related to it, then it
-  // should just have 0."*
-  //
-  // These used to come from the tabs themselves — `research.length` after the Research tab had been
-  // opened, `onCountChange` when CAD or Photos mounted — so a badge only appeared for somewhere you
-  // had already been. The tab strip could not answer the one question it exists to answer: where is
-  // there anything? All ten now arrive in a single request on load.
-  //
-  // A tab that has since been OPENED prefers its own live number, so uploading a photo updates the
-  // badge without another round trip; the loaded count is the floor, not a cache to fight.
-  const tabCounts: Record<string, number | undefined> = {
-    ...tabCountsLoaded,
-    ...(filesTotal !== null ? { files: filesTotal } : {}),
-    ...(research.length > 0 ? { research: research.length } : {}),
-    ...(fieldData.length > 0 ? { fieldwork: fieldData.length } : {}),
-    ...(propertyMap?.exists ? { propertymap: propertyMap.points } : {}),
+  // ── the header's four facts ──
+  const street = [job.address, job.city].filter(Boolean).join(', ');
+  const locale = [job.state, job.zip].filter(Boolean).join(' ');
+  const mapsUrl = hasJobLocation(job) ? jobMapsUrl(job) : null;
+  const customer = job.client_name || job.client_company || null;
+  const due = dueBubble(job.deadline);
+  const quoted = job.final_amount ?? job.quote_amount ?? null;
+
+  // ── what each tile says under its name ──
+  const photos = tabCountsLoaded.photos ?? 0;
+  const videos = tabCountsLoaded.videos ?? 0;
+  const researchCount = research.length || tabCountsLoaded.research || 0;
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const tileMeta: Partial<Record<Widget['key'], string>> = {
+    research: plural(researchCount, 'research item'),
+    map: propertyMap?.exists && propertyMap.points > 0 ? plural(propertyMap.points, 'point') : 'Open the map',
+    media: `${plural(photos, 'photo')} · ${plural(videos, 'video')}`,
+    files: plural(filesTotal ?? job.file_count ?? 0, 'file'),
+    info: [SURVEY_TYPES[job.survey_type] || job.survey_type, job.acreage ? `${job.acreage} acres` : null].filter(Boolean).join(' · '),
+    status: job.result ? `${stageInfo.label} · ${job.result}` : stageInfo.label,
+    financial: quoted != null ? `${money(job.amount_paid ?? 0)} paid of ${money(quoted)}` : 'No quote yet',
+  };
+
+  // ── money made and money spent (the Financial widget) ──
+  const received = job.amount_paid ?? payments.reduce((s, p) => s + (p.amount || 0), 0);
+  const spent = jobReceipts.filter((r) => r.status !== 'rejected').reduce((s, r) => s + (r.total_cents || 0), 0) / 100;
+
+  const current = VIEWS.find((w) => w.key === view) ?? null;
+
+  /** One tile on job home. The map is a link to its own page; everything else opens in place. */
+  const renderTile = (w: Widget) => {
+    const body = (
+      <>
+        <span className={`jh__tile-icon jh__tile-icon--${w.key}`} aria-hidden><w.Icon size={22} strokeWidth={1.9} /></span>
+        <span className="jh__tile-body">
+          <span className="jh__tile-name">{w.label}{w.key === 'map' && <ArrowUpRight size={14} aria-hidden className="jh__tile-out" />}</span>
+          <span className="jh__tile-blurb">{w.blurb}</span>
+          {tileMeta[w.key] && <span className="jh__tile-meta">{tileMeta[w.key]}</span>}
+        </span>
+      </>
+    );
+    return (
+      <li key={w.key}>
+        {w.key === 'map' ? (
+          <Link href={`/admin/map?job=${jobId}`} className="jh__tile" data-testid="job-widget-map">{body}</Link>
+        ) : (
+          <button type="button" className="jh__tile" onClick={() => openView(w.key as ViewKey)} data-testid={`job-widget-${w.key}`}>{body}</button>
+        )}
+      </li>
+    );
   };
 
   return (
-    <>
-
-      {/* Job Header */}
-      <div className="job-detail__header">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
-          {/* Quick jump to the consolidated per-job field captures view (Batch S — points + media
-              + notes + files in one place, with bulk media-manifest download).
-              These were inline-styled "to avoid adding new CSS", and the cost of that was five
-              controls at five different heights in one header (35/37/37/40/29px, measured
-              2026-08-22). They share `.job-detail__action` now. */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* ── UPLOAD, THE FIRST THING IN THE HEADER (owner, 2026-09-15) ─────────────────────
-                "My dad is having a hard time finding a way to easily upload files … make sure we
-                can clearly see the buttons for uploading files." One press opens the Upload files
-                pop-up from any tab: drop files or pick them, choose each one's folder, upload. */}
-            <button
-              type="button"
-              onClick={() => setUpload({ open: true, folder: null })}
-              className="job-detail__uploadbtn"
-              title="Upload files to this job — you choose the folder for each file"
-              data-testid="job-upload-files"
-            >
-              <Upload size={16} strokeWidth={2.25} aria-hidden /> Upload files
-            </button>
-            {/* ── FILES, WHERE SOMEBODY LOOKING FOR THEM WILL ACTUALLY LOOK (2026-08-19) ────────
-                Owner: "Please make it plain in the project/job workflow where I can quickly open up
-                the files/images related to the current job."
-                The Files and Photos tabs already existed — as two of TEN tabs, which is not the same
-                thing as being findable. This is a header action with the live count on it, because
-                a number is what tells you whether it is worth the click. */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('files')}
-              className="job-detail__filesbtn"
-              title="Every file and photo attached to this job"
-              data-testid="job-files-quick"
-            >
-              <Folder size={14} strokeWidth={2} aria-hidden /> Files &amp; photos
-              {typeof job.file_count === 'number' && job.file_count > 0 && (
-                <span className="job-detail__filesbtn-count">{job.file_count}</span>
-              )}
-            </button>
-            {/* ── THE PROPERTY MAP, IN THE HEADER (owner, 2026-09-16) ───────────────────────────
-                "where is the button to create the interactive map? Please make sure it is easy to
-                find in the files and in the job … I am not seeing how to do that."
-                It was a tab — one of eight, which is the same mistake the Files tab made in August
-                and got fixed the same way. A header action is visible from every tab, says which of
-                the two things it does, and carries the point count when there is one. */}
-            {/* ── ONE LABEL, BECAUSE THERE IS ONLY ONE DESTINATION (owner, 2026-09-20) ──────────
-                "now that we are using google maps for the interactive map, it should just say
-                'View interactive map' instead of 'Create interactive map'."
-
-                The old label branched on whether a map row existed, from the era when arriving
-                without one meant uploading an aerial photograph and georeferencing it. Since the
-                Google rebuild there is nothing to create — the satellite imagery is already there,
-                and a job with no map row gets one the moment somebody drops a point. So the two
-                labels described a distinction that no longer exists. The point count still appears
-                when there is one, because a number is what tells you whether it is worth a click. */}
-            <Link
-              href={`/admin/map?job=${jobId}`}
-              className="job-detail__action job-detail__action--ghost"
-              title="Open this property on the satellite map — points, photos, layers and walked paths"
-              data-testid="job-property-map-header"
-            >
-              <MapIcon size={14} strokeWidth={2} aria-hidden /> View interactive map
-              {propertyMap?.exists && propertyMap.points > 0 && (
-                <span className="job-detail__filesbtn-count">{propertyMap.points}</span>
-              )}
-            </Link>
-            {/* ── RESEARCH THIS PROPERTY (owner, 2026-09-20) ────────────────────────────────────
-                "on jobs in projects we need to be able to run research runs for the jobs. Do we
-                currently have a 'Research this Property' button of some kind in the job panel …?
-                If not, then we need to create one and put it next to the create interactive map
-                button."
-
-                We did not. The only route from a job to research was buried in the Files tab's
-                Research folder, and it carried nothing but the job id — so somebody re-typed the
-                address, the county and the owner's name that the job already knew.
-
-                "it should inherit all of the information for the job such as any documents,
-                address, property id, customer name, etc, and it should use that to auto fill info
-                for the research run."
-
-                So this sends the job id to a route that reads the job server-side and fills the
-                run from it. The id travels in the URL; the DATA does not — a query string carrying
-                a client's name and address would end up in logs, in history, and in any referrer
-                the next page sends. */}
-            <Link
-              href={`/admin/research/start?job=${jobId}`}
-              className="job-detail__action job-detail__action--ghost"
-              title="Start a property research run, pre-filled from this job's address, parcel, owner and documents"
-              data-testid="job-research-header"
-            >
-              <Search size={14} strokeWidth={2} aria-hidden /> Research this Property
-            </Link>
-            {/* The "View field captures" link stood here until 2026-09-21. Owner: "we can get rid
-                of the view field captures button altogether. I want to fold all of the view
-                captures and points streaming stuff into the interactive map page." The page it
-                pointed at still exists and still forwards — see app/admin/jobs/[id]/field — so any
-                bookmark and the field-upload notification that links straight there both survive. */}
-            {/* job-soft-delete Slice 1 — delete with a warning; the job
-                is recoverable for 30 days from Jobs → "Deleted". */}
-            <button
-              type="button"
-              onClick={() => void handleDeleteJob()}
-              disabled={deletingJob}
-              title="Delete this job (recoverable for 30 days)"
-              className="job-detail__action job-detail__action--danger"
-            >
-              {deletingJob ? 'Deleting…' : <><Trash2 size={14} strokeWidth={2} aria-hidden /> Delete job</>}
-            </button>
-          </div>
-        </div>
-        <div className="job-detail__header-top">
-          <div>
-            {/* The job's place in the hierarchy, above its own number (2026-08-19). A job now
-                always belongs to a project, and the fastest route to its sibling jobs — the topo
-                that goes with this boundary survey — is through the parent. */}
-            {project && (
-              <Link href={`/admin/projects/${project.id}`} className="job-detail__project" data-testid="job-project-link">
-                <FolderKanban size={12} aria-hidden />
-                {project.project_number ? `${project.project_number} — ${project.name}` : project.name}
-              </Link>
-            )}
-            <div className="job-detail__number">{job.job_number}</div>
-            <h2 className="job-detail__name">
-              {job.is_priority && <Circle size={12} fill="currentColor" style={{ color: 'var(--color-error, #DC2626)', verticalAlign: 'middle', marginRight: '0.3rem' }} aria-label="Priority" />}
+    <div className="jh">
+      {/* ── THE JOB HEADER: which job, where, for whom, by when, for how much ── */}
+      <header className="jh__header" data-testid="job-header">
+        <div className="jh__title-row">
+          <div className="jh__title">
+            <span className="jh__number">{job.job_number}</span>
+            <h1 className="jh__name">
+              {job.is_priority && <Circle size={11} fill="currentColor" className="jh__priority" aria-label="Priority" />}
               {job.name}
-            </h2>
-            <p className="job-detail__meta">
-              {SURVEY_TYPES[job.survey_type] || job.survey_type}
-              {job.acreage && ` · ${job.acreage} acres`}
-              {job.client_name && ` · ${job.client_name}`}
-            </p>
+            </h1>
           </div>
-          {/* Stage badge, Export PDF and the result control. A column on a laptop, a row across
-              the full width on a phone — squeezed into 115px it wrapped "Export PDF" onto two
-              lines and stood the button up 62px tall. */}
-          <div className="job-detail__header-side">
-            <span className="job-detail__stage-badge" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
-              {stageInfo.icon} {stageInfo.label}
-            </span>
-            <button
-              className="jobs-page__btn jobs-page__btn--secondary"
-              onClick={() => exportJobPdf({
-                ...job,
-                counts: {
-                  files: job.file_count,
-                  photos: tabCountsLoaded.photos,
-                  drawings: tabCountsLoaded.cad,
-                  research: research.length || undefined,
-                  hours: job.total_hours,
-                },
-              })}
-              title="Download a one-page job summary PDF"
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Download size={14} strokeWidth={2} /> Export PDF</span>
-            </button>
-            <JobResultControl
-              jobId={job.id}
-              currentResult={job.result ?? null}
-              currentReason={job.result_reason ?? null}
-              onUpdate={(r, reason) => {
-                setJob((cur) => cur ? { ...cur, result: r, result_reason: reason } : cur);
-              }}
-            />
-          </div>
+          {/* Upload stays one press from anywhere on the job (owner, 2026-09-15): "make sure we
+              can clearly see the buttons for uploading files." */}
+          <button
+            type="button"
+            onClick={() => setUpload({ open: true, folder: view === 'documents' ? `mnt:jobs:${jobId}:documents` : view === 'research' ? `mnt:jobs:${jobId}:research` : null })}
+            className="jh__upload"
+            title="Upload files to this job — you choose the folder for each file"
+            data-testid="job-upload-files"
+          >
+            <Upload size={16} strokeWidth={2.25} aria-hidden /> Upload files
+          </button>
         </div>
-
-        {/* Quick stats */}
-        <div className="job-detail__stats">
-          <Tooltip text="Number of team members currently assigned to this job, including the lead RPLS, field crew, and office staff." position="bottom">
-            <div className="job-detail__stat">
-              <span className="job-detail__stat-value">{job.team.length}</span>
-              <span className="job-detail__stat-label">Team</span>
-            </div>
-          </Tooltip>
-          <Tooltip text="Total number of files uploaded to this job, including documents, drawings, field data, images, and CAD files." position="bottom">
-            <div className="job-detail__stat">
-              <span className="job-detail__stat-value">{job.file_count}</span>
-              <span className="job-detail__stat-label">Files</span>
-            </div>
-          </Tooltip>
-          <Tooltip text="Total hours logged by all team members on this job across all work types (field work, office, travel, etc.)." position="bottom">
-            <div className="job-detail__stat">
-              <span className="job-detail__stat-value">{job.total_hours}h</span>
-              <span className="job-detail__stat-label">Time</span>
-            </div>
-          </Tooltip>
-          <Tooltip text="The quoted price for this survey job. View the Financial tab for payment details, invoicing, and profitability analysis." position="bottom">
-            <div className="job-detail__stat">
-              <span className="job-detail__stat-value">${(job.quote_amount || 0).toLocaleString()}</span>
-              <span className="job-detail__stat-label">Quote</span>
-            </div>
-          </Tooltip>
-        </div>
-
-        {/* Tags */}
-        {job.tags.length > 0 && (
-          <div className="job-detail__tags">
-            {job.tags.map(tag => (
-              <span key={tag} className="job-card__tag">{tag}</span>
-            ))}
+        <dl className="jh__facts">
+          <div className="jh__fact jh__fact--address">
+            <dt><MapPin size={13} aria-hidden /> Address</dt>
+            <dd>
+              {street || locale ? <>{street}{street && locale ? ', ' : ''}{locale}</> : <span className="jh__muted">No address yet</span>}
+              {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="jh__fact-link">Directions</a>}
+            </dd>
           </div>
-        )}
-      </div>
+          <div className="jh__fact">
+            <dt><User size={13} aria-hidden /> Customer</dt>
+            <dd>
+              {customer ?? <span className="jh__muted">—</span>}
+              {job.client_name && job.client_company && <span className="jh__sub">{job.client_company}</span>}
+              {telHref(job.client_phone) && <a href={telHref(job.client_phone)} className="jh__fact-link"><Phone size={12} aria-hidden /> {job.client_phone}</a>}
+            </dd>
+          </div>
+          <div className="jh__fact">
+            <dt><CalendarDays size={13} aria-hidden /> Deadline</dt>
+            <dd>
+              {job.deadline ? formatDate(job.deadline) : <span className="jh__muted">—</span>}
+              {due && <span className={`lst-bubble lst-bubble--${due.tone}`}>{due.label}</span>}
+            </dd>
+          </div>
+          <div className="jh__fact">
+            <dt><DollarSign size={13} aria-hidden /> {job.final_amount != null ? 'Final amount' : 'Quote'}</dt>
+            <dd className="jh__money">{money(quoted)}</dd>
+          </div>
+        </dl>
+      </header>
 
       <UploadFilesDialog
         open={upload.open}
         onClose={() => setUpload({ open: false, folder: null })}
         rootId={`mnt:jobs:${jobId}`}
-        title={job.job_number ? `${job.job_number} — ${job.name}` : job.name}
+        title={jobTitle}
         initialDestinationId={upload.folder}
         onUploaded={({ destinationIds }) => {
-          // Show them where the files went: the Files tab, opened on the folder when there was one.
-          if (destinationIds.length === 1) setFilesFolder(destinationIds[0]);
-          setActiveTab('files');
           setFilesRefresh((n) => n + 1);
+          void loadCounts();
+          // Already looking at files? Stay, and see them arrive. Otherwise show where they went.
+          if (view === 'media' || view === 'documents' || view === 'research' || view === 'files') return;
+          openView('files', destinationIds.length === 1 ? destinationIds[0] : null);
         }}
       />
 
-      {/* Stage Timeline */}
-      <JobStageTimeline
-        currentStage={job.stage}
-        history={stageHistory}
-        onAdvance={advanceStage}
-        canAdvance={true}
-        // Opening a stage just moves the tab strip. It is not a change to the job, so it does not
-        // go through `advanceStage` — clicking Research to read last month's deed work must never
-        // re-stage a job that is out for delivery.
-        onOpen={openTab}
-      />
-
-      {/* Tabs */}
-      <div className="job-detail__tabs">
-        {TABS.map(tab => {
-          const count = tabCounts[tab.key];
-          return (
-            <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
-              <button
-                className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
-                // The strip is the page's primary navigation, so which one you are on has to be
-                // available to a screen reader too, not only as a colour.
-                aria-current={activeTab === tab.key ? 'page' : undefined}
-                data-testid={`job-tab-${tab.key}`}
-              >
-                <span className="job-detail__tab-icon"><tab.Icon size={15} strokeWidth={1.75} /></span>
-                <span className="job-detail__tab-label">{tab.label}</span>
-                {/* ── THE BADGE IS ALWAYS PRESENT, EVEN WHEN EMPTY ─────────────────────────────
-                    Owner: *"The buttons should already have the space for a number built in."*
-
-                    It used to render only when `count > 0`, which is exactly why the tiles were
-                    different sizes on a phone: a badged tile got an extra line and grew taller than
-                    its neighbours. The element is always in the DOM now and reserves its space; a
-                    tab with nothing shows `0`, and Overview — a summary, not a collection — keeps
-                    the space with nothing in it rather than claiming a meaningless zero. */}
-                <span
-                  className={`job-detail__tab-badge${count === undefined ? ' job-detail__tab-badge--empty' : ''}`}
-                  aria-hidden={count === undefined}
-                >
-                  {count === undefined ? '' : count}
-                </span>
+      {view === 'home' || !current ? (
+        /* ── JOB HOME ── */
+        <div className="jh__home">
+          <ul className="jh__tiles" aria-label="Job sections">{WIDGETS.map(renderTile)}</ul>
+          <div className="jh__more" aria-label="More">
+            <span className="jh__more-label">More</span>
+            {MORE.map((w) => (
+              <button key={w.key} type="button" className="jh__more-btn" onClick={() => openView(w.key as ViewKey)} title={w.blurb} data-testid={`job-widget-${w.key}`}>
+                <w.Icon size={14} aria-hidden /> {w.label}
               </button>
-            </Tooltip>
-          );
-        })}
-      </div>
-
-      {/* Tab Content */}
-      <div className="job-detail__content">
-        {activeTab === 'overview' && (
-          <div className="job-detail__overview">
-            {/* Quick actions — jump straight into the parts of the job */}
-            <div className="job-detail__quick-actions">
-              <button className="job-detail__quick-action" onClick={() => openTab('research')}><Search size={14} strokeWidth={2} /> Add research</button>
-              <button className="job-detail__quick-action" onClick={() => openTab('cad')}><DraftingCompass size={14} strokeWidth={2} /> Start a drawing</button>
-              <button className="job-detail__quick-action" onClick={() => setUpload({ open: true, folder: null })} data-testid="job-quick-add-files"><Upload size={14} strokeWidth={2} /> Add files</button>
-              <button className="job-detail__quick-action" onClick={() => setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })} data-testid="job-quick-add-photos"><Camera size={14} strokeWidth={2} /> Add photos</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}><HardHat size={14} strokeWidth={2} /> Field work</button>
-            </div>
-            <div className="job-detail__overview-grid">
-              <div className="job-detail__overview-main">
-                {/* LR6 — back-link card to the originating lead so the
-                    surveyor can jump into the running conversation
-                    (replies + office notes) from the job overview. The
-                    card silently no-renders when this job wasn't
-                    converted from a lead. */}
-                <JobOriginatingLead jobId={jobId} />
-                {/* The approved research packet, on the job (plan R26). research_projects.job_id had
-                    been written since the table existed and read by nothing, so everything the
-                    research produced lived behind a screen a crew has no reason to open. */}
-                <JobResearchPacket jobId={jobId} />
-                {/* Description — click to edit */}
-                <div className="job-detail__section">
-                  <h3>Description</h3>
-                  <p>
-                    <InlineEditField value={job.description} type="textarea" ariaLabel="description"
-                      emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} />
-                  </p>
-                </div>
-
-                {/* job-editing 2026-05-30 — Deliverables: what's being
-                    handed over on this job (e.g., "boundary survey +
-                    topo + ALTA cert; recorded plat by 2026-06-15").
-                    Same inline-edit pattern as Description. */}
-                <div className="job-detail__section">
-                  <h3>Deliverables</h3>
-                  <p>
-                    <InlineEditField value={job.deliverables} type="textarea" ariaLabel="deliverables"
-                      emptyLabel="What does this job deliver? (boundary survey, topo, ALTA cert, …)"
-                      onSave={(v) => saveField('deliverables', v)} />
-                  </p>
-                </div>
-
-                {/* ── WHERE THE PROPERTY IS ────────────────────────────────────────────────
-                    Owner, 2026-09-19, with a screenshot: "please make this part of the page look
-                    better, and make it easier and more user friendly to edit things."
-
-                    Nine identical click-to-edit rows became one panel with one Edit. The address
-                    box is Google-backed, so picking a suggestion fills the city, state, ZIP, county
-                    AND the coordinates in a single save — and the coordinates are what the
-                    interactive map has been unable to open on, because nothing was ever writing
-                    them. Anything typed by hand is still kept exactly as typed. */}
-                <PropertyPanel
-                  jobId={jobId}
-                  job={job as unknown as PropertyFields}
-                  mapsUrl={hasJobLocation(job) ? jobMapsUrl(job) : null}
-                  onSave={saveFields}
-                />
-
-                {/* Client — click to edit */}
-                <div className="job-detail__section">
-                  <h3>Client</h3>
-                  <div className="job-detail__props">
-                    <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
-                    <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
-                    <div className="job-detail__prop">
-                      <strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} />
-                      {telHref(job.client_phone) && (
-                        <a href={telHref(job.client_phone)} className="btn tiny" title="Call this number" style={{ marginLeft: 8, textDecoration: 'none' }}>📞 Call</a>
-                      )}
-                    </div>
-                    <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
-                  </div>
-                </div>
-
-                {/* Notes — click to edit */}
-                <div className="job-detail__section">
-                  <h3>Notes</h3>
-                  <p>
-                    <InlineEditField value={job.notes} type="textarea" ariaLabel="notes"
-                      emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
-                  </p>
-                </div>
-
-                {/* contacts plan Slice 6 — Contacts (realtors, clients,
-                    lenders, etc.) linked to this job via job_contacts.
-                    Legacy client_name / client_email fields above keep
-                    serving unlinked / pre-existing rows; this section
-                    is the new picker-driven surface. */}
-                <div className="job-detail__section">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <h3>Contacts ({contactLinks.length})</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowLinkContactDialog(true)}
-                      style={{
-                        padding: '6px 12px', borderRadius: 6,
-                        border: '1px solid var(--theme-accent, #3b82f6)',
-                        background: 'var(--theme-accent, #3b82f6)', color: 'var(--theme-accent-fg, white)',
-                        cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
-                      }}
-                    >
-                      + Link a contact
-                    </button>
-                  </div>
-                  {contactLinks.length === 0 ? (
-                    <p style={{ color: 'var(--color-text-muted, #6B7280)', fontSize: '0.9rem' }}>
-                      No contacts linked yet. Use the button above to associate a realtor, lender, or anyone else with this job.
-                    </p>
-                  ) : (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {contactLinks.map((link) => (
-                        <li key={link.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '8px 12px', borderRadius: 8,
-                          background: 'var(--theme-bg-elevated, #f9fafb)',
-                        }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            {link.contacts ? (
-                              <Link href={`/admin/contacts/${link.contacts.id}`} style={{ color: 'var(--theme-accent, #3b82f6)', fontWeight: 600 }}>
-                                {link.contacts.name}
-                              </Link>
-                            ) : (
-                              <span>(contact no longer exists)</span>
-                            )}
-                            <span style={{
-                              marginLeft: 8, padding: '2px 8px', borderRadius: 999,
-                              background: 'color-mix(in srgb, var(--theme-accent, #3b82f6) 12%, transparent)',
-                              color: 'var(--theme-accent, #3b82f6)', fontSize: '0.72rem',
-                            }}>
-                              {JOB_CONTACT_ROLES.find((r) => r.id === link.role)?.label ?? link.role}
-                            </span>
-                            {(link.contacts?.company || link.contacts?.email) && (
-                              <span style={{ marginLeft: 8, fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                                {link.contacts.company ?? ''}
-                                {link.contacts.company && link.contacts.email ? ' · ' : ''}
-                                {link.contacts.email ?? ''}
-                              </span>
-                            )}
-                            {telHref(link.contacts?.phone) && (
-                              <a href={telHref(link.contacts?.phone)} className="btn tiny" title={`Call ${link.contacts?.name ?? 'this contact'}`} style={{ marginLeft: 8, textDecoration: 'none' }}>📞 {link.contacts?.phone}</a>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!link.contacts) return;
-                              if (!window.confirm(`Unlink ${link.contacts.name} from this job?`)) return;
-                              const params = new URLSearchParams({
-                                job_id: jobId,
-                                contact_id: link.contact_id,
-                                role: link.role,
-                              });
-                              const res = await fetch(`/api/admin/jobs/contacts?${params}`, { method: 'DELETE' });
-                              if (!res.ok) return;
-                              setContactLinks((cur) => cur.filter((l) => l.id !== link.id));
-                            }}
-                            style={{
-                              padding: '6px 12px', borderRadius: 6,
-                              border: '1px solid var(--theme-border, #e5e7eb)',
-                              background: 'transparent', color: 'inherit',
-                              cursor: 'pointer', fontSize: '0.85rem',
-                            }}
-                            aria-label="Unlink contact"
-                          >
-                            Unlink
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {/* Checklist */}
-                <JobChecklist
-                  items={checklists}
-                  stage={job.stage}
-                  onToggle={toggleChecklist}
-                  onLoadTemplate={loadChecklistTemplate}
-                />
-              </div>
-
-              <div className="job-detail__overview-side">
-                <JobTeamPanel
-                  team={job.team}
-                  onAdd={addTeamMember}
-                  onRemove={removeTeamMember}
-                  onChangeRole={changeTeamRole}
-                  editable={true}
-                />
-                <JobEquipmentList
-                  equipment={job.equipment}
-                  onAdd={addEquipment}
-                  onReturn={returnEquipment}
-                  editable={true}
-                />
-              </div>
-            </div>
+            ))}
           </div>
-        )}
+        </div>
+      ) : (
+        /* ── ONE WIDGET, OPEN ── */
+        <section className="jh__open" aria-label={current.label}>
+          <div className="jh__viewbar">
+            <button type="button" className="jh__back" onClick={() => openView('home')} data-testid="job-home">
+              <ArrowLeft size={16} aria-hidden /> Job home
+            </button>
+            <h2 className="jh__viewtitle"><current.Icon size={18} aria-hidden /> {current.label}</h2>
+            <nav className="jh__switch" aria-label="Go to">
+              {WIDGETS.map((w) => (w.key === 'map' ? (
+                <Link key={w.key} href={`/admin/map?job=${jobId}`} className="jh__switch-btn" title={w.label} aria-label={w.label}><w.Icon size={16} aria-hidden /></Link>
+              ) : (
+                <button key={w.key} type="button" className={`jh__switch-btn${view === w.key ? ' jh__switch-btn--on' : ''}`} onClick={() => openView(w.key as ViewKey)} title={w.label} aria-label={w.label} aria-current={view === w.key ? 'page' : undefined}>
+                  <w.Icon size={16} aria-hidden />
+                </button>
+              )))}
+            </nav>
+          </div>
 
-        {activeTab === 'schedule' && (
-          <JobPhaseScheduler
-            jobId={jobId}
-            jobName={job.name}
-            jobAddress={job.address ?? null}
-            selfEmail={session?.user?.email ?? ''}
-          />
-        )}
-
-        {activeTab === 'fieldwork' && (
-          <>
-          {/* C0c — RPLS-authored instructions, rehomed from the Work Mode field-crew shell (D8).
-              They belong to the job, not to a shell, and they sit on Field Work because that is who
-              they are addressed to. */}
-          <JobInstructionsPanel jobId={jobId} />
-          {/* Owner 2026-08-16 — "the user can open up the job and add a note to it". Above the
-              media and the map because a note is the thing somebody arrives to write or to read
-              before driving out; the shot log is review, and review can sit below capture. */}
-          <JobNotesPanel jobId={jobId} />
-          {/* C0d — mobile-captured field media. Nothing else on this page reads `job_media`: the
-              Photos tab shows job FILES tagged as photos, and this page's own field-data call is a
-              different route returning survey points. See the note in the panel. */}
-          <JobFieldMediaPanel jobId={jobId} />
-          <FieldWorkView
-            jobId={jobId}
-            points={fieldData}
-            onRefresh={loadFieldData}
-            job={{
-              jobNumber: job.job_number,
-              jobName: job.name,
-              stage: job.stage,
-              surveyType: job.survey_type,
-              clientName: job.client_name,
-              address: job.address,
-              city: job.city,
-              state: job.state,
-              county: job.county,
-              acreage: job.acreage,
-              deadline: job.deadline,
-              createdAt: job.created_at,
-              team: job.team,
-              totalHours: job.total_hours,
-            } as JobContext}
-          />
-          </>
-        )}
-
-        {activeTab === 'files' && (
-          <FolderExplorer
-            rootId={`mnt:jobs:${jobId}`}
-            title={job.job_number ? `${job.job_number} — ${job.name}` : job.name}
-            initialFolder={filesFolder}
-            onTotalChange={setFilesTotal}
-            refreshKey={filesRefresh}
-            folderExtras={{
-              research: (
-                <>
-                  {/* ── THE OTHER END OF THE JOB LINK (Phase J2) ─────────────────────────────
-                      `research_projects.job_id` has existed since seeds/090 with an index on it,
-                      and until J1 nothing in the product wrote it. This is the side a person
-                      actually starts from: they are looking at a job and want the deeds for it.
-                      The link carries the job id, so the research form opens pre-filled from
-                      this job AND already attached to it. Its documents land in this folder. */}
-                  <div className="job-research-start">
-                    <div>
-                      <strong>Property research</strong>
-                      <p>
-                        STARR RECON searches the county records for this property, captures the sources,
-                        and extracts the data. Every document it retrieves is filed in this Research folder.
-                      </p>
-                    </div>
-                    <a
-                      className="job-research-start__btn"
-                      href={`/admin/research?new=1&job=${jobId}`}
-                    >
-                      Start property research
-                    </a>
-                  </div>
-                  <JobResearchPanel
-                    research={research}
-                    onAdd={addResearch}
-                    onDelete={deleteResearch}
-                  />
-                </>
-              ),
-              // Standing in the Photos folder is where "which fence corner is this one?" gets
-              // asked, and the map is the answer to it — so the way there is offered right here.
-              photos: (
-                <div className="job-cad-start" data-testid="job-property-map-photos">
+          <div className="jh__view">
+            {view === 'research' && (
+              <div className="jh__stack">
+                <div className="job-research-start">
                   <div>
-                    <strong>Interactive property map</strong>
+                    <strong>Research this property</strong>
                     <p>
-                      {propertyMap?.exists
-                        ? 'Pin any of these photos to a point on the aerial, so the next person knows exactly where each one was taken.'
-                        : 'Upload an aerial of the property and pin these photos to the spots they were taken, so the next person knows what they are looking at.'}
+                      STARR RECON searches the county records for this property, pre-filled from this job&apos;s
+                      address, parcel and owner. Every document it retrieves is filed in the Research folder below.
                     </p>
                   </div>
-                  <Link
-                    href={`/admin/map?job=${jobId}`}
-                    className="jobs-page__btn jobs-page__btn--primary"
-                    data-testid="job-property-map-photos-btn"
-                  >
-                    <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-                    {'View Interactive Map'}
+                  <Link className="job-research-start__btn" href={`/admin/research/start?job=${jobId}`} data-testid="job-research-header">
+                    <Search size={14} strokeWidth={2} aria-hidden /> Start research
                   </Link>
                 </div>
-              ),
-              cad: (
-                <div className="job-cad-start">
-                  <div>
-                    <strong>Starr CAD</strong>
-                    <p>Draft this job&apos;s survey in the editor. Drawings you save stay linked to the job and are listed above; open one from the list.</p>
-                  </div>
-                  <a
-                    href={`/admin/cad?job=${encodeURIComponent(jobId)}&job_name=${encodeURIComponent(job.name)}`}
-                    className="jobs-page__btn jobs-page__btn--primary"
-                    data-testid="job-new-drawing"
-                  >
-                    ✏️ New Drawing
-                  </a>
-                </div>
-              ),
-              root: (
-                <>
-                  {/* ── THE PROPERTY MAP, WHERE THE PHOTOS ARE (owner, 2026-09-16) ──────────────
-                      "Please make sure it is easy to find in the files and in the job."
-                      This is the top of the job's files — the folder somebody is standing in when
-                      they are looking at four hundred photos and wondering which fence corner each
-                      one is. That is precisely the question the map answers, so the way to it
-                      belongs here as well as in the header. */}
-                  <div className="job-cad-start" data-testid="job-property-map-files">
-                    <div>
-                      <strong>Interactive property map</strong>
-                      <p>
-                        {propertyMap?.exists
-                          ? `An aerial of this property with ${propertyMap.points} ${propertyMap.points === 1 ? 'point' : 'points'} of interest marked on it. Each point holds the notes, photos, video and voice notes for that spot.`
-                          : 'Upload an aerial or satellite view of the property, then drop numbered points on it and attach the notes, photos, video and voice notes for each spot — so anyone can see what the crew saw, and where.'}
-                      </p>
-                    </div>
-                    <Link
-                      href={`/admin/map?job=${jobId}`}
-                      className="jobs-page__btn jobs-page__btn--primary"
-                      data-testid="job-property-map-files-btn"
-                    >
-                      <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-                      {'View Interactive Map'}
-                    </Link>
-                  </div>
-                  {/* The other direction of the same link (2026-08-19). The File Explorer carries the
-                      same folder under Job Projects — the view somebody wants when they are looking
-                      for a file rather than working the job. */}
-                  <p className="job-files__explorer-link">
-                    <Link href="/admin/files" data-testid="job-all-files-link">
-                      <Files size={13} aria-hidden /> Browse all files on the platform
-                    </Link>
-                    {project && (
-                      <>
-                        <span> · </span>
-                        <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="job-project-files-link">
-                          Everything in {project.project_number ?? 'this project'}
-                        </Link>
-                      </>
-                    )}
-                  </p>
-                </>
-              ),
-            }}
-          />
-        )}
-
-        {activeTab === 'financial' && (
-          <div className="job-detail__financial">
-            {/* Bid, received, owed — plus down payments, price history and cancellation, all from
-                one arithmetic source (lib/jobs/money.ts) so this page and the financial pages can
-                never report different numbers for the same job. */}
-            <JobMoneyPanel jobId={jobId} onChanged={loadJob} />
-            <JobQuoteBuilder
-              quoteAmount={job.quote_amount}
-              finalAmount={job.final_amount}
-              amountPaid={job.amount_paid}
-              paymentStatus={job.payment_status}
-              payments={payments}
-              editable={true}
-              // job-editing 2026-05-30 — wire the quote-edit handler
-              // so the Financial tab's inline click-to-edit on Quote
-              // saves through the existing PUT /api/admin/jobs flow.
-              // saveField expects a string (coerced to a number inside)
-              // so we stringify the value here.
-              onUpdateQuote={(val) => { void saveField('quote_amount', String(val)); }}
-            />
-            <JobTimeTracker
-              entries={timeEntries}
-              totalHours={job.total_hours}
-              onAdd={addTimeEntry}
-            />
-            {isAdmin && (
-              <div className="job-expenses" style={{ marginTop: '1rem', background: 'var(--color-bg-card)', border: 'var(--border-light)', borderRadius: '8px', padding: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>Expenses &amp; Receipts</h3>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>
-                    ${(jobReceipts.reduce((s, r) => s + (r.total_cents || 0), 0) / 100).toFixed(2)} total
-                  </span>
-                </div>
-                {jobReceipts.length === 0 ? (
-                  <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                    No receipts are linked to this job yet. Receipts submitted against this job (with its job link set) appear here once approved or pending.
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    {jobReceipts.map((r) => (
-                      <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0.6rem', alignItems: 'center', padding: '0.5rem 0.6rem', background: 'var(--color-bg-subtle, #F8FAFC)', borderRadius: '6px', fontSize: '0.82rem' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.vendor_name || 'Unknown vendor'}</div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
-                            {r.category || 'uncategorized'}
-                            {r.submitted_by_name || r.submitted_by_email ? ` · ${r.submitted_by_name || r.submitted_by_email}` : ''}
-                            {r.transaction_at ? ` · ${new Date(r.transaction_at).toLocaleDateString()}` : ''}
-                          </div>
-                        </div>
-                        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${((r.total_cents || 0) / 100).toFixed(2)}</span>
-                        <span style={{
-                          fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
-                          padding: '0.15rem 0.45rem', borderRadius: '10px',
-                          background: r.status === 'approved' ? 'var(--color-success-bg)' : r.status === 'rejected' ? 'var(--color-error-bg, #FEE2E2)' : '#FEF3C7',
-                          color: r.status === 'approved' ? '#065F46' : r.status === 'rejected' ? '#991B1B' : '#92400E',
-                        }}>{r.status}</span>
-                        {r.photo_signed_url
-                          ? <a href={r.photo_signed_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: 'var(--color-brand-navy)' }}>View</a>
-                          : <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>—</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <Link href="/admin/receipts" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.78rem', color: 'var(--color-brand-navy)' }}>
-                  Manage all receipts &rarr;
-                </Link>
+                {/* The approved research packet, on the job (plan R26). */}
+                <JobResearchPacket jobId={jobId} />
+                <FolderExplorer
+                  rootId={`mnt:jobs:${jobId}`}
+                  title={jobTitle}
+                  initialFolder="research"
+                  refreshKey={filesRefresh}
+                  folderExtras={{ research: <JobResearchPanel research={research} onAdd={addResearch} onDelete={deleteResearch} /> }}
+                />
               </div>
             )}
+
+            {view === 'media' && (
+              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title="Photos & videos" layout="media" refreshKey={filesRefresh} />
+            )}
+
+            {view === 'documents' && (
+              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title={jobTitle} initialFolder="documents" refreshKey={filesRefresh} />
+            )}
+
+            {view === 'files' && (
+              <FolderExplorer
+                rootId={`mnt:jobs:${jobId}`}
+                title={jobTitle}
+                initialFolder={filesFolder}
+                onTotalChange={setFilesTotal}
+                refreshKey={filesRefresh}
+                folderExtras={{
+                  research: <JobResearchPanel research={research} onAdd={addResearch} onDelete={deleteResearch} />,
+                  cad: (
+                    <div className="job-cad-start">
+                      <div>
+                        <strong>Starr CAD</strong>
+                        <p>Draft this job&apos;s survey in the editor. Drawings you save stay linked to the job and are listed above; open one from the list.</p>
+                      </div>
+                      <a
+                        href={`/admin/cad?job=${encodeURIComponent(jobId)}&job_name=${encodeURIComponent(job.name)}`}
+                        className="jobs-page__btn jobs-page__btn--primary"
+                        data-testid="job-new-drawing"
+                      >
+                        ✏️ New Drawing
+                      </a>
+                    </div>
+                  ),
+                  root: (
+                    <p className="job-files__explorer-link">
+                      <Link href="/admin/files" data-testid="job-all-files-link">
+                        <Files size={13} aria-hidden /> Browse all files on the platform
+                      </Link>
+                      {project && (
+                        <>
+                          <span> · </span>
+                          <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="job-project-files-link">
+                            Everything in {project.project_number ?? 'this project'}
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                  ),
+                }}
+              />
+            )}
+
+            {view === 'info' && (
+              <div className="job-detail__overview">
+                <div className="job-detail__overview-grid">
+                  <div className="job-detail__overview-main">
+                    {/* LR6 — back-link card to the originating lead; renders nothing when the job
+                        wasn't converted from a lead. */}
+                    <JobOriginatingLead jobId={jobId} />
+                    <div className="job-detail__section">
+                      <h3>Description</h3>
+                      <p>
+                        <InlineEditField value={job.description} type="textarea" ariaLabel="description"
+                          emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} />
+                      </p>
+                    </div>
+                    <div className="job-detail__section">
+                      <h3>Deliverables</h3>
+                      <p>
+                        <InlineEditField value={job.deliverables} type="textarea" ariaLabel="deliverables"
+                          emptyLabel="What does this job deliver? (boundary survey, topo, ALTA cert, …)"
+                          onSave={(v) => saveField('deliverables', v)} />
+                      </p>
+                    </div>
+                    {/* The property: one panel with one Edit; picking a suggested address fills the
+                        city, state, ZIP, county and the coordinates the map opens on. */}
+                    <PropertyPanel
+                      jobId={jobId}
+                      job={job as unknown as PropertyFields}
+                      mapsUrl={mapsUrl}
+                      onSave={saveFields}
+                    />
+                    <div className="job-detail__section">
+                      <h3>Client</h3>
+                      <div className="job-detail__props">
+                        <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
+                        <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
+                        <div className="job-detail__prop">
+                          <strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} />
+                          {telHref(job.client_phone) && (
+                            <a href={telHref(job.client_phone)} className="btn tiny" title="Call this number" style={{ marginLeft: 8, textDecoration: 'none' }}>📞 Call</a>
+                          )}
+                        </div>
+                        <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
+                        <div className="job-detail__prop"><strong>Deadline:</strong> <InlineEditField value={job.deadline ? job.deadline.slice(0, 10) : ''} type="date" ariaLabel="deadline" emptyLabel="Add a deadline" onSave={(v) => saveField('deadline', v)} /></div>
+                        <div className="job-detail__prop"><strong>Quote:</strong> <InlineEditField value={job.quote_amount != null ? String(job.quote_amount) : ''} ariaLabel="quote" emptyLabel="Add a quote" onSave={(v) => saveField('quote_amount', v)} /></div>
+                      </div>
+                    </div>
+                    <div className="job-detail__section">
+                      <h3>Notes</h3>
+                      <p>
+                        <InlineEditField value={job.notes} type="textarea" ariaLabel="notes"
+                          emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
+                      </p>
+                    </div>
+
+                    {/* contacts plan Slice 6 — realtors, lenders and anyone else linked to the job. */}
+                    <div className="job-detail__section">
+                      <div className="jh__section-head">
+                        <h3>Contacts ({contactLinks.length})</h3>
+                        <button type="button" className="jh__btn" onClick={() => setShowLinkContactDialog(true)}>+ Link a contact</button>
+                      </div>
+                      {contactLinks.length === 0 ? (
+                        <p className="jh__muted">No contacts linked yet. Link a realtor, lender, or anyone else involved in this job.</p>
+                      ) : (
+                        <ul className="jh__contacts">
+                          {contactLinks.map((link) => (
+                            <li key={link.id} className="jh__contact">
+                              <div className="jh__contact-main">
+                                {link.contacts ? (
+                                  <Link href={`/admin/contacts/${link.contacts.id}`} className="jh__contact-name">{link.contacts.name}</Link>
+                                ) : (
+                                  <span>(contact no longer exists)</span>
+                                )}
+                                <span className="jh__chip">{JOB_CONTACT_ROLES.find((r) => r.id === link.role)?.label ?? link.role}</span>
+                                {(link.contacts?.company || link.contacts?.email) && (
+                                  <span className="jh__sub">
+                                    {link.contacts.company ?? ''}
+                                    {link.contacts.company && link.contacts.email ? ' · ' : ''}
+                                    {link.contacts.email ?? ''}
+                                  </span>
+                                )}
+                                {telHref(link.contacts?.phone) && (
+                                  <a href={telHref(link.contacts?.phone)} className="btn tiny" title={`Call ${link.contacts?.name ?? 'this contact'}`} style={{ marginLeft: 8, textDecoration: 'none' }}>📞 {link.contacts?.phone}</a>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                className="jh__btn jh__btn--quiet"
+                                onClick={async () => {
+                                  if (!link.contacts) return;
+                                  if (!window.confirm(`Unlink ${link.contacts.name} from this job?`)) return;
+                                  const params = new URLSearchParams({ job_id: jobId, contact_id: link.contact_id, role: link.role });
+                                  const res = await fetch(`/api/admin/jobs/contacts?${params}`, { method: 'DELETE' });
+                                  if (!res.ok) return;
+                                  setContactLinks((cur) => cur.filter((l) => l.id !== link.id));
+                                }}
+                                aria-label="Unlink contact"
+                              >
+                                Unlink
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <JobChecklist items={checklists} stage={job.stage} onToggle={toggleChecklist} onLoadTemplate={loadChecklistTemplate} />
+                  </div>
+
+                  <div className="job-detail__overview-side">
+                    <JobTeamPanel team={job.team} onAdd={addTeamMember} onRemove={removeTeamMember} onChangeRole={changeTeamRole} editable={true} />
+                    <JobEquipmentList equipment={job.equipment} onAdd={addEquipment} onReturn={returnEquipment} editable={true} />
+                    {job.tags.length > 0 && (
+                      <div className="job-detail__section">
+                        <h3>Tags</h3>
+                        <div className="job-detail__tags">{job.tags.map((tag) => <span key={tag} className="job-card__tag">{tag}</span>)}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rarely needed, so at the foot of the page rather than in the header. */}
+                <div className="jh__footer-actions">
+                  <button
+                    type="button"
+                    className="jh__btn"
+                    onClick={() => exportJobPdf({
+                      ...job,
+                      counts: { files: job.file_count, photos: tabCountsLoaded.photos, drawings: tabCountsLoaded.cad, research: research.length || undefined, hours: job.total_hours },
+                    })}
+                    title="Download a one-page job summary PDF"
+                  >
+                    <Download size={14} aria-hidden /> Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteJob()}
+                    disabled={deletingJob}
+                    title="Delete this job (recoverable for 30 days)"
+                    className="jh__btn jh__btn--danger"
+                  >
+                    <Trash2 size={14} aria-hidden /> {deletingJob ? 'Deleting…' : 'Delete job'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {view === 'status' && (
+              <div className="jh__stack">
+                <section className="jh__card" data-testid="job-status">
+                  <h3 className="jh__card-title">Current status</h3>
+                  <div className="jh__status-row">
+                    <span className="jh__stage" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
+                      {stageInfo.icon} {stageInfo.label}
+                    </span>
+                    <label className="jh__stage-pick">
+                      <span>Change to</span>
+                      <select value={job.stage} onChange={(e) => void advanceStage(e.target.value)} data-testid="job-stage-select">
+                        {Object.entries(STAGE_CONFIG).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+                      </select>
+                    </label>
+                    <JobResultControl
+                      jobId={job.id}
+                      currentResult={job.result ?? null}
+                      currentReason={job.result_reason ?? null}
+                      onUpdate={(r, reason) => setJob((cur) => cur ? { ...cur, result: r, result_reason: reason } : cur)}
+                    />
+                  </div>
+                  <dl className="jh__minifacts">
+                    <div><dt>Team</dt><dd>{job.team.length}</dd></div>
+                    <div><dt>Files</dt><dd>{job.file_count}</dd></div>
+                    <div><dt>Hours logged</dt><dd>{job.total_hours}h</dd></div>
+                    <div><dt>Opened</dt><dd>{formatDate(job.created_at)}</dd></div>
+                  </dl>
+                  {stageHistory.length > 0 && (
+                    <details className="jh__stages">
+                      <summary>Status changes ({stageHistory.length})</summary>
+                      <ol>
+                        {stageHistory.map((h, i) => (
+                          <li key={i}>
+                            <strong>{STAGE_CONFIG[h.to_stage]?.label ?? h.to_stage}</strong>
+                            {h.from_stage && <span className="jh__sub"> from {STAGE_CONFIG[h.from_stage]?.label ?? h.from_stage}</span>}
+                            <span className="jh__sub"> · {new Date(h.created_at).toLocaleString()} · {h.changed_by}</span>
+                            {h.notes && <span className="jh__sub"> — {h.notes}</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
+                </section>
+                {/* Everything that has happened on the job — uploads, renames, payments, edits —
+                    newest first. */}
+                <JobActivityFeed jobId={jobId} key={filesRefresh} />
+              </div>
+            )}
+
+            {view === 'financial' && (
+              <div className="job-detail__financial">
+                <dl className="jh__money-summary" data-testid="job-money-summary">
+                  <div><dt>Quoted</dt><dd>{money(quoted)}</dd></div>
+                  <div><dt>Money in</dt><dd className="jh__in">{money(received)}</dd></div>
+                  <div><dt>Money spent</dt><dd className="jh__out">{isAdmin ? money(spent) : '—'}</dd></div>
+                  <div><dt>Net so far</dt><dd>{isAdmin ? money(received - spent) : '—'}</dd></div>
+                </dl>
+                {!isAdmin && <p className="jh__muted">Spending comes from receipts, which only admins can see.</p>}
+                {/* Bid, received, owed — plus down payments, price history and cancellation, all from
+                    one arithmetic source (lib/jobs/money.ts). */}
+                <JobMoneyPanel jobId={jobId} onChanged={loadJob} />
+                <JobQuoteBuilder
+                  quoteAmount={job.quote_amount}
+                  finalAmount={job.final_amount}
+                  amountPaid={job.amount_paid}
+                  paymentStatus={job.payment_status}
+                  payments={payments}
+                  editable={true}
+                  onUpdateQuote={(val) => { void saveField('quote_amount', String(val)); }}
+                />
+                {isAdmin && (
+                  <div className="jh__card">
+                    <div className="jh__section-head">
+                      <h3 className="jh__card-title">Money spent — expenses &amp; receipts</h3>
+                      <span className="jh__money">{money(spent)}</span>
+                    </div>
+                    {jobReceipts.length === 0 ? (
+                      <p className="jh__muted">No receipts are linked to this job yet. Receipts submitted against this job appear here.</p>
+                    ) : (
+                      <ul className="jh__receipts">
+                        {jobReceipts.map((r) => (
+                          <li key={r.id} className="jh__receipt">
+                            <div className="jh__receipt-main">
+                              <strong>{r.vendor_name || 'Unknown vendor'}</strong>
+                              <span className="jh__sub">
+                                {r.category || 'uncategorized'}
+                                {r.submitted_by_name || r.submitted_by_email ? ` · ${r.submitted_by_name || r.submitted_by_email}` : ''}
+                                {r.transaction_at ? ` · ${new Date(r.transaction_at).toLocaleDateString()}` : ''}
+                              </span>
+                            </div>
+                            <span className="jh__money">${((r.total_cents || 0) / 100).toFixed(2)}</span>
+                            <span className={`jh__receipt-status jh__receipt-status--${r.status}`}>{r.status}</span>
+                            {r.photo_signed_url
+                              ? <a href={r.photo_signed_url} target="_blank" rel="noopener noreferrer">View</a>
+                              : <span className="jh__muted">—</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <Link href="/admin/receipts" className="jh__fact-link">Manage all receipts →</Link>
+                  </div>
+                )}
+                <JobTimeTracker entries={timeEntries} totalHours={job.total_hours} onAdd={addTimeEntry} />
+              </div>
+            )}
+
+            {view === 'schedule' && (
+              <JobPhaseScheduler jobId={jobId} jobName={job.name} jobAddress={job.address ?? null} selfEmail={session?.user?.email ?? ''} />
+            )}
+
+            {view === 'fieldwork' && (
+              <>
+                {/* C0c — RPLS-authored instructions for the crew. */}
+                <JobInstructionsPanel jobId={jobId} />
+                <JobNotesPanel jobId={jobId} />
+                {/* C0d — mobile-captured field media (`job_media`). */}
+                <JobFieldMediaPanel jobId={jobId} />
+                <FieldWorkView
+                  jobId={jobId}
+                  points={fieldData}
+                  onRefresh={loadFieldData}
+                  job={{
+                    jobNumber: job.job_number,
+                    jobName: job.name,
+                    stage: job.stage,
+                    surveyType: job.survey_type,
+                    clientName: job.client_name,
+                    address: job.address,
+                    city: job.city,
+                    state: job.state,
+                    county: job.county,
+                    acreage: job.acreage,
+                    deadline: job.deadline,
+                    createdAt: job.created_at,
+                    team: job.team,
+                    totalHours: job.total_hours,
+                  } as JobContext}
+                />
+              </>
+            )}
+
+            {view === 'messages' && <JobMessagesPanel jobId={jobId} />}
           </div>
-        )}
+        </section>
+      )}
 
-        {/* ── Property Map (interactive-property-map-2026-09-16) ───────────────────────────────
-            One card, two words, following the `job-cad-start` pattern next door: the whole map
-            lives on its own route, because a numbered aerial with a point list beside it is not a
-            thing that fits inside a tab body — and because the drafter wants to open it in its own
-            window beside CAD. */}
-        {activeTab === 'propertymap' && (
-          <div className="job-cad-start" data-testid="job-property-map-card">
-            <div>
-              <strong>Interactive property map</strong>
-              <p>
-                {propertyMap?.exists
-                  ? `${propertyMap.title ?? 'Property map'} — ${propertyMap.points} ${propertyMap.points === 1 ? 'point of interest' : 'points of interest'}. Open it to review the photos, video, notes and voice notes pinned to each one.`
-                  : 'Upload an aerial of the property and drop numbered points on it — monuments found, encroachments, the gate the truck fits through. Each point holds notes, photos, video and voice notes, so somebody who was never on the property can see what the crew saw and where.'}
-              </p>
-            </div>
-            <Link
-              href={`/admin/map?job=${jobId}`}
-              className="jobs-page__btn jobs-page__btn--primary"
-              data-testid="job-property-map-link"
-            >
-              <MapIcon size={14} strokeWidth={2} aria-hidden />{' '}
-              {'View Interactive Map'}
-            </Link>
-          </div>
-        )}
-
-        {activeTab === 'activity' && (
-          <JobActivityFeed jobId={jobId} />
-        )}
-
-        {activeTab === 'messages' && (
-          <JobMessagesPanel jobId={jobId} />
-        )}
-      </div>
-
-      {/* contacts plan Slice 6 — Link-a-contact picker for the
-          overview tab's Contacts section. */}
       {showLinkContactDialog && (
         <LinkContactDialog
           open={showLinkContactDialog}
@@ -1286,7 +1071,6 @@ export default function JobDetailPage() {
           onClose={() => setShowLinkContactDialog(false)}
           onLinked={() => {
             setShowLinkContactDialog(false);
-            // Refresh the linked-contacts panel.
             fetch(`/api/admin/jobs/contacts?job_id=${jobId}`)
               .then((r) => r.json())
               .then((d) => setContactLinks(d.links || []))
@@ -1294,9 +1078,10 @@ export default function JobDetailPage() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }
+
 
 function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
   jobId: string;

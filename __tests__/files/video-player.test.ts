@@ -137,7 +137,7 @@ describe('the wiring', () => {
   });
 
   it('a redraw reopens the open file, and the job page keeps its tab in the address', () => {
-    expect(EXPLORER).toContain('fe-open:${rootId}');
+    expect(EXPLORER).toContain("fe-open:${media ? 'media:' : ''}${rootId}");
     expect(EXPLORER).toMatch(/void openFile\(node\)/);
     expect(JOB).toContain("new URLSearchParams(window.location.search).get('tab')");
     expect(JOB).toContain('window.history.replaceState');

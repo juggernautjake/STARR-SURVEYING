@@ -1,7 +1,7 @@
 'use client';
 // app/admin/components/nav/AdminPageHeader.tsx
 //
-// Breadcrumb trail + star (pin) button above every V2 admin page
+// "Back to …" + star (pin) button above every V2 admin page
 // (admin-nav redesign Phase 3 slice 3d + Phase 4 slice 4a §5.6). The
 // star toggles the current route in `pinnedRoutes`; ToastProvider
 // confirms the action. The ? help button lands in Phase 6.
@@ -25,6 +25,7 @@ import {
   MAX_PINNED_ROUTES,
   useAdminNavStore,
 } from '@/lib/admin/nav-store';
+import { useBackOverride } from '@/lib/admin/back-target';
 import { useToast } from '../Toast';
 
 import HelpDrawer from './HelpDrawer';
@@ -50,6 +51,14 @@ export default function AdminPageHeader() {
     };
   }, [pathname]);
 
+  // ── ONE WAY BACK, NOT A TRAIL (owner, 2026-11-11) ──────────────────────────────────────────────
+  // "We should only ever show the 'Back to (insert page here)' option, not the 'Job Projects Work >
+  // Job Projects > Job Details' links." The trail is still computed — the help drawer names the
+  // workspace from it — but only the back button is drawn. A page that knows its real parent (a job
+  // knows its project) overrides the address parent through useBackTarget.
+  const override = useBackOverride(pathname);
+  const back = override ?? parent;
+
   if (crumbs.length === 0) return null;
 
   // Only registered routes are pinnable (the pin store keys off the
@@ -72,40 +81,19 @@ export default function AdminPageHeader() {
   }
 
   return (
-    <nav className="admin-page-header" aria-label="Breadcrumb">
+    <nav className="admin-page-header" aria-label="Back">
       <div className="admin-page-header__nav">
-        {parent ? (
+        {back ? (
           <Link
-            href={parent.href}
+            href={back.href}
             className="admin-page-header__back"
-            aria-label={`Back to ${parent.label}`}
-            title={`Back to ${parent.label}`}
+            title={`Back to ${back.label}`}
+            data-testid="admin-back"
           >
-            <ChevronLeft size={16} strokeWidth={2} />
-            <span className="admin-page-header__back-label">{parent.label}</span>
+            <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
+            <span className="admin-page-header__back-label">Back to {back.label}</span>
           </Link>
         ) : null}
-        <ol className="admin-page-header__trail">
-          {crumbs.map((crumb, i) => (
-            <li key={crumb.href} className="admin-page-header__crumb-item">
-              {i > 0 ? (
-                <span className="admin-page-header__sep" aria-hidden="true">›</span>
-              ) : null}
-              {crumb.isCurrent ? (
-                <span
-                  className="admin-page-header__crumb admin-page-header__crumb--active"
-                  aria-current="page"
-                >
-                  {crumb.label}
-                </span>
-              ) : (
-                <Link href={crumb.href} className="admin-page-header__crumb">
-                  {crumb.label}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ol>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
         <button

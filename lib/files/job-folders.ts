@@ -68,7 +68,7 @@ export const JOB_FOLDERS: readonly JobFolderSpec[] = [
     sources: ['job-files', 'field-media'],
   },
   {
-    key: 'documents', label: 'Documents', standard: false,
+    key: 'documents', label: 'Documents', standard: true,
     blurb: 'Contracts, legal, delivery and general job files.',
     uploadSection: 'general', uploadFileType: null, accept: null,
     sources: ['job-files'],

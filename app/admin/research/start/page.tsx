@@ -23,6 +23,7 @@
 // and nothing is written until somebody presses the button. The creation itself goes through the
 // existing POST /api/admin/research, so this page adds no second way to make a project.
 
+import { SetBackTarget } from '@/lib/admin/back-target';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth, isAdmin } from '@/lib/auth';
@@ -139,7 +140,8 @@ export default async function StartResearchPage(
 
   return (
     <main className="startres">
-      <Link href={`/admin/jobs/${jobId}`} className="startres__back">← Back to {jobLabel}</Link>
+      {/* You came from the job; the page header's "Back to …" says so (2026-11-11). */}
+      <SetBackTarget href={`/admin/jobs/${jobId}`} label={jobLabel} />
 
       <header className="startres__head">
         <h1 className="startres__title">Research this property</h1>

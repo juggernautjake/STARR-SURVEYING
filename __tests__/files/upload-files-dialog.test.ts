@@ -431,16 +431,15 @@ describe('the callers open it', () => {
     expect(code, 'a native confirm() blocks the page').not.toContain('window.confirm(');
   });
 
-  it('the job page: Upload files first in the header, and the quick actions open it', () => {
+  it('the job page: Upload files in the job header, on every widget', () => {
     const src = read('app/admin/jobs/[id]/page.tsx');
     const code = stripJs(src);
     expect(src).toContain("import UploadFilesDialog from '../../components/files/UploadFilesDialog'");
     expect(code).toMatch(/<UploadFilesDialog[\s\S]{0,200}rootId=\{`mnt:jobs:\$\{jobId\}`\}/);
     const header = code.indexOf('data-testid="job-upload-files"');
-    expect(header).toBeGreaterThan(-1);
-    expect(header, 'Upload files comes before Files & photos').toBeLessThan(code.indexOf('data-testid="job-files-quick"'));
-    expect(code).toContain("setUpload({ open: true, folder: `mnt:jobs:${jobId}:photos` })");
-    expect(read('app/admin/styles/AdminJobs.css')).toContain('.job-detail__uploadbtn {');
+    expect(header).toBeGreaterThan(code.indexOf('data-testid="job-header"'));
+    expect(header, 'in the header, before the widgets').toBeLessThan(code.indexOf('className="jh__tiles"'));
+    expect(read('app/admin/components/hub/Hub.css')).toContain('.jh__upload {');
   });
 });
 

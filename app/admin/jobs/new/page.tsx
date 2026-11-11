@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useBackTarget } from '@/lib/admin/back-target';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
@@ -106,6 +107,9 @@ export default function NewJobPage() {
     county: string | null; owner_name: string | null; subdivision: string | null; abstract_number: string | null;
     lot_number: string | null; acreage: number | null; lead_rpls_email: string | null;
   }>>([]);
+  // "New job" pressed on a project goes back to that project (2026-11-11).
+  const presetProject = presetProjectId ? projects.find((x) => x.id === presetProjectId) : undefined;
+  useBackTarget(presetProjectId ? { href: `/admin/projects/${presetProjectId}`, label: presetProject ? [presetProject.project_number, presetProject.name].filter(Boolean).join(' — ') : 'the project' } : null);
   const [projectId, setProjectId] = useState<string>(presetProjectId ?? '');
   const [projectsLoaded, setProjectsLoaded] = useState(false);
 
@@ -257,7 +261,6 @@ export default function NewJobPage() {
 
       <div className="job-form">
         <div className="job-form__header">
-          <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
           <h2 className="job-form__title">Create New Job</h2>
         </div>
 

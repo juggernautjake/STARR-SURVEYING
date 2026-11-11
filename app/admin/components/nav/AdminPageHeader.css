@@ -38,16 +38,17 @@
   align-items: center;
   gap: 0.15rem;
   flex-shrink: 0;
-  height: 26px;
-  padding: 0 0.5rem 0 0.3rem;
+  min-height: 32px;
+  padding: 0 0.7rem 0 0.4rem;
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 6px;
   background: var(--theme-bg-surface, #FFF);
   color: var(--color-brand-navy, #1d3095);
-  font-size: 0.74rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+  min-width: 0;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
@@ -57,7 +58,8 @@
 }
 
 .admin-page-header__back-label {
-  max-width: 14ch;
+  /* The only way back now (2026-11-11), so it says where it goes in full, up to a sensible width. */
+  max-width: 48ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -145,7 +147,7 @@
     padding: 0.6rem 1rem;
   }
   .admin-page-header__back-label {
-    display: none;
+    max-width: 30ch;
   }
   .admin-page-header__trail {
     flex-wrap: nowrap;

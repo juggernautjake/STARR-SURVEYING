@@ -28,15 +28,18 @@ describe('choosing a tile size', () => {
     expect(src).toContain("type View = 'list' | 'small' | 'medium' | 'large';");
     // The list is the only view that shows the size and the date, and changing what everybody's
     // Files tab looks like on upgrade is not a thing to do by fiat.
-    expect(src).toContain("useState<View>('list')");
+    // …except Photos & Videos (layout="media", 2026-11-11), which is a wall of pictures.
+    expect(src).toContain("useState<View>(media ? 'medium' : 'list')");
   });
 
   it('remembers the choice for the person, across every folder', () => {
     expect(src).toContain("const VIEW_KEY = 'fe-view';");
-    expect(src).toContain('localStorage.setItem(VIEW_KEY, v)');
+    // Photos & Videos remembers its own size under `fe-view-media`.
+    expect(src).toContain('const viewKey = media ? `${VIEW_KEY}-media` : VIEW_KEY;');
+    expect(src).toContain('localStorage.setItem(viewKey, v)');
     // Read in an effect, never in the useState initialiser: this component renders on the server
     // too, and reading storage during the first render is a hydration mismatch.
-    expect(src).toMatch(/useEffect\(\(\) => \{\s*try \{\s*const saved = localStorage\.getItem\(VIEW_KEY\)/);
+    expect(src).toMatch(/useEffect\(\(\) => \{\s*try \{\s*const saved = localStorage\.getItem\(viewKey\)/);
   });
 
   it('survives a browser that refuses storage', () => {

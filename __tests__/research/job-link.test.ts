@@ -152,7 +152,8 @@ describe('starting research from a job', () => {
   const JOB = read('app/admin/jobs/[id]/page.tsx');
 
   it('the job page offers it, carrying the job id', () => {
-    expect(JOB).toContain('/admin/research?new=1&job=${jobId}');
+    // 2026-11-11: the Research widget's button goes through the route that fills the run from the job.
+    expect(JOB).toContain('/admin/research/start?job=${jobId}');
   });
 
   it('the research form reads the job param', () => {
