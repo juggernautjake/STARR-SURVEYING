@@ -173,7 +173,6 @@ export default function MockExamPage() {
     return (
       <>
         <div className="admin-learn__header">
-          <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">&larr; Back to FS Prep</Link>
           <h2 className="admin-learn__title">
             {isQuickMode ? '\u26A1 FS Readiness Check' : '\uD83C\uDF93 FS Exam Simulator'}
           </h2>
@@ -248,7 +247,6 @@ export default function MockExamPage() {
     return (
       <>
         <div className="admin-learn__header">
-          <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">&larr; Back to FS Prep</Link>
           <h2 className="admin-learn__title">
             {results.passed ? '\u2705 Exam Passed!' : '\uD83D\uDCDA Keep Studying'}
           </h2>

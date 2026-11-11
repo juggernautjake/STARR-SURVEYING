@@ -437,9 +437,6 @@ export default function CallerRegistryPage(): React.ReactElement {
           </p>
         </div>
         <div className="creg__headactions">
-          <Link href="/admin/calls" className="creg__btn" data-testid="creg-calls-link">
-            ← Back to Calls
-          </Link>
           <button
             type="button"
             className="creg__btn creg__btn--primary"

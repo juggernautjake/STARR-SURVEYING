@@ -3,7 +3,6 @@
 
 import { useState } from 'react';
 import { Check, X, Bot } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import PropertyContextBar, { PropertyContextProvider, usePropertyContext } from './components/PropertyContextBar';
 import BranchSelector from './components/BranchSelector';
 import ScrapersTab from './components/ScrapersTab';
@@ -32,7 +31,6 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
 ];
 
 function TestingLabContent() {
-  const router = useRouter();
   const { context, updateField } = usePropertyContext();
   const [activeTab, setActiveTab] = useState<TabKey>('scrapers');
   const [compareBranch, setCompareBranch] = useState<string | null>(null);
@@ -100,12 +98,6 @@ function TestingLabContent() {
       {/* Header */}
       <div className="testing-lab__header">
         <div className="testing-lab__header-left">
-          <button
-            className="research-back-btn"
-            onClick={() => router.push('/admin/research')}
-          >
-            &larr; Back to Research
-          </button>
           <h1 className="testing-lab__title">
             Research Testing Lab
             <InfoIcon title={HELP.tabs.title} content={HELP.tabs.content} />

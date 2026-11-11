@@ -222,9 +222,6 @@ export default function FieldDataDetailPage() {
   if (error) {
     return (
       <div style={styles.wrap}>
-        <Link href="/admin/field-data" style={styles.back}>
-          ‹ Back to Field Data
-        </Link>
         <div style={styles.error}>{error}</div>
       </div>
     );
@@ -239,10 +236,6 @@ export default function FieldDataDetailPage() {
 
   return (
     <div style={styles.wrap}>
-      <Link href="/admin/field-data" style={styles.back}>
-        ‹ Back to Field Data
-      </Link>
-
       <header style={styles.header}>
         <div>
           <h1 style={styles.h1}>{point.name}</h1>

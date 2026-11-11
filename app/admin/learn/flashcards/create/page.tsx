@@ -39,7 +39,6 @@ export default function CreateFlashcardsPage() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn/flashcards" className="learn__back">← Back to Flashcards</Link>
         <h2 className="learn__title"><Plus size={20} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Create Your Own Flashcards</h2>
         <p className="learn__subtitle">Build your own study cards with terms, definitions, and up to 3 hints each.</p>
       </div>

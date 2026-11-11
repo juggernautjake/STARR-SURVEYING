@@ -38,7 +38,6 @@ export default function ExamPrepPage() {
   return (
     <>
       <div className="admin-learn__header">
-        <Link href="/admin/learn" className="admin-module-detail__back">&larr; Back to Learning Hub</Link>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h2 className="admin-learn__title"><ClipboardCheck size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Exam Prep</h2>
           <CalculatorTriggerButton size="sm" title="Open an NCEES-approved calculator (Casio fx-115/991, HP 33s/35s, TI-30X/36X)" />

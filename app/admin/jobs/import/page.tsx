@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
-import Link from 'next/link';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
 
@@ -284,7 +283,6 @@ export default function ImportJobsPage() {
     <>
       <div className="job-form">
         <div className="job-form__header">
-          <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
           <h2 className="job-form__title">Import Jobs & Files</h2>
           <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0.25rem 0 0' }}>
             Import historical surveys, bulk-upload jobs from CSV, or attach files to existing jobs.
