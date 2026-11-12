@@ -431,15 +431,19 @@ describe('the callers open it', () => {
     expect(code, 'a native confirm() blocks the page').not.toContain('window.confirm(');
   });
 
-  it('the job page: Upload files in the job header, on every widget', () => {
+  it('the job page: no Upload in the job header — only in Files and Photos & videos (owner, 2026-11-11)', () => {
     const src = read('app/admin/jobs/[id]/page.tsx');
     const code = stripJs(src);
-    expect(src).toContain("import UploadFilesDialog from '../../components/files/UploadFilesDialog'");
-    expect(code).toMatch(/<UploadFilesDialog[\s\S]{0,200}rootId=\{`mnt:jobs:\$\{jobId\}`\}/);
-    const header = code.indexOf('data-testid="job-upload-files"');
-    expect(header).toBeGreaterThan(code.indexOf('data-testid="job-header"'));
-    expect(header, 'in the header, before the widgets').toBeLessThan(code.indexOf('className="jh__tiles"'));
-    expect(read('app/admin/components/hub/Hub.css')).toContain('.jh__upload {');
+    expect(code).not.toContain('data-testid="job-upload-files"');
+    expect(code).not.toContain('<UploadFilesDialog');
+    // Documents and Research keep their explorer, without the Upload button.
+    expect(code).toMatch(/initialFolder="documents" uploads=\{false\}/);
+    expect(code).toMatch(/initialFolder="research"\s+uploads=\{false\}/);
+    // Files and Photos & videos keep it (the explorer's default).
+    expect(code).toMatch(/layout="media" \/>/);
+    const fe = read('app/admin/components/files/FolderExplorer.tsx');
+    expect(fe).toContain("uploads = true }: FolderExplorerProps)");
+    expect(fe).toContain('const canUpload = uploadRoot && uploads;');
   });
 });
 
