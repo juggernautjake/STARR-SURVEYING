@@ -26,9 +26,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
-  ClipboardList, CalendarDays, Search, HardHat, Folder, Camera, DollarSign, Activity,
+  ClipboardList, CalendarDays, Search, HardHat, Folder, DollarSign, Activity,
   MessageSquare, Trash2, Download, Files, Circle, Map as MapIcon, ArrowLeft,
-  MapPin, User, Phone, FileText, ArrowUpRight, type LucideIcon,
+  MapPin, User, Phone, FileText, ArrowUpRight, Users, Plus, StickyNote, Tag, ListChecks, Wrench,
+  Check, Play, Pause, XCircle, GitCommitVertical, type LucideIcon,
 } from 'lucide-react';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import FolderExplorer from '../../components/files/FolderExplorer';
@@ -114,7 +115,7 @@ interface Job {
 
 /** What can be open: job home, one of the widgets, or one of the "More" views. */
 type ViewKey =
-  | 'home' | 'info' | 'status' | 'research' | 'media' | 'documents' | 'files' | 'financial'
+  | 'home' | 'info' | 'status' | 'research' | 'files' | 'financial'
   | 'schedule' | 'fieldwork' | 'messages';
 
 interface Widget {
@@ -125,13 +126,12 @@ interface Widget {
   blurb: string;
 }
 
-/** The tiles on job home, in the order a person reaches for them. */
+/** The six tiles on job home, in the order a person reaches for them. Documents and Photos & videos
+ *  were folded into Files (owner, 2026-11-11: "just have files. so we will have just 6 widgets"). */
 const WIDGETS: Widget[] = [
   { key: 'research', label: 'Research', Icon: Search, blurb: 'Deeds, plats, prior surveys and research runs for this property.' },
   { key: 'map', label: 'Interactive map', Icon: MapIcon, blurb: 'The property on satellite, with points, photos and notes pinned to it.' },
-  { key: 'documents', label: 'Documents', Icon: FileText, blurb: 'Contracts, legal, delivery and general job paperwork.' },
-  { key: 'media', label: 'Photos & videos', Icon: Camera, blurb: 'Every picture and video from this job, as thumbnails.' },
-  { key: 'files', label: 'Files', Icon: Folder, blurb: 'Every file for this job, in its folders — the full file explorer.' },
+  { key: 'files', label: 'Files', Icon: Folder, blurb: 'Documents, photos, videos, CAD and research — every file for this job, in its folders.' },
   { key: 'info', label: 'Job info', Icon: ClipboardList, blurb: 'Property, client, contacts, notes, team and equipment.' },
   { key: 'status', label: 'Job status', Icon: Activity, blurb: 'Where the job stands, and everything that has happened on it.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, blurb: 'Money made and money spent on this job.' },
@@ -151,11 +151,36 @@ function viewFromTab(tab: string | null): { view: ViewKey; folder?: string } | n
   switch (tab) {
     case null: case '': return null;
     case 'overview': case 'propertymap': return { view: 'home' };
-    case 'photos': case 'videos': return { view: 'media' };
+    // Documents and Photos & videos live in Files now; old links open the matching folder.
+    case 'photos': case 'media': return { view: 'files', folder: 'photos' };
+    case 'videos': return { view: 'files', folder: 'videos' };
+    case 'documents': return { view: 'files', folder: 'documents' };
     case 'activity': return { view: 'status' };
     case 'cad': return { view: 'files', folder: 'cad' };
     default: return VIEWS.some((w) => w.key === tab && w.key !== 'map') ? { view: tab as ViewKey } : null;
   }
+}
+
+/** Job info's section links, in page order. */
+const INFO_SECTIONS: Array<{ id: string; label: string; Icon: LucideIcon }> = [
+  { id: 'about', label: 'About', Icon: FileText },
+  { id: 'property', label: 'Property', Icon: MapPin },
+  { id: 'client', label: 'Client', Icon: User },
+  { id: 'contacts', label: 'Contacts', Icon: Users },
+  { id: 'notes', label: 'Notes', Icon: StickyNote },
+  { id: 'checklist', label: 'Checklist', Icon: ListChecks },
+  { id: 'team', label: 'Team', Icon: Users },
+  { id: 'equipment', label: 'Equipment', Icon: Wrench },
+];
+
+/** The stages a job moves through, in order. On hold and Cancelled are side states, not steps. */
+const PIPELINE = ['quote', 'research', 'fieldwork', 'drawing', 'legal', 'delivery', 'completed'];
+
+/** "3 days", "today" — how long since `iso`. */
+function daysSince(iso: string): string {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (!Number.isFinite(d) || d <= 0) return 'today';
+  return d === 1 ? '1 day' : `${d} days`;
 }
 
 const money = (n: number | null | undefined) =>
@@ -533,6 +558,11 @@ export default function JobDetailPage() {
   if (!job) return <div style={{ padding: '2rem', textAlign: 'center' }}>Job not found. <Link href="/admin/jobs">Back to Jobs</Link></div>;
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
+  const stagesNewestFirst = [...stageHistory].sort((x, y) => y.created_at.localeCompare(x.created_at));
+  /** When the job entered its current stage, from the history. */
+  const stageSince = stagesNewestFirst.find((h) => h.to_stage === job.stage)?.created_at ?? null;
+  /** Where "Resume" goes from On hold / Cancelled: the last real stage before it, else Quote. */
+  const resumeStage = stagesNewestFirst.find((h) => PIPELINE.includes(h.to_stage))?.to_stage ?? 'quote';
   const jobTitle = job.job_number ? `${job.job_number} — ${job.name}` : job.name;
 
   // ── the header's four facts ──
@@ -551,8 +581,7 @@ export default function JobDetailPage() {
   const tileMeta: Partial<Record<Widget['key'], string>> = {
     research: plural(researchCount, 'research item'),
     map: propertyMap?.exists && propertyMap.points > 0 ? plural(propertyMap.points, 'point') : 'Open the map',
-    media: `${plural(photos, 'photo')} · ${plural(videos, 'video')}`,
-    files: plural(filesTotal ?? job.file_count ?? 0, 'file'),
+    files: [plural(filesTotal ?? job.file_count ?? 0, 'file'), photos ? plural(photos, 'photo') : null, videos ? plural(videos, 'video') : null].filter(Boolean).join(' · '),
     info: [SURVEY_TYPES[job.survey_type] || job.survey_type, job.acreage ? `${job.acreage} acres` : null].filter(Boolean).join(' · '),
     status: job.result ? `${stageInfo.label} · ${job.result}` : stageInfo.label,
     financial: quoted != null ? `${money(job.amount_paid ?? 0)} paid of ${money(quoted)}` : 'No quote yet',
@@ -634,7 +663,7 @@ export default function JobDetailPage() {
       {view === 'home' || !current ? (
         /* ── JOB HOME ── */
         <div className="jh__home">
-          <ul className="jh__tiles" aria-label="Job sections">{WIDGETS.map(renderTile)}</ul>
+          <ul className="jh__tiles jh__tiles--six" aria-label="Job sections">{WIDGETS.map(renderTile)}</ul>
           <div className="jh__more" aria-label="More">
             <span className="jh__more-label">More</span>
             {MORE.map((w) => (
@@ -690,14 +719,6 @@ export default function JobDetailPage() {
               </div>
             )}
 
-            {view === 'media' && (
-              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title="Photos & videos" layout="media" />
-            )}
-
-            {view === 'documents' && (
-              <FolderExplorer rootId={`mnt:jobs:${jobId}`} title={jobTitle} initialFolder="documents" uploads={false} />
-            )}
-
             {view === 'files' && (
               <FolderExplorer
                 rootId={`mnt:jobs:${jobId}`}
@@ -741,67 +762,77 @@ export default function JobDetailPage() {
             )}
 
             {view === 'info' && (
-              <div className="job-detail__overview">
-                <div className="job-detail__overview-grid">
-                  <div className="job-detail__overview-main">
-                    {/* LR6 — back-link card to the originating lead; renders nothing when the job
-                        wasn't converted from a lead. */}
-                    <JobOriginatingLead jobId={jobId} />
-                    <div className="job-detail__section">
-                      <h3>Description</h3>
-                      <p>
-                        <InlineEditField value={job.description} type="textarea" ariaLabel="description"
-                          emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} />
-                      </p>
-                    </div>
-                    <div className="job-detail__section">
-                      <h3>Deliverables</h3>
-                      <p>
-                        <InlineEditField value={job.deliverables} type="textarea" ariaLabel="deliverables"
-                          emptyLabel="What does this job deliver? (boundary survey, topo, ALTA cert, …)"
-                          onSave={(v) => saveField('deliverables', v)} />
-                      </p>
-                    </div>
+              /* ── JOB INFO (owner, 2026-11-11: "more appealing and easier to navigate") ──
+                 A row of section links on top; then cards — the job itself, the property, the client
+                 and everyone else involved, notes and the checklist on the left; the people and the
+                 equipment on the right; the rarely-used actions last. */
+              <div className="ji" data-testid="job-info">
+                <nav className="ji__jump" aria-label="Sections">
+                  {INFO_SECTIONS.map((sec) => (
+                    <a key={sec.id} href={`#ji-${sec.id}`} className="ji__jump-link" onClick={(e) => { e.preventDefault(); document.getElementById(`ji-${sec.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>
+                      <sec.Icon size={14} aria-hidden /> {sec.label}
+                    </a>
+                  ))}
+                </nav>
+
+                <div className="ji__grid">
+                  <div className="ji__main">
+                    <section id="ji-about" className="ji__card">
+                      <h3 className="ji__card-title"><FileText size={16} aria-hidden /> About this job</h3>
+                      {/* LR6 — the lead this job came from; renders nothing when there was none. */}
+                      <JobOriginatingLead jobId={jobId} />
+                      <dl className="ji__fields">
+                        <div className="ji__field ji__field--wide">
+                          <dt>Description</dt>
+                          <dd><InlineEditField value={job.description} type="textarea" ariaLabel="description" emptyLabel="Add a description…" onSave={(v) => saveField('description', v)} /></dd>
+                        </div>
+                        <div className="ji__field ji__field--wide">
+                          <dt>Deliverables</dt>
+                          <dd><InlineEditField value={job.deliverables} type="textarea" ariaLabel="deliverables" emptyLabel="What does this job deliver? (boundary survey, topo, ALTA cert, …)" onSave={(v) => saveField('deliverables', v)} /></dd>
+                        </div>
+                        <div className="ji__field">
+                          <dt>Survey type</dt>
+                          <dd>{SURVEY_TYPES[job.survey_type] || job.survey_type || <span className="jh__muted">—</span>}</dd>
+                        </div>
+                        <div className="ji__field">
+                          <dt>Opened</dt>
+                          <dd>{formatDate(job.created_at)}</dd>
+                        </div>
+                      </dl>
+                    </section>
+
                     {/* The property: one panel with one Edit; picking a suggested address fills the
                         city, state, ZIP, county and the coordinates the map opens on. */}
-                    <PropertyPanel
-                      jobId={jobId}
-                      job={job as unknown as PropertyFields}
-                      mapsUrl={mapsUrl}
-                      onSave={saveFields}
-                    />
-                    <div className="job-detail__section">
-                      <h3>Client</h3>
-                      <div className="job-detail__props">
-                        <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
-                        <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
-                        <div className="job-detail__prop">
-                          <strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} />
-                          {telHref(job.client_phone) && (
-                            <a href={telHref(job.client_phone)} className="btn tiny" title="Call this number" style={{ marginLeft: 8, textDecoration: 'none' }}>📞 Call</a>
-                          )}
+                    <section id="ji-property" className="ji__slot">
+                      <PropertyPanel jobId={jobId} job={job as unknown as PropertyFields} mapsUrl={mapsUrl} onSave={saveFields} />
+                    </section>
+
+                    <section id="ji-client" className="ji__card">
+                      <h3 className="ji__card-title"><User size={16} aria-hidden /> Client</h3>
+                      <dl className="ji__fields">
+                        <div className="ji__field"><dt>Name</dt><dd><InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></dd></div>
+                        <div className="ji__field"><dt>Company</dt><dd><InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></dd></div>
+                        <div className="ji__field"><dt>Email</dt><dd><InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></dd></div>
+                        <div className="ji__field">
+                          <dt>Phone</dt>
+                          <dd>
+                            <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} />
+                            {telHref(job.client_phone) && <a href={telHref(job.client_phone)} className="ji__call" title="Call this number"><Phone size={13} aria-hidden /> Call</a>}
+                          </dd>
                         </div>
-                        <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
-                        <div className="job-detail__prop"><strong>Deadline:</strong> <InlineEditField value={job.deadline ? job.deadline.slice(0, 10) : ''} type="date" ariaLabel="deadline" emptyLabel="Add a deadline" onSave={(v) => saveField('deadline', v)} /></div>
-                        <div className="job-detail__prop"><strong>Quote:</strong> <InlineEditField value={job.quote_amount != null ? String(job.quote_amount) : ''} ariaLabel="quote" emptyLabel="Add a quote" onSave={(v) => saveField('quote_amount', v)} /></div>
-                      </div>
-                    </div>
-                    <div className="job-detail__section">
-                      <h3>Notes</h3>
-                      <p>
-                        <InlineEditField value={job.notes} type="textarea" ariaLabel="notes"
-                          emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
-                      </p>
-                    </div>
+                        <div className="ji__field"><dt>Deadline</dt><dd><InlineEditField value={job.deadline ? job.deadline.slice(0, 10) : ''} type="date" ariaLabel="deadline" emptyLabel="Add a deadline" onSave={(v) => saveField('deadline', v)} /></dd></div>
+                        <div className="ji__field"><dt>Quote</dt><dd><InlineEditField value={job.quote_amount != null ? String(job.quote_amount) : ''} ariaLabel="quote" emptyLabel="Add a quote" onSave={(v) => saveField('quote_amount', v)} /></dd></div>
+                      </dl>
+                    </section>
 
                     {/* contacts plan Slice 6 — realtors, lenders and anyone else linked to the job. */}
-                    <div className="job-detail__section">
-                      <div className="jh__section-head">
-                        <h3>Contacts ({contactLinks.length})</h3>
-                        <button type="button" className="jh__btn" onClick={() => setShowLinkContactDialog(true)}>+ Link a contact</button>
+                    <section id="ji-contacts" className="ji__card">
+                      <div className="ji__card-head">
+                        <h3 className="ji__card-title"><Users size={16} aria-hidden /> Contacts <span className="ji__count">{contactLinks.length}</span></h3>
+                        <button type="button" className="jh__btn" onClick={() => setShowLinkContactDialog(true)}><Plus size={14} aria-hidden /> Link a contact</button>
                       </div>
                       {contactLinks.length === 0 ? (
-                        <p className="jh__muted">No contacts linked yet. Link a realtor, lender, or anyone else involved in this job.</p>
+                        <p className="ji__empty">No contacts linked yet. Link a realtor, lender, or anyone else involved in this job.</p>
                       ) : (
                         <ul className="jh__contacts">
                           {contactLinks.map((link) => (
@@ -821,7 +852,7 @@ export default function JobDetailPage() {
                                   </span>
                                 )}
                                 {telHref(link.contacts?.phone) && (
-                                  <a href={telHref(link.contacts?.phone)} className="btn tiny" title={`Call ${link.contacts?.name ?? 'this contact'}`} style={{ marginLeft: 8, textDecoration: 'none' }}>📞 {link.contacts?.phone}</a>
+                                  <a href={telHref(link.contacts?.phone)} className="ji__call" title={`Call ${link.contacts?.name ?? 'this contact'}`}><Phone size={13} aria-hidden /> {link.contacts?.phone}</a>
                                 )}
                               </div>
                               <button
@@ -843,95 +874,173 @@ export default function JobDetailPage() {
                           ))}
                         </ul>
                       )}
-                    </div>
+                    </section>
 
-                    <JobChecklist items={checklists} stage={job.stage} onToggle={toggleChecklist} onLoadTemplate={loadChecklistTemplate} />
-                  </div>
-
-                  <div className="job-detail__overview-side">
-                    <JobTeamPanel team={job.team} onAdd={addTeamMember} onRemove={removeTeamMember} onChangeRole={changeTeamRole} editable={true} />
-                    <JobEquipmentList equipment={job.equipment} onAdd={addEquipment} onReturn={returnEquipment} editable={true} />
-                    {job.tags.length > 0 && (
-                      <div className="job-detail__section">
-                        <h3>Tags</h3>
-                        <div className="job-detail__tags">{job.tags.map((tag) => <span key={tag} className="job-card__tag">{tag}</span>)}</div>
+                    <section id="ji-notes" className="ji__card">
+                      <h3 className="ji__card-title"><StickyNote size={16} aria-hidden /> Notes</h3>
+                      <div className="ji__notes">
+                        <InlineEditField value={job.notes} type="textarea" ariaLabel="notes" emptyLabel="Add notes…" onSave={(v) => saveField('notes', v)} />
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </section>
 
-                {/* Rarely needed, so at the foot of the page rather than in the header. */}
-                <div className="jh__footer-actions">
-                  <button
-                    type="button"
-                    className="jh__btn"
-                    onClick={() => exportJobPdf({
-                      ...job,
-                      counts: { files: job.file_count, photos: tabCountsLoaded.photos, drawings: tabCountsLoaded.cad, research: research.length || undefined, hours: job.total_hours },
-                    })}
-                    title="Download a one-page job summary PDF"
-                  >
-                    <Download size={14} aria-hidden /> Export PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteJob()}
-                    disabled={deletingJob}
-                    title="Delete this job (recoverable for 30 days)"
-                    className="jh__btn jh__btn--danger"
-                  >
-                    <Trash2 size={14} aria-hidden /> {deletingJob ? 'Deleting…' : 'Delete job'}
-                  </button>
+                    <section id="ji-checklist" className="ji__slot">
+                      <JobChecklist items={checklists} stage={job.stage} onToggle={toggleChecklist} onLoadTemplate={loadChecklistTemplate} />
+                    </section>
+                  </div>
+
+                  <aside className="ji__side">
+                    <section id="ji-team" className="ji__slot">
+                      <JobTeamPanel team={job.team} onAdd={addTeamMember} onRemove={removeTeamMember} onChangeRole={changeTeamRole} editable={true} />
+                    </section>
+                    <section id="ji-equipment" className="ji__slot">
+                      <JobEquipmentList equipment={job.equipment} onAdd={addEquipment} onReturn={returnEquipment} editable={true} />
+                    </section>
+                    {job.tags.length > 0 && (
+                      <section className="ji__card">
+                        <h3 className="ji__card-title"><Tag size={16} aria-hidden /> Tags</h3>
+                        <div className="job-detail__tags">{job.tags.map((tag) => <span key={tag} className="job-card__tag">{tag}</span>)}</div>
+                      </section>
+                    )}
+                    {/* Rarely needed, so last and quiet. */}
+                    <section className="ji__card ji__card--quiet">
+                      <h3 className="ji__card-title">More actions</h3>
+                      <div className="ji__actions">
+                        <button
+                          type="button"
+                          className="jh__btn"
+                          onClick={() => exportJobPdf({
+                            ...job,
+                            counts: { files: job.file_count, photos: tabCountsLoaded.photos, drawings: tabCountsLoaded.cad, research: research.length || undefined, hours: job.total_hours },
+                          })}
+                          title="Download a one-page job summary PDF"
+                        >
+                          <Download size={14} aria-hidden /> Export PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteJob()}
+                          disabled={deletingJob}
+                          title="Delete this job (recoverable for 30 days)"
+                          className="jh__btn jh__btn--danger"
+                        >
+                          <Trash2 size={14} aria-hidden /> {deletingJob ? 'Deleting…' : 'Delete job'}
+                        </button>
+                      </div>
+                    </section>
+                  </aside>
                 </div>
               </div>
             )}
 
             {view === 'status' && (
-              <div className="jh__stack">
-                <section className="jh__card" data-testid="job-status">
-                  <h3 className="jh__card-title">Current status</h3>
-                  <div className="jh__status-row">
-                    <span className="jh__stage" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
-                      {stageInfo.icon} {stageInfo.label}
-                    </span>
-                    <label className="jh__stage-pick">
-                      <span>Change to</span>
-                      <select value={job.stage} onChange={(e) => void advanceStage(e.target.value)} data-testid="job-stage-select">
-                        {Object.entries(STAGE_CONFIG).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
-                      </select>
-                    </label>
-                    <JobResultControl
-                      jobId={job.id}
-                      currentResult={job.result ?? null}
-                      currentReason={job.result_reason ?? null}
-                      onUpdate={(r, reason) => setJob((cur) => cur ? { ...cur, result: r, result_reason: reason } : cur)}
-                    />
+              /* ── JOB STATUS (owner, 2026-11-11: "more appealing and easier to navigate") ──
+                 Where the job is, as a row of steps you can click to move it; how long it has been
+                 there; the numbers; then its history — the status changes as a timeline beside
+                 everything else that has happened on the job. */
+              <div className="jst" data-testid="job-status">
+                <section className="jst__hero">
+                  <div className="jst__hero-top">
+                    <div className="jst__now">
+                      <span className="jst__eyebrow">Current status</span>
+                      <span className="jst__stage" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
+                        <span aria-hidden>{stageInfo.icon}</span> {stageInfo.label}
+                      </span>
+                      {stageSince && <span className="jh__sub">since {formatDate(stageSince)} · {daysSince(stageSince)}</span>}
+                    </div>
+                    <div className="jst__hero-actions">
+                      <JobResultControl
+                        jobId={job.id}
+                        currentResult={job.result ?? null}
+                        currentReason={job.result_reason ?? null}
+                        onUpdate={(r, reason) => setJob((cur) => cur ? { ...cur, result: r, result_reason: reason } : cur)}
+                      />
+                    </div>
                   </div>
-                  <dl className="jh__minifacts">
-                    <div><dt>Team</dt><dd>{job.team.length}</dd></div>
-                    <div><dt>Files</dt><dd>{job.file_count}</dd></div>
-                    <div><dt>Hours logged</dt><dd>{job.total_hours}h</dd></div>
-                    <div><dt>Opened</dt><dd>{formatDate(job.created_at)}</dd></div>
-                  </dl>
-                  {stageHistory.length > 0 && (
-                    <details className="jh__stages">
-                      <summary>Status changes ({stageHistory.length})</summary>
-                      <ol>
-                        {stageHistory.map((h, i) => (
-                          <li key={i}>
-                            <strong>{STAGE_CONFIG[h.to_stage]?.label ?? h.to_stage}</strong>
-                            {h.from_stage && <span className="jh__sub"> from {STAGE_CONFIG[h.from_stage]?.label ?? h.from_stage}</span>}
-                            <span className="jh__sub"> · {new Date(h.created_at).toLocaleString()} · {h.changed_by}</span>
-                            {h.notes && <span className="jh__sub"> — {h.notes}</span>}
-                          </li>
-                        ))}
-                      </ol>
-                    </details>
-                  )}
+
+                  {/* The pipeline. A step behind is done (✓), the current one is lit; click any to move the job. */}
+                  <ol className="jst__steps" aria-label="Stages — click one to move the job there">
+                    {PIPELINE.map((k, i) => {
+                      const cfg = STAGE_CONFIG[k];
+                      const at = PIPELINE.indexOf(job.stage);
+                      const state = at < 0 ? 'next' : i < at ? 'done' : i === at ? 'now' : 'next';
+                      return (
+                        <li key={k} className={`jst__step jst__step--${state}`}>
+                          <button
+                            type="button"
+                            onClick={() => { if (k !== job.stage) void advanceStage(k); }}
+                            aria-current={state === 'now' ? 'step' : undefined}
+                            title={state === 'now' ? `${cfg.label} — the current stage` : `Move the job to ${cfg.label}`}
+                            data-testid={`job-stage-step-${k}`}
+                          >
+                            <span className="jst__step-dot" style={state === 'now' ? { background: cfg.color } : undefined}>
+                              {state === 'done' ? <Check size={13} aria-hidden /> : i + 1}
+                            </span>
+                            <span className="jst__step-label">{cfg.label}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+
+                  <div className="jst__aside">
+                    {job.stage === 'on_hold' || job.stage === 'cancelled' ? (
+                      <button type="button" className="jh__btn" onClick={() => void advanceStage(resumeStage)} data-testid="job-stage-resume">
+                        <Play size={14} aria-hidden /> Resume at {STAGE_CONFIG[resumeStage]?.label ?? 'Quote'}
+                      </button>
+                    ) : (
+                      <>
+                        <button type="button" className="jh__btn jh__btn--quiet" onClick={() => void advanceStage('on_hold')} data-testid="job-stage-hold">
+                          <Pause size={14} aria-hidden /> Put on hold
+                        </button>
+                        <button type="button" className="jh__btn jh__btn--quiet jh__btn--danger" onClick={() => { if (window.confirm('Mark this job as cancelled?')) void advanceStage('cancelled'); }} data-testid="job-stage-cancel">
+                          <XCircle size={14} aria-hidden /> Cancel job
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </section>
-                {/* Everything that has happened on the job — uploads, renames, payments, edits —
-                    newest first. */}
-                <JobActivityFeed jobId={jobId} />
+
+                <dl className="jst__stats">
+                  <div><dt>Open for</dt><dd>{daysSince(job.created_at)}</dd></div>
+                  <div><dt>Team</dt><dd>{job.team.length}</dd></div>
+                  <div><dt>Files</dt><dd>{job.file_count}</dd></div>
+                  <div><dt>Hours logged</dt><dd>{job.total_hours}h</dd></div>
+                </dl>
+
+                <div className="jst__cols">
+                  <section className="ji__card">
+                    <h3 className="ji__card-title"><GitCommitVertical size={16} aria-hidden /> Status timeline</h3>
+                    <ol className="jst__timeline">
+                      {stagesNewestFirst.map((h, i) => {
+                        const cfg = STAGE_CONFIG[h.to_stage];
+                        return (
+                          <li key={i} className="jst__tl-item">
+                            <span className="jst__tl-dot" style={{ background: cfg?.color ?? 'var(--theme-fg-muted, #94A3B8)' }} aria-hidden />
+                            <div className="jst__tl-body">
+                              <strong>{cfg?.label ?? h.to_stage}</strong>
+                              {h.from_stage && <span className="jh__sub"> from {STAGE_CONFIG[h.from_stage]?.label ?? h.from_stage}</span>}
+                              <span className="jst__tl-meta">{new Date(h.created_at).toLocaleString()}{h.changed_by ? ` · ${h.changed_by}` : ''}</span>
+                              {h.notes && <span className="jst__tl-note">{h.notes}</span>}
+                            </div>
+                          </li>
+                        );
+                      })}
+                      <li className="jst__tl-item">
+                        <span className="jst__tl-dot jst__tl-dot--start" aria-hidden />
+                        <div className="jst__tl-body">
+                          <strong>Job opened</strong>
+                          <span className="jst__tl-meta">{new Date(job.created_at).toLocaleString()}</span>
+                        </div>
+                      </li>
+                    </ol>
+                  </section>
+
+                  {/* Everything that has happened on the job — uploads, renames, payments, edits — newest first. */}
+                  <section className="ji__card">
+                    <h3 className="ji__card-title"><Activity size={16} aria-hidden /> Everything that&apos;s happened</h3>
+                    <JobActivityFeed jobId={jobId} />
+                  </section>
+                </div>
               </div>
             )}
 

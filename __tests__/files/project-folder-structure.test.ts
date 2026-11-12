@@ -264,11 +264,11 @@ describe('the job page: a hub of widgets', () => {
   const src = read(JOBPAGE);
   const code = stripJs(src);
 
-  it('job home offers Research, Interactive map, Documents, Photos & videos, Files, Job info, Job status, Financial', () => {
+  it('job home offers six: Research, Interactive map, Files, Job info, Job status, Financial (owner, 2026-11-11)', () => {
     const at = code.indexOf('const WIDGETS: Widget[] = [');
     const block = code.slice(at, code.indexOf('];', at));
     const keys = [...block.matchAll(/\{ key: '([a-z]+)', label: '/g)].map((m) => m[1]);
-    expect(keys).toEqual(['research', 'map', 'documents', 'media', 'files', 'info', 'status', 'financial']);
+    expect(keys).toEqual(['research', 'map', 'files', 'info', 'status', 'financial']);
   });
 
   it("mounts the explorer on the job's own mount and reads the badge from it", () => {
@@ -276,9 +276,10 @@ describe('the job page: a hub of widgets', () => {
     expect(code).toContain('onTotalChange={setFilesTotal}');
   });
 
-  it('Photos & videos is the explorer in its media layout; Documents opens the Documents folder', () => {
-    expect(code).toMatch(/<FolderExplorer rootId=\{`mnt:jobs:\$\{jobId\}`\} title="Photos & videos" layout="media"/);
-    expect(code).toContain('initialFolder="documents"');
+  it('Documents and Photos & videos are folded into Files — no separate widgets', () => {
+    expect(code).not.toContain('layout="media"');
+    expect(code).not.toContain("view === 'documents'");
+    expect(code).not.toContain("view === 'media'");
   });
 
   it('the research records live under Research; New Drawing under CAD', () => {
@@ -290,7 +291,8 @@ describe('the job page: a hub of widgets', () => {
   });
 
   it('the old tab keys still land somewhere', () => {
-    expect(code).toContain("case 'photos': case 'videos': return { view: 'media' };");
+    expect(code).toContain("case 'photos': case 'media': return { view: 'files', folder: 'photos' };");
+    expect(code).toContain("case 'documents': return { view: 'files', folder: 'documents' };");
     expect(code).toContain("case 'cad': return { view: 'files', folder: 'cad' };");
     expect(code).toContain("case 'overview': case 'propertymap': return { view: 'home' };");
   });
