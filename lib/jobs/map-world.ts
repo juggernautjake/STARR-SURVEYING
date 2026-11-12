@@ -53,6 +53,20 @@ export const DEFAULT_ZOOM = 10;
 /** Close enough to read a fence line, which is what somebody arriving from a job wants to see. */
 export const JOB_ZOOM = 18;
 
+/** The map's own ceiling (MAP_OPTIONS.maxZoom). */
+export const MAP_MAX_ZOOM = 22;
+/** Used when Google cannot say how far in its imagery goes at a place — close, and nearly always covered. */
+export const ADDRESS_FALLBACK_ZOOM = 20;
+
+/** How far in "zoom to the job's address" goes (owner, 2026-11-11: "zoom to it at the lowest viewing
+ *  level possible"): as far as Google has satellite imagery at that spot, never past the map's own
+ *  ceiling, and never less than a fence-line view. Past the imagery is a grey "no imagery" tile, so
+ *  the deepest zoom that still has a picture IS the lowest level possible. */
+export function addressZoom(maxImageryZoom: number | null | undefined): number {
+  if (typeof maxImageryZoom !== 'number' || !Number.isFinite(maxImageryZoom)) return ADDRESS_FALLBACK_ZOOM;
+  return Math.max(JOB_ZOOM, Math.min(MAP_MAX_ZOOM, Math.floor(maxImageryZoom)));
+}
+
 export function isLatLng(v: unknown): v is LatLng {
   const p = v as { lat?: unknown; lng?: unknown } | null;
   if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;

@@ -52,7 +52,7 @@ import {
 import {
   clusterPoints, shouldLoadPoints, zoomHint, padBounds, boundsOf, padPoint, isLatLng, parseLatLng,
   pinHighlight, layerRowLit, roundLatLng,
-  DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM, clusterByJob, matchesJobSearch,
+  DEFAULT_CENTER, DEFAULT_ZOOM, JOB_ZOOM, MAP_MAX_ZOOM, addressZoom, clusterByJob, matchesJobSearch,
   type Bounds, type LatLng,
 } from '@/lib/jobs/map-world';
 import { POINT_GEOMETRIES, type GeometryId } from '@/lib/jobs/property-map-shapes';
@@ -88,7 +88,7 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   rotateControl: false,
   clickableIcons: false,
   gestureHandling: 'greedy',
-  maxZoom: 22,
+  maxZoom: MAP_MAX_ZOOM,
   mapId: 'DEMO_MAP_ID',
 };
 
@@ -1506,6 +1506,62 @@ export default function GlobalPropertyMapPage() {
     }
   }, [flyTo, addToast]);
 
+  // ── PIN THE JOB'S ADDRESS (owner, 2026-11-11) ─────────────────────────────────────────────────
+  // "whatever address is being used for the job we are viewing the interactive map for, we can pin
+  // that location and zoom to it at the lowest viewing level possible."
+  // The job's stored coordinates when it has them (a surveyed fact), else Google's geocode of its
+  // address. A red pin goes there and the camera goes as deep as Google has imagery for that spot.
+  // The pin is only on screen — nothing is written to the job.
+  const addressPinRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const [pinningAddress, setPinningAddress] = useState(false);
+  useEffect(() => () => { if (addressPinRef.current) { addressPinRef.current.map = null; addressPinRef.current = null; } }, [job?.jobId]);
+
+  const pinJobAddress = useCallback(async () => {
+    if (!map || !job || typeof google === 'undefined') return;
+    const line = addressLine(job);
+    setPinningAddress(true);
+    try {
+      let at: LatLng | null = job.lat !== null && job.lng !== null ? { lat: job.lat, lng: job.lng } : null;
+      if (!at && line && google.maps?.Geocoder) {
+        const res = await new google.maps.Geocoder().geocode({ address: line, componentRestrictions: { country: 'us' } });
+        const loc = res.results?.[0]?.geometry?.location;
+        if (loc) at = { lat: loc.lat(), lng: loc.lng() };
+      }
+      if (!at) {
+        addToast(line ? 'Google could not find that address.' : 'This job has no address yet — add one on the job page.', 'info', 3200);
+        return;
+      }
+
+      // How deep the imagery goes here. Asked, not assumed: rural Texas often stops at 19-20, and
+      // zooming past that shows grey "no imagery" squares instead of the property.
+      let deepest: number | null = null;
+      try {
+        if (google.maps?.MaxZoomService) {
+          const r = await new google.maps.MaxZoomService().getMaxZoomAtLatLng(at);
+          deepest = typeof r?.zoom === 'number' ? r.zoom : null;
+        }
+      } catch { /* fall back to a safe close zoom */ }
+
+      const title = [job.jobNumber, line || job.name].filter(Boolean).join(' — ') || 'Job address';
+      if (!addressPinRef.current) {
+        let content: HTMLElement | undefined;
+        try {
+          content = new google.maps.marker.PinElement({ background: '#DC2626', borderColor: '#7F1D1D', glyphColor: '#FFFFFF', scale: 1.25 }).element;
+        } catch { content = undefined; }
+        addressPinRef.current = new google.maps.marker.AdvancedMarkerElement({ map, position: at, title, content, zIndex: 9999 });
+      } else {
+        addressPinRef.current.position = at;
+        addressPinRef.current.title = title;
+        addressPinRef.current.map = map;
+      }
+      flyTo(at, addressZoom(deepest));
+    } catch {
+      addToast('That address could not be found.', 'info', 2600);
+    } finally {
+      setPinningAddress(false);
+    }
+  }, [map, job, flyTo, addToast]);
+
   // ── address search ────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!map || !searchRef.current || typeof google === 'undefined' || !google.maps?.places) return;
@@ -1883,6 +1939,17 @@ export default function GlobalPropertyMapPage() {
 
         {workMode && (
           <>
+            <button
+              className="gmap__btn"
+              type="button"
+              onClick={() => void pinJobAddress()}
+              disabled={pinningAddress || !job || (job.lat === null && !addressLine(job))}
+              title={job && (job.lat !== null || addressLine(job)) ? `Pin ${addressLine(job) || 'the job’s location'} and zoom all the way in` : 'This job has no address yet'}
+              data-testid="gmap-job-address"
+            >
+              {pinningAddress ? <Loader2 size={13} className="motion-essential gmap__spin" aria-hidden /> : <MapPin size={13} aria-hidden />} Job address
+            </button>
+
             <button className={`gmap__btn${filesOpen ? ' gmap__btn--on' : ''}`} type="button" aria-pressed={filesOpen} data-testid="gmap-files-toggle" onClick={() => setFilesOpen((c) => !c)}>
               <Folder size={13} aria-hidden /> Files
               <span className="gmap__count">{library.length} · {unplacedCount} unplaced</span>
