@@ -133,20 +133,30 @@ describe('the map page arrives where the job is', () => {
   it('falls back to geocoding the job address when there are no coordinates', () => {
     expect(page, 'the fallback exists at all').toContain('const line = addressLine(job);');
     expect(page).toContain("new google.maps.Geocoder().geocode({ address: line");
-    // Order matters: points frame the parcel, stored coordinates beat a guess, and the address is
-    // the last resort rather than the first thing tried.
-    const atPoints = page.indexOf('map.fitBounds(new google.maps.LatLngBounds');
-    const atStored = page.indexOf('if (job.lat !== null && job.lng !== null) { go({ lat: job.lat, lng: job.lng }); return; }');
-    const atAddress = page.indexOf('const line = addressLine(job);');
-    expect(atPoints).toBeGreaterThan(-1);
-    expect(atStored).toBeGreaterThan(atPoints);
+    // Order (owner, 2026-11-11: "centered on the job location"): stored coordinates first, then the
+    // geocoded address, and framing the drawn points only when neither places the job.
+    const fly = page.slice(page.indexOf('const flownToRef'), page.indexOf('const fetchWorld'));
+    const atStored = fly.indexOf('if (job.lat !== null && job.lng !== null) { go({ lat: job.lat, lng: job.lng });');
+    const atAddress = fly.indexOf('const line = addressLine(job);');
+    expect(atStored).toBeGreaterThan(-1);
     expect(atAddress).toBeGreaterThan(atStored);
+    expect(fly, 'points are the fallback').toContain('if (!at) { framePoints(); return; }');
+    expect(fly).toContain('{ framePoints(); return; }');
   });
 
   it('does not yank the camera if the geocode lands late', () => {
     // It resolves after a network round trip. By then somebody may have panned somewhere else or
     // opened another job, and moving the map under them is worse than not moving it at all.
-    expect(page).toContain('if (!live || !at) return;');
+    expect(page).toContain('if (!live) return;');
+  });
+
+  it('marks the job with its red pin where it arrived, and has a Centre on job button', () => {
+    expect(page).toContain('setJobAddressAt({ lat: at.lat(), lng: at.lng() });');
+    expect(page).toContain('data-testid="gmap-centre-job"');
+    expect(page).toContain('onClick={() => void centreOnJob()}');
+    const centre = page.slice(page.indexOf('const centreOnJob = useCallback'), page.indexOf('// ── address search'));
+    expect(centre).toContain('await findJobSpot()');
+    expect(centre).toContain('flyTo(at, Math.max(map.getZoom() ?? 0, JOB_ZOOM))');
   });
 
   it('never writes the guess back onto the job', () => {

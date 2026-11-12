@@ -35,7 +35,7 @@ import { useSearchParams } from 'next/navigation';
 import { useBackTarget } from '@/lib/admin/back-target';
 import { GoogleMap, LoadScript } from '@react-google-maps/api';
 import {
-  ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, MapPin, Pencil,
+  ChevronDown, ChevronLeft, ChevronUp, Eye, EyeOff, Folder, Layers, Loader2, LocateFixed, MapPin, Pencil,
   Plus, Search, Tag, Target, Trash2, Upload, X, ZoomIn,
 } from 'lucide-react';
 import { usePageError } from '@/app/admin/hooks/usePageError';
@@ -375,6 +375,10 @@ export default function GlobalPropertyMapPage() {
    * Separate from the load so that a map which never initialises cannot stop a job from opening —
    * and so that arriving before Google is ready still flies, the moment it is.
    */
+  /** The open job's address on the map, once known — the job row's own coordinates, or a lookup. */
+  const [jobAddressAt, setJobAddressAt] = useState<LatLng | null>(null);
+  useEffect(() => { setJobAddressAt(null); }, [job?.jobId]);
+
   const flownToRef = useRef<string | null>(null);
   useEffect(() => {
     if (!map || !job || !jobParam) return;
@@ -389,16 +393,20 @@ export default function GlobalPropertyMapPage() {
       else { map.setCenter(at); map.setZoom(JOB_ZOOM); }
     };
 
-    // Frame the points if there are any — the property, not the mailing address.
+    // ── CENTRED ON THE JOB (owner, 2026-11-11) ──────────────────────────────────────────────────
+    // "if we open it in a job, the focus of the camera should already be centered on the job
+    // location." The job's own spot comes first now — its stored coordinates, else its geocoded
+    // address — and the camera sits squarely on it. Framing the drawn points is only the fallback
+    // for a job with no location at all; before, any points won and the job could open off-centre.
     const placed = points.filter((p) => isLatLng({ lat: p.lat as number, lng: p.lng as number }));
-    const b = placed.length
-      ? boundsOf(placed.map((p) => ({ lat: p.lat as number, lng: p.lng as number })))
-      : null;
-    if (b) {
+    const framePoints = () => {
+      const b = placed.length
+        ? boundsOf(placed.map((p) => ({ lat: p.lat as number, lng: p.lng as number })))
+        : null;
+      if (!b) return;
       map.fitBounds(new google.maps.LatLngBounds({ lat: b.south, lng: b.west }, { lat: b.north, lng: b.east }), 80);
-      return;
-    }
-    if (job.lat !== null && job.lng !== null) { go({ lat: job.lat, lng: job.lng }); return; }
+    };
+    if (job.lat !== null && job.lng !== null) { go({ lat: job.lat, lng: job.lng }); setJobAddressAt({ lat: job.lat, lng: job.lng }); return; }
 
     // ── AN ADDRESS IS A LOCATION TOO (owner, 2026-09-19) ────────────────────────────────────────
     //
@@ -419,7 +427,7 @@ export default function GlobalPropertyMapPage() {
     // the first to the second during a page load is how a guess becomes a record nobody remembers
     // making. The Property panel's lookup does the same geocode with a person looking at the result.
     const line = addressLine(job);
-    if (!line || typeof google === 'undefined' || !google.maps?.Geocoder) return;
+    if (!line || typeof google === 'undefined' || !google.maps?.Geocoder) { framePoints(); return; }
     let live = true;
     void (async () => {
       try {
@@ -428,11 +436,14 @@ export default function GlobalPropertyMapPage() {
         // `live` matters here in a way it does not for the job fetch: this one MOVES THE CAMERA.
         // Arriving late, after somebody has already panned somewhere else or opened another job,
         // it would yank the view out from under them.
-        if (!live || !at) return;
+        if (!live) return;
+        if (!at) { framePoints(); return; }
         go({ lat: at.lat(), lng: at.lng() });
+        setJobAddressAt({ lat: at.lat(), lng: at.lng() });
       } catch {
-        // Google could not place it. The job opens where it is; the address is in the search box for
-        // anybody who wants to try it by hand, and a toast about it would be the third one on load.
+        // Google could not place it. Frame the drawn points if there are any; otherwise the job opens
+        // where it is, with the address in the search box for anybody who wants to try it by hand.
+        if (live) framePoints();
       }
     })();
     return () => { live = false; };
@@ -1548,51 +1559,76 @@ export default function GlobalPropertyMapPage() {
     flyTo(at, addressZoom(deepest));
   }, [flyTo]);
 
-  /** The open job's address on the map, once known — the job row's own coordinates, or a lookup. */
-  const [jobAddressAt, setJobAddressAt] = useState<LatLng | null>(null);
-  useEffect(() => { setJobAddressAt(null); }, [job?.jobId]);
   const listedJobAt = useMemo(() => {
     const j = job ? jobs.find((x) => x.jobId === job.jobId) : undefined;
     return j && j.lat !== null && j.lng !== null ? { lat: j.lat, lng: j.lng } : null;
   }, [job, jobs]);
   const currentJobAt = jobAddressAt ?? listedJobAt;
 
+  /** Where the open job is: stored, else the server's Google + AI lookup, else a browser geocode. */
+  const findJobSpot = useCallback(async (): Promise<LatLng | null> => {
+    if (!job) return null;
+    let at: LatLng | null = currentJobAt;
+    if (!at) {
+      try {
+        const r = await fetch('/api/admin/map/locate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId }) });
+        const body = r.ok ? await r.json() as { located?: { lat: number; lng: number; source?: string; formatted?: string } | null; reason?: string } : null;
+        if (body?.located) {
+          at = { lat: body.located.lat, lng: body.located.lng };
+          if (body.located.source === 'ai') addToast(`Found it as ${body.located.formatted ?? 'an address the AI worked out'}.`, 'success', 3200);
+        }
+      } catch { /* fall through to the browser's own geocode */ }
+    }
+    const line = addressLine(job);
+    if (!at && line && typeof google !== 'undefined' && google.maps?.Geocoder) {
+      const res = await new google.maps.Geocoder().geocode({ address: line, componentRestrictions: { country: 'us' } });
+      const loc = res.results?.[0]?.geometry?.location;
+      if (loc) at = { lat: loc.lat(), lng: loc.lng() };
+    }
+    if (at) setJobAddressAt(at);
+    return at;
+  }, [job, currentJobAt, addToast]);
+
   const [pinningAddress, setPinningAddress] = useState(false);
-  /** "Job address": find the open job's address (stored, else the server's Google + AI lookup, else a
-   *  browser geocode), put its pin there, and zoom all the way in. */
+  /** "Job address": find the open job's spot, put its pin there, and zoom all the way in. */
   const pinJobAddress = useCallback(async () => {
     if (!map || !job) return;
     setPinningAddress(true);
     try {
-      let at: LatLng | null = currentJobAt;
-      if (!at) {
-        try {
-          const r = await fetch('/api/admin/map/locate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId }) });
-          const body = r.ok ? await r.json() as { located?: { lat: number; lng: number; source?: string; formatted?: string } | null; reason?: string } : null;
-          if (body?.located) {
-            at = { lat: body.located.lat, lng: body.located.lng };
-            if (body.located.source === 'ai') addToast(`Found it as ${body.located.formatted ?? 'an address the AI worked out'}.`, 'success', 3200);
-          }
-        } catch { /* fall through to the browser's own geocode */ }
-      }
-      const line = addressLine(job);
-      if (!at && line && typeof google !== 'undefined' && google.maps?.Geocoder) {
-        const res = await new google.maps.Geocoder().geocode({ address: line, componentRestrictions: { country: 'us' } });
-        const loc = res.results?.[0]?.geometry?.location;
-        if (loc) at = { lat: loc.lat(), lng: loc.lng() };
-      }
+      const at = await findJobSpot();
       if (!at) {
         addToast('Could not work out where this job is. Add its address on the job page.', 'info', 3600);
         return;
       }
-      setJobAddressAt(at);
       await zoomAllTheWayTo(at);
     } catch {
       addToast('That address could not be found.', 'info', 2600);
     } finally {
       setPinningAddress(false);
     }
-  }, [map, job, currentJobAt, zoomAllTheWayTo, addToast]);
+  }, [map, job, findJobSpot, zoomAllTheWayTo, addToast]);
+
+  // ── CENTRE ON THE JOB (owner, 2026-11-11) ──
+  // "we need a button that will automatically center it as well." Puts the job back in the middle of
+  // the view after panning away. Keeps a closer zoom if you are already in tight; otherwise the same
+  // property-level view the map opens at.
+  const [centring, setCentring] = useState(false);
+  const centreOnJob = useCallback(async () => {
+    if (!map || !job) return;
+    setCentring(true);
+    try {
+      const at = await findJobSpot();
+      if (!at) {
+        addToast('Could not work out where this job is. Add its address on the job page.', 'info', 3600);
+        return;
+      }
+      flyTo(at, Math.max(map.getZoom() ?? 0, JOB_ZOOM));
+    } catch {
+      addToast('That address could not be found.', 'info', 2600);
+    } finally {
+      setCentring(false);
+    }
+  }, [map, job, findJobSpot, flyTo, addToast]);
 
   /** The dots themselves. Redrawn when the list or the open job changes; a few hundred markers. */
   const jobDotsRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -1999,6 +2035,17 @@ export default function GlobalPropertyMapPage() {
 
         {workMode && (
           <>
+            <button
+              className="gmap__btn"
+              type="button"
+              onClick={() => void centreOnJob()}
+              disabled={centring || !job || (job.lat === null && !addressLine(job) && !currentJobAt)}
+              title="Put this job back in the middle of the map"
+              data-testid="gmap-centre-job"
+            >
+              {centring ? <Loader2 size={13} className="motion-essential gmap__spin" aria-hidden /> : <LocateFixed size={13} aria-hidden />} Centre on job
+            </button>
+
             <button
               className="gmap__btn"
               type="button"
