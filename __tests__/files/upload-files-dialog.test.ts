@@ -436,11 +436,8 @@ describe('the callers open it', () => {
     const code = stripJs(src);
     expect(code).not.toContain('data-testid="job-upload-files"');
     expect(code).not.toContain('<UploadFilesDialog');
-    // Documents and Research keep their explorer, without the Upload button.
-    expect(code).toMatch(/initialFolder="documents" uploads=\{false\}/);
+    // Research keeps its explorer, without the Upload button; Files keeps it (the default).
     expect(code).toMatch(/initialFolder="research"\s+uploads=\{false\}/);
-    // Files and Photos & videos keep it (the explorer's default).
-    expect(code).toMatch(/layout="media" \/>/);
     const fe = read('app/admin/components/files/FolderExplorer.tsx');
     expect(fe).toContain("uploads = true }: FolderExplorerProps)");
     expect(fe).toContain('const canUpload = uploadRoot && uploads;');
