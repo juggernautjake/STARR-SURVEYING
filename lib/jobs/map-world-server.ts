@@ -211,7 +211,7 @@ export async function loadJobPlace(jobId: string): Promise<JobPlace | null> {
 }
 
 /** Every job that has somewhere to be — the map's job picker, and its "jobs near here" index. */
-export async function loadPlacedJobs(limit = 500): Promise<JobPlace[]> {
+export async function loadPlacedJobs(limit = 3000): Promise<JobPlace[]> {
   const { data } = await supabaseAdmin
     .from('jobs')
     .select('id, job_number, name, address, city, county, latitude, longitude')
