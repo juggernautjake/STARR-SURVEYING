@@ -3917,3 +3917,27 @@ svg.pmap__shapes--inert * { pointer-events: none; }
   /* The glow is a state, not an animation, so it stays — there is nothing here to slow down. */
   .gmap__marker--hot { z-index: 30; }
 }
+
+/* ── Every job on the map (owner, 2026-11-11) ────────────────────────────────────────────────────
+ * "pins on the map, or dots or something, that show the location of the addresses of all jobs we
+ * have done, but the job that we are currently viewing … should be larger and a different color."
+ * A small navy dot per job; the open job a larger red pin with a white ring. Double-click zooms. */
+.gmap__jobdot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-brand-navy, #1D3095);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.gmap__jobdot:hover { transform: scale(1.35); }
+.gmap__jobdot--open {
+  width: 26px;
+  height: 26px;
+  background: var(--color-error, #DC2626);
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.gmap__jobdot--open:hover { transform: scale(1.15); }

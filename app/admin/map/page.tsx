@@ -285,6 +285,29 @@ export default function GlobalPropertyMapPage() {
     void (async () => {
       const data = await safeFetch<{ jobs: JobPlace[] }>('/api/admin/map/points?jobs=1');
       if (alive && data?.jobs) setJobs(data.jobs);
+
+      // ── THE MAP FILLS IN OVER TIME (owner, 2026-11-11) ──
+      // "over time the map becomes more and more populated with the jobs we have done." Every visit
+      // quietly finds a place for a few more jobs that have none (their address through Google, or an
+      // address Claude works out from the record) and saves it on the job, so the next visit starts
+      // with them already on the map. A handful of calls per visit, never in the way of the page.
+      let skip = 0;
+      let found = 0;
+      for (let round = 0; round < 4 && alive; round++) {
+        let res: { located?: unknown[]; remaining?: number; skip?: number } | null = null;
+        try {
+          const r = await fetch('/api/admin/map/locate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skip }) });
+          res = r.ok ? await r.json() : null;
+        } catch { res = null; }
+        if (!res) break;
+        found += Array.isArray(res.located) ? res.located.length : 0;
+        skip = typeof res.skip === 'number' ? res.skip : skip;
+        if (!res.remaining) break;
+      }
+      if (alive && found > 0) {
+        const again = await safeFetch<{ jobs: JobPlace[] }>('/api/admin/map/points?jobs=1');
+        if (alive && again?.jobs) setJobs(again.jobs);
+      }
     })();
     return () => { alive = false; };
   }, [safeFetch]);
@@ -1506,61 +1529,98 @@ export default function GlobalPropertyMapPage() {
     }
   }, [flyTo, addToast]);
 
-  // ── PIN THE JOB'S ADDRESS (owner, 2026-11-11) ─────────────────────────────────────────────────
-  // "whatever address is being used for the job we are viewing the interactive map for, we can pin
-  // that location and zoom to it at the lowest viewing level possible."
-  // The job's stored coordinates when it has them (a surveyed fact), else Google's geocode of its
-  // address. A red pin goes there and the camera goes as deep as Google has imagery for that spot.
-  // The pin is only on screen — nothing is written to the job.
-  const addressPinRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [pinningAddress, setPinningAddress] = useState(false);
-  useEffect(() => () => { if (addressPinRef.current) { addressPinRef.current.map = null; addressPinRef.current = null; } }, [job?.jobId]);
+  // ── EVERY JOB ON THE MAP (owner, 2026-11-11) ──────────────────────────────────────────────────
+  // "it should show pins on the map, or dots or something, that show the location of the addresses of
+  // all jobs we have done, but the job that we are currently viewing the interactive map in should be
+  // larger and a different color. We should be able to double click that pin/dot and zoom to it."
+  // One small dot per located job; the job open here is a larger red pin. Double-click any of them to
+  // go as deep as Google has imagery for that spot (`addressZoom`). Hovering names the job.
 
+  /** As deep as the imagery goes at `at` — past it is grey "no imagery" tiles. */
+  const zoomAllTheWayTo = useCallback(async (at: LatLng) => {
+    let deepest: number | null = null;
+    try {
+      if (typeof google !== 'undefined' && google.maps?.MaxZoomService) {
+        const r = await new google.maps.MaxZoomService().getMaxZoomAtLatLng(at);
+        deepest = typeof r?.zoom === 'number' ? r.zoom : null;
+      }
+    } catch { /* fall back to a safe close zoom */ }
+    flyTo(at, addressZoom(deepest));
+  }, [flyTo]);
+
+  /** The open job's address on the map, once known — the job row's own coordinates, or a lookup. */
+  const [jobAddressAt, setJobAddressAt] = useState<LatLng | null>(null);
+  useEffect(() => { setJobAddressAt(null); }, [job?.jobId]);
+  const listedJobAt = useMemo(() => {
+    const j = job ? jobs.find((x) => x.jobId === job.jobId) : undefined;
+    return j && j.lat !== null && j.lng !== null ? { lat: j.lat, lng: j.lng } : null;
+  }, [job, jobs]);
+  const currentJobAt = jobAddressAt ?? listedJobAt;
+
+  const [pinningAddress, setPinningAddress] = useState(false);
+  /** "Job address": find the open job's address (stored, else the server's Google + AI lookup, else a
+   *  browser geocode), put its pin there, and zoom all the way in. */
   const pinJobAddress = useCallback(async () => {
-    if (!map || !job || typeof google === 'undefined') return;
-    const line = addressLine(job);
+    if (!map || !job) return;
     setPinningAddress(true);
     try {
-      let at: LatLng | null = job.lat !== null && job.lng !== null ? { lat: job.lat, lng: job.lng } : null;
-      if (!at && line && google.maps?.Geocoder) {
+      let at: LatLng | null = currentJobAt;
+      if (!at) {
+        try {
+          const r = await fetch('/api/admin/map/locate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId }) });
+          const body = r.ok ? await r.json() as { located?: { lat: number; lng: number; source?: string; formatted?: string } | null; reason?: string } : null;
+          if (body?.located) {
+            at = { lat: body.located.lat, lng: body.located.lng };
+            if (body.located.source === 'ai') addToast(`Found it as ${body.located.formatted ?? 'an address the AI worked out'}.`, 'success', 3200);
+          }
+        } catch { /* fall through to the browser's own geocode */ }
+      }
+      const line = addressLine(job);
+      if (!at && line && typeof google !== 'undefined' && google.maps?.Geocoder) {
         const res = await new google.maps.Geocoder().geocode({ address: line, componentRestrictions: { country: 'us' } });
         const loc = res.results?.[0]?.geometry?.location;
         if (loc) at = { lat: loc.lat(), lng: loc.lng() };
       }
       if (!at) {
-        addToast(line ? 'Google could not find that address.' : 'This job has no address yet — add one on the job page.', 'info', 3200);
+        addToast('Could not work out where this job is. Add its address on the job page.', 'info', 3600);
         return;
       }
-
-      // How deep the imagery goes here. Asked, not assumed: rural Texas often stops at 19-20, and
-      // zooming past that shows grey "no imagery" squares instead of the property.
-      let deepest: number | null = null;
-      try {
-        if (google.maps?.MaxZoomService) {
-          const r = await new google.maps.MaxZoomService().getMaxZoomAtLatLng(at);
-          deepest = typeof r?.zoom === 'number' ? r.zoom : null;
-        }
-      } catch { /* fall back to a safe close zoom */ }
-
-      const title = [job.jobNumber, line || job.name].filter(Boolean).join(' — ') || 'Job address';
-      if (!addressPinRef.current) {
-        let content: HTMLElement | undefined;
-        try {
-          content = new google.maps.marker.PinElement({ background: '#DC2626', borderColor: '#7F1D1D', glyphColor: '#FFFFFF', scale: 1.25 }).element;
-        } catch { content = undefined; }
-        addressPinRef.current = new google.maps.marker.AdvancedMarkerElement({ map, position: at, title, content, zIndex: 9999 });
-      } else {
-        addressPinRef.current.position = at;
-        addressPinRef.current.title = title;
-        addressPinRef.current.map = map;
-      }
-      flyTo(at, addressZoom(deepest));
+      setJobAddressAt(at);
+      await zoomAllTheWayTo(at);
     } catch {
       addToast('That address could not be found.', 'info', 2600);
     } finally {
       setPinningAddress(false);
     }
-  }, [map, job, flyTo, addToast]);
+  }, [map, job, currentJobAt, zoomAllTheWayTo, addToast]);
+
+  /** The dots themselves. Redrawn when the list or the open job changes; a few hundred markers. */
+  const jobDotsRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  useEffect(() => {
+    for (const m of jobDotsRef.current) m.map = null;
+    jobDotsRef.current = [];
+    if (!map || typeof google === 'undefined' || !google.maps?.marker?.AdvancedMarkerElement) return;
+
+    const openId = job?.jobId ?? null;
+    const entries: Array<{ id: string; at: LatLng; label: string; open: boolean }> = [];
+    for (const j of jobs) {
+      if (j.jobId === openId || j.lat === null || j.lng === null) continue;
+      entries.push({ id: j.jobId, at: { lat: j.lat, lng: j.lng }, label: [j.jobNumber, j.name].filter(Boolean).join(' · ') || 'Job', open: false });
+    }
+    if (job && currentJobAt) entries.push({ id: job.jobId, at: currentJobAt, label: [job.jobNumber, job.name].filter(Boolean).join(' · ') || 'This job', open: true });
+
+    for (const e of entries) {
+      const el = document.createElement('div');
+      el.className = e.open ? 'gmap__jobdot gmap__jobdot--open' : 'gmap__jobdot';
+      el.title = `${e.label}${e.open ? ' (this job)' : ''} — double-click to zoom in`;
+      el.setAttribute('data-testid', e.open ? 'gmap-jobdot-open' : 'gmap-jobdot');
+      // Double-click is ours, not the map's: stop it before Google's own double-click zoom sees it.
+      el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); ev.preventDefault(); void zoomAllTheWayTo(e.at); });
+      const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: e.at, content: el, title: el.title, zIndex: e.open ? 9999 : 1 });
+      jobDotsRef.current.push(marker);
+    }
+    return () => { for (const m of jobDotsRef.current) m.map = null; jobDotsRef.current = []; };
+  }, [map, jobs, job, currentJobAt, zoomAllTheWayTo]);
 
   // ── address search ────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
